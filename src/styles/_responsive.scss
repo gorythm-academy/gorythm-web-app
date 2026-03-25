@@ -1,0 +1,277 @@
+// =========== RESPONSIVE MEDIA QUERIES ===========
+// Single global responsive file. Desktop-first: base = desktop; overrides per viewport below.
+// Layout tokens and :root overrides live here; section-specific rules stay in section SCSS.
+@import 'breakpoints';
+
+// 1. XX-Large: 1680px and above (default already set)
+
+// 2. X-Large: Up to 1679px
+@media (max-width: $bp-xxl) {
+  :root {
+    --page-width: min(1290px, var(--page-width));
+    --page-boxed-extra: 40px;
+    --container-padding: 40px;
+    
+    // Font scaling
+    font-size: 15.5px;
+    
+    // Layout adjustments
+    --sidebar-width: 380px;
+    --grid-gap: 28px;
+  }
+  
+}
+
+// 3. Large: Up to 1439px
+@media (max-width: $bp-xl) {
+  :root {
+    --page-width: 1100px;
+    --page-boxed-extra: 40px;
+    --page-fullwide-extra: 40px;
+    --sidebar-width: 300px;
+    --container-padding: 40px;
+    
+    // Font scaling
+    font-size: 15px;
+    
+    // Spacing adjustments
+    --spacing-16: 56px;
+    --spacing-20: 72px;
+    --grid-gap: 25px;
+  }
+  
+  // Component adjustments
+  .hero-section {
+    height: 80vh;
+    min-height: 600px;
+  }
+  
+  h1, .front_page_section_caption {
+    font-size: 46px;
+    line-height: 1.1;
+  }
+  
+  h2 {
+    font-size: 36px;
+  }
+  
+  h3 {
+    font-size: 28px;
+  }
+}
+
+// 4. Medium: Up to 1279px
+@media (max-width: $bp-lg) {
+  :root {
+    --page-width: 100%;
+    --page-boxed-extra: 30px;
+    --page-fullwide-extra: 30px;
+    --sidebar-width: 300px;
+    --sidebar-gap-width: 30px;
+    --container-padding: 30px;
+    
+    // Font scaling
+    font-size: 14px;
+    
+    // Layout changes
+    --grid-gap: 20px;
+  }
+  
+  // Mobile menu becomes primary - Header.scss handles nav visibility
+  // Removed .desktop-nav rule - it was conflicting with Header's responsive rules
+  
+  // Typography adjustments
+  html, body {
+    font-size: 15px;
+  }
+  
+  h1 {
+    font-size: 40px;
+    line-height: 1.1;
+    letter-spacing: -1px;
+  }
+  
+  h2 {
+    font-size: 32px;
+  }
+  
+  h3 {
+    font-size: 26px;
+  }
+  
+  h4 {
+    font-size: 22px;
+  }
+  
+  // Layout adjustments
+  .container {
+    padding-left: var(--container-padding);
+    padding-right: var(--container-padding);
+  }
+  
+  // Grid system for tablet
+  .grid-col-1-tablet { grid-column: span 1; }
+  .grid-col-2-tablet { grid-column: span 2; }
+  .grid-col-3-tablet { grid-column: span 3; }
+  .grid-col-4-tablet { grid-column: span 4; }
+  .grid-col-5-tablet { grid-column: span 5; }
+  .grid-col-6-tablet { grid-column: span 6; }
+  .grid-col-7-tablet { grid-column: span 7; }
+  .grid-col-8-tablet { grid-column: span 8; }
+  .grid-col-9-tablet { grid-column: span 9; }
+  .grid-col-10-tablet { grid-column: span 10; }
+  .grid-col-11-tablet { grid-column: span 11; }
+  .grid-col-12-tablet { grid-column: span 12; }
+}
+
+// 5. Small: Up to 1023px (Tablet Portrait)
+@media (max-width: $bp-md) {
+  :root {
+    --container-padding: 25px;
+    --grid-gap: 18px;
+    
+    // Font scaling
+    font-size: 14px;
+  }
+  
+  // Sidebar becomes full-width
+  .sidebar {
+    width: 100%;
+    margin-bottom: var(--spacing-8);
+  }
+  
+  .content-with-sidebar {
+    flex-direction: column;
+  }
+  
+  // Hero adjustments
+  .hero-section {
+    height: 70vh;
+    min-height: 500px;
+    
+    h1 {
+      font-size: 36px;
+    }
+    
+    .hero-subtitle {
+      font-size: 18px;
+    }
+  }
+}
+
+// 6. X-Small: Up to 767px (Mobile Landscape)
+@media (max-width: $bp-sm) {
+  :root {
+    --container-padding: 20px;
+    --grid-gap: 16px;
+    --page-boxed-extra: 20px;
+    
+    // Font scaling
+    font-size: 13px;
+  }
+  
+  // Typography adjustments
+  h1 {
+    font-size: 32px;
+    line-height: 1.2;
+    margin-top: 0.8em;
+    margin-bottom: 0.5em;
+  }
+  
+  h2 {
+    font-size: 26px;
+    margin-top: 0.7em;
+    margin-bottom: 0.4em;
+  }
+  
+  h3 {
+    font-size: 22px;
+  }
+  
+  h4 {
+    font-size: 18px;
+  }
+  
+  // Layout adjustments
+  .container {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  
+  // Hide social sidebar on mobile
+  .social-sidebar-panel {
+    display: none;
+  }
+  
+  // Adjust header for mobile
+  .header {
+    padding: 15px 0;
+    
+    .header-logo {
+      max-width: 120px;
+    }
+  }
+  
+  // Button adjustments
+  .btn {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+}
+
+// 7. XX-Small: Up to 479px (Mobile Portrait)
+@media (max-width: $bp-xs) {
+  :root {
+    --container-padding: 15px;
+    --grid-gap: 12px;
+    
+    // Font scaling
+    font-size: 12.5px;
+  }
+  
+  h1 {
+    font-size: 28px;
+  }
+  
+  h2 {
+    font-size: 22px;
+  }
+  
+  // Single column layout
+  .grid-col-1-mobile { grid-column: span 1; }
+  .grid-col-2-mobile { grid-column: span 2; }
+  .grid-col-3-mobile { grid-column: span 3; }
+  .grid-col-4-mobile { grid-column: span 4; }
+  .grid-col-5-mobile { grid-column: span 5; }
+  .grid-col-6-mobile { grid-column: span 6; }
+  .grid-col-7-mobile { grid-column: span 7; }
+  .grid-col-8-mobile { grid-column: span 8; }
+  .grid-col-9-mobile { grid-column: span 9; }
+  .grid-col-10-mobile { grid-column: span 10; }
+  .grid-col-11-mobile { grid-column: span 11; }
+  .grid-col-12-mobile { grid-column: span 12; }
+  
+  // Full width for most elements
+  .full-width-mobile {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+// =========== PRINT STYLES ===========
+@media print {
+  .no-print {
+    display: none;
+  }
+  
+  body {
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+  
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+}

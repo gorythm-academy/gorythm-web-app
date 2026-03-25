@@ -1,0 +1,527 @@
+// Key Achievements Section – left: staggered images + pulse plus + popup; right: 03, eyebrow, title, description, CTA
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// ── Scroll-in animation (unchanged) ──────────────────────────────────────────
+@keyframes keyFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+// ── Plus icon blink (unchanged) ───────────────────────────────────────────────
+@keyframes keyPlusBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+// ── Pulse ring that radiates outward from the plus button ─────────────────────
+@keyframes plusPulse {
+  0%   { transform: scale(1);   opacity: 0.75; }
+  100% { transform: scale(2.2); opacity: 0;    }
+}
+
+// ── Initial hidden state for scroll-in elements ───────────────────────────────
+.key_anim {
+  opacity: 0;
+  transform: translateY(28px);
+  animation-fill-mode: both;
+}
+
+// ── Scroll-in triggers (unchanged timings) ────────────────────────────────────
+.key-achievements-section.key-achievements-inview {
+  .key-achievements-big-number   { animation: keyFadeUp 0.7s  ease-out 0.05s both; }
+  .key-achievements-eyebrow      { animation: keyFadeUp 0.6s  ease-out 0.15s both; }
+  .key-achievements-title        { animation: keyFadeUp 0.65s ease-out 0.25s both; }
+  .key-achievements-description  { animation: keyFadeUp 0.6s  ease-out 0.35s both; }
+  .key-achievements-cta          { animation: keyFadeUp 0.6s  ease-out 0.45s both; }
+  .key-achievements-img-wrap     { animation: keyFadeUp 0.7s  ease-out 0.2s  both; }
+  .key-achievements-img-wrap.key-achievements-img-2 { animation-delay: 0.35s; }
+}
+
+// =============================================================================
+// SECTION
+// =============================================================================
+
+.key-achievements-section {
+  padding: 40px 0 72px;
+  background: #000;
+  color: #fff;
+}
+
+// Two-column main grid: left = images, right = text
+// align-items: start so img1 tops at section top, img2 + right column start together
+.key-achievements-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--container-padding-horizontal, 20px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 80px;
+  align-items: start;     // everything starts at the top; margin-top on img2 + padding-top on right creates the stagger
+}
+
+// =============================================================================
+// LEFT COLUMN – two images side by side
+// img1: starts at section top (higher)
+// img2: pushed down by margin-top so its TOP aligns with right column's TOP
+// =============================================================================
+
+.key-achievements-left {
+  position: relative;
+}
+
+// Side-by-side image sub-grid – position: relative establishes stacking context so z-index between wraps works
+.key-achievements-images {
+  display: grid;
+  grid-template-columns: 45fr 55fr;
+  gap: 0 24px;
+  align-items: start;
+  position: relative;
+}
+
+// Shared wrap – overflow: visible so the plus button and popup are not clipped
+// z-index: 1 by default; elevated to 200 when its popup is open so it sits above the sibling image
+.key-achievements-img-wrap {
+  position: relative;
+  overflow: visible;
+  z-index: 1;
+
+  &.img-wrap--popup-open {
+    z-index: 200;
+  }
+
+  .key-achievements-img-inner {
+    overflow: hidden;
+    border-radius: 4px;
+    position: relative;
+    width: 100%;
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+      filter: grayscale(10%);
+      transition: filter 0.4s ease;
+    }
+  }
+
+  &:hover .key-achievements-img-inner img {
+    filter: grayscale(0%);
+  }
+}
+
+// ── Image 1 (milestone-img01) – starts at the TOP, taller portrait ────────────
+.key-achievements-img-1 {
+  align-self: start;
+  margin-top: 0;
+
+  .key-achievements-img-inner img {
+    aspect-ratio: 2 / 3;
+  }
+}
+
+// ── Image 2 (milestone-img02) – pushed DOWN; its top aligns with right column ──
+// Change this value (120px) if you need to tweak the alignment.
+.key-achievements-img-2 {
+  align-self: start;
+  margin-top: 120px;
+
+  .key-achievements-img-inner img {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+// =============================================================================
+// PLUS BUTTON – circular, white bg, black +, at bottom-left corner of each image
+// Has a pulsing ring that radiates outward
+// =============================================================================
+
+.key-achievements-plus {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.25s ease;
+
+  // Pulsing ring radiates outward from the button
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.89);
+    animation: plusPulse 2s ease-out infinite;
+    pointer-events: none;
+  }
+
+  &:hover {
+    background: #f0f0f0;
+  }
+}
+
+// The "+" character itself blinks
+.key-achievements-plus-icon {
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  color: #000;
+  animation: keyPlusBlink 2s ease-in-out infinite;
+  position: relative;
+  z-index: 1;
+}
+
+// =============================================================================
+// POPUP – white bg, black text, border all four sides, in front of images
+// =============================================================================
+
+.key-achievements-popup {
+  position: absolute;
+  left: 0;
+  bottom: 56px;
+  z-index: 10000;
+  width: min(300px, 90vw);
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+
+  strong {
+    display: block;
+    font-size: 0.95rem;
+    color: #000;
+    margin-bottom: 8px;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: #000;
+  }
+}
+
+// =============================================================================
+// RIGHT COLUMN – 03, eyebrow, title, description, CTA
+// padding-top matches img2's margin-top so right column starts parallel to img2
+// =============================================================================
+
+.key-achievements-right {
+  position: relative;
+  padding-top: 120px;   // must match .key-achievements-img-2 margin-top above
+}
+
+// Big "03" – in background of right column, positioned at the right edge (unchanged)
+.key-achievements-big-number {
+  position: absolute;
+  right: -0.05em;
+  left: auto;
+  top: 0.3em;
+  font-size: clamp(8rem, 16vw, 18rem);
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 190% 100% at 50% 25%,
+    rgba(160, 160, 170, 0.28) 0%,
+    rgba(136, 136, 148, 0.18) 35%,
+    rgba(17, 14, 14, 0.1) 65%,
+    rgba(34, 34, 34, 0) 85%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+// Portrait phones only: align "03" with the eyebrow text
+// Scoped to phones (≤767px) so tablets/desktops keep the base top: 0.3em
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  .key-achievements-big-number {
+    top: -0.17em;
+  }
+}
+
+.key-achievements-content {
+  position: relative;
+  z-index: 1;
+}
+
+.key-achievements-eyebrow {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 16px;
+}
+
+.key-achievements-title {
+  font-size: clamp(1.9rem, 3.4vw, 3rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  margin: 0 0 28px;
+}
+
+.key-achievements-description {
+  font-size: 1.08rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.75;
+  margin: 0 0 32px;
+  max-width: 420px;
+}
+
+// ── CTA button (hover unchanged) ─────────────────────────────────────────────
+.key-achievements-cta {
+  display: inline-block;
+  padding: 14px 32px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  text-decoration: none;
+  border: 2.5px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background: transparent;
+  transition: border-color 0.3s ease, background 0.3s ease, color 0.3s ease;
+
+  &:hover {
+    border-color: #fff;
+    background: #fff;
+    color: #000;
+  }
+}
+
+// =============================================================================
+// BREAKPOINTS
+// =============================================================================
+
+@media (max-width: $bp-section-lg) {
+  .key-achievements-inner { gap: 0 60px; padding: 0 30px; }
+}
+
+@media (max-width: $bp-section-md) {
+  .key-achievements-section { padding: 32px 0 56px; }
+
+  // Stack: images on top, text below
+  .key-achievements-inner {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+
+  // Restore stagger on tablet (images side by side, slight stagger)
+  .key-achievements-images {
+    grid-template-columns: 45fr 55fr;
+    gap: 0 20px;
+  }
+
+  .key-achievements-img-2  { margin-top: 80px; }
+
+  // Right column needs no top offset when stacked
+  .key-achievements-right  { padding-top: 0; }
+}
+
+// Mobile – parallel images, no stagger
+@media (max-width: $bp-section-sm) {
+  .key-achievements-section { padding: 28px 0 44px; }
+  .key-achievements-inner   { padding: 0 20px; }
+
+  .key-achievements-images {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  .key-achievements-img-1,
+  .key-achievements-img-2 {
+    margin-top: 0;
+  }
+
+  .key-achievements-img-1 .key-achievements-img-inner img,
+  .key-achievements-img-2 .key-achievements-img-inner img {
+    aspect-ratio: 3 / 4;
+  }
+
+  .key-achievements-right  { padding-top: 0; }
+  .key-achievements-title  { font-size: 1.7rem; }
+  .key-achievements-description { font-size: 1rem; max-width: 100%; }
+  .key-achievements-eyebrow { font-size: 0.8rem; }
+}
+
+@media (max-width: $bp-section-xs) {
+  .key-achievements-section { padding: 24px 0 38px; }
+  .key-achievements-big-number { font-size: clamp(6rem, 22vw, 10rem); }
+  .key-achievements-eyebrow  { font-size: 0.75rem; }
+  .key-achievements-title    { font-size: 1.5rem; }
+  .key-achievements-description { font-size: 0.98rem; }
+  .key-achievements-cta      { padding: 12px 24px; font-size: 0.82rem; }
+}
+
+@media (max-width: $bp-section-xxs) {
+  .key-achievements-section { padding: 20px 0 30px; }
+  .key-achievements-eyebrow  { font-size: 0.7rem; }
+  .key-achievements-title    { font-size: 1.4rem; }
+  .key-achievements-description { font-size: 0.92rem; }
+}
+
+@media (min-width: $bp-section-xl) {
+  .key-achievements-inner { gap: 0 100px; }
+  .key-achievements-title { font-size: 2.6rem; }
+}
+
+@media (min-width: $bp-section-xxl) {
+  .key-achievements-section { padding: 90px 0 100px; }
+  .key-achievements-eyebrow { font-size: 0.95rem; }
+  .key-achievements-title   { font-size: 3.25rem; }
+  .key-achievements-description { font-size: 1.15rem; }
+}
+
+// =============================================================================
+// ORIENTATION QUERIES
+// =============================================================================
+
+// Tablet landscape (768px–992px): restore two-column layout so images + text sit side by side
+@media (max-width: $bp-section-md) and (orientation: landscape) {
+  .key-achievements-inner {
+    grid-template-columns: 1fr 1fr; // restore side-by-side layout in landscape
+    gap: 0 60px;
+  }
+  .key-achievements-right { padding-top: 80px; } // partial stagger like desktop
+  .key-achievements-img-2 { margin-top: 80px; }
+  .key-achievements-image { height: 280px; } // shorter images for landscape viewport
+}
+
+// Mobile landscape (≤767px): keep images side by side, reduce vertical spacing
+@media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
+  .key-achievements-section { padding: 36px 0 52px; }
+  .key-achievements-inner   { gap: 0 32px; }
+  .key-achievements-title   { font-size: 1.5rem; }
+  .key-achievements-description { font-size: 0.95rem; }
+}
+
+// iPad Mini portrait: desktop two-column layout already applies (width > phone max).
+// Tune image stagger/heights, "03" position, and popup type size for narrow portrait.
+@media (min-width: $bp-ipad-mini-min) and (max-width: $bp-ipad-mini-max) and (orientation: portrait) {
+  .key-achievements-section {
+    padding-top: 12px; // pull section closer to Subscribe (base is 40px top)
+  }
+
+  .key-achievements-inner {
+    gap: 0 48px;
+    align-items: start;
+  }
+
+  .key-achievements-images {
+    gap: 0 18px;
+  }
+
+  // Push first (left) image slightly lower on narrow portrait
+  .key-achievements-img-1 {
+    margin-top: 38px;
+  }
+
+  // Keep img2 top aligned with right column (same relationship as desktop 120px, slightly tighter)
+  .key-achievements-img-2 {
+    margin-top: 96px;
+  }
+
+  .key-achievements-right {
+    padding-top: 96px;
+  }
+
+  .key-achievements-img-1 .key-achievements-img-inner img {
+    aspect-ratio: 2 / 3;
+    width: 100%;
+    max-height: 300px;
+    height: auto;
+    object-fit: cover;
+  }
+
+  .key-achievements-img-2 .key-achievements-img-inner img {
+    aspect-ratio: 3 / 4;
+    width: 100%;
+    max-height: 280px;
+    height: auto;
+    object-fit: cover;
+  }
+
+  .key-achievements-big-number {
+    top: 0.6em; // lower "03" vs previous iPad-mini tweak
+    right: 0;
+    left: auto;
+    font-size: clamp(7rem, 15vw, 11rem);
+  }
+
+  .key-achievements-popup {
+    width: min(320px, 86vw);
+    padding: 20px 22px;
+
+    strong {
+      font-size: 1.12rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 1.02rem;
+      line-height: 1.6;
+    }
+  }
+}
+
+// Mobile portrait (≤767px): larger title and description for readability in portrait
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  // Keep popup fully visible on portrait phones.
+  .key-achievements-popup {
+    width: min(240px, calc(100vw - 28px));
+    max-width: calc(100vw - 28px);
+    bottom: 44px;
+    padding: 14px 16px;
+
+    strong {
+      font-size: 1.6rem; // larger popup heading on portrait phones
+      margin-bottom: 6px;
+    }
+
+    p {
+      font-size: 1.4rem; // larger popup body text for readability
+      line-height: 1.55;
+    }
+  }
+
+  // Left image popup: anchor to left edge.
+  .key-achievements-img-1 .key-achievements-popup {
+    left: 0;
+    right: auto;
+  }
+
+  // Right image popup: anchor to right edge to prevent right-side overflow.
+  .key-achievements-img-2 .key-achievements-popup {
+    right: 0;
+    left: auto;
+  }
+
+  .key-achievements-title       { font-size: 2rem; margin-bottom: 14px; }
+  .key-achievements-description { font-size: 1.4rem; line-height: 1.8; margin-bottom: 16px; }
+  .key-achievements-eyebrow     { font-size: 1.2rem; margin-bottom: 8px; }
+  .key-achievements-cta {
+    font-size: 1.2rem;
+    padding: 14px 28px;
+  }
+}
+

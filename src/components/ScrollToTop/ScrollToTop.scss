@@ -1,0 +1,54 @@
+.scroll-to-top {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  color: #000;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: color 0.3s ease, background 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(255, 107, 107, 0.36);
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: #fff;
+  }
+
+  &.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    background: #fff;
+    color: #000;
+  }
+
+  &.visible:hover {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: #fff;
+  }
+
+  &:active {
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    bottom: 20px;
+    right: 20px;
+    width: 45px;
+    height: 45px;
+    font-size: 1.3rem;
+  }
+}

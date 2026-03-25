@@ -1,0 +1,158 @@
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Header from './components/Header/Header';
+import FooterSimple from './components/Footer/FooterSimple';
+import HeroSection from './components/HomeSections/Hero';
+import AboutSection from './components/HomeSections/About';
+import MissionSection from './components/HomeSections/Mission';
+import VideoSection from './components/HomeSections/Video';
+import MarqueeSection from './components/HomeSections/Marquee';
+import CoursesSection from './components/HomeSections/Courses';
+import { PortfolioPage, PortfolioItemPage } from './components/Pages/PortfolioPages';
+import BlogMainPage from './components/Pages/BlogMainPage';
+import BlogCategory from './components/Pages/BlogCategory';
+import SingleBlogPostPage from './components/Pages/SingleBlogPostPage';
+import SubscribeSection from './components/HomeSections/Subscribe';
+import KeyAchievementsSection from './components/HomeSections/KeyAchievements';
+import BlogSection from './components/HomeSections/BlogSection';
+import SocialSidebar from './components/SocialSidebar/SocialSidebar';
+import SmoothScroll from './components/SmoothScroll/SmoothScroll';
+import DashboardLayout from './components/Admin/DashboardLayout';
+import DashboardHome from './components/Admin/DashboardHome';
+import Cursor from './components/Cursor/Cursor';
+import ScrollToTop from './components/ScrollToTop/ScrollToTop';
+// Side icon: floating WhatsApp button fixed on the left of the viewport
+// import WhatsAppFloat from './components/WhatsAppFloat/WhatsAppFloat';
+import './styles/App.scss';
+
+// Import new page components
+import AllCourses from './components/Pages/AllCourses';
+import { SingleCourse } from './components/Pages/SingleCourse';
+import Login from './components/Pages/Login';
+import AboutPage from './components/Pages/AboutPage';
+import ContactPage from './components/Pages/ContactPage';
+import {
+  SatelliteMaintenancePage,
+  ExplorationMissionsPage,
+  ResearchObservationPage,
+} from './components/Pages/MissionPages';
+
+// Import Admin Login component
+import AdminLogin from './components/Admin/backend/Login';
+
+// Import Admin Management Components
+import UsersManagement from './components/Admin/backend/UsersManagement';
+import CoursesManagement from './components/Admin/backend/CoursesManagement';
+import PaymentsManagement from './components/Admin/backend/PaymentsManagement';
+import Analytics from './components/Admin/backend/Analytics';
+import Settings from './components/Admin/backend/Settings';
+import EnrollmentsManagement from './components/Admin/backend/EnrollmentsManagement';
+import PaymentGateway from './components/Admin/backend/PaymentGateway';
+
+
+const Home = () => {
+  return (
+    <div className="front_page">
+      {/* Hero Section - Full width, not constrained */}
+      <HeroSection />
+      
+      {/* Other sections */}
+      <AboutSection />
+      <MissionSection />
+      <VideoSection />
+      <MarqueeSection />
+      <CoursesSection />
+      <SubscribeSection />
+      <KeyAchievementsSection />
+      <BlogSection />
+    </div>
+  );
+};
+
+function AppLayout() {
+  const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  return (
+    <SmoothScroll>
+      <div className={`academy-app ${isAdminRoute ? 'admin-route' : ''}`}>
+        <Cursor />
+         
+          {/* Header is already correctly positioned here */}
+          <Header toggleSidebar={toggleSidebar} />
+          
+          {/* Pass state and close function to Sidebar */}
+          <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          {/* Side icon: floating WhatsApp button fixed on the left of the viewport */}
+          {/* <WhatsAppFloat /> */}
+	  
+          <ScrollToTop />
+          
+          <main className="main-content">
+            <Routes key={location.pathname}>
+              {/* Public Routes */}
+              <Route path="/" element={<Home />} />
+              <Route path="/courses" element={<AllCourses />} />
+              <Route path="/courses/:slug" element={<SingleCourse />} />
+              <Route path="/payment" element={<PaymentGateway />} />
+              <Route path="/instructors" element={<div className="content-container"><h1>Instructors</h1><p>Page content.</p></div>} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/schedule" element={<ContactPage />} />
+
+              {/* Mission detail pages */}
+              <Route path="/mission/satellite-maintenance" element={<SatelliteMaintenancePage />} />
+              <Route path="/mission/exploration-missions" element={<ExplorationMissionsPage />} />
+              <Route path="/mission/research-and-observation" element={<ResearchObservationPage />} />
+
+              {/* Portfolio pages */}
+              <Route path="/portfolio" element={<PortfolioPage />} />
+              <Route path="/portfolio/:slug" element={<PortfolioItemPage />} />
+
+              {/* Blog: main listing, category view, single post */}
+              <Route path="/blog/category/:categorySlug" element={<BlogCategory />} />
+              <Route path="/blog/:slug" element={<SingleBlogPostPage />} />
+              <Route path="/blog" element={<BlogMainPage />} />
+              
+              {/* Admin Login Route */}
+              <Route path="/admin/login" element={<AdminLogin />} />
+              
+              {/* Protected Admin Routes */}
+                <Route path="/admin/*" element={<DashboardLayout />}>
+                <Route index element={<DashboardHome />} />
+                <Route path="dashboard" element={<DashboardHome />} />
+                <Route path="users" element={<UsersManagement />} />
+                <Route path="courses" element={<CoursesManagement />} />
+                <Route path="assignments" element={<div>Assignments Management</div>} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="settings" element={<Settings />} />
+		<Route path="payments" element={<PaymentsManagement />} />
+		<Route path="enrollments" element={<EnrollmentsManagement />} />               
+	
+	      </Route>
+              
+              {/* Redirect to home */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </main>
+          <FooterSimple />
+        </div>
+      </SmoothScroll>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="*" element={<AppLayout />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

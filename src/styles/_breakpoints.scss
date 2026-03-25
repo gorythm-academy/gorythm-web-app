@@ -1,0 +1,44 @@
+// =========== RESPONSIVE BREAKPOINTS (Single source of truth) ===========
+// Desktop-first: base styles target desktop; overrides apply at max-width below.
+// Use these SCSS variables in @media and mixins (CSS custom properties cannot be used in @media).
+//
+// Global/Header/Footer (_responsive.scss, _mixins respond-to):
+// ---------------------------------------------------------------------------
+$bp-xxl: 1679px;
+$bp-xl: 1439px;
+$bp-lg: 1279px;
+$bp-md: 1023px;
+$bp-sm: 767px;
+$bp-xs: 479px;
+$bp-xxxl-min: 1680px;
+
+// Section breakpoints (HomeSections – same visual layout, use these in section SCSS):
+// ---------------------------------------------------------------------------
+$bp-section-xxl: 1920px;
+$bp-section-xl: 1440px;
+$bp-section-lg: 1280px;
+// Phone-only upper bound (CSS px). Must be the same for md + sm or iPad Mini portrait breaks:
+// iPad Mini is ~744px wide — rules with max-width: 768px were still applying and hiding desktop layout.
+// Viewports ≤743px: mobile/stacked HomeSections + pages using these tokens. ≥744px: desktop structure (all iPads).
+$bp-section-phone-max: 743px;
+$bp-section-md: $bp-section-phone-max;
+$bp-section-sm: $bp-section-phone-max;
+$bp-section-xs: 480px;
+$bp-section-xxs: 375px;
+$bp-section-xxxs: 360px;   // S8 / S8+ portrait
+$bp-section-3xs: 320px;    // iPhone SE (1st gen) portrait
+$bp-section-landscape-se: 568px; // iPhone SE 1st gen landscape width
+
+// “Small iPad” portrait tweaks (Mini 6 = 744px, Mini 4/5 & many simulators = 768px).
+// Max 768 stays below iPad Air / iPad 10 (820px) so larger iPads are unchanged.
+$bp-ipad-mini-min: 744px;
+$bp-ipad-mini-max: 768px;
+
+// Optional second branch for @media lists: fold / dual-pane (OR with max-width). Used by Video.scss.
+$media-dual-screen-span: '(horizontal-viewport-segments: 2), (vertical-viewport-segments: 2)';
+
+// HeroSection-specific (preserve exact layout)
+$bp-hero-1200: 1200px;
+$bp-hero-1400: 1400px;
+$bp-hero-1600: 1600px;
+$bp-hero-2000: 2000px;

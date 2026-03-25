@@ -1,0 +1,37 @@
+// =========== FONT FACE DECLARATIONS ===========
+// Using sofia-pro and europa fonts
+
+// Sofia Pro (Primary font - used for headings)
+@font-face {
+  font-family: 'sofia-pro';
+  src: url('https://use.typekit.net/af/08f85e/00000000000000007735a144/30/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n5&v=3') format('woff2'),
+       url('https://use.typekit.net/af/08f85e/00000000000000007735a144/30/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n5&v=3') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+// Europa (Secondary font - used for body)
+@font-face {
+  font-family: 'europa';
+  src: url('https://use.typekit.net/af/edb647/00000000000000007735a14c/30/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n3&v=3') format('woff2'),
+       url('https://use.typekit.net/af/edb647/00000000000000007735a14c/30/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n3&v=3') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+// Fallback font stack
+$font-fallback: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+// Apply fonts
+body {
+  font-family: 'europa', $font-fallback;
+  font-weight: 300;
+}
+
+h1, h2, h3, h4, h5, h6,
+.btn, .menu-item, .logo {
+  font-family: 'sofia-pro', $font-fallback;
+  font-weight: 500;
+}

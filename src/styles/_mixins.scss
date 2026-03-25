@@ -1,0 +1,121 @@
+// =========== RESPONSIVE MIXINS ===========
+// Desktop-first: base styles = desktop; respond-to = max-width overrides for smaller viewports.
+@import 'breakpoints';
+
+// Media query mixins (use global breakpoint variables)
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == 'xs' {
+    @media (max-width: $bp-xs) { @content; }
+  } @else if $breakpoint == 'sm' {
+    @media (max-width: $bp-sm) { @content; }
+  } @else if $breakpoint == 'md' {
+    @media (max-width: $bp-md) { @content; }
+  } @else if $breakpoint == 'lg' {
+    @media (max-width: $bp-lg) { @content; }
+  } @else if $breakpoint == 'xl' {
+    @media (max-width: $bp-xl) { @content; }
+  } @else if $breakpoint == 'xxl' {
+    @media (max-width: $bp-xxl) { @content; }
+  } @else if $breakpoint == 'xxxl' {
+    @media (min-width: $bp-xxxl-min) { @content; }
+  }
+}
+
+// Responsive container mixin
+@mixin responsive-container($type: 'default') {
+  @if $type == 'boxed' {
+    max-width: calc(var(--page-width) + (var(--page-boxed-extra) * 2));
+    margin: 0 auto;
+    padding-left: var(--page-boxed-extra);
+    padding-right: var(--page-boxed-extra);
+  } @else if $type == 'fullwidth' {
+    max-width: var(--page-fullwide-max);
+    margin: 0 auto;
+    padding-left: var(--page-fullwide-extra);
+    padding-right: var(--page-fullwide-extra);
+  } @else {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding-left: var(--container-padding);
+    padding-right: var(--container-padding);
+  }
+}
+
+// Grid system mixin
+@mixin responsive-grid($columns: 12, $gap: var(--grid-gap)) {
+  display: grid;
+  grid-template-columns: repeat($columns, 1fr);
+  gap: $gap;
+}
+
+// Responsive typography mixin
+@mixin responsive-typography($size-map) {
+  font-size: map-get($size-map, 'base');
+  
+  @include respond-to('xxl') {
+    font-size: map-get($size-map, 'xxl');
+  }
+  
+  @include respond-to('xl') {
+    font-size: map-get($size-map, 'xl');
+  }
+  
+  @include respond-to('lg') {
+    font-size: map-get($size-map, 'lg');
+  }
+  
+  @include respond-to('md') {
+    font-size: map-get($size-map, 'md');
+  }
+  
+  @include respond-to('sm') {
+    font-size: map-get($size-map, 'sm');
+  }
+  
+  @include respond-to('xs') {
+    font-size: map-get($size-map, 'xs');
+  }
+}
+
+// Hide/show mixins
+@mixin hide-on($breakpoint) {
+  @include respond-to($breakpoint) {
+    display: none;
+  }
+}
+
+@mixin show-on($breakpoint) {
+  display: none;
+  
+  @include respond-to($breakpoint) {
+    display: block;
+  }
+}
+
+// Mobile menu animation
+@mixin mobile-menu-animation {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @include respond-to('lg') {
+    transform: translateX(-100%);
+    &.active {
+      transform: translateX(0);
+    }
+  }
+}
+
+// Sticky header
+@mixin sticky-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  
+  &.scrolled {
+    backdrop-filter: blur(10px);
+    background: rgba(var(--color-bg), 0.95);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  }
+}

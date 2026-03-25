@@ -1,0 +1,261 @@
+// =========== HEADER SOCIAL DOTS ===========
+
+// Variables for social dots
+$social-dot-size: 10px;
+$social-dot-gap: 18px;
+$social-dot-color: var(--color-text-light);
+$social-dot-active-color: var(--color-primary);
+$social-dot-hover-color: var(--color-primary);
+$social-dot-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+// Main container
+.header-social-dots {
+  position: fixed;
+  top: 50%;
+  left: 30px;
+  transform: translateY(-50%);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $social-dot-gap;
+
+  // Style: dots with connecting line
+  &::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, $social-dot-color);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to top, transparent, $social-dot-color);
+  }
+}
+
+// Individual social dot
+.social-dot {
+  position: relative;
+  width: $social-dot-size;
+  height: $social-dot-size;
+  border-radius: 50%;
+  background-color: $social-dot-color;
+  cursor: pointer;
+  transition: $social-dot-transition;
+  opacity: 0.6;
+
+  // Hover effect
+  &:hover {
+    background-color: $social-dot-hover-color;
+    opacity: 1;
+    transform: scale(1.4);
+    /* use CSS rgb var for alpha-safe color */
+    box-shadow: 0 0 0 4px rgba(var(--color-accent-rgb), 0.12);
+  }
+
+  // Active state
+  &.active {
+    background-color: $social-dot-active-color;
+    opacity: 1;
+    transform: scale(1.6);
+    box-shadow: 0 0 0 6px rgba(var(--color-accent-rgb), 0.18);
+  }
+
+  // Tooltip on hover (Social media name)
+  &::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--font-secondary);
+    font-weight: 400;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  &:hover::after {
+    opacity: 1;
+    visibility: visible;
+    left: 35px;
+  }
+}
+
+// Specific social media colors (if you want to differentiate)
+.social-dot[data-social="facebook"] {
+  &:hover, &.active {
+    background-color: #1877F2; // Facebook blue
+  }
+}
+
+.social-dot[data-social="twitter"] {
+  &:hover, &.active {
+    background-color: #1DA1F2; // Twitter blue
+  }
+}
+
+.social-dot[data-social="instagram"] {
+  &:hover, &.active {
+    background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%);
+  }
+}
+
+.social-dot[data-social="linkedin"] {
+  &:hover, &.active {
+    background-color: #0077B5; // LinkedIn blue
+  }
+}
+
+.social-dot[data-social="youtube"] {
+  &:hover, &.active {
+    background-color: #FF0000; // YouTube red
+  }
+}
+
+.social-dot[data-social="github"] {
+  &:hover, &.active {
+    background-color: #333; // GitHub black
+  }
+}
+
+// =========== RESPONSIVE STYLES ===========
+
+// Hide on tablet and mobile
+@media (max-width: 1279px) {
+  .header-social-dots {
+    display: none;
+  }
+}
+
+// Adjust position for large screens
+@media (min-width: 1680px) {
+  .header-social-dots {
+    left: 50px;
+  }
+}
+
+// Adjust position for medium screens
+@media (max-width: 1439px) and (min-width: 1280px) {
+  .header-social-dots {
+    left: 25px;
+    gap: 15px;
+  }
+}
+
+// Smooth entrance animation
+@keyframes dot-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 0.6;
+    transform: translateX(0);
+  }
+}
+
+// Apply animation to dots
+.social-dot {
+  animation: dot-appear 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  
+  &:nth-child(1) { animation-delay: 0.1s; }
+  &:nth-child(2) { animation-delay: 0.2s; }
+  &:nth-child(3) { animation-delay: 0.3s; }
+  &:nth-child(4) { animation-delay: 0.4s; }
+  &:nth-child(5) { animation-delay: 0.5s; }
+}
+
+// Dark mode support
+[data-theme="dark"] .header-social-dots,
+.scheme_dark .header-social-dots {
+  &::before,
+  &::after {
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.3));
+  }
+
+  .social-dot {
+    background-color: rgba(255, 255, 255, 0.4);
+    
+    &:hover {
+      background-color: var(--color-primary);
+    }
+    
+    &.active {
+      background-color: var(--color-primary);
+    }
+    
+    &::after {
+      background: rgba(255, 255, 255, 0.9);
+      color: #000;
+    }
+  }
+}
+
+// Light mode specific
+[data-theme="light"] .header-social-dots,
+.scheme_light .header-social-dots {
+  &::before,
+  &::after {
+    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.3));
+  }
+
+  .social-dot::after {
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+  }
+}
+
+// Print styles - hide when printing
+@media print {
+  .header-social-dots {
+    display: none;
+  }
+}
+
+// Reduced motion preference
+@media (prefers-reduced-motion: reduce) {
+  .social-dot {
+    animation: none;
+    transition: none;
+    
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+// Touch device optimizations
+@media (hover: none) and (pointer: coarse) {
+  .header-social-dots {
+    gap: 22px; // Larger gap for touch
+    
+    .social-dot {
+      width: 12px;
+      height: 12px;
+      
+      &:active {
+        transform: scale(1.6);
+      }
+    }
+  }
+}

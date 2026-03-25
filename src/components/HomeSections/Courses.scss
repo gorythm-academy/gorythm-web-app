@@ -1,0 +1,613 @@
+// Courses Section (landing) – sticky left + independently-scrolling right masonry
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// Scroll-triggered animation (same pattern as About, KeyAchievements, Blog)
+@keyframes coursesSectionFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+// Initial hidden state for elements that animate on scroll
+.courses-section_anim,
+.courses-section-big-number {
+  opacity: 0;
+  transform: translateY(28px);
+  animation-fill-mode: both;
+}
+
+// When section is in view: run staggered fade-up (delayed slightly so section is settled)
+.courses-section.courses-section-inview {
+  .courses-section-big-number   { animation: coursesSectionFadeUp 0.5s  ease-out 0.15s both; }
+  .courses-section-title        { animation: coursesSectionFadeUp 0.65s ease-out 0.28s both; }
+  .courses-section-title-line   { animation: coursesSectionFadeUp 0.6s  ease-out 0.38s both; }
+  .courses-section-description  { animation: coursesSectionFadeUp 0.6s  ease-out 0.48s both; }
+  .courses-section-cta          { animation: coursesSectionFadeUp 0.6s  ease-out 0.58s both; }
+  .courses-section-item         { animation: coursesSectionFadeUp 0.6s  ease-out both; }
+  // Staggered delays for masonry cards
+  @for $i from 1 through 12 {
+    .courses-section-item:nth-child(#{$i}) {
+      animation-delay: #{0.38 + ($i - 1) * 0.07}s;
+    }
+  }
+}
+
+.courses-section {
+  background: #000;
+  color: #fff;
+  padding: 0;
+  overflow: hidden;
+}
+
+.courses-section-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+  align-items: start;
+}
+
+.courses-section-left {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.courses-section-left-sticky {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 80px 48px 80px 44px;
+  background: #141414;
+}
+
+.courses-section-left-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 1;
+}
+
+.courses-section-big-number {
+  position: absolute;
+  top: -0.17em;
+  left: 0.4em;
+  right: auto;
+  font-size: clamp(8rem, 16vw, 18rem);
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 190% 100% at 50% 25%,
+    rgba(160, 160, 170, 0.28) 0%,
+    rgba(136, 136, 148, 0.18) 35%,
+    rgba(17, 14, 14, 0.1) 65%,
+    rgba(34, 34, 34, 0) 85%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+// Portrait: center the big number horizontally and move it slightly lower
+@media (orientation: portrait) {
+  .courses-section-big-number {
+    top: 2rem; // move "02" a bit lower in portrait
+    left: 30%;
+    right: auto;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+}
+
+.courses-section-title {
+  font-size: clamp(1.9rem, 4.2vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 70px 0 5px;
+  max-width: 80%;
+}
+
+.courses-section-title-line {
+  display: block;
+  width: 100%;
+  max-width: 40%;
+  height: auto;
+  margin: 0 0 32px;
+  object-fit: contain;
+  object-position: left top;
+}
+
+.courses-section-left-footer {
+  text-align: left;
+  margin-left: 0; // align description + CTA start with title
+  max-width: 350px;
+}
+
+.courses-section-description {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.7;
+  margin: 0 0 28px;
+  max-width: 100%;
+}
+
+.courses-section-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  transition: gap 0.3s ease;
+
+  &:hover {
+    gap: 16px;
+    .courses-section-cta-arrow { transform: translateX(0px); }
+  }
+}
+
+.courses-section-cta-arrow {
+  display: inline-block;
+  transition: transform 0.3s ease;
+  font-size: 1.2rem;
+}
+
+.courses-section-right {
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 32px 80px 0;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.courses-section-loading {
+  padding: 2rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.courses-section-empty {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+  .courses-section-empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+  .courses-section-empty-desc {
+    margin: 0 0 1.25rem;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.6);
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .courses-section-empty-btn {
+    padding: 0.5rem 1.25rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background 0.2s, border-color 0.2s;
+    &:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+  }
+}
+
+.courses-section-masonry {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+  align-items: start;
+}
+
+.courses-section-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.courses-section-item {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.courses-section-item-img-wrap {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.22) 100%);
+    pointer-events: none;
+  }
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.82);
+    transition: transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+}
+
+.courses-section-item:hover .courses-section-item-img-wrap img {
+  transform: scale(1.04);
+}
+
+.courses-section-item-caption {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 0;
+  padding: 14px 0 0;
+}
+
+.courses-section-item-copy { max-width: 92%; }
+
+.courses-section-item-category {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.courses-section-item-title {
+  margin: 0 0 10px;
+  font-size: 1.18rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.courses-section-item-description {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.98rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.courses-section-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.courses-section-item-price {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.courses-section-item-duration,
+.courses-section-item-audience {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.courses-section-item-arrow {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1rem;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.courses-section-item:hover .courses-section-item-arrow {
+  transform: translateX(4px);
+  color: #fff;
+}
+
+// Desktop (993px–1440px): taller section so Contact Us is visible; both columns same height.
+// Applies to typical desktop/laptop widths. Larger (>1440px) use base 100vh. Tablet/mobile (≤992px) use overrides below.
+@media (min-width: #{$bp-section-md + 1}) and (max-width: $bp-section-xl) {
+  .courses-section-inner {
+    align-items: stretch;
+  }
+  .courses-section-left {
+    height: 135vh;
+    min-height: 135vh;
+  }
+  .courses-section-right {
+    height: 135vh;
+    max-height: 135vh;
+  }
+}
+
+// iPad Mini portrait: desktop-like titles + equal column heights; masonry scrolls inside right column
+// (CSS min() written as unquoted string so Sass does not evaluate its own min().)
+@media (min-width: $bp-ipad-mini-min) and (max-width: $bp-ipad-mini-max) and (orientation: portrait) {
+  .courses-section-inner {
+    align-items: stretch;
+  }
+
+  // Decorative "02" like desktop (undo global portrait centering)
+  .courses-section-big-number {
+    top: -0.17em;
+    left: 0.4em;
+    right: auto;
+    transform: none;
+    text-align: left;
+  }
+
+  .courses-section-title {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .courses-section-title-line {
+    max-width: 55%;
+    width: 100%;
+    margin-bottom: 28px;
+  }
+
+  .courses-section-left-footer {
+    max-width: 100%;
+  }
+
+  // Shared column height — compact masonry; left/right match
+  .courses-section-left {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: #{"min(84dvh, 650px)"};
+    min-height: #{"min(84dvh, 650px)"};
+    max-height: #{"min(84dvh, 650px)"};
+    display: flex;
+    align-items: center;
+    justify-content: stretch;
+  }
+
+  // Match desktop: no inner scroll on left — only .courses-section-right scrolls (see base .courses-section-left-sticky)
+  .courses-section-left-sticky {
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    display: block;
+    overflow: visible;
+    overflow-y: visible;
+  }
+
+  .courses-section-right {
+    height: #{"min(84dvh, 650px)"};
+    min-height: #{"min(84dvh, 650px)"};
+    max-height: #{"min(84dvh, 650px)"};
+   align-self: start;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+    padding: 0 24px 20px 0;
+  }
+}
+
+@media (max-width: $bp-section-lg) {
+  .courses-section-inner { gap: 0 24px; }
+  .courses-section-title-line { margin-bottom: 28px; }
+}
+
+@media (max-width: $bp-section-md) {
+  .courses-section-inner {
+    grid-template-columns: 1fr;
+    gap: 20px 0;
+  }
+  .courses-section-left {
+    position: static;
+    height: auto;
+    align-items: flex-start;
+  }
+  .courses-section-left-sticky {
+    padding: 60px 32px 40px;
+  }
+  .courses-section-title-line { margin-bottom: 24px; }
+  .courses-section-right {
+    max-height: none;
+    overflow-y: visible;
+    padding: 0 0 80px;
+  }
+  .courses-section-masonry {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .courses-section-column { gap: 20px; }
+  .courses-section-column + .courses-section-column { margin-top: 20px; }
+}
+
+// Portrait: let the left section span full screen width (no inner padding)
+@media (max-width: $bp-section-md) and (orientation: portrait) {
+  .courses-section-inner {
+    padding: 0;
+  }
+  .courses-section-left-sticky {
+    padding-top: 40px; // reduce upper whitespace in portrait
+    padding-bottom: 32px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .courses-section-right {
+    padding-bottom: 36px; // reduce end-of-section whitespace before Subscribe in portrait
+  }
+  .courses-section-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+}
+
+// Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
+@media (max-width: $bp-section-md) and (orientation: landscape) {
+  .courses-section-big-number {
+    top: 0.05em; // lower "02" slightly in landscape
+  }
+
+  .courses-section-title {
+    max-width: 100%; // wider title area in landscape
+  }
+
+  .courses-section-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
+  .courses-section-inner {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 32px;
+    align-items: stretch;
+  }
+  .courses-section-left {
+    position: sticky;
+    top: 0;
+    height: 165vh;
+    height: 165dvh;
+    min-height: 165vh;
+    min-height: 165dvh;
+    align-items: center;
+  }
+  .courses-section-right {
+    height: 165vh;
+    height: 165dvh;
+    max-height: 165vh;
+    max-height: 165dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 32px 80px 0;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  .courses-section-masonry {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+  }
+  .courses-section-column {
+    gap: 16px;
+  }
+  .courses-section-column + .courses-section-column {
+    margin-top: 0;
+  }
+}
+
+// ≤768px: typography/padding for all orientations. Do NOT force single-column masonry here —
+// that would override the two-column masonry from the $bp-section-md landscape block on
+// phones like S8+ (740×360) and iPhone SE (667×375) where width is still ≤768px.
+@media (max-width: $bp-section-sm) {
+  .courses-section-inner {
+    padding: 0 20px;
+    gap: 20px 0;
+  }
+  .courses-section-big-number { font-size: clamp(6rem, 22vw, 10rem); }
+  .courses-section-left-sticky {
+    padding: 48px 24px 32px;
+  }
+  .courses-section-title-line { max-width: 260px; margin-bottom: 20px; }
+  .courses-section-description { max-width: 100%; }
+}
+
+// Portrait only: single-column masonry (landscape keeps 1fr 1fr from md+landscape above).
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .courses-section-masonry {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Small phone landscape (≤768px): tighten padding; re-assert two-column masonry so it wins
+// over any same-specificity rules and matches wider mobile landscape behavior.
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
+  .courses-section-inner {
+    gap: 0 24px;
+    padding: 0 16px;
+  }
+  .courses-section-left-sticky {
+    padding: 40px 20px 32px;
+  }
+  .courses-section-right {
+    padding: 0 24px 64px 0;
+  }
+  .courses-section-masonry {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+  }
+}
+
+// Mobile portrait: increase Courses typography for readability
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  .courses-section-inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .courses-section-title {
+    font-size: clamp(2.5rem, 8.2vw, 3.4rem);
+    line-height: 1.18;
+    max-width: 100%;
+  }
+
+  .courses-section-description {
+    font-size: 1.5rem;
+    line-height: 1.75;
+  }
+
+  .courses-section-cta {
+    font-size: 1.2rem;
+    letter-spacing: 0.06em;
+  }
+
+  .courses-section-item-category {
+    font-size: 1.1rem;
+  }
+
+  .courses-section-item-title {
+    font-size: 1.75rem;
+    line-height: 1.35;
+  }
+
+  .courses-section-item-description {
+    font-size: 1.3rem;
+    line-height: 1.65;
+  }
+
+  .courses-section-item-price {
+    font-size: 1.55rem;
+  }
+
+  .courses-section-item-duration,
+  .courses-section-item-audience {
+    font-size: 1.2rem;
+  }
+}

@@ -1,0 +1,107 @@
+// MarqueeSection – infinitely scrolling large text ticker
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// The track slides from translateX(0) to translateX(-50%) continuously.
+// Because the track contains 2× the text, -50% brings you back to the exact
+// start, making the loop seamless with no jump.
+// Change the duration in .marquee-track below to control speed.
+@keyframes marqueeScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+// =============================================================================
+// BASE
+// =============================================================================
+
+.marquee-section {
+  width: 100%;
+  overflow: hidden;           // clip anything outside the viewport
+  background: #000;
+  padding: 5% 0;            // vertical breathing room – change to taste
+  user-select: none;
+  pointer-events: none;       // decorative only
+}
+
+// Flex row of text items – wider than viewport so scroll is visible
+.marquee-track {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;         // as wide as all items need
+  will-change: transform;
+
+  // Speed: 65s per full loop – increase for slower, decrease for faster
+  animation: marqueeScroll 150s linear infinite;
+
+  // Pause on reduced-motion preference
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+// Individual text item
+.marquee-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+
+  // Big text – clamp keeps it responsive: min 3rem, preferred 8vw, max 7rem
+  font-size: clamp(3rem, 8vw, 7rem);
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: #fff;
+
+  // Right padding between repetitions
+  padding-right: clamp(1.5rem, 4vw, 4rem);
+}
+
+// Dot separator between each text repetition
+.marquee-dot {
+  display: inline-block;
+  margin: 0 clamp(1rem, 2.5vw, 2.5rem);
+  font-size: 0.6em;           // smaller than the text
+  opacity: 0.6;
+  vertical-align: middle;
+}
+
+// =============================================================================
+// BREAKPOINTS
+// =============================================================================
+
+// Slightly reduce vertical padding on tablet
+@media (max-width: $bp-section-md) {
+  .marquee-section { padding: 24px 0; }
+}
+
+// Mobile – tighter padding, keep the same slower pace
+@media (max-width: $bp-section-sm) {
+  .marquee-section { padding: 20px 0; }
+  .marquee-track   { animation-duration: 50s; }
+}
+
+// Small mobile
+@media (max-width: $bp-section-xs) {
+  .marquee-section { padding: 16px 0; }
+  .marquee-track   { animation-duration: 42s; }
+}
+
+// Extra small
+@media (max-width: $bp-section-xxs) {
+  .marquee-section { padding: 12px 0; }
+  .marquee-track   { animation-duration: 36s; }
+}
+
+// Large screens – give it a bit more padding room
+@media (min-width: $bp-section-xl) {
+  .marquee-section { padding: 40px 0; }
+  .marquee-track   { animation-duration: 75s; }
+}
+
+// Ultra-wide
+@media (min-width: $bp-section-xxl) {
+  .marquee-section { padding: 48px 0; }
+  .marquee-track   { animation-duration: 85s; }
+}

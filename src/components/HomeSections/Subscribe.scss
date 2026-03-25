@@ -1,0 +1,392 @@
+// Subscribe Section – one row: headline | email + privacy | Subscribe button
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// Scroll-triggered animation (same as About section)
+@keyframes subscribeFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.subscribe_anim {
+  opacity: 0;
+  transform: translateY(28px);
+  animation-fill-mode: both;
+}
+
+.subscribe-section.subscribe-inview {
+  .subscribe-headline { animation: subscribeFadeUp 0.7s ease-out 0.05s both; }
+  .subscribe-form-wrap { animation: subscribeFadeUp 0.6s ease-out 0.2s both; }
+  .subscribe-btn-wrap  { animation: subscribeFadeUp 0.6s ease-out 0.35s both; }
+}
+
+.subscribe-section {
+  padding: 72px 0 70px;
+  background: #000;
+  color: #fff;
+
+  &.scheme_dark {
+    background-color: #000;
+    color: #fff;
+  }
+}
+
+.subscribe-section-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--container-padding-horizontal, 20px);
+}
+
+// Single row: three blocks with gaps
+.subscribe-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr;
+  gap: 56px 72px;
+  align-items: start;
+  justify-items: start;
+}
+
+// ── 1. Headline (left) ─────────────────────────────────────────────────────
+.subscribe-headline-wrap {
+  justify-self: stretch; // fill the full width of its grid track
+  width: 100%;
+}
+
+.subscribe-headline {
+  display: block;
+  width: 100%;
+  font-size: clamp(2.4rem, 5.2vw, 4.2rem);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0;
+  white-space: normal;
+}
+
+// ── 2. Email + Privacy (center) ────────────────────────────────────────────
+.subscribe-form-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  min-width: 400px;
+  justify-self: center;
+}
+
+// Input: no full border, only thin bottom line
+.subscribe-input {
+  width: 100%;
+  padding: 12px 0 14px;
+  font-size: 1rem;
+  color: #fff;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  outline: none;
+  transition: border-color 0.25s ease;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  &:focus {
+    border-bottom-color: rgba(255, 255, 255, 0.9);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// Checkbox + label row
+.subscribe-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  user-select: none;
+}
+
+// Hide native checkbox, show custom hollow square
+.subscribe-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.subscribe-checkbox-box {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(129, 129, 129, 0.4);
+  border-radius: 20%;
+  background: #1b1b1b;
+  transition: border-color 0.25s ease, background 0.25s ease;
+  position: relative;
+}
+
+.subscribe-checkbox-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 6px;
+  height: 6px;
+  background: #fff;
+  border-radius: 0;
+  display: none;
+}
+
+.subscribe-checkbox:checked + .subscribe-checkbox-box::after {
+  display: block;
+}
+
+.subscribe-privacy-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.25s ease;
+
+  &:hover {
+    color: #fff;
+  }
+}
+
+// ── 3. Subscribe button (right) – circle icon + text ─────────────────────────
+.subscribe-btn-wrap {
+  justify-self: center;
+  margin-top: 25px;
+}
+
+.subscribe-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.25s ease, gap 0.25s ease;
+
+  &:hover:not(:disabled) {
+    gap: 18px;
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// White circle with paper-plane icon
+.subscribe-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+
+  svg {
+    display: block;
+  }
+}
+
+.subscribe-btn-text {
+  white-space: nowrap;
+}
+
+// Success message
+.subscribe-success {
+  text-align: center;
+  padding: 24px 0;
+
+  p {
+    margin: 0;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+// =============================================================================
+// BREAKPOINTS
+// Row layout (3fr 1fr 1fr) is preserved on ALL screen sizes — portrait and
+// landscape alike — matching the desktop structure. Only spacing/font sizes
+// scale down as screens get smaller.
+// =============================================================================
+
+@media (max-width: $bp-section-lg) {
+  .subscribe-section-inner { padding: 0 30px; }
+  .subscribe-row { gap: 40px 52px; }
+}
+
+// Tablet (992px and below): keep 3-column row, reduce padding + make form-wrap fluid
+@media (max-width: $bp-section-md) {
+  .subscribe-section { padding: 52px 0 54px; }
+  .subscribe-row { gap: 34px 42px; }
+  .subscribe-form-wrap { min-width: 0; } // remove 400px min so it scales with grid column
+}
+
+// Phone (768px and below): tighter padding, scale headline and form
+@media (max-width: $bp-section-sm) {
+  .subscribe-section { padding: 42px 0 44px; }
+  .subscribe-section-inner { padding: 0 20px; }
+  .subscribe-headline { font-size: clamp(1.7rem, 5vw, 2.4rem); }
+  .subscribe-row { gap: 28px 30px; }
+  .subscribe-btn-wrap { margin-top: 8px; }
+}
+
+@media (max-width: $bp-section-xs) {
+  .subscribe-section { padding: 36px 0 40px; }
+  .subscribe-headline { font-size: clamp(1.35rem, 4.4vw, 1.95rem); }
+  .subscribe-privacy { font-size: 0.78rem; }
+  .subscribe-btn-icon { width: 40px; height: 40px; }
+  .subscribe-btn { font-size: 1rem; }
+}
+
+@media (max-width: $bp-section-xxs) {
+  .subscribe-section { padding: 28px 0 34px; }
+  .subscribe-headline { font-size: 1.2rem; }
+}
+
+@media (min-width: $bp-section-xl) {
+  .subscribe-section-inner { max-width: 1400px; }
+  .subscribe-row { gap: 48px 80px; }
+}
+
+@media (min-width: $bp-section-xxl) {
+  .subscribe-section { padding: 100px 0 110px; }
+  .subscribe-headline { font-size: 3.75rem; }
+}
+
+// =============================================================================
+// ORIENTATION QUERIES
+// =============================================================================
+
+// Mobile/foldable landscape (≤1100px): keep elements close by controlling
+// actual column ratios and alignment (not gap only).
+@media (max-width: 1100px) and (orientation: landscape) {
+  .subscribe-section { padding: 28px 0 34px; }
+
+  .subscribe-row {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) auto;
+    column-gap: clamp(14px, 2vw, 24px);
+    row-gap: 14px;
+    align-items: center;
+  }
+
+  .subscribe-headline {
+    font-size: clamp(1.45rem, 3.4vw, 2.2rem);
+    line-height: 1.15;
+    margin: 0;
+  }
+
+  .subscribe-form-wrap {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    justify-self: start;
+  }
+
+  .subscribe-btn-wrap {
+    justify-self: start;
+    margin-top: 0;
+  }
+}
+
+// Very short landscape phones (SE/S8+ class): compress a bit more.
+@media (max-width: 1100px) and (orientation: landscape) and (max-height: 430px) {
+  .subscribe-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+
+  .subscribe-headline {
+    font-size: clamp(1.2rem, 2.8vw, 1.7rem);
+  }
+}
+
+// iPad Mini portrait: narrower email column + tighter spacing (still 3-column desktop row)
+@media (min-width: $bp-ipad-mini-min) and (max-width: $bp-ipad-mini-max) and (orientation: portrait) {
+  .subscribe-section {
+    padding-bottom: 28px; // less space before Key Achievements (base section uses 70px bottom)
+  }
+
+  .subscribe-row {
+    column-gap: 28px;
+    row-gap: 0;
+    align-items: center;
+  }
+
+  .subscribe-headline {
+    margin: 0;
+    font-size: clamp(1.65rem, 3.4vw, 2.35rem); // smaller than desktop clamp on narrow iPad Mini portrait
+  }
+
+  .subscribe-form-wrap {
+    min-width: 220px;
+    max-width: 220px;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .subscribe-btn-wrap {
+    margin-top: 0;
+  }
+}
+
+// Mobile portrait (≤767px): two-row layout — headline full-width on row 1,
+// form + button side by side on row 2
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  .subscribe-section {
+    padding-top: 24px; // pull Subscribe closer to Courses in portrait
+  }
+
+  .subscribe-row {
+    grid-template-columns: 1.3fr 0.7fr; // form and button share row 2 equally
+    gap: 0px 24px;
+    align-items: center; // center row-2 items (form + button) on the same horizontal line
+  }
+
+  .subscribe-headline-wrap {
+    grid-column: 1 / -1; // headline spans both columns — full width on row 1
+  }
+
+  .subscribe-headline {
+    font-size: clamp(1.9rem, 5vw, 2rem); // larger headline in portrait
+  }
+
+  .subscribe-form-wrap {
+    grid-column: 1;       // form takes left column on row 2
+    justify-self: stretch;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .subscribe-input {
+    font-size: 1.2rem; // larger form text in portrait
+  }
+
+  .subscribe-privacy {
+    font-size: 1.2rem; // larger consent text in portrait
+  }
+
+  .subscribe-btn-wrap {
+    grid-column: 2;       // button takes right column on row 2
+    justify-self: start;
+    align-self: center;   // keep button parallel to form center line
+    display: flex;
+    align-items: center;
+    margin-top: 0;
+  }
+}

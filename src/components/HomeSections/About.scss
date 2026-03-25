@@ -1,0 +1,504 @@
+// About Section – Stargaze-style: dark bg, big gradient 01, two staggered images
+@import '../../styles/breakpoints';
+
+// Scroll-triggered animation (Stargaze-style: fade + slide up)
+// Change translateY(28px) below to adjust how far elements move up
+@keyframes aboutFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.about_anim {
+  opacity: 0;
+  transform: translateY(28px);
+  animation-fill-mode: both;
+}
+
+// --- About section scroll animations: adjust duration (e.g. 0.7s) and delay (e.g. 0.05s) below ---
+.front_page_section_about.about-inview {
+  // Big number "01" – duration 0.7s, delay 0.05s
+  .about_big_number.about_anim {
+    animation: aboutFadeUp 0.7s ease-out forwards;
+    animation-delay: 0.05s;
+  }
+  // Label "About Gorythm" – duration 0.6s, delay 0.15s
+  .about_label.about_anim {
+    animation: aboutFadeUp 0.6s ease-out forwards;
+    animation-delay: 0.15s;
+  }
+  // Title "Space exploration..." – duration 0.65s, delay 0.25s
+  .about_title.about_anim {
+    animation: aboutFadeUp 0.65s ease-out forwards;
+    animation-delay: 0.25s;
+  }
+  // Left image – duration 0.7s, delay 0.35s
+  .about_image_left.about_anim {
+    animation: aboutFadeUp 0.7s ease-out forwards;
+    animation-delay: 0.35s;
+  }
+  // Right image – duration 0.7s, delay 0.4s
+  .about_image_right.about_anim {
+    animation: aboutFadeUp 0.7s ease-out forwards;
+    animation-delay: 0.4s;
+  }
+}
+
+// Paragraph has its own scroll trigger: animates when you scroll to the paragraph (not with section)
+// Paragraph (right column) – duration 0.6s, delay 0.1s (adjust as needed)
+.about_paragraph.about_anim.about-paragraph-inview {
+  animation: aboutFadeUp 0.6s ease-out forwards;
+  animation-delay: 0.1s;
+}
+
+.front_page_section_about {
+  padding: 120px 0 60px;
+  position: relative;
+
+  &.scheme_dark {
+    background-color: #000000;
+    color: #fff;
+  }
+}
+
+.front_page_section_about_inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--container-padding-horizontal, 20px);
+}
+
+// Mobile first: no top padding so label/title sit over digit on small screens
+.about_content_wrap {
+  position: relative;
+  padding-top: 0;
+}
+
+// Large "01" behind heading – gradient, very big
+.about_big_number {
+  position: absolute;
+  left: 0;
+  top: -0.15em;
+  font-size: clamp(8rem, 18vw, 20rem);
+  font-weight: 800;     
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 190% 100% at 50% 25%,
+    rgba(160, 160, 170, 0.28) 0%,
+    rgba(136, 136, 148, 0.18) 35%,
+    rgba(17, 14, 14, 0.1) 65%,
+    rgba(34, 34, 34, 0) 85%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+// Two columns: left = label, heading, image1, paragraph; right = image2 (higher)
+.about_layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 120px;
+  align-items: stretch;
+  position: relative;
+  margin: 10px 0 0px 0;
+  z-index: 1;
+}
+
+.about_left {
+  display: flex;
+  flex-direction: column;
+}
+
+.about_label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 10px 0;
+  line-height: 1.2;
+}
+
+.about_title {
+  font-size: clamp(1.75rem, 3.2vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  margin: 0 0 100px 0;
+ }
+
+.about_image_wrap {
+  overflow: hidden;
+  border-radius: 4px;
+
+  img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+  }
+}
+
+.about_image_left {
+  width: 70%;
+  height: auto;
+  align-self: self-end;
+}
+
+.about_right {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+// Right image: contained inside its div, larger size
+.about_image_right {
+  width: 90%;
+  height: 460px;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.about_paragraph {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  max-width: 100%;
+}
+
+// =============================================================================
+// BREAKPOINTS – aligned with HeroSection & _variables (768, 992, 1280, etc.)
+// Desktop: content starts below digit (padding-top), images overlap.
+// Mobile/Tablet: label & title over digit (no padding-top), images stacked.
+// =============================================================================
+
+// Desktop only (min 993px): content starts a little lower; right image contained and larger
+@media (min-width: #{$bp-section-md + 1}) {
+  .about_content_wrap {
+    padding-top: 60px;
+  }
+
+  .about_label {
+    font-size: 0.9rem;
+    margin-bottom: 18px;
+  }
+
+  .about_right {
+    position: relative;
+    z-index: 2;
+  }
+
+  .about_image_right {
+    height: 540px;
+  }
+}
+
+// Tablet / small laptop (max 1280px) – match HeroSection
+@media (max-width: $bp-section-lg) {
+  .front_page_section_about_inner {
+    padding: 0 30px;
+  }
+
+  .about_layout {
+    gap: 80px;
+  }
+}
+
+// iPad Mini portrait: closer to desktop proportions — taller left image, shorter right column
+@media (min-width: $bp-ipad-mini-min) and (max-width: $bp-ipad-mini-max) and (orientation: portrait) {
+  .front_page_section_about .about_image_left {
+    width: 75%;
+
+    img {
+      min-height: 380px;
+      height: 380px;
+      object-fit: cover;
+    }
+  }
+
+  .front_page_section_about .about_image_right {
+    height: 400px;
+    width: 100%; // below desktop 540px so layout matches narrow two-column desktop feel
+  }
+}
+
+// Tablet (max 992px): single column, no overlap, label/title over digit
+@media (max-width: $bp-section-md) {
+  .about_content_wrap {
+    padding-top: 0;
+  }
+
+  .about_layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .about_right {
+    z-index: auto;
+  }
+
+  .about_image_right {
+    margin-left: 0;
+    margin-top: 0;
+  }
+
+  .about_title {
+    max-width: none;
+  }
+
+  .about_big_number {
+    font-size: clamp(5rem, 20vw, 8rem);
+    // On mobile/tablet, lift the big "01" slightly higher behind the heading
+    top: -0.5em;
+  }
+}
+
+// Landscape tablets/phones: keep desktop-like two-column layout but scale images down to fit height
+@media (max-width: $bp-section-md) and (orientation: landscape) {
+  .front_page_section_about {
+    padding: 80px 0 80px;
+  }
+
+  .about_content_wrap {
+    padding-top: 40px; // closer to desktop feel under the big number
+  }
+
+  .about_layout {
+    grid-template-columns: 1fr 1fr; // restore two-column layout
+    gap: 30px; // reduce space between left and right columns in landscape
+    align-items: stretch; // make left/right columns share same row height
+  }
+
+  .about_big_number {
+    font-size: clamp(6rem, 16vw, 10rem);
+    top: -0.5rem; // fixed offset so "01" doesn't drift with font-size; tuned per breakpoint below
+  }
+
+  .about_image_left {
+    width: 70%;
+  }
+
+  .about_image_right {
+    width: 100%;
+    height: 440px; // increase right-image container size in landscape
+  }
+
+  .about_left,
+  .about_right {
+    height: 100%; // ensure both columns end at the same bottom line
+    justify-content: flex-end; // keep paragraph toward the bottom in landscape
+  }
+
+  .about_paragraph {
+    font-size: 0.98rem;
+    margin-top: auto; // push paragraph down to the bottom
+    padding-top: 20px;
+  }
+}
+
+// Portrait at tablet/mobile (max 992px): ensure paragraph (and text) are larger so they’re not overridden
+@media (max-width: $bp-section-md) and (orientation: portrait) {
+  .about_paragraph {
+    font-size: 1.18rem;
+    line-height: 1.75;
+  }
+}
+
+// Mobile (max 768px)
+@media (max-width: $bp-section-sm) {
+  .front_page_section_about {
+    padding: 60px 0 80px;
+  }
+
+  .about_content_wrap {
+    padding-top: 0;
+  }
+
+  .about_label {
+    font-size: 1.05rem;       // slightly larger label text
+    letter-spacing: 0.16em;
+  }
+
+  .about_title {
+    font-size: clamp(1.7rem, 5.4vw, 2.4rem); // larger heading text
+    margin-bottom: 28px;
+  }
+
+  .about_image_left {
+    width: 78%;               // make left image a bit larger on mobile
+  }
+
+  .about_image_right {
+    width: 82%;               // make right image a bit smaller on mobile
+    height: 380px;            // slightly reduce height
+    margin-left: 0;
+    margin-top: 0;
+  }
+
+  .about_paragraph {
+    font-size: 1.05rem;       // increase body text size
+    margin-top: 24px;         // extra gap between right image and description
+  }
+}
+
+// Mobile portrait: right image in front of left (slightly lower), larger typography,
+// and more space for the label so "About Gorythm" is not cut off.
+// (xs/xxs breakpoints below apply only in landscape, so portrait keeps these sizes.)
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .about_left {
+    position: relative;
+    z-index: 1;
+  }
+
+  .about_right {
+    position: relative;
+    z-index: 2;
+    margin-top: -220px;
+  }
+
+  .about_content_wrap {
+    padding-top: 8px; // extra room at top so label isn’t cramped
+  }
+
+  .about_label {
+    font-size: 1.2rem;
+    line-height: 1.5;
+    padding: 4px 0 6px; // give the label box more height so text fits
+    margin-bottom: 12px;
+  }
+
+  .about_title {
+    font-size: clamp(1.95rem, 6.5vw, 2.75rem);
+    line-height: 1.28;
+  }
+
+  .about_paragraph {
+    font-size: 1.6rem;
+    line-height: 1.75;
+  }
+}
+
+// Mobile landscape (max 768px, landscape)
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
+  .front_page_section_about {
+    padding: 50px 0 60px;
+  }
+
+  .about_big_number {
+    top: 0;
+    font-size: clamp(5.5rem, 14vw, 9rem);
+  }
+
+  .about_title {
+    margin-bottom: 20px;
+  }
+
+  .about_paragraph {
+    margin-top: 24px; // gap between right image and paragraph
+  }
+}
+
+// iPhone SE 2nd/3rd gen landscape (667×375) — height is exactly ~375px in landscape.
+// min-height: 370px ensures this does NOT fire on S8+ landscape (height ~360px).
+// Higher-specificity selector beats the tablet .about_big_number rule above.
+@media (min-height: 370px) and (max-height: 380px) and (orientation: landscape) {
+  .front_page_section_about .about_big_number {
+    top: 3rem;                              // quite lower so "01" sits well below the top edge
+    font-size: clamp(5rem, 13vw, 7rem);    // larger to fill the landscape nicely
+  }
+}
+
+// S8+ landscape (740×360) — height is exactly ~360px in landscape.
+// max-height: 365px targets 360px height; won't match iPhone SE landscape (375px).
+// Higher-specificity selector beats the tablet .about_big_number rule above.
+@media (max-height: 365px) and (orientation: landscape) {
+  .front_page_section_about .about_big_number {
+    top: -0.5rem;                           // a little higher than the generic landscape rule
+    font-size: clamp(5rem, 13vw, 7rem);    // larger to fill the landscape width
+  }
+}
+
+// Small mobile (max 480px) – landscape only, so portrait keeps larger sm/portrait fonts
+@media (max-width: $bp-section-xs) and (orientation: landscape) {
+  .front_page_section_about {
+    padding: 40px 0 60px;
+  }
+
+  .about_big_number {
+    top: 0.25rem;
+    font-size: clamp(4.5rem, 12vw, 7rem);
+  }
+
+  .about_label {
+    font-size: 0.9rem;
+  }
+
+  .about_title {
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+  }
+
+  .about_paragraph {
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+}
+
+// Extra small (max 375px) – landscape only
+@media (max-width: $bp-section-xxs) and (orientation: landscape) {
+  .front_page_section_about {
+    padding: 32px 0 48px;
+  }
+
+  .about_big_number {
+    top: 0.5rem;
+    font-size: clamp(4rem, 11vw, 6rem);
+  }
+
+  .about_title {
+    font-size: 1.3rem;
+  }
+}
+
+// S8+ portrait (360×740) — width is 360px in portrait.
+// Higher-specificity selector beats the tablet .about_big_number rule (max-width: 992px).
+@media (max-width: $bp-section-xxxs) and (orientation: portrait) {
+  .front_page_section_about .about_big_number {
+    top: -1.5rem;                           // moved more higher so "01" sits above eyebrow & title
+    font-size: clamp(6rem, 26vw, 8rem);    // larger to fill the 360px portrait width
+  }
+}
+
+// iPhone SE 2nd/3rd gen portrait (375×667) — width is 375px, tall viewport (min-height catches tallness).
+// Higher-specificity selector beats the tablet .about_big_number rule.
+@media (max-width: $bp-section-xxs) and (min-height: 600px) and (orientation: portrait) {
+  .front_page_section_about .about_big_number {
+    top: -1.5rem;                           // moved more higher behind the heading
+    font-size: clamp(6rem, 26vw, 8rem);    // larger to fill the 375px portrait width
+  }
+}
+
+// Portrait phones only: remove extra space below About
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .front_page_section_about {
+    padding-bottom: 0;
+  }
+}

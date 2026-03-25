@@ -1,0 +1,250 @@
+// Video Section – full-width image banner, PLAY button follows cursor
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// PLAY button entrance animation (fade + scale in on scroll)
+@keyframes videoPlayAppear {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+// Ring pulse animation while hovering over section
+@keyframes ringPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(255, 255, 255, 0.35); }
+  70%  { box-shadow: 0 0 0 14px rgba(255, 255, 255, 0);    }
+  100% { box-shadow: 0 0 0 0   rgba(255, 255, 255, 0);     }
+}
+
+// =============================================================================
+// SECTION
+// =============================================================================
+
+.video-section {
+  position: relative;         // needed for absolute-positioned PLAY button
+  width: 100%;
+  min-height: 420px;
+  height: 50vw;
+  max-height: 680px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+  cursor: none;               // hide default cursor inside section while hovering
+}
+
+// Dark overlay over the background image
+.video-section-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1;
+  pointer-events: none;
+}
+
+// =============================================================================
+// PLAY BUTTON – absolutely positioned, cursor-following via JS + CSS transition
+// =============================================================================
+
+.video-play-btn {
+  position: absolute;
+  // left / top set via inline style from JS (percentage of section)
+  // transform keeps the button centred on that coordinate
+  transform: translate(-50%, -50%);
+  z-index: 2;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+
+  // Smooth cursor-follow transition – adjust duration to taste
+  // 0.12s = snappy but smooth; increase for more "lag/magnetic" feel
+  transition: left 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              top  0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  // Initially hidden; appears on scroll-in
+  opacity: 0;
+
+  .video-section.video-inview & {
+    // duration 0.6s, delay 0.2s – change these to adjust entrance
+    animation: videoPlayAppear 0.6s ease-out 0.2s forwards;
+  }
+
+  // After animation, stay visible while section is in view
+  .video-section.video-inview.video-hovering & {
+    animation: none;           // cancel keyframe so transition takes over
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  &:hover .video-play-ring {
+    border-color: rgba(255, 255, 255, 1);
+    animation: ringPulse 1.2s infinite;
+  }
+
+  &:hover .video-play-text {
+    color: #fff;
+    letter-spacing: 0.24em;
+  }
+}
+
+// Outer ring circle
+.video-play-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  transition: border-color 0.3s ease;
+}
+
+// "PLAY" text label
+.video-play-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  z-index: 1;
+  transition: letter-spacing 0.3s ease, color 0.3s ease;
+}
+
+// =============================================================================
+// MODAL
+// =============================================================================
+
+.video-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modalIn 0.25s ease-out;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.video-modal-content {
+  position: relative;
+  width: min(90vw, 1100px);
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+
+.video-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+}
+
+// 16:9 responsive embed
+.video-modal-embed {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+}
+
+// =============================================================================
+// BREAKPOINTS
+// =============================================================================
+
+@media (max-width: $bp-section-lg) {
+  .video-section { max-height: 580px; }
+}
+
+@media (max-width: $bp-section-md), #{$media-dual-screen-span} {
+  .video-section {
+    height: 55vw;
+    min-height: 300px;
+    max-height: 500px;
+  }
+  .video-play-btn { width: 72px; height: 72px; }
+}
+
+@media (max-width: $bp-section-md) and (orientation: landscape) {
+  .video-section { height: 70vh; min-height: 240px; max-height: 400px; }
+}
+
+@media (max-width: $bp-section-sm) {
+  .video-section {
+    height: 60vw;
+    min-height: 240px;
+    max-height: 420px;
+    // Restore default cursor on mobile (no cursor tracking)
+    cursor: auto;
+  }
+  .video-play-btn {
+    width: 64px;
+    height: 64px;
+    // On mobile keep button centred; no cursor-follow
+    left: 50% !important;
+    top:  50% !important;
+    transition: none;
+  }
+  .video-play-text { font-size: 0.65rem; }
+  .video-modal-content { width: 96vw; }
+}
+
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
+  .video-section { height: 80vh; min-height: 200px; max-height: 360px; }
+  .video-play-btn { width: 56px; height: 56px; }
+}
+
+@media (max-width: $bp-section-xs) {
+  .video-section { height: 65vw; min-height: 200px; }
+  .video-play-btn { width: 58px; height: 58px; }
+}
+
+@media (max-width: $bp-section-xxs) {
+  .video-section { height: 68vw; min-height: 180px; }
+  .video-play-btn { width: 52px; height: 52px; }
+}
+
+@media (min-width: $bp-section-xl) {
+  .video-section { max-height: 720px; }
+}
+
+@media (min-width: $bp-section-xxl) {
+  .video-section { max-height: 860px; }
+  .video-play-btn { width: 96px; height: 96px; }
+  .video-play-text { font-size: 0.8rem; }
+}

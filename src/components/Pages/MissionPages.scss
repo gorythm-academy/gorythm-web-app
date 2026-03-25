@@ -1,0 +1,154 @@
+// Mission detail page styles
+// ============================================================================
+@import '../../styles/breakpoints';
+
+.mission-page {
+  min-height: 80vh;
+  background: #000;
+  color: #fff;
+  padding: 120px 0 100px;
+}
+
+.mission-page-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.mission-page-header {
+  margin-bottom: 48px;
+}
+
+.mission-page-subtitle {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 16px;
+}
+
+.mission-page-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.mission-page-body {
+  margin-bottom: 56px;
+}
+
+.mission-page-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0 0 32px 0;
+}
+
+.mission-page-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  li {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.65);
+    padding-left: 20px;
+    position: relative;
+    line-height: 1.6;
+
+    &::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: rgba(255, 255, 255, 0.4);
+    }
+  }
+}
+
+// Back link
+.mission-page-back {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 32px;
+}
+
+.mission-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: color 0.25s ease;
+
+  &:hover {
+    color: #fff;
+  }
+
+  .mission-back-arrow {
+    transition: transform 0.25s ease;
+  }
+
+  &:hover .mission-back-arrow {
+    transform: translateX(-4px);
+  }
+}
+
+// =============================================================================
+// BREAKPOINTS
+// =============================================================================
+
+@media (max-width: $bp-section-lg) {
+  .mission-page-inner {
+    padding: 0 30px;
+  }
+}
+
+@media (max-width: $bp-section-md) {
+  .mission-page {
+    padding: 90px 0 80px;
+  }
+}
+
+@media (max-width: $bp-section-sm) {
+  .mission-page {
+    padding: 70px 0 60px;
+  }
+
+  .mission-page-description {
+    font-size: 1rem;
+  }
+
+  .mission-page-points li {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: $bp-section-xs) {
+  .mission-page {
+    padding: 56px 0 50px;
+  }
+
+  .mission-page-description {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: $bp-section-xxs) {
+  .mission-page {
+    padding: 44px 0 40px;
+  }
+}
+
+@media (min-width: $bp-section-xl) {
+  .mission-page-inner {
+    max-width: 960px;
+  }
+}

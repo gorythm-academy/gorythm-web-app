@@ -1,0 +1,267 @@
+// Portfolio pages – item detail + index listing
+// ============================================================================
+@import '../../styles/breakpoints';
+
+// =============================================================================
+// SHARED
+// =============================================================================
+
+.portfolio-item-page,
+.portfolio-index-page {
+  background: #000;
+  color: #fff;
+  min-height: 80vh;
+}
+
+// =============================================================================
+// ITEM DETAIL PAGE
+// =============================================================================
+
+// Hero image – full width, fills ~60-70vh
+.pip-hero {
+  position: relative;
+  width: 100%;
+  height: 65vh;
+  overflow: hidden;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+}
+
+.pip-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 30%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
+.pip-hero-text {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1200px, 90%);
+}
+
+.pip-category {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 10px;
+}
+
+.pip-title {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  margin: 0;
+}
+
+// Content body
+.pip-body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 64px 20px 80px;
+}
+
+.pip-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 56px;
+}
+
+// Prev / Next navigation row
+.pip-nav {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 24px 0;
+  margin-bottom: 40px;
+}
+
+.pip-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: color 0.25s ease, gap 0.3s ease;
+
+  &:hover {
+    color: #fff;
+    gap: 16px;
+  }
+}
+
+.pip-nav-arrow {
+  font-size: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.pip-nav-prev:hover .pip-nav-arrow { transform: translateX(-4px); }
+.pip-nav-next:hover .pip-nav-arrow { transform: translateX(4px); }
+
+// Back link
+.pip-back { padding-top: 8px; }
+
+.pip-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+  transition: color 0.25s ease;
+
+  &:hover { color: #fff; }
+}
+
+// =============================================================================
+// PORTFOLIO INDEX PAGE
+// =============================================================================
+
+.portfolio-index-inner {
+  max-width: 1290px;
+  margin: 0 auto;
+  padding: 120px 20px 100px;
+}
+
+.portfolio-index-header {
+  margin-bottom: 60px;
+}
+
+.portfolio-index-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 14px;
+}
+
+.portfolio-index-title {
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+// 3-col grid
+.portfolio-index-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.portfolio-index-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+
+  &:hover .portfolio-index-img-wrap img {
+    transform: scale(1.04);
+  }
+
+  &:hover .portfolio-index-card-title {
+    color: #fff;
+  }
+}
+
+.portfolio-index-img-wrap {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+}
+
+.portfolio-index-caption {
+  padding: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.portfolio-index-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  transition: color 0.3s ease;
+}
+
+.portfolio-index-card-category {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+// =============================================================================
+// BREAKPOINTS
+// =============================================================================
+
+@media (max-width: $bp-section-lg) {
+  .portfolio-index-inner { padding: 100px 30px 80px; }
+}
+
+@media (max-width: $bp-section-md) {
+  .pip-hero { height: 55vh; }
+
+  .portfolio-index-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: $bp-section-sm) {
+  .pip-hero { height: 45vh; }
+  .pip-title { font-size: 2rem; }
+  .pip-description { font-size: 1rem; }
+  .pip-body { padding: 48px 20px 60px; }
+
+  .portfolio-index-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .portfolio-index-inner { padding: 80px 20px 60px; }
+}
+
+@media (max-width: $bp-section-xs) {
+  .pip-hero { height: 40vh; }
+  .pip-hero-text { bottom: 24px; }
+  .pip-title { font-size: 1.7rem; }
+}
+
+@media (max-width: $bp-section-xxs) {
+  .pip-title { font-size: 1.4rem; }
+  .portfolio-index-title { font-size: 2rem; }
+}
+
+@media (min-width: $bp-section-xl) {
+  .portfolio-index-inner { max-width: 1400px; }
+}

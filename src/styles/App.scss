@@ -1,0 +1,229 @@
+//created by react
+
+@import 'fonts';
+@import 'variables';
+@import 'mixins';
+@import 'global';
+@import 'responsive';
+
+/* Old code starts from here*/
+
+/* Note: Base reset, html, and body styles are now in _global.scss to avoid duplication */
+
+.academy-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* ===== CONTENT CONTAINER (Fixes Alignment) ===== */
+.content-container {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.main-content {
+  flex: 1;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+// Home (landing page): force a consistent black backdrop between sections.
+// This does NOT remove the hero background image because the image is applied
+// to an inner `.hero-background` element, not the wrapper itself.
+.front_page {
+  background: #000;
+}
+
+.front_page > *:not(.hero-section-enhanced) {
+  background-color: #000;
+}
+
+/* Note: Legacy hero styles (.hero-section, .hero-content, .hero-tagline, .hero-subtitle, .hero-button) 
+   removed to avoid conflicts with HeroSection component which uses .hero-section-enhanced */
+
+/* ===== CONTENT SECTIONS ===== */
+.content-section {
+  padding: 100px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3rem;
+}
+
+.section-number {
+  font-size: 4rem;
+  font-weight: 800;
+  color: rgba(var(--color-primary-rgb), 0.14);
+  margin-right: 30px;
+  line-height: 1;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  color: #f8fafc;
+  max-width: 800px;
+}
+
+.section-description {
+  font-size: 1.2rem;
+  color: var(--color-muted);
+  max-width: 900px;
+  line-height: 1.8;
+}
+
+/* Section 01 - Feature Grid */
+.section-01 .section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+}
+
+  .feature-card {
+  background: rgba(var(--color-text-dark-rgb), 0.08);
+  border-radius: 10px;
+  padding: 30px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.06);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-5px);
+    border-color: rgba(var(--color-primary-rgb), 0.18);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
+  }
+  
+  h3 {
+    color: var(--color-primary);
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+  }
+  
+  p {
+    color: var(--color-text);
+    line-height: 1.7;
+  }
+}
+
+/* ===== NEWSLETTER SECTION ===== */
+.newsletter-section {
+  padding: 100px 0;
+  text-align: center;
+  background: linear-gradient(90deg, rgba(var(--color-text-dark-rgb), 0.9), rgba(var(--color-text-dark-rgb), 0.8));
+}
+
+.newsletter-title {
+  font-size: 2.5rem;
+  color: var(--color-text-dark);
+  margin-bottom: 2rem;
+}
+
+.newsletter-form {
+  display: flex;
+  max-width: 500px;
+  margin: 0 auto;
+  gap: 10px;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+}
+
+.newsletter-input {
+  flex: 1;
+  padding: 18px 25px;
+  border-radius: 50px;
+  border: 2px solid rgba(var(--color-primary-rgb), 0.12);
+  background: rgba(var(--color-text-dark-rgb), 0.08);
+  color: var(--color-text-dark);
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+}
+
+.newsletter-button {
+  background: linear-gradient(90deg, rgba(var(--color-primary-rgb),1), rgba(var(--color-primary-rgb),0.9));
+  color: white;
+  padding: 18px 40px;
+  border-radius: 50px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(var(--color-primary-rgb), 0.18);
+  }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+}
+
+/* ===== PAGE TITLES (For Blog/Gallery) ===== */
+.page-title {
+  padding: 100px 0;
+  text-align: center;
+  
+  h1 {
+    font-size: 3rem;
+    color: var(--color-accent-2);
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    font-size: 1.2rem;
+    color: var(--color-muted);
+  }
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+  .hero-tagline {
+    font-size: 2.5rem;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .section-number {
+    font-size: 3rem;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+  
+  .section-title {
+    font-size: 2rem;
+  }
+  
+  .hero-button, .newsletter-button {
+    padding: 14px 30px;
+  }
+}
+
+/* ===== LANDSCAPE GLOBAL (moved from _landscape-fixes.scss) ===== */
+@media (orientation: landscape) and (max-height: 800px) {
+  .front_page section {
+    padding: 40px 0;
+    min-height: auto;
+  }
+  .section-header {
+    margin-bottom: 1rem;
+  }
+  .front_page section caption {
+    font-size: 1.8rem;
+  }
+}

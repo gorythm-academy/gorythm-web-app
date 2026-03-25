@@ -1,0 +1,578 @@
+/*
+ * ============================================================================
+ * HERO SECTION - RESPONSIVE TYPOGRAPHY APPROACH
+ * ============================================================================
+ * This file uses CSS clamp() for smooth, fluid responsive typography instead
+ * of multiple @media queries with breakpoint-specific font sizes.
+ * 
+ * Benefits:
+ * - Smoother scaling across all viewport sizes (not just at breakpoints)
+ * - Eliminates ~12+ redundant media queries for font-size
+ * - Easier maintenance (change one clamp() instead of many breakpoints)
+ * - Better UX with continuous scaling vs. abrupt jumps
+ * 
+ * Key clamp() implementations:
+ * - .hero-title-word & .hero-subtitle: clamp(1.8rem, 0.8rem + 4.8vw, 8rem)
+ * - .hero-description: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem)
+ * 
+ * Responsive strategy:
+ * - Base styles = desktop + tablet (same structure; scale/fit via max-width only).
+ * - Mobile (phones only, width <= 767px) = two queries: portrait and landscape.
+ * - No other hero media; dead code (buttons, scroll-indicator, title helpers) removed.
+ * ============================================================================
+ */
+@import '../../styles/breakpoints';
+
+// Main hero section component
+// Positioned relative to contain absolutely positioned elements
+.hero-section-enhanced {
+  position: relative;
+  z-index: 0; // establish stacking context baseline
+  isolation: isolate; // prevent negative z-index/background paint issues on mobile browsers
+ // min-height: 100dvh; // Full viewport height minimum
+  //height: 100dvh;
+  width: 100%;
+  margin: 0; // Remove any default margins
+  padding: 0; // Remove any default padding
+  display: flex;
+  align-items: flex-end; // Align content to bottom
+  overflow: hidden; // Prevent horizontal scroll
+  color: white;
+
+  // Floating animated particles container
+  // Positioned absolutely to overlay on top of background
+  .particles-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 10; // Above background but below content
+
+    // Individual particle elements
+    .particle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%; // Make them circular
+      filter: blur(1px); // Soft glow effect
+    }
+  }
+
+  // Full-screen background image container
+  .hero-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-attachment: scroll; // Standard scroll (not fixed)
+    z-index: 0; // stay behind content, but inside hero stacking context
+
+    // (Mobile-only background overrides are in the two mobile blocks below.)
+  }
+
+  // Main content container
+  // Positioned relative to appear above background
+  .hero-container {
+    position: relative;
+    z-index: 2;
+    max-width: 100%;
+    width: 100%;
+    padding: 0 60px; // Match header padding for consistency
+    margin-left: 0;
+    margin-right: 0;
+    display: flex;
+    flex-direction: column; // Stack content vertically
+    align-items: flex-start; // Align to left by default
+    justify-content: flex-end; // Push content to bottom
+    height: 100dvh;
+    padding-bottom: 10px; // Space from bottom
+    overflow-y: hidden; // Prevent vertical scroll if content overflows
+    overflow-x: hidden;
+
+
+    // Tablet and smaller: Reduce side padding (scale/fit only; same structure as desktop)
+    @media (max-width: $bp-section-lg) {
+      padding: 0 30px;
+    }
+  }
+
+  // Wrapper for all text content
+  .hero-content {
+    margin-top: 200px;
+    width: 100%;
+    text-align: left; // Left-aligned on desktop
+    display: flex;
+    flex-direction: row; // Display in row on tablet+ by default
+    align-items: stretch;
+    min-height: 310px;
+    // Space between title and description (base for tablet)
+    justify-content: space-between;
+
+    /* Bottom spacing so hero/description is not flush with next section */
+    margin-bottom: 60px;
+  }
+
+
+  // Hero description paragraph (desktop/tablet base; mobile overrides in mobile blocks)
+  .hero-description {
+    font-size: 1.4rem;
+    line-height: 1.7;
+    margin-bottom: 3rem;
+    opacity: 0.9;
+    max-width: 700px;
+    margin-left: 0;
+    margin-right: auto;
+    text-align: left;
+  }
+
+  /* ===== NEW SPLIT TITLE LAYOUT WITH IMAGE ===== */
+
+  // Container for the two-line title with image
+  .hero-title-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    align-self: flex-start;
+    margin-left: 0;
+    position: static; // Normal document flow by default
+    width: auto;
+
+    /* small text above main title (Premium Education Platform) – entrance + subtle animation */
+    .hero-eyebrow {
+      font-size: clamp(10px, 1vw, 20px);
+      letter-spacing: 0.15em;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: white;
+      // Subtle post-entrance animation (runs once after Framer Motion reveals)
+      animation: heroEyebrowReveal 0.8s ease-out 0.4s both;
+    }
+
+    @keyframes heroEyebrowReveal {
+      from {
+        letter-spacing: 0.05em;
+        opacity: 0.92;
+      }
+      to {
+        letter-spacing: 0.15em;
+        opacity: 1;
+      }
+    }
+
+    /* First line: "Your [image] Future" */
+    .hero-title-line-1 {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      flex-wrap: nowrap; // UPDATED: Keep on single line for desktop/tablet
+
+      // Individual text words
+      .hero-title-word {
+        /* UPDATED: Using clamp() for smooth responsive scaling - replaces 12+ media queries */
+        /* Formula: clamp(min-size-mobile, base + viewport-scale, max-size-desktop) */
+        /* Scales from 1.8rem (375px) to 8rem (1920px+) smoothly */
+        font-size: clamp(1.8rem, 0.8rem + 4.8vw, 6rem);
+        font-weight: 650;
+        color: white;
+        line-height: normal;
+        text-transform: uppercase;
+        letter-spacing: 0px;
+        text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Center image container - between "Your" and "Future" */
+      .hero-center-image {
+        width: 15vw; // Responsive based on viewport width
+        height: auto; // Maintain aspect ratio
+        min-width: 70px;
+        transform-style: preserve-3d;
+        max-width: 150px;
+        margin: 0 15px;
+        //aspect-ratio: 1/1; // Force square aspect ratio
+        flex-shrink: 0; // Prevent image from shrinking
+
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain; // Fit within square without cropping
+        //filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
+        }
+      }
+    }
+
+    /* Second line: "Guided by Experts" */
+    .hero-title-line-2 {
+      width: 100%;
+      margin-top: 4px;
+
+      .hero-subtitle {
+        /* UPDATED: Using clamp() for smooth responsive scaling - matches hero-title-word */
+        /* Scales from 1.8rem (mobile) to 8rem (desktop) automatically */
+        font-size: clamp(1.8rem, 0.8rem + 4.8vw, 6rem);
+        font-weight: 550;
+        color: white;
+        margin: 0;
+        text-transform: uppercase;
+        text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+        white-space: nowrap; // Single line on desktop/tablet; mobile overrides in mobile blocks
+      }
+    }
+
+    /* === RESPONSIVE IMAGE SIZING === */
+    /* NOTE: Title font-size now uses clamp() above - no media queries needed for text scaling */
+
+    // Image size adjustments for different breakpoints (desktop + tablet base)
+    @media (max-width: $bp-hero-1600) {
+      .hero-center-image {
+        width: 14vw;
+      }
+    }
+
+    @media (max-width: $bp-hero-1400) {
+      .hero-center-image {
+        width: 13vw;
+      }
+    }
+
+    @media (max-width: $bp-hero-1200) {
+      .hero-center-image {
+        width: 12vw;
+        min-width: 80px;
+      }
+    }
+
+    @media (max-width: $bp-section-md) {
+      .hero-center-image {
+        width: 11vw;
+        min-width: 70px;
+      }
+    }
+
+    /* ===== TABLET LANDSCAPE (768–992px wide; not tied to $bp-section-md so iPad can use desktop md cutoff) ===== */
+    @media (min-width: $bp-section-sm) and (max-width: 992px) and (orientation: landscape) {
+      .hero-center-image {
+        width: 8vw;
+        min-width: 60px;
+        margin: 0 10px;
+      }
+
+      .hero-title-line-1 {
+        gap: 0px;
+      }
+
+    }
+
+    // Ultra-wide screens - allow larger image
+    @media (min-width: $bp-hero-2000) {
+      .hero-center-image {
+        width: 16vw;
+        max-width: 250px;
+      }
+    }
+  }
+
+  // Description box (visible on desktop + tablet; hidden only in mobile blocks below)
+  .hero-description-container {
+    position: static;
+    display: block;
+    max-width: min(380px, 100%);
+    overflow-wrap: break-word;
+    text-align: right;
+    margin: 0;
+    align-self: flex-end;
+    flex-shrink: 0;
+
+    .hero-description {
+      font-size: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem);
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.9);
+      margin: 0;
+      font-weight: 250;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+      max-width: 100%;
+      word-wrap: break-word;
+    }
+  }
+
+  /* ===== MOBILE ONLY: PORTRAIT (width <= 767px) ===== */
+  @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) { // phones only (exclude iPad Mini 744+)
+   
+    .hero-title-wrapper .hero-eyebrow {
+      font-size: 14px;
+      font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    }
+    .hero-background { // adjust hero background framing for portrait phones
+      background-position: 50% center; // shift focal point to the right for better subject framing
+      background-size: cover; // ensure background always covers the hero area
+    }
+
+    .hero-container { // tighten container spacing + keep content anchored low
+      padding: 0 20px; // reduce left/right padding for small screens
+      align-items: flex-start; // keep content aligned to the left edge
+      justify-content: flex-end; // push content toward the bottom of the hero
+      text-align: left; // ensure text alignment stays left
+    }
+
+    .hero-content { // switch from desktop row layout to stacked mobile layout
+      flex-direction: column; // stack title + description vertically
+      align-items: flex-start; // align stacked items to the left
+      justify-content: flex-end; // keep the stacked block near the bottom
+      max-width: 100%; // prevent any width constraints that can cause overflow
+      text-align: center; // center the overall block (per existing mobile design)
+      margin-bottom: 50px; // add breathing room at the bottom
+    }
+
+    .hero-description-container { // hide right-side description on phones
+      display: none; // remove description to reduce clutter on small screens
+    }
+
+    .hero-title-wrapper { // ensure title wrapper spans full width on phones
+      align-items: flex-start; // keep title elements left-aligned
+      text-align: left; // keep the title text left-aligned
+      width: 100%; // allow title line to use the full phone width
+    }
+
+    .hero-title-wrapper .hero-title-line-1 { // first title line layout for phones
+      flex-direction: row; // keep words and image in a row (until wrap happens)
+      align-items: center; // vertically center words and image
+      //gap: 4px; // tighten spacing between word/image elements
+      justify-content: flex-start; // align the row to the left
+      flex-wrap: wrap; // allow wrapping when the line doesn't fit
+    }
+
+    .hero-title-wrapper .hero-title-word, // target the words in the first line
+    .hero-title-wrapper .hero-subtitle { // target the second line subtitle text
+      text-align: left; // ensure words/subtitle stay left-aligned
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-center-image { // center image sizing/margins on phones (portrait)
+      width: 25vw; // scale image with viewport width for consistent responsiveness
+      min-width: 72px; // enforce readability on very small phones
+      margin: 0; // remove desktop horizontal margin on portrait phones
+    }
+
+    .hero-title-wrapper .hero-title-line-2 { // second line container adjustments for phones
+      width: 100%; // make subtitle line span the available width
+      text-align: left; // align subtitle line to the left
+
+      .hero-subtitle { // subtitle typography tweaks for phones
+        white-space: normal; // allow subtitle to wrap on small widths
+        line-height: 1.1; // tighten line height for wrapped subtitle
+        text-align: left; // keep subtitle text left-aligned
+      }
+    }
+  }
+
+  /* ===== MOBILE LANDSCAPE BASE (all phones + foldables in landscape) ===== */
+  /*
+   * max-width raised to 1100px to include Galaxy Z Fold 5 inner screen (~1080px wide).
+   * Title: bottom-left. Description: position:absolute bottom-right corner.
+   * Tier thresholds:
+   *   short   ≤ 500px  — iPhone 12-16, XR, Galaxy S, Pixel, Z Fold outer (~344px), S8+ (~360px)
+   *   very-short ≤ 325px — only iPhone SE 1st-gen (320px); all else show description
+   */
+  @media (orientation: landscape) and (max-width: 1100px) {
+    height: 100dvh; // lock section to viewport — no page scroll
+    overflow: hidden; // clip anything outside
+
+    .hero-background {
+      background-position: 60% center;
+      background-size: cover;
+    }
+
+    .hero-container {
+      height: 100%; // fill section (= 100dvh)
+      padding: 0 20px;
+      padding-top: 8px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); // 10px bottom + iPhone home bar
+      justify-content: flex-end; // push title to bottom
+      align-items: flex-start; // left-align title
+      overflow: hidden;
+    }
+
+    .hero-content {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-end;
+      margin-top: 0;
+      min-height: 0;
+      margin-bottom: 0;
+      width: 100%;
+    }
+
+    .hero-title-wrapper .hero-eyebrow {
+      font-size: clamp(12px, 1.8vw, 16px);
+      margin-bottom: 2px;
+      line-height: 1;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 {
+      gap: 0; // no gap between words and center image
+      margin-top: 0;
+      flex-wrap: nowrap;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-title-word {
+      font-size: clamp(3.9rem, 7.5vw, 6rem);
+      line-height: 1.1;
+    }
+
+    .hero-title-wrapper .hero-title-line-2 {
+      margin-top: 2px;
+    }
+
+    .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
+      font-size: clamp(3.7rem, 7.2vw, 5.8rem);
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-center-image {
+      width: clamp(86px, 17vw, 160px); // scaled up to match larger title
+      min-width: 86px;
+      margin: 0 6px;
+    }
+
+    .hero-description-container {
+      position: absolute; // always anchored to bottom-right of container regardless of title
+      bottom: 0; // container padding-bottom provides the 10px visual gap
+      right: 0; // container padding-right (20px) provides edge gap
+      display: block;
+      max-width: 42%;
+      text-align: right;
+      padding-right: 14px; // extra breathing room from right edge
+      overflow: hidden;
+
+      .hero-description {
+        font-size: clamp(0.7rem, 1.5vw, 0.88rem);
+        line-height: 1.4;
+        margin-bottom: 0;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+    }
+  }
+
+  /* ===== MOBILE LANDSCAPE SHORT HEIGHT (max ~500px) ===== */
+  /*
+   * Covers: Z Fold 5 outer (~344px), Galaxy S8+ (~360px), iPhone SE 2/3 (~375px),
+   *         iPhone 12–16 (~390px), Galaxy S series (~411px), Pixel (~412px), XR (~414px).
+   * Description stays visible; only sizes scaled back to fit short viewport.
+   */
+  @media (orientation: landscape) and (max-width: 1100px) and (max-height: 500px) {
+    .hero-container {
+      padding-top: 6px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .hero-title-wrapper .hero-eyebrow {
+      font-size: clamp(11px, 1.5vw, 13px);
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-title-word {
+      font-size: clamp(3.2rem, 6.2vw, 5rem); // scaled back for short heights
+    }
+
+    .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
+      font-size: clamp(3rem, 5.8vw, 4.8rem);
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-center-image {
+      width: clamp(68px, 13.5vw, 118px);
+      min-width: 68px;
+    }
+
+    .hero-description-container {
+      max-width: 40%;
+
+      .hero-description {
+        font-size: clamp(0.65rem, 1.3vw, 0.82rem);
+      }
+    }
+  }
+
+  /* ===== MOBILE LANDSCAPE VERY SHORT HEIGHT (max ~325px) ===== */
+  /*
+   * Threshold 325px: catches ONLY iPhone SE 1st-gen (320px landscape height).
+   * Every other device (Z Fold outer 344px, S8+ 360px, SE 2/3 375px…) is above this.
+   * Description hidden — there is genuinely no room at 320px height.
+   */
+  @media (orientation: landscape) and (max-width: 1100px) and (max-height: 325px) {
+    .hero-container {
+      padding-top: 4px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .hero-title-wrapper .hero-eyebrow {
+      font-size: 10px;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 {
+      gap: 0;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-title-word {
+      font-size: clamp(1.1rem, 2.6vw, 1.6rem);
+    }
+
+    .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
+      font-size: clamp(1.05rem, 2.4vw, 1.5rem);
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-center-image {
+      width: clamp(40px, 8vw, 56px);
+      min-width: 40px;
+      margin: 0 4px;
+    }
+
+    .hero-description-container {
+      display: none; // 320px height is genuinely too short for any description
+    }
+  }
+
+  /* ===== iPad Mini portrait: pull description toward title, LTR text, no extra bottom gap ===== */
+  @media (min-width: $bp-ipad-mini-min) and (max-width: $bp-ipad-mini-max) and (orientation: portrait) {
+    .hero-content {
+      justify-content: flex-start;
+      column-gap: 8px;
+      gap: 0 8px;
+      margin-bottom: 2%; // remove gap before next section
+    }
+
+    .hero-title-wrapper {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .hero-title-wrapper .hero-title-line-1 .hero-center-image {
+      margin: 0 8px;
+    }
+
+    .hero-description-container {
+      flex: 0 1 auto;
+      max-width: min(300px, 36vw);
+      align-self: flex-end;
+      margin-left: 0;
+      margin-right: 0;
+      text-align: left; // container: desktop-style start alignment
+    }
+
+    .hero-description {
+      text-align: left; // read left-to-right like desktop
+      overflow-wrap: anywhere;
+    }
+  }
+
+  /* ===== GLOBAL POSITIONING FIXES (tablet + desktop only; mobile uses its own blocks above) ===== */
+  @media (min-width: $bp-section-sm) {
+    .hero-container {
+      padding-top: 40px;
+    }
+
+    .hero-background {
+      height: 100%;
+      width: 100%;
+    }
+  }
+}

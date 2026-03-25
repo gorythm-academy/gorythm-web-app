@@ -1,0 +1,96 @@
+.custom-cursor {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              height 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.2s ease;
+  mix-blend-mode: difference;
+  will-change: transform;
+  
+  /* Glow effect like reference site */
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  
+  &.cursor-hover {
+    width: 16px;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.9);
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+  
+  &.cursor-clicked {
+    width: 10px;
+    height: 10px;
+    background-color: #ff4757;
+    box-shadow: 0 0 15px rgba(255, 71, 87, 0.7);
+  }
+  
+  &.cursor-hidden {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+}
+
+body.courses-cursor-visible {
+  .custom-cursor,
+  .cursor-follower {
+    mix-blend-mode: normal;
+  }
+}
+
+.cursor-follower {
+  position: fixed;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: difference;
+  will-change: transform;
+  
+  /* Smooth trailing animation */
+  .custom-cursor.cursor-hover + & {
+    width: 50px;
+    height: 50px;
+    border-color: rgba(255, 255, 255, 0.7);
+    border-width: 1.5px;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(2px);
+  }
+  
+  .custom-cursor.cursor-clicked + & {
+    border-color: rgba(255, 71, 87, 0.6);
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+}
+
+/* Disable on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .custom-cursor,
+  .cursor-follower {
+[class*="cursor-follower"],
+[class*="follower"] {
+  display: none;
+  visibility: hidden;
+  opacity: 0;
+  all: unset;
+}  }
+  
+  body {
+    cursor: auto;
+  }
+}
+
+/* Add smooth transitions for interactive elements */
+a, button, .hover-effect, [data-hover] {
+  cursor: none;
+}
