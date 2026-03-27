@@ -216,7 +216,9 @@
 
 /* ===== LANDSCAPE GLOBAL (moved from _landscape-fixes.scss) ===== */
 @media (orientation: landscape) and (max-height: 800px) {
-  .front_page section {
+  // Apply landscape tightening to homepage sections,
+  // but exclude the hero which manages its own viewport-height layout.
+  .front_page > section:not(.hero-section-enhanced) {
     padding: 40px 0;
     min-height: auto;
   }

@@ -211,6 +211,21 @@
   }
 }
 
+// Any landscape viewport with limited vertical space:
+// override the desktop fixed heights so images scale down and the paragraph aligns.
+@media (orientation: landscape) and (max-height: 600px) {
+  .front_page_section_about .about_image_left,
+  .front_page_section_about .about_image_right {
+    height: clamp(320px, 80vh, 560px);
+  }
+
+  .front_page_section_about .about_image_left img,
+  .front_page_section_about .about_image_right img {
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
 // Tablet / small laptop (max 1280px) – match HeroSection
 @media (max-width: $bp-section-lg) {
   .front_page_section_about_inner {
@@ -289,7 +304,8 @@
 
   .about_big_number {
     font-size: clamp(6rem, 16vw, 10rem);
-    top: -0.5rem; // fixed offset so "01" doesn't drift with font-size; tuned per breakpoint below
+    top: 0;
+    transform: translateY(-18%); // stable across landscape phone heights (iOS/Samsung URL bar changes)
   }
 
   .about_image_left {
@@ -298,7 +314,19 @@
 
   .about_image_right {
     width: 100%;
-    height: 440px; // increase right-image container size in landscape
+  }
+
+  // Keep both images visually consistent in landscape so the paragraph aligns
+  // like desktop (stable bottom edges across varying viewport heights).
+  .about_image_left,
+  .about_image_right {
+    height: clamp(360px, 74vh, 600px);
+  }
+
+  .about_image_left img,
+  .about_image_right img {
+    height: 100%;
+    object-fit: cover;
   }
 
   .about_left,
@@ -403,36 +431,29 @@
   }
 
   .about_big_number {
-    top: 0;
     font-size: clamp(5.5rem, 14vw, 9rem);
+    top: 0;
+    transform: translateY(-18%);
   }
 
   .about_title {
     margin-bottom: 20px;
   }
 
+  // Ensure landscape phones also keep both images aligned at the bottom
+  .about_image_left,
+  .about_image_right {
+    height: clamp(320px, 80vh, 540px);
+  }
+
+  .about_image_left img,
+  .about_image_right img {
+    height: 100%;
+    object-fit: cover;
+  }
+
   .about_paragraph {
     margin-top: 24px; // gap between right image and paragraph
-  }
-}
-
-// iPhone SE 2nd/3rd gen landscape (667×375) — height is exactly ~375px in landscape.
-// min-height: 370px ensures this does NOT fire on S8+ landscape (height ~360px).
-// Higher-specificity selector beats the tablet .about_big_number rule above.
-@media (min-height: 370px) and (max-height: 380px) and (orientation: landscape) {
-  .front_page_section_about .about_big_number {
-    top: 3rem;                              // quite lower so "01" sits well below the top edge
-    font-size: clamp(5rem, 13vw, 7rem);    // larger to fill the landscape nicely
-  }
-}
-
-// S8+ landscape (740×360) — height is exactly ~360px in landscape.
-// max-height: 365px targets 360px height; won't match iPhone SE landscape (375px).
-// Higher-specificity selector beats the tablet .about_big_number rule above.
-@media (max-height: 365px) and (orientation: landscape) {
-  .front_page_section_about .about_big_number {
-    top: -0.5rem;                           // a little higher than the generic landscape rule
-    font-size: clamp(5rem, 13vw, 7rem);    // larger to fill the landscape width
   }
 }
 
@@ -443,7 +464,6 @@
   }
 
   .about_big_number {
-    top: 0.25rem;
     font-size: clamp(4.5rem, 12vw, 7rem);
   }
 
@@ -469,7 +489,6 @@
   }
 
   .about_big_number {
-    top: 0.5rem;
     font-size: clamp(4rem, 11vw, 6rem);
   }
 

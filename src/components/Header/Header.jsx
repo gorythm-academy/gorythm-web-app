@@ -9,6 +9,7 @@ const Header = () => {
   const [isMobileMenuClosing, setIsMobileMenuClosing] = useState(false);
   const [isMobileMenuActive, setIsMobileMenuActive] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState(null);       // for mobile dropdowns
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(
@@ -20,6 +21,8 @@ const Header = () => {
   const headerRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const gridPanelRef = useRef(null);
+  const lastScrollYRef = useRef(0);
+  const scrollRafRef = useRef(0);
 
   const menuItems = [
     { id: 1, title: 'Home', path: '/', hasDropdown: false },
@@ -63,12 +66,53 @@ const Header = () => {
     return () => mql.removeEventListener('change', handleChange);
   }, []);
 
-  // Scroll effect
+  // Scroll effects:
+  // - scrolled: add blur/bg after threshold
+  // - headerVisible: show on scroll down, hide on scroll up (with hysteresis)
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    if (typeof window === 'undefined') return;
+
+    lastScrollYRef.current = window.scrollY || 0;
+
+    const TOP_REVEAL_Y = 20;     // always show header near top
+    const SCROLLED_Y = 50;       // when to add the "scrolled" class
+    const DELTA_THRESHOLD = 6;   // ignore tiny scroll jitter
+
+    const onScroll = () => {
+      if (scrollRafRef.current) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = 0;
+
+        const currentY = window.scrollY || 0;
+        const lastY = lastScrollYRef.current;
+        const delta = currentY - lastY;
+
+        // Visual style on scroll
+        setScrolled(currentY > SCROLLED_Y);
+
+        // Don't fight the overlay behavior; header is hidden via CSS then anyway.
+        if (!isMobileMenuOpen) {
+          if (currentY <= TOP_REVEAL_Y) {
+            setHeaderVisible(true);
+          } else if (Math.abs(delta) >= DELTA_THRESHOLD) {
+            // down = show, up = hide
+            setHeaderVisible(delta > 0);
+          }
+        }
+
+        lastScrollYRef.current = currentY;
+      });
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollRafRef.current) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = 0;
+      }
+    };
+  }, [isMobileMenuOpen]);
 
   // Click outside to close mobile menu; prevent page scroll when menu open (wheel)
   useEffect(() => {
@@ -184,7 +228,7 @@ const Header = () => {
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
       <header
-        className={`header ${scrolled ? 'scrolled' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
+        className={`header ${scrolled ? 'scrolled' : ''}${headerVisible ? '' : ' header--hidden'}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
         ref={headerRef}
         aria-hidden={isMobileMenuOpen}
       >

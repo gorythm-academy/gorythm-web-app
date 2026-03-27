@@ -396,23 +396,142 @@
 // ORIENTATION QUERIES
 // =============================================================================
 
-// Tablet landscape (768px–992px): restore two-column layout so images + text sit side by side
-@media (max-width: $bp-section-md) and (orientation: landscape) {
-  .key-achievements-inner {
-    grid-template-columns: 1fr 1fr; // restore side-by-side layout in landscape
-    gap: 0 60px;
+// Phone-style landscape (tall URL bar / narrow height): matches common iPhone + Samsung landscape
+// (e.g. 844×390) — NOT only ≤743px wide (that missed most phones). max-height excludes iPad/desktop
+// landscape where the viewport is still “short phone” vs “short laptop” — tune 720px if needed.
+// Aligns with HeroSection: (orientation: landscape) + max-width 1100.
+@media (orientation: landscape) and (max-width: 1100px) and (max-height: 720px),
+  (orientation: landscape) and (max-width: 740px) and (max-height: 375px) {
+  .key-achievements-section {
+    padding: clamp(48px, 9.2svh, 104px) 0 clamp(56px, 10.4svh, 128px);
   }
-  .key-achievements-right { padding-top: 80px; } // partial stagger like desktop
-  .key-achievements-img-2 { margin-top: 80px; }
-  .key-achievements-image { height: 280px; } // shorter images for landscape viewport
+
+  .key-achievements-inner {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 0 clamp(14px, 3vw, 36px);
+    box-sizing: border-box;
+    // Doubled vertical rhythm vs previous pass (lift / stagger / image cap)
+    --ka-lift: clamp(40px, min(15svh, 18vh), 152px);
+    --ka-stagger: clamp(28px, min(23svh, 27vh), 160px);
+    --ka-img-cap: clamp(220px, min(92svh, 104vh), 720px);
+    --ka-img1-drop: clamp(56px, 11.2svh, 116px);
+  }
+
+  .key-achievements-left {
+    padding-top: var(--ka-lift);
+    min-width: 0;
+  }
+
+  .key-achievements-images {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 clamp(8px, 2vw, 16px);
+    align-items: start;
+  }
+
+  .key-achievements-img-1 {
+    margin-top: var(--ka-img1-drop);
+  }
+
+  .key-achievements-img-2 {
+    margin-top: 0;
+  }
+
+  .key-achievements-img-2 {
+    margin-top: var(--ka-stagger);
+  }
+
+  .key-achievements-img-1 .key-achievements-img-inner img,
+  .key-achievements-img-2 .key-achievements-img-inner img {
+    aspect-ratio: 3 / 4;
+    width: 100%;
+    max-height: var(--ka-img-cap);
+    height: auto;
+    object-fit: cover;
+  }
+
+  .key-achievements-right {
+    position: relative;
+    padding-top: calc(var(--ka-lift) + var(--ka-stagger));
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .key-achievements-content {
+    display: flex;
+    flex-direction: column;
+    min-height: clamp(220px, 46svh, 360px);
+    width: 100%;
+  }
+
+  .key-achievements-big-number {
+    top: calc(var(--ka-lift) + clamp(68px, 13.4svh, 140px));
+    right: -0.05em;
+    left: auto;
+    // Doubled vs previous landscape size (03)
+    font-size: clamp(6.5rem, min(30vw, 36svh), 20rem);
+    line-height: 0.85;
+  }
+
+  .key-achievements-title {
+    font-size: clamp(1.2rem, 2.5vw + 0.65svh, 1.65rem);
+    margin-bottom: clamp(14px, 2.8svh, 26px);
+    line-height: 1.18;
+  }
+
+  .key-achievements-description {
+    font-size: clamp(0.85rem, 1.55vw + 0.42svh, 1.05rem);
+    margin-bottom: 0;
+    line-height: 1.45;
+    line-clamp: 4;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .key-achievements-eyebrow {
+    font-size: clamp(0.7rem, 1.1vw + 0.35svh, 0.92rem);
+    margin-bottom: clamp(10px, 1.9svh, 18px);
+  }
+
+  .key-achievements-cta {
+    margin-top: auto;
+    align-self: flex-start;
+    padding: clamp(10px, 1.8svh, 16px) clamp(14px, 2.6vw, 22px);
+    font-size: clamp(0.66rem, 0.75vw + 0.24svh, 0.8rem);
+  }
 }
 
-// Mobile landscape (≤767px): keep images side by side, reduce vertical spacing
-@media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
-  .key-achievements-section { padding: 36px 0 52px; }
-  .key-achievements-inner   { gap: 0 32px; }
-  .key-achievements-title   { font-size: 1.5rem; }
-  .key-achievements-description { font-size: 0.95rem; }
+// Extra-tight landscape phones (iPhone SE 667x375, Galaxy S8+ 740x360):
+// keep typography readable, but reduce vertical rhythm so CTA stays visually aligned.
+@media (orientation: landscape) and (min-width: 640px) and (max-width: 740px) and (max-height: 375px) {
+  .key-achievements-content {
+    min-height: clamp(190px, 40svh, 250px);
+  }
+
+  .key-achievements-eyebrow {
+    font-size: clamp(0.66rem, 0.9vw + 0.3svh, 0.84rem);
+    margin-bottom: clamp(6px, 1.2svh, 10px);
+  }
+
+  .key-achievements-title {
+    font-size: clamp(1.05rem, 1.8vw + 0.45svh, 1.35rem);
+    margin-bottom: clamp(8px, 1.4svh, 14px);
+  }
+
+  .key-achievements-description {
+    font-size: clamp(0.78rem, 1.05vw + 0.3svh, 0.94rem);
+    line-height: 1.36;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  .key-achievements-cta {
+    padding: clamp(8px, 1.3svh, 12px) clamp(12px, 2vw, 18px);
+    font-size: clamp(0.62rem, 0.62vw + 0.2svh, 0.74rem);
+  }
 }
 
 // iPad Mini portrait: desktop two-column layout already applies (width > phone max).

@@ -313,6 +313,31 @@
     gap: 18px 20px;
     margin-bottom: 36px;
   }
+
+  // Narrow cards: stack category + date so text does not wrap awkwardly in one row
+  .blog-card-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .blog-card-dot {
+    display: none;
+  }
+}
+
+// Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
+// use a height cap to avoid affecting iPads in landscape.
+@media (max-height: 430px) and (orientation: landscape) {
+  .blog-card-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .blog-card-dot {
+    display: none;
+  }
 }
 
 @media (max-width: $bp-section-sm) {

@@ -472,11 +472,13 @@
 // Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
 @media (max-width: $bp-section-md) and (orientation: landscape) {
   .courses-section-big-number {
-    top: 0.05em; // lower "02" slightly in landscape
+    top: 0;
+    transform: translateY(-18%); // stable across landscape phone heights (iOS/Samsung URL bar changes)
   }
 
   .courses-section-title {
     max-width: 100%; // wider title area in landscape
+    width: 100%;
   }
 
   .courses-section-left-footer {
@@ -522,6 +524,45 @@
   }
   .courses-section-column + .courses-section-column {
     margin-top: 0;
+  }
+}
+
+// Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
+// use height cap so iPad landscape isn't affected.
+@media (max-height: 430px) and (orientation: landscape) {
+  // Very short landscape viewports (e.g., Galaxy Fold 882×344):
+  // make both panels taller so left content stays inside the background card.
+  .courses-section-inner {
+    align-items: stretch;
+  }
+
+  .courses-section-left {
+    height: 165vh;
+    height: 165dvh;
+    min-height: 165vh;
+    min-height: 165dvh;
+  }
+
+  .courses-section-right {
+    height: 165vh;
+    height: 165dvh;
+    max-height: 165vh;
+    max-height: 165dvh;
+    overflow-y: auto;
+  }
+
+  .courses-section-left-sticky {
+    padding-top: 48px;
+    padding-bottom: 48px;
+  }
+
+  .courses-section-title {
+    margin-top: 52px;
+  }
+
+  .courses-section-title {
+    width: 100%;
+    max-width: 100%;
   }
 }
 
