@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export const useStickyPanel = ({
   layoutRef,
@@ -10,7 +10,10 @@ export const useStickyPanel = ({
 }) => {
   const naturalHeightRef = useRef(0);
   const [stickyState, setStickyState] = useState({ mode: 'static', width: null, left: null });
-  const staticState = { mode: 'static', width: null, left: null };
+  const staticState = useMemo(
+    () => ({ mode: 'static', width: null, left: null }),
+    []
+  );
   const depsKey = Array.isArray(deps) ? deps.join('|') : '';
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
