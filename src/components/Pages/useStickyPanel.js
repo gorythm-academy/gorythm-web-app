@@ -13,6 +13,7 @@ export const useStickyPanel = ({
   const staticState = { mode: 'static', width: null, left: null };
   const depsKey = Array.isArray(deps) ? deps.join('|') : '';
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (stickyRef.current) {
       naturalHeightRef.current = stickyRef.current.offsetHeight;
