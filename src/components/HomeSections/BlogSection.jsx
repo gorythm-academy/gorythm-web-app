@@ -2,7 +2,7 @@
 // Auto left-to-right slider with dot indicators
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { blogPosts } from '../Pages/BlogData';
 import './BlogSection.scss';
 
@@ -12,7 +12,6 @@ const AUTO_ADVANCE_MS = 5000;
 const BlogSection = () => {
   const sectionRef = useRef(null);
   const sliderRef = useRef(null);
-  const navigate = useNavigate();
   const touchStartRef = useRef(null); // { x, y }
   const touchGestureRef = useRef({ isHorizontalSwipe: false });
   const [isInView, setIsInView] = useState(false);
@@ -137,14 +136,6 @@ const BlogSection = () => {
                       key={post.id}
                       to={`/blog/${post.slug}`}
                       className={`blog-card blog_anim blog-card-${idx + 1}`}
-                      onTouchEnd={(e) => {
-                        // Some mobile browsers won't synthesize a click for nested Links
-                        // when a parent has touch listeners. Ensure taps navigate, while
-                        // still allowing horizontal swipe gestures to change slides.
-                        if (touchGestureRef.current.isHorizontalSwipe) return;
-                        e.preventDefault();
-                        navigate(`/blog/${post.slug}`);
-                      }}
                     >
                       <div className="blog-card-meta">
                         <span className="blog-card-eyebrow">{post.category}</span>
