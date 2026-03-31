@@ -102,7 +102,7 @@ export const useStickyPanel = ({
       window.removeEventListener('scroll', updateSticky);
       window.removeEventListener('resize', updateSticky);
     };
-  }, [layoutRef, asideRef, stickyRef, boundaryRef, topOffset, depsKey]);
+  }, [layoutRef, asideRef, stickyRef, boundaryRef, topOffset, depsKey, staticState]);
 
   const stickyStyle =
     stickyState.mode === 'fixed' && stickyState.width != null
