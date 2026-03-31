@@ -11,12 +11,13 @@ export const useStickyPanel = ({
   const naturalHeightRef = useRef(0);
   const [stickyState, setStickyState] = useState({ mode: 'static', width: null, left: null });
   const staticState = { mode: 'static', width: null, left: null };
+  const depsKey = Array.isArray(deps) ? deps.join('|') : '';
 
   useEffect(() => {
     if (stickyRef.current) {
       naturalHeightRef.current = stickyRef.current.offsetHeight;
     }
-  }, [stickyRef, ...deps]);
+  }, [stickyRef, depsKey]);
 
   useEffect(() => {
     const updateSticky = () => {
@@ -52,7 +53,10 @@ export const useStickyPanel = ({
       const minContentHeight = window.innerHeight;
       const hysteresis = 8;
 
-      const hasEnoughContent = boundaryHeight >= minContentHeight && stickRange >= minStickRange && stopStickAt > startStickAt;
+      const hasEnoughContent =
+        boundaryHeight >= minContentHeight &&
+        stickRange >= minStickRange &&
+        stopStickAt > startStickAt;
 
       let nextState = staticState;
 
@@ -74,12 +78,18 @@ export const useStickyPanel = ({
         }
       }
 
+      const baseStaticState = { mode: 'static', width: null, left: null };
+
       setStickyState((prev) =>
         prev.mode === nextState.mode &&
         prev.width === nextState.width &&
         prev.left === nextState.left
           ? prev
-          : nextState
+          : nextState.mode === baseStaticState.mode &&
+              nextState.width === baseStaticState.width &&
+              nextState.left === baseStaticState.left
+            ? baseStaticState
+            : nextState
       );
     };
 
@@ -91,7 +101,7 @@ export const useStickyPanel = ({
       window.removeEventListener('scroll', updateSticky);
       window.removeEventListener('resize', updateSticky);
     };
-  }, [layoutRef, asideRef, stickyRef, boundaryRef, topOffset, ...deps]);
+  }, [layoutRef, asideRef, stickyRef, boundaryRef, topOffset, depsKey]);
 
   const stickyStyle =
     stickyState.mode === 'fixed' && stickyState.width != null
