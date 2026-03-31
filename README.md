@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Gorythm Frontend
 
 Frontend application for the Gorythm platform.
@@ -23,6 +22,3 @@ Frontend application for the Gorythm platform.
 - Avoid hardcoded media-query pixel values in component SCSS.
 - Avoid `!important`; resolve via selector structure and ordering.
 - Keep large SCSS files modular via feature partials.
-=======
-# gorythm_client
->>>>>>> 87eba980b562e83025f217f1e02b7dcfdf9ad9f0
