@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const authMiddleware = require('../middleware/auth');
+
+router.use(authMiddleware);
 
 // Get all users (with pagination)
 router.get('/', async (req, res) => {

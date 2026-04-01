@@ -2,6 +2,248 @@
 
 .users-management {
     padding: 0;
+
+    .user-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.56);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.2rem;
+        z-index: 1200;
+    }
+
+    .user-modal {
+        width: min(980px, 100%);
+        max-height: calc(100vh - 2.4rem);
+        border-radius: 18px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .user-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.1rem 1.35rem;
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+        color: #fff;
+
+        h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+
+        .modal-close-btn {
+            width: 36px;
+            height: 36px;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.18);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:hover:not(:disabled) {
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-1px);
+            }
+        }
+    }
+
+    .user-form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1;
+
+        .form-scroll-container {
+            overflow: auto;
+            padding: 1.2rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .form-section {
+            background: #fff;
+            border: 1px solid #dbe6ff;
+            border-radius: 14px;
+            padding: 1rem;
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.08);
+
+            h3 {
+                margin: 0 0 0.9rem;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.98rem;
+                color: #1e293b;
+
+                i {
+                    color: var(--color-accent);
+                }
+            }
+        }
+
+        .form-group {
+            margin-bottom: 0.85rem;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+
+            label {
+                display: block;
+                margin-bottom: 0.35rem;
+                font-size: 0.86rem;
+                color: #475569;
+                font-weight: 600;
+            }
+
+            input[type="text"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="password"] {
+                width: 100%;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
+                padding: 0.68rem 0.78rem;
+                font-size: 0.92rem;
+                color: #0f172a;
+                background: #f8fafc;
+                transition: all 0.2s ease;
+
+                &:focus {
+                    outline: none;
+                    border-color: var(--color-accent);
+                    background: #fff;
+                    box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.15);
+                }
+            }
+
+            .form-hint {
+                display: block;
+                margin-top: 0.32rem;
+                color: #64748b;
+                font-size: 0.78rem;
+            }
+        }
+
+        .role-options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem;
+
+            .role-option {
+                input {
+                    position: absolute;
+                    opacity: 0;
+                    pointer-events: none;
+                }
+            }
+
+            .role-card {
+                border: 1.5px solid #d6dfef;
+                border-radius: 10px;
+                padding: 0.58rem 0.62rem;
+                display: flex;
+                align-items: center;
+                gap: 0.45rem;
+                color: #334155;
+                cursor: pointer;
+                background: #fff;
+                transition: all 0.2s ease;
+
+                i {
+                    color: var(--color-accent);
+                    width: 16px;
+                    text-align: center;
+                }
+
+                span {
+                    font-size: 0.82rem;
+                    font-weight: 600;
+                    line-height: 1.2;
+                }
+            }
+
+            .role-option input:checked + .role-card {
+                border-color: var(--color-accent);
+                background: rgba(var(--color-accent-rgb), 0.1);
+                box-shadow: 0 5px 14px rgba(var(--color-accent-rgb), 0.2);
+            }
+        }
+
+        .checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+
+            input[type="checkbox"] {
+                width: 18px;
+                height: 18px;
+                accent-color: var(--color-accent);
+            }
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.7rem;
+            padding: 0.95rem 1.2rem 1.1rem;
+            border-top: 1px solid #dbe6ff;
+            background: #fff;
+
+            .btn-secondary,
+            .btn-primary {
+                border: none;
+                border-radius: 10px;
+                padding: 0.72rem 1.2rem;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.45rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .btn-secondary {
+                background: #e2e8f0;
+                color: #334155;
+
+                &:hover:not(:disabled) {
+                    background: #cfd8e3;
+                }
+            }
+
+            .btn-primary {
+                background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+                color: #fff;
+
+                &:hover:not(:disabled) {
+                    transform: translateY(-1px);
+                    box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
+                }
+            }
+        }
+    }
     
     &.loading {
         display: flex;
@@ -531,6 +773,21 @@
     }
     
     @media (max-width: $bp-legacy-768) {
+        .user-modal {
+            max-height: calc(100vh - 1.2rem);
+            border-radius: 14px;
+        }
+
+        .user-form {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .role-options {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .controls-bar {
             flex-direction: column;
             align-items: stretch;
@@ -551,6 +808,35 @@
     }
     
     @media (max-width: $bp-legacy-480) {
+        .user-modal-overlay {
+            padding: 0.45rem;
+        }
+
+        .user-modal-header {
+            padding: 0.9rem;
+
+            h2 {
+                font-size: 1rem;
+            }
+        }
+
+        .user-form {
+            .form-scroll-container {
+                padding: 0.8rem;
+            }
+
+            .form-actions {
+                padding: 0.8rem;
+                flex-direction: column-reverse;
+
+                .btn-secondary,
+                .btn-primary {
+                    width: 100%;
+                    justify-content: center;
+                }
+            }
+        }
+
         .page-header {
             flex-direction: column;
             gap: 1rem;

@@ -57,6 +57,13 @@ const CoursesManagement = () => {
     const [sortOrder, setSortOrder] = useState('asc');
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const toastTimerRef = React.useRef(null);
+    const tableContainerRef = React.useRef(null);
+    const dragStateRef = React.useRef({
+        isDragging: false,
+        startX: 0,
+        startScrollLeft: 0,
+    });
+    const [isTableDragging, setIsTableDragging] = useState(false);
 
     // Interactive column resize (drag handles in <th>, applied via <colgroup>)
     const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
@@ -116,6 +123,36 @@ const CoursesManagement = () => {
             next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
             return next;
         });
+    };
+
+    const startTableDragScroll = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, select, textarea, a, .col-resizer')) return;
+
+        const tableContainer = tableContainerRef.current;
+        if (!tableContainer) return;
+
+        dragStateRef.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startScrollLeft: tableContainer.scrollLeft,
+        };
+        setIsTableDragging(true);
+    };
+
+    const onTableDragScroll = (e) => {
+        const tableContainer = tableContainerRef.current;
+        const dragState = dragStateRef.current;
+        if (!tableContainer || !dragState.isDragging) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        tableContainer.scrollLeft = dragState.startScrollLeft - deltaX;
+    };
+
+    const stopTableDragScroll = () => {
+        if (!dragStateRef.current.isDragging) return;
+        dragStateRef.current.isDragging = false;
+        setIsTableDragging(false);
     };
 
     useEffect(() => {
@@ -883,7 +920,14 @@ setFormData({
   </div>
             )}
 
-            <div className="courses-table-container">
+            <div
+                ref={tableContainerRef}
+                className={`courses-table-container ${isTableDragging ? 'is-dragging' : ''}`}
+                onMouseDown={startTableDragScroll}
+                onMouseMove={onTableDragScroll}
+                onMouseUp={stopTableDragScroll}
+                onMouseLeave={stopTableDragScroll}
+            >
                 <table className="courses-table">
                     <colgroup>
                         {COLUMN_DEFS.map((key, idx) => (

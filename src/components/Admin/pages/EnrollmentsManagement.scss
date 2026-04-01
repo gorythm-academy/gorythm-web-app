@@ -1,5 +1,6 @@
 @import '../../../styles/_variables.scss';
 @import '../../../styles/_mixins.scss';
+@import '../../../styles/_breakpoints.scss';
 @import './enrollments-management-modal';
 
 .enrollments-management {
@@ -892,6 +893,78 @@
                 font-size: 13px;
             }
         }
+    }
+}
+
+@media (max-width: $bp-legacy-1024) {
+    .page-header {
+        flex-direction: column;
+        gap: 12px;
+
+        .header-right {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-768) {
+    .enrollments-management {
+        padding: 16px;
+    }
+
+    .bulk-actions-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px 16px;
+
+        .bulk-buttons {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+
+    .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+
+        .search-box {
+            max-width: none;
+        }
+
+        .filter-controls {
+            flex-wrap: wrap;
+
+            .status-filter,
+            .refresh-btn {
+                width: 100%;
+            }
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-480) {
+    .page-header .header-left h1 {
+        font-size: 22px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .database-info {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (min-width: $bp-legacy-769) and (max-width: $bp-legacy-1024) and (orientation: landscape) {
+    .enrollments-table {
+        min-width: 1000px;
     }
 }
 

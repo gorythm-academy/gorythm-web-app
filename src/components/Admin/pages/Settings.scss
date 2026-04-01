@@ -1,3 +1,5 @@
+@import '../../../styles/_breakpoints.scss';
+
 // Settings Page Styles
 .settings-page {
     padding: 1rem;
@@ -390,6 +392,81 @@
                 border-color: #ef4444;
                 color: #ef4444;
             }
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-1024) {
+    .settings-page {
+        .settings-card {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-768) {
+    .settings-page {
+        padding: 0.75rem;
+
+        .settings-header h1 {
+            font-size: 1.5rem;
+        }
+
+        .settings-tabs {
+            gap: 6px;
+
+            .tab-btn {
+                padding: 0.7rem 1rem;
+            }
+        }
+
+        .settings-card {
+            .card-header,
+            .card-body {
+                padding: 1rem;
+            }
+        }
+
+        .settings-footer {
+            flex-direction: column;
+
+            .save-btn,
+            .reset-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-480) {
+    .settings-page {
+        .settings-header h1 {
+            font-size: 1.3rem;
+        }
+
+        .settings-card {
+            .form-grid .form-group {
+                input,
+                select {
+                    font-size: 0.95rem;
+                }
+            }
+
+            .appearance-settings .theme-selector .theme-options,
+            .appearance-settings .color-picker .color-options {
+                flex-wrap: wrap;
+            }
+        }
+    }
+}
+
+@media (min-width: $bp-legacy-769) and (max-width: $bp-legacy-1024) and (orientation: landscape) {
+    .settings-page {
+        .settings-tabs .tab-btn {
+            padding: 0.7rem 1.1rem;
         }
     }
 }

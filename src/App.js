@@ -38,16 +38,16 @@ import {
 } from './components/Pages/MissionPages';
 
 // Import Admin Login component
-import AdminLogin from './components/Admin/backend/Login';
+import AdminLogin from './components/Admin/pages/Login';
 
 // Import Admin Management Components
-import UsersManagement from './components/Admin/backend/UsersManagement';
-import CoursesManagement from './components/Admin/backend/CoursesManagement';
-import PaymentsManagement from './components/Admin/backend/PaymentsManagement';
-import Analytics from './components/Admin/backend/Analytics';
-import Settings from './components/Admin/backend/Settings';
-import EnrollmentsManagement from './components/Admin/backend/EnrollmentsManagement';
-import PaymentGateway from './components/Admin/backend/PaymentGateway';
+import UsersManagement from './components/Admin/pages/UsersManagement';
+import CoursesManagement from './components/Admin/pages/CoursesManagement';
+import PaymentsManagement from './components/Admin/pages/PaymentsManagement';
+import Analytics from './components/Admin/pages/Analytics';
+import Settings from './components/Admin/pages/Settings';
+import EnrollmentsManagement from './components/Admin/pages/EnrollmentsManagement';
+import PaymentGateway from './components/Admin/pages/PaymentGateway';
 
 
 const Home = () => {

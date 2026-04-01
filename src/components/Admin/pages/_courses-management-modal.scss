@@ -1,3 +1,5 @@
+@import '../../../styles/_breakpoints.scss';
+
 // ==================== COURSE MODAL – single color scheme ====================
 .course-modal-overlay {
     position: fixed;
@@ -234,3 +236,63 @@
 }
 
 // Modal close button (scoped inside .course-form-card above)
+
+@media (max-width: $bp-legacy-768) {
+    .course-modal-overlay {
+        padding: 12px;
+    }
+
+    .course-modal {
+        max-height: 92vh;
+
+        .course-form-card {
+            padding: 1.1rem;
+
+            .form-header {
+                padding-right: 2.8rem;
+            }
+
+            .course-form {
+                .form-row {
+                    margin-bottom: 0.9rem;
+                }
+
+                .form-actions {
+                    flex-direction: column;
+
+                    .btn-primary,
+                    .btn-secondary {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                }
+            }
+        }
+    }
+}
+
+@media (max-width: $bp-legacy-480) {
+    .course-modal {
+        border-radius: 12px;
+
+        .course-form-card {
+            padding: 0.9rem;
+
+            .form-header h2 {
+                font-size: 1.15rem;
+            }
+        }
+    }
+}
+
+@media (max-height: $bp-home-landscape-short-max) and (orientation: landscape) {
+    .course-modal-overlay {
+        align-items: flex-start;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .course-modal {
+        max-height: calc(100vh - 16px);
+    }
+}

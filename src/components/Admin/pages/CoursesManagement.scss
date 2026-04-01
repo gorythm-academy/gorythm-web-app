@@ -466,6 +466,12 @@ tr.selected {
         max-width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        cursor: grab;
+
+        &.is-dragging {
+            cursor: grabbing;
+            user-select: none;
+        }
         
         .courses-table {
             width: 100%;

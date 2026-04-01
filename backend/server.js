@@ -1,7 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -12,6 +13,7 @@ const analyticsRoutes = require('./routes/analytics');
 const settingsRoutes = require('./routes/settings');
 const blogCommentRoutes = require('./routes/blogComments');
 const contactRoutes = require('./routes/contact');
+const userRoutes = require('./routes/users');
 
 const app = express();
 
@@ -40,6 +42,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes); 
 app.use('/api/enrollments', enrollmentsRoute);
 app.use('/api/analytics', analyticsRoutes);
@@ -61,6 +64,7 @@ app.get('/health', (req, res) => {
     'POST /api/auth/login',
     'GET  /api/admin/dashboard',
     'GET  /api/courses',
+    'GET  /api/users',
     'POST /api/courses',
     'PATCH /api/courses/:id/status',
     'DELETE /api/courses/:id',  
