@@ -3,7 +3,7 @@ import { Link, NavLink } from 'react-router-dom';
 import './Header.scss';
 import { CONTACT_EMAIL, INFO_EMAIL, FACEBOOK_URL, WHATSAPP_URL } from '../../config/constants';
 
-/** Viewports using compact nav (hamburger); same breakpoint as scroll auto-hide behavior. */
+/** Viewports using compact nav (hamburger); header is not fixed — scrolls with the page. */
 const MOBILE_TABLET_MAX_WIDTH = 1279;
 
 const Header = () => {
@@ -14,7 +14,9 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState(null);       // for mobile dropdowns
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= MOBILE_TABLET_MAX_WIDTH
+  );
   const [isPortrait, setIsPortrait] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   );
@@ -71,27 +73,41 @@ const Header = () => {
     return () => mql.removeEventListener('change', handleChange);
   }, []);
 
-  // Scroll effects:
-  // - scrolled: frosted bar with hysteresis (on > OFF_PX, off < ON_PX) to reduce jump/flicker
-  // - headerVisible (desktop >1279): legacy — show on scroll down, hide on scroll up
-  // - headerVisible (mobile/tablet): common pattern — hide on scroll down, show on scroll up
+  // Scroll effects — desktop only (>1279px). Mobile/tablet: header is in flow, no sticky logic.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const TOP_REVEAL_Y = 20;
-    const SCROLLED_ON_PX = 80;   // turn frosted bar on after this (scroll down)
-    const SCROLLED_OFF_PX = 28;  // turn off only after this (scroll up) — gap prevents oscillation
+    const SCROLLED_ON_PX = 80;
+    const SCROLLED_OFF_PX = 28;
     const DELTA_THRESHOLD = 6;
 
-    const y0 = window.scrollY || 0;
-    lastScrollYRef.current = y0;
-    scrolledLatchRef.current = y0 > SCROLLED_ON_PX;
-    setScrolled(scrolledLatchRef.current);
+    const syncStickyStateFromViewport = () => {
+      const y0 = window.scrollY || 0;
+      const compact = window.innerWidth <= MOBILE_TABLET_MAX_WIDTH;
+      lastScrollYRef.current = y0;
+      if (compact) {
+        scrolledLatchRef.current = false;
+        setScrolled(false);
+        setHeaderVisible(true);
+      } else {
+        scrolledLatchRef.current = y0 > SCROLLED_ON_PX;
+        setScrolled(scrolledLatchRef.current);
+        if (y0 <= TOP_REVEAL_Y) setHeaderVisible(true);
+      }
+    };
+
+    syncStickyStateFromViewport();
 
     const onScroll = () => {
       if (scrollRafRef.current) return;
       scrollRafRef.current = window.requestAnimationFrame(() => {
         scrollRafRef.current = 0;
+
+        if (window.innerWidth <= MOBILE_TABLET_MAX_WIDTH) {
+          lastScrollYRef.current = window.scrollY || 0;
+          return;
+        }
 
         const currentY = window.scrollY || 0;
         const lastY = lastScrollYRef.current;
@@ -105,18 +121,11 @@ const Header = () => {
           setScrolled(nextScrolled);
         }
 
-        // Don't fight the overlay behavior; header is hidden via CSS then anyway.
         if (!isMobileMenuOpen) {
           if (currentY <= TOP_REVEAL_Y) {
             setHeaderVisible(true);
           } else if (Math.abs(delta) >= DELTA_THRESHOLD) {
-            const isMobileOrTablet = window.innerWidth <= MOBILE_TABLET_MAX_WIDTH;
-            if (isMobileOrTablet) {
-              // Common pattern: scrolling down (reading) hides bar; scroll up reveals nav
-              setHeaderVisible(delta < 0);
-            } else {
-              setHeaderVisible(delta > 0);
-            }
+            setHeaderVisible(delta > 0);
           }
         }
 
@@ -132,7 +141,7 @@ const Header = () => {
         scrollRafRef.current = 0;
       }
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isMobile]);
 
   // Click outside to close mobile menu; prevent page scroll when menu open (wheel)
   useEffect(() => {
@@ -248,7 +257,7 @@ const Header = () => {
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
       <header
-        className={`header ${scrolled ? 'scrolled' : ''}${headerVisible ? '' : ' header--hidden'}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
+        className={`header ${scrolled && !isMobile ? 'scrolled' : ''}${!isMobile && !headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
         ref={headerRef}
         aria-hidden={isMobileMenuOpen}
       >
