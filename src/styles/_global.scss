@@ -9,6 +9,7 @@
 
 html {
   font-size: 16px;
+  // TEMPORARY NOTE: max-width 768px forces scroll-behavior: auto below (Chrome mobile + Lenis). RESTORE: remove that @media block only.
   scroll-behavior: smooth;
   overflow-x: hidden;
   width: 100%;
@@ -23,6 +24,14 @@ html {
   
   @include respond-to('sm') {
     font-size: 13px;
+  }
+}
+
+// TEMPORARY: mobile Chrome — `scroll-behavior: smooth` on html + Lenis (when enabled) felt like extra jerk.
+// RESTORE: delete this entire block to rely only on `html { scroll-behavior: smooth }` above.
+@media (max-width: 768px) {
+  html {
+    scroll-behavior: auto !important;
   }
 }
 
