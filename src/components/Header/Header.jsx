@@ -26,6 +26,8 @@ const Header = () => {
   const gridPanelRef = useRef(null);
   const lastScrollYRef = useRef(0);
   const scrollRafRef = useRef(0);
+  /** Hysteresis for frosted header: avoids flicker/jump at a single pixel line */
+  const scrolledLatchRef = useRef(false);
 
   const menuItems = [
     { id: 1, title: 'Home', path: '/', hasDropdown: false },
@@ -70,17 +72,21 @@ const Header = () => {
   }, []);
 
   // Scroll effects:
-  // - scrolled: add blur/bg after threshold
+  // - scrolled: frosted bar with hysteresis (on > OFF_PX, off < ON_PX) to reduce jump/flicker
   // - headerVisible (desktop >1279): legacy — show on scroll down, hide on scroll up
   // - headerVisible (mobile/tablet): common pattern — hide on scroll down, show on scroll up
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    lastScrollYRef.current = window.scrollY || 0;
+    const TOP_REVEAL_Y = 20;
+    const SCROLLED_ON_PX = 80;   // turn frosted bar on after this (scroll down)
+    const SCROLLED_OFF_PX = 28;  // turn off only after this (scroll up) — gap prevents oscillation
+    const DELTA_THRESHOLD = 6;
 
-    const TOP_REVEAL_Y = 20;     // always show header near top
-    const SCROLLED_Y = 50;       // when to add the "scrolled" class
-    const DELTA_THRESHOLD = 6;   // ignore tiny scroll jitter
+    const y0 = window.scrollY || 0;
+    lastScrollYRef.current = y0;
+    scrolledLatchRef.current = y0 > SCROLLED_ON_PX;
+    setScrolled(scrolledLatchRef.current);
 
     const onScroll = () => {
       if (scrollRafRef.current) return;
@@ -91,8 +97,13 @@ const Header = () => {
         const lastY = lastScrollYRef.current;
         const delta = currentY - lastY;
 
-        // Visual style on scroll
-        setScrolled(currentY > SCROLLED_Y);
+        let nextScrolled = scrolledLatchRef.current;
+        if (!nextScrolled && currentY > SCROLLED_ON_PX) nextScrolled = true;
+        else if (nextScrolled && currentY < SCROLLED_OFF_PX) nextScrolled = false;
+        if (nextScrolled !== scrolledLatchRef.current) {
+          scrolledLatchRef.current = nextScrolled;
+          setScrolled(nextScrolled);
+        }
 
         // Don't fight the overlay behavior; header is hidden via CSS then anyway.
         if (!isMobileMenuOpen) {

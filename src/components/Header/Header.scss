@@ -1358,9 +1358,15 @@
     padding: 15px 0;
 
     &.scrolled {
-      padding: 12px 0;
+      // Same vertical padding as non-scrolled — only glass/bg changes (stops mobile “jump”)
+      padding: 15px 0;
       background: rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(10px);
+
+      .header-container {
+        padding-top: 0;
+        padding-bottom: 0;
+      }
 
       .mobile-menu-toggle .toggle-line {
         background: white; // keep white on scroll
@@ -1420,7 +1426,7 @@
     padding: 12px 0;
 
     &.scrolled {
-      padding: 10px 0;
+      padding: 12px 0;
     }
   }
 
