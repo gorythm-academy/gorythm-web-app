@@ -3,6 +3,9 @@ import { Link, NavLink } from 'react-router-dom';
 import './Header.scss';
 import { CONTACT_EMAIL, INFO_EMAIL, FACEBOOK_URL, WHATSAPP_URL } from '../../config/constants';
 
+/** Viewports using compact nav (hamburger); same breakpoint as scroll auto-hide behavior. */
+const MOBILE_TABLET_MAX_WIDTH = 1279;
+
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);              // 9-dot grid sidebar
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);  // mobile overlay
@@ -41,7 +44,7 @@ const Header = () => {
   // Detect mobile viewport
   useEffect(() => {
     const checkMobile = () => {
-      const mobile = window.innerWidth <= 1279;
+      const mobile = window.innerWidth <= MOBILE_TABLET_MAX_WIDTH;
       setIsMobile(mobile);
       if (!mobile && isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
@@ -68,7 +71,8 @@ const Header = () => {
 
   // Scroll effects:
   // - scrolled: add blur/bg after threshold
-  // - headerVisible: show on scroll down, hide on scroll up (with hysteresis)
+  // - headerVisible (desktop >1279): legacy — show on scroll down, hide on scroll up
+  // - headerVisible (mobile/tablet): common pattern — hide on scroll down, show on scroll up
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -95,8 +99,13 @@ const Header = () => {
           if (currentY <= TOP_REVEAL_Y) {
             setHeaderVisible(true);
           } else if (Math.abs(delta) >= DELTA_THRESHOLD) {
-            // down = show, up = hide
-            setHeaderVisible(delta > 0);
+            const isMobileOrTablet = window.innerWidth <= MOBILE_TABLET_MAX_WIDTH;
+            if (isMobileOrTablet) {
+              // Common pattern: scrolling down (reading) hides bar; scroll up reveals nav
+              setHeaderVisible(delta < 0);
+            } else {
+              setHeaderVisible(delta > 0);
+            }
           }
         }
 
@@ -293,7 +302,6 @@ const Header = () => {
                   {/* Auth buttons – hidden on mobile via CSS */}
                   <div className="auth-buttons">
                     <Link to="/login" className="btn btn-login">Login</Link>
-                    <Link to="/register" className="btn btn-register">Sign Up</Link>
                   </div>
 
                   {/* WhatsApp – opens chat in new tab */}
@@ -430,7 +438,6 @@ const Header = () => {
                 <div className="mobile-menu-left-divider" aria-hidden="true" />
                 <div className="mobile-auth-buttons mobile-auth-anim">
                   <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
-                  <Link to="/register" className="btn btn-mobile-register" onClick={closeMobileMenu}>Sign Up</Link>
                 </div>
                 <div className="mobile-menu-social mobile-social-anim">
                   {socialLinks.map(link => (
@@ -509,7 +516,6 @@ const Header = () => {
                   <div className="mobile-menu-left-divider" aria-hidden="true" />
                   <div className="mobile-auth-buttons mobile-auth-anim">
                     <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
-                    <Link to="/register" className="btn btn-mobile-register" onClick={closeMobileMenu}>Sign Up</Link>
                   </div>
                   <div className="mobile-menu-social mobile-social-anim">
                     {socialLinks.map(link => (
