@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { getAuthToken, getAuthUserJson, clearAuthSession } from '../../utils/authStorage';
 import './Admin.scss';
 
 const DashboardLayout = () => {
@@ -12,7 +13,7 @@ const DashboardLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Unfreeze sidebar when footer enters viewport (works with Lenis smooth scroll)
+    // Unfreeze sidebar when footer enters viewport (native page scroll)
     useEffect(() => {
         const footer = footerRef.current;
         if (!footer) return;
@@ -54,8 +55,8 @@ const DashboardLayout = () => {
 
     // Check authentication on mount
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        const user = localStorage.getItem('user');
+        const token = getAuthToken();
+        const user = getAuthUserJson();
         
         if (!token || !user) {
             navigate('/admin/login');
@@ -64,24 +65,25 @@ const DashboardLayout = () => {
 
     // Logout function
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        clearAuthSession();
         navigate('/admin/login');
     };
 
 
 
     // Get current user from localStorage
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(getAuthUserJson() || '{}');
 
     const menuItems = [
         { path: '/admin', icon: 'fas fa-home', label: 'Dashboard' },
         { path: '/admin/users', icon: 'fas fa-users', label: 'Users' },
+        { path: '/admin/people', icon: 'fas fa-people-group', label: 'People' },
         { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
         { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments' },
         { path: '/admin/enrollments', icon: 'fas fa-user-graduate', label: 'Enrollments' },
         { path: '/admin/assignments', icon: 'fas fa-tasks', label: 'Assignments' },
         { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
+        { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact' },
         { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
     ];
 
