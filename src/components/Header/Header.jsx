@@ -247,6 +247,29 @@ const Header = () => {
     };
   }, [isMenuOpen]);
 
+  // Sync sidebar height to real visible viewport height so the mobile URL bar
+  // show/hide doesn't create a bottom gap. Uses visualViewport when available.
+  useEffect(() => {
+    const setVh = () => {
+      const h = (window.visualViewport?.height || window.innerHeight);
+      document.documentElement.style.setProperty('--menu-grid-vh', `${h}px`);
+    };
+
+    if (isMenuOpen) {
+      setVh();
+      window.visualViewport?.addEventListener('resize', setVh);
+      window.visualViewport?.addEventListener('scroll', setVh);
+      window.addEventListener('resize', setVh);
+    }
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', setVh);
+      window.visualViewport?.removeEventListener('scroll', setVh);
+      window.removeEventListener('resize', setVh);
+      document.documentElement.style.removeProperty('--menu-grid-vh');
+    };
+  }, [isMenuOpen]);
+
   // Lock page scroll only for the hamburger mobile menu.
   // 9-dot sidebar keeps background page scroll enabled by request.
   useEffect(() => {
