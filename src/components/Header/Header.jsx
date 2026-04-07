@@ -3,7 +3,6 @@ import { Link, NavLink } from 'react-router-dom';
 import { SiTiktok } from 'react-icons/si';
 import './Header.scss';
 import {
-  CONTACT_EMAIL,
   INFO_EMAIL,
   CONTACT_PHONE,
   FACEBOOK_URL,
