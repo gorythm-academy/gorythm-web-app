@@ -1706,12 +1706,14 @@ body.no-page-scroll {
 // ===============================================================
 @media (orientation: landscape) and (max-height: 600px) {
   .menu-grid-container {
-    height: auto;
-    min-height: 100%;
+    height: 100%;
+    min-height: 0;
   }
 
   .menu-grid-content {
     justify-content: flex-start;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .social-links-list {
@@ -1720,6 +1722,11 @@ body.no-page-scroll {
 
   .social-link-item {
     padding: 4px 8px;
+  }
+
+  .menu-grid-panel {
+    height: 100svh;
+    max-height: 100svh;
   }
 }
 

@@ -242,16 +242,17 @@ const Header = () => {
     };
   }, [isMenuOpen]);
 
-  // Lock page scroll only when the hamburger mobile menu is open.
-  // The 9-dot sidebar intentionally lets the page scroll behind it.
+  // Lock page scroll when hamburger menu OR 9-dot sidebar is open.
+  // This prevents mobile URL bar resize jitter from affecting the sidebar layout.
   useEffect(() => {
-    document.documentElement.classList.toggle('no-page-scroll', isMobileMenuOpen);
-    document.body.classList.toggle('no-page-scroll', isMobileMenuOpen);
+    const locked = isMobileMenuOpen || isMenuOpen;
+    document.documentElement.classList.toggle('no-page-scroll', locked);
+    document.body.classList.toggle('no-page-scroll', locked);
     return () => {
       document.documentElement.classList.remove('no-page-scroll');
       document.body.classList.remove('no-page-scroll');
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isMenuOpen]);
 
   // Desktop dropdown hover handlers
   const handleDropdownEnter = (menuId) => {
