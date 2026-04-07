@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL } from '../../config/constants';
+import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL, CONTACT_PHONE, INFO_EMAIL, CONTACT_ADDRESS, WHATSAPP_URL } from '../../config/constants';
 import footerBgImage from '../../assets/images/footer-bd-image.png';
 import './Footer.scss';
 
@@ -57,25 +57,21 @@ const Footer = () => {
                             <h3 className="widget-title">Contact Info</h3>
                             <ul className="contact-info">
                                 <li className="contact-item">
-                                    <i className="icon-location"></i>
-                                    <span>123 Education Street, Learning City, LC 12345</span>
+                                    <i className="fas fa-map-marker-alt"></i>
+                                    <span>{CONTACT_ADDRESS}</span>
                                 </li>
-                               <li className="contact-item">
-    <i className="fas fa-map-marker-alt"></i>
-    <span>123 Education Street, Learning City, LC 12345</span>
-</li>
-<li className="contact-item">
-    <i className="fas fa-phone"></i>
-    <span>(123) 456-7890</span>
-</li>
-<li className="contact-item">
-    <i className="fas fa-envelope"></i>
-    <span>info@edumaster-academy.com</span>
-</li>
-<li className="contact-item">
-    <i className="fas fa-clock"></i>
-    <span>Support: 24/7 Available</span>
-</li>
+                                <li className="contact-item">
+                                    <i className="fab fa-whatsapp"></i>
+                                    <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">{CONTACT_PHONE}</a>
+                                </li>
+                                <li className="contact-item">
+                                    <i className="fas fa-envelope"></i>
+                                    <a href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>
+                                </li>
+                                <li className="contact-item">
+                                    <i className="fas fa-clock"></i>
+                                    <span>Support: 24/7 Available</span>
+                                </li>
                             </ul>
                         </div>
 

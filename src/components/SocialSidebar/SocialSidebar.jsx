@@ -1,6 +1,6 @@
 import React from 'react';
 import { SiTiktok } from 'react-icons/si';
-import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL } from '../../config/constants';
+import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL, CONTACT_PHONE, INFO_EMAIL, WHATSAPP_URL } from '../../config/constants';
 import './SocialSidebar.scss';
 
 const SocialSidebar = ({ isOpen, onClose }) => {
@@ -56,17 +56,17 @@ const SocialSidebar = ({ isOpen, onClose }) => {
           {/* CONTACT INFO AT BOTTOM */}
           <div className="sidebar-contact-info">
             <div className="contact-item">
-              <i className="fas fa-phone-alt contact-icon"></i>
+              <i className="fas fa-whatsapp contact-icon"></i>
               <div className="contact-details">
-                <span className="contact-label">Call Us</span>
-                <a href="tel:+18408412569" className="contact-value">+1 840 841 25 69</a>
+                <span className="contact-label">WhatsApp</span>
+                <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="contact-value">{CONTACT_PHONE}</a>
               </div>
             </div>
             <div className="contact-item">
               <i className="fas fa-envelope contact-icon"></i>
               <div className="contact-details">
                 <span className="contact-label">Email Us</span>
-                <a href="mailto:info@swal.com" className="contact-value">info@swal.com</a>
+                <a href={`mailto:${INFO_EMAIL}`} className="contact-value">{INFO_EMAIL}</a>
               </div>
             </div>
           </div>

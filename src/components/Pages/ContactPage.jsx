@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
 import { HiOutlineInformationCircle } from 'react-icons/hi';
 import { FaWhatsapp } from 'react-icons/fa';
-import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL } from '../../config/constants';
+import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL, CONTACT_PHONE, CONTACT_ADDRESS } from '../../config/constants';
 import './ContactPage.scss';
 
 const contactInfo = {
-  address: 'Eindhoven, Netherlands',
-  phone: '+31 684 427 025',
+  address: CONTACT_ADDRESS,
+  phone: CONTACT_PHONE,
   email: INFO_EMAIL,
 };
 

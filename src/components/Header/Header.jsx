@@ -5,6 +5,7 @@ import './Header.scss';
 import {
   CONTACT_EMAIL,
   INFO_EMAIL,
+  CONTACT_PHONE,
   FACEBOOK_URL,
   WHATSAPP_URL,
   INSTAGRAM_URL,
@@ -203,18 +204,14 @@ const Header = () => {
 
     if (isMobileMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'hidden';
       document.addEventListener('wheel', handleWheel, { passive: false });
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    } else {
-      document.body.style.overflow = 'auto';
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('wheel', handleWheel);
       document.removeEventListener('touchmove', handleTouchMove);
-      document.body.style.overflow = 'auto';
     };
   }, [isMobileMenuOpen]);
 
@@ -245,6 +242,17 @@ const Header = () => {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isMenuOpen]);
+
+  // Lock page scroll only when the hamburger mobile menu is open.
+  // The 9-dot sidebar intentionally lets the page scroll behind it.
+  useEffect(() => {
+    document.documentElement.classList.toggle('no-page-scroll', isMobileMenuOpen);
+    document.body.classList.toggle('no-page-scroll', isMobileMenuOpen);
+    return () => {
+      document.documentElement.classList.remove('no-page-scroll');
+      document.body.classList.remove('no-page-scroll');
+    };
+  }, [isMobileMenuOpen]);
 
   // Desktop dropdown hover handlers
   const handleDropdownEnter = (menuId) => {
@@ -669,14 +677,16 @@ const Header = () => {
             <div className="contact-info">
               <div className="contact-item">
                 <div className="contact-details">
-                  <div className="contact-value">+1 (234) 567-8900</div>
+                  <div className="contact-value">
+                    <a href={`tel:${CONTACT_PHONE.replace(/\s/g, '')}`}>{CONTACT_PHONE}</a>
+                  </div>
                 </div>
               </div>
 
               <div className="contact-item">
                 <div className="contact-details">
                   <div className="contact-value">
-                    <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+                    <a href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>
                   </div>
                 </div>
               </div>

@@ -1685,5 +1685,43 @@
   }
 }
 
+// ===============================================================
+// PAGE SCROLL LOCK – applied to html + body when any overlay is open
+// ===============================================================
+html.no-page-scroll,
+body.no-page-scroll {
+  overflow: hidden;
+  // Keep the scrollbar gutter so the page doesn't jump
+  scrollbar-gutter: stable;
+}
+
+// Prevent scroll chaining: keep overlay/panel scroll contained
+.mobile-menu-overlay,
+.menu-grid-panel {
+  overscroll-behavior: contain;
+}
+
+// ===============================================================
+// LANDSCAPE SHORT SCREENS – fix TikTok (4th icon) overlap in 9-dot sidebar
+// ===============================================================
+@media (orientation: landscape) and (max-height: 600px) {
+  .menu-grid-container {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .menu-grid-content {
+    justify-content: flex-start;
+  }
+
+  .social-links-list {
+    gap: 6px;
+  }
+
+  .social-link-item {
+    padding: 4px 8px;
+  }
+}
+
 @import './header-landscape';
 @import './header-admin-route';
