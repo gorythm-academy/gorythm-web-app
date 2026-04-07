@@ -93,7 +93,12 @@ const Header = () => {
   // Detect orientation: portrait = simple layout, landscape = two columns
   useEffect(() => {
     const mql = window.matchMedia('(orientation: portrait)');
-    const handleChange = () => setIsPortrait(mql.matches);
+    const handleChange = () => {
+      const portrait = mql.matches;
+      setIsPortrait(portrait);
+      // 9-dot sidebar is landscape-only; close it immediately on portrait rotate.
+      if (portrait) setIsMenuOpen(false);
+    };
     handleChange();
     mql.addEventListener('change', handleChange);
     return () => mql.removeEventListener('change', handleChange);
