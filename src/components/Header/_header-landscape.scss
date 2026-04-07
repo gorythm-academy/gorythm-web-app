@@ -51,8 +51,8 @@
     width: 320px;
     max-width: 85vw;
     right: -320px;
-    height: 100vh;
-    height: 100dvh;
+    height: 100svh;
+    max-height: 100svh;
   }
 
   .menu-grid-panel--open {
@@ -108,6 +108,11 @@
 /* Portrait: hide 9-dot trigger */
 @media (orientation: portrait) {
   .header .menu-grid-trigger {
+    display: none;
+  }
+
+  // Ensure panel is never visible in portrait even if state was open before rotate.
+  .menu-grid-panel {
     display: none;
   }
 }
