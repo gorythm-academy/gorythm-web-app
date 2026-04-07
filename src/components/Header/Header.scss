@@ -1712,16 +1712,34 @@ body.no-page-scroll {
 
   .menu-grid-content {
     justify-content: flex-start;
-    overflow-y: auto;
     min-height: 0;
   }
 
   .social-links-list {
-    gap: 6px;
+    gap: 4px;
   }
 
   .social-link-item {
-    padding: 4px 8px;
+    padding: 3px 8px;
+  }
+
+  .social-icon {
+    width: 20px;
+    min-width: 20px;
+    font-size: 1em;
+    margin-right: 10px;
+  }
+
+  .social-link-name {
+    font-size: 0.82em;
+  }
+
+  .contact-info {
+    gap: 4px;
+  }
+
+  .contact-value {
+    font-size: 0.78em;
   }
 
   .menu-grid-panel {
