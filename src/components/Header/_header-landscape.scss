@@ -51,9 +51,7 @@
     width: 320px;
     max-width: 85vw;
     right: -320px;
-    top: 0;
-    bottom: 0;
-    height: auto;
+    height: var(--menu-grid-vh, 100svh);
   }
 
   .menu-grid-panel--open {
