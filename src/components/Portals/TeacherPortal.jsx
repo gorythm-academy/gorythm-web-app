@@ -22,6 +22,7 @@ const TeacherPortal = () => {
       }
     };
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submitAttendance = async (e) => {

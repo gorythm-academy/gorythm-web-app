@@ -21,6 +21,7 @@ const ParentPortal = () => {
       }
     };
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submitLinkRequest = async (e) => {
