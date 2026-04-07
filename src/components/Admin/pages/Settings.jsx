@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import '../Admin.scss';
 
 const Settings = () => {
@@ -51,7 +52,7 @@ const Settings = () => {
     const fetchSettings = useCallback(async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const response = await axios.get('http://localhost:5000/api/admin/settings', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -80,7 +81,7 @@ const Settings = () => {
             setLoading(true);
             setSaveMessage('');
             
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const settingsData = {
                 general: generalSettings,
                 payment: paymentSettings,

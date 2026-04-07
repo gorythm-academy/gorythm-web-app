@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -14,14 +15,42 @@ const settingsRoutes = require('./routes/settings');
 const blogCommentRoutes = require('./routes/blogComments');
 const contactRoutes = require('./routes/contact');
 const userRoutes = require('./routes/users');
+const portalRoutes = require('./routes/portal');
+const payrollRoutes = require('./routes/payroll');
+const { authRateLimiter } = require('./middleware/security');
+const User = require('./models/User');
 
 const app = express();
+
+const ensureDefaultAdmin = async () => {
+    try {
+        const adminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'admin@academy.com').toLowerCase();
+        const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+        const existing = await User.findOne({ email: adminEmail });
+        if (existing) return;
+
+        await User.create({
+            name: process.env.DEFAULT_ADMIN_NAME || 'Default Admin',
+            email: adminEmail,
+            password: adminPassword,
+            role: 'super-admin',
+            isActive: true,
+            canLogin: true,
+            mustChangePassword: false,
+            isSystemAccount: true,
+        });
+        console.log(`✅ Default admin created: ${adminEmail}`);
+    } catch (error) {
+        console.log('⚠️ Failed to ensure default admin:', error.message);
+    }
+};
 
 // Middleware
 app.use(cors({
     origin: 'http://localhost:3000',
     credentials: true
 }));
+app.use(helmet());
 app.use(express.json());
 
 // MongoDB Connection
@@ -32,6 +61,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 .then(() => {
     console.log('✅ MongoDB Connected to:', process.env.MONGODB_URI);
     console.log('📊 Database ready for academy data');
+    ensureDefaultAdmin();
 })
 .catch(err => {
     console.log('❌ MongoDB Connection Error:', err.message);
@@ -39,7 +69,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRateLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
@@ -49,6 +79,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/blog', blogCommentRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/portal', portalRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

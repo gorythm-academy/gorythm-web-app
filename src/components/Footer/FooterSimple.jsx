@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { FACEBOOK_URL, YOUTUBE_URL } from '../../config/constants';
+import { FACEBOOK_URL, YOUTUBE_URL, INSTAGRAM_URL, TIKTOK_URL } from '../../config/constants';
 import footerBgImage from '../../assets/images/footer-bd-image.png';
 import './FooterSimple.scss';
 
@@ -50,13 +50,22 @@ const FooterSimple = () => {
               <i className="fab fa-youtube" />
             </a>
             <a
-              href="https://www.instagram.com/al_farhan_academy_?utm_source=ig_web_button_share_sheet&amp;igsh=ZDNlZDc0MzIxNw=="
+              href={INSTAGRAM_URL}
               className="footer-milky-social-link"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Instagram"
             >
               <i className="fab fa-instagram" />
+            </a>
+            <a
+              href={TIKTOK_URL}
+              className="footer-milky-social-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="TikTok"
+            >
+              <i className="fab fa-tiktok" />
             </a>
           </div>
         </div>

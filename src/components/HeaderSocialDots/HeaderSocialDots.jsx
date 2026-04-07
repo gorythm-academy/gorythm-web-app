@@ -1,5 +1,5 @@
 import React from 'react';
-import { FACEBOOK_URL } from '../../config/constants';
+import { FACEBOOK_URL, TIKTOK_URL } from '../../config/constants';
 import './HeaderSocialDots.scss';
 
 const HeaderSocialDots = () => {
@@ -23,6 +23,8 @@ const HeaderSocialDots = () => {
           data-social={item.social}
           data-tooltip={item.name}
           aria-label={item.name}
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             setActiveDot(index);
           }}

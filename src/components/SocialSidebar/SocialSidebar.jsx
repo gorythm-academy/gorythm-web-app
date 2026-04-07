@@ -1,12 +1,22 @@
 import React from 'react';
-import { FACEBOOK_URL } from '../../config/constants';
+import { SiTiktok } from 'react-icons/si';
+import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL } from '../../config/constants';
 import './SocialSidebar.scss';
 
 const SocialSidebar = ({ isOpen, onClose }) => {
   const socialLinks = [
-    { icon: 'fab fa-facebook-f', label: 'Facebook', url: FACEBOOK_URL },
-    { icon: 'fab fa-instagram', label: 'Instagram', url: '#' },
-    { icon: 'fab fa-youtube', label: 'YouTube', url: '#' },
+    { id: 'facebook', icon: 'fab fa-facebook-f', label: 'Facebook', url: FACEBOOK_URL, accent: 'facebook' },
+    { id: 'instagram', icon: 'fab fa-instagram', label: 'Instagram', url: INSTAGRAM_URL, accent: 'instagram' },
+    { id: 'youtube', icon: 'fab fa-youtube', label: 'YouTube', url: YOUTUBE_URL, accent: 'youtube' },
+    {
+      id: 'tiktok',
+      label: 'TikTok',
+      url: TIKTOK_URL,
+      accent: 'tiktok',
+      customIcon: (
+        <SiTiktok className="social-tiktok-svg" color="#ffffff" size={26} aria-hidden focusable={false} />
+      ),
+    },
   ];
 
   return (
@@ -26,17 +36,17 @@ const SocialSidebar = ({ isOpen, onClose }) => {
         <div className="sidebar-content-wrapper">
           {/* VERTICAL CENTERED ICONS WITH LABELS */}
           <div className="social-icons-vertical-center">
-            {socialLinks.map((social, index) => (
+            {socialLinks.map((social) => (
               <a
-                key={index}
+                key={social.id}
                 href={social.url}
-                className="social-icon-item"
+                className={`social-icon-item ${social.id === 'tiktok' ? 'social-icon-item--tiktok' : ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={social.label}
               >
-                <div className="icon-container">
-                  <i className={social.icon}></i>
+                <div className={`icon-container ${social.accent}-icon`}>
+                  {social.customIcon ? social.customIcon : <i className={social.icon} />}
                 </div>
                 <span className="social-label">{social.label}</span>
               </a>

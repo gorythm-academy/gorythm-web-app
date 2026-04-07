@@ -1,8 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
+import { getAuthToken, getAuthUserJson } from '../../../utils/authStorage';
 import './UsersManagement.scss';
 
-const UsersManagement = () => {
+const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
+const STAFF_ROLE_SLUGS = ['admin', 'super-admin', 'accountant'];
+
+const PEOPLE_ROLE_OPTIONS = [
+    { value: 'student', label: 'Student', icon: 'fa-user-graduate' },
+    { value: 'teacher', label: 'Teacher/Instructor', icon: 'fa-chalkboard-teacher' },
+    { value: 'parent', label: 'Parent/Guardian', icon: 'fa-people-roof' },
+];
+
+const UsersManagement = ({ variant = 'staff' }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -11,8 +21,76 @@ const UsersManagement = () => {
     
     // Modal states
     const [showUserModal, setShowUserModal] = useState(false);
+    const [viewUser, setViewUser] = useState(null);
     const [editingUser, setEditingUser] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const tableContainerRef = useRef(null);
+    const dragStateRef = useRef({
+        isDragging: false,
+        startX: 0,
+        startScrollLeft: 0,
+    });
+    const [isTableDragging, setIsTableDragging] = useState(false);
+
+    const startTableDragScroll = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, select, textarea, a, label')) return;
+
+        const el = tableContainerRef.current;
+        if (!el) return;
+
+        dragStateRef.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startScrollLeft: el.scrollLeft,
+        };
+        setIsTableDragging(true);
+    };
+
+    const onTableDragScroll = (e) => {
+        const el = tableContainerRef.current;
+        const dragState = dragStateRef.current;
+        if (!el || !dragState.isDragging) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        el.scrollLeft = dragState.startScrollLeft - deltaX;
+    };
+
+    const stopTableDragScroll = () => {
+        if (!dragStateRef.current.isDragging) return;
+        dragStateRef.current.isDragging = false;
+        setIsTableDragging(false);
+    };
+
+    let currentUser = {};
+    try {
+        currentUser = JSON.parse(getAuthUserJson() || '{}');
+    } catch {
+        currentUser = {};
+    }
+    const isSuperAdmin = currentUser.role === 'super-admin';
+    const isAdminViewer = currentUser.role === 'admin';
+
+    const staffRoleOptions = useMemo(() => {
+        const base = [
+            { value: 'admin', label: 'Admin/Manager', icon: 'fa-user-cog' },
+            { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
+        ];
+        if (isSuperAdmin) {
+            return [{ value: 'super-admin', label: 'Super Admin', icon: 'fa-user-shield' }, ...base];
+        }
+        return base;
+    }, [isSuperAdmin]);
+
+    const roleOptions = variant === 'people' ? PEOPLE_ROLE_OPTIONS : staffRoleOptions;
+
+    const canCreatePeople = variant === 'people' && (isSuperAdmin || isAdminViewer);
+    const canCreateStaff = variant === 'staff' && isSuperAdmin;
+    const showAddButton = canCreatePeople || canCreateStaff;
+
+    const isRowActionsLocked = (user) =>
+        (user.role === 'super-admin' || user.isSystemAccount) && !isSuperAdmin;
 
     // Form state
     const [formData, setFormData] = useState({
@@ -22,29 +100,25 @@ const UsersManagement = () => {
         confirmPassword: '',
         role: 'teacher',
         phone: '',
-        isActive: true
+        isActive: true,
+        mustChangePassword: true
     });
-
-    // Available roles
-    const userRoles = [
-        { value: 'super-admin', label: 'Super Admin', icon: 'fa-user-shield' },
-        { value: 'admin', label: 'Admin/Manager', icon: 'fa-user-cog' },
-        { value: 'teacher', label: 'Teacher/Instructor', icon: 'fa-chalkboard-teacher' },
-        { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
-        { value: 'student', label: 'Student', icon: 'fa-user-graduate' }
-    ];
 
     const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            
+            const token = getAuthToken();
+            const segment = variant === 'people' ? 'people' : 'staff';
+
             const response = await axios.get('http://localhost:5000/api/users', {
                 headers: { Authorization: `Bearer ${token}` },
+                params: { segment, limit: 500 },
             });
 
             if (response.data.success) {
-                setUsers(response.data.users || []);
+                const raw = response.data.users || [];
+                const allowed = variant === 'people' ? PEOPLE_ROLE_SLUGS : STAFF_ROLE_SLUGS;
+                setUsers(raw.filter((u) => allowed.includes(u.role)));
             } else {
                 alert('Failed to load users');
                 setUsers([]);
@@ -56,7 +130,7 @@ const UsersManagement = () => {
             setUsers([]);
             setLoading(false);
         }
-    }, []);
+    }, [variant]);
 
     useEffect(() => {
         fetchUsers();
@@ -64,14 +138,16 @@ const UsersManagement = () => {
 
     const openCreateModal = () => {
         setEditingUser(null);
+        const defaultRole = variant === 'people' ? 'student' : 'admin';
         setFormData({
             name: '',
             email: '',
             password: '',
             confirmPassword: '',
-            role: 'teacher',
+            role: defaultRole,
             phone: '',
-            isActive: true
+            isActive: true,
+            mustChangePassword: true
         });
         setShowUserModal(true);
     };
@@ -85,11 +161,17 @@ const UsersManagement = () => {
             email: user.email || '',
             password: '',
             confirmPassword: '',
-            role: user.role || 'teacher',
+            role: user.role || (variant === 'people' ? 'student' : 'admin'),
             phone: user.phone || '',
-            isActive: user.isActive !== false
+            isActive: user.isActive !== false,
+            mustChangePassword: !!user.mustChangePassword
         });
         setShowUserModal(true);
+    };
+
+    const openViewModal = (user) => {
+        if (!user) return;
+        setViewUser(user);
     };
 
     const handleFormChange = (e) => {
@@ -143,7 +225,7 @@ const UsersManagement = () => {
         if (!validateForm()) return;
         
         setIsSubmitting(true);
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         
         try {
             const payload = {
@@ -157,6 +239,7 @@ const UsersManagement = () => {
             if (!editingUser) {
                 // Create new user
                 payload.password = formData.password;
+                payload.mustChangePassword = formData.mustChangePassword;
                 
                 const response = await axios.post(
                     'http://localhost:5000/api/users',
@@ -205,6 +288,8 @@ const UsersManagement = () => {
     };
 
     const toggleUserSelection = (userId) => {
+        const u = users.find((x) => x._id === userId);
+        if (u && isRowActionsLocked(u)) return;
         setSelectedUsers(prev => 
             prev.includes(userId) 
                 ? prev.filter(id => id !== userId)
@@ -212,16 +297,9 @@ const UsersManagement = () => {
         );
     };
 
-    const toggleAllUsers = () => {
-        if (selectedUsers.length === filteredUsers.length && filteredUsers.length > 0) {
-            setSelectedUsers([]);
-        } else {
-            setSelectedUsers(filteredUsers.map(user => user._id));
-        }
-    };
-
     const updateUserStatus = async (userId, currentStatus) => {
         const user = users.find(u => u._id === userId);
+        if (user && isRowActionsLocked(user)) return;
         const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
         
         if (!window.confirm(`Change "${user?.name || 'this user'}" from ${currentStatus} to ${newStatus}?`)) {
@@ -229,7 +307,7 @@ const UsersManagement = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.patch(
                 `http://localhost:5000/api/users/${userId}/status`, 
                 { status: newStatus },
@@ -252,13 +330,14 @@ const UsersManagement = () => {
 
     const deleteUser = async (userId) => {
         const user = users.find(u => u._id === userId);
-        
+        if (user && isRowActionsLocked(user)) return;
+
         if (!window.confirm(`Are you sure you want to delete "${user?.name || 'this user'}"? This action cannot be undone.`)) {
             return;
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.delete(`http://localhost:5000/api/users/${userId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -285,7 +364,7 @@ const UsersManagement = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const response = await axios.post(
                 'http://localhost:5000/api/users/bulk-delete', 
                 { ids: selectedUsers },
@@ -314,7 +393,7 @@ const UsersManagement = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.patch('http://localhost:5000/api/users/bulk-status', 
                 { ids: selectedUsers, status },
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -340,6 +419,16 @@ const UsersManagement = () => {
         return matchesSearch && matchesRole;
     });
 
+    const selectableFilteredUsers = filteredUsers.filter((u) => !isRowActionsLocked(u));
+
+    const toggleAllUsers = () => {
+        if (selectedUsers.length === selectableFilteredUsers.length && selectableFilteredUsers.length > 0) {
+            setSelectedUsers([]);
+        } else {
+            setSelectedUsers(selectableFilteredUsers.map(user => user._id));
+        }
+    };
+
     if (loading) {
         return (
             <div className="users-management loading">
@@ -360,7 +449,13 @@ const UsersManagement = () => {
                         <div className="user-modal-header">
                             <h2>
                                 <i className={`fas ${editingUser ? 'fa-edit' : 'fa-user-plus'}`}></i>
-                                {editingUser ? 'Edit User' : 'Add New User'}
+                                {editingUser
+                                    ? variant === 'people'
+                                        ? 'Edit learner'
+                                        : 'Edit staff user'
+                                    : variant === 'people'
+                                      ? 'Add learner'
+                                      : 'Add staff user'}
                             </h2>
                             <button 
                                 className="modal-close-btn"
@@ -432,7 +527,7 @@ const UsersManagement = () => {
                                         <div className="form-group">
                                             <label>User Role *</label>
                                             <div className="role-options">
-                                                {userRoles.map(role => (
+                                                {roleOptions.map(role => (
                                                     <label key={role.value} className="role-option">
                                                         <input
                                                             type="radio"
@@ -467,6 +562,21 @@ const UsersManagement = () => {
                                                 Inactive users cannot log into the system
                                             </small>
                                         </div>
+                                        {!editingUser && (
+                                            <div className="form-group">
+                                                <label className="checkbox-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="mustChangePassword"
+                                                        checked={formData.mustChangePassword}
+                                                        onChange={handleFormChange}
+                                                        disabled={isSubmitting}
+                                                    />
+                                                    <span className="checkmark"></span>
+                                                    Force password reset on first login
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Password Section */}
@@ -542,16 +652,31 @@ const UsersManagement = () => {
                 </div>
             )}
 
-            {/* Header */}
             <div className="page-header">
                 <div className="header-left">
-                    <h1><i className="fas fa-users-cog"></i> User Management</h1>
-                    <p>Manage all academy users and their roles</p>
+                    <h1>
+                        <i className={`fas ${variant === 'people' ? 'fa-people-group' : 'fa-users-cog'}`}></i>{' '}
+                        {variant === 'people' ? 'People' : 'Staff accounts (Users)'}
+                    </h1>
+                    <p>
+                        {variant === 'people' ? (
+                            <>
+                                Students, teachers, and parents. Staff accounts are under <strong>Users</strong>.
+                            </>
+                        ) : (
+                            <>
+                                Administrators, super-admins, and accountants. Learners are managed under <strong>People</strong>.
+                            </>
+                        )}
+                    </p>
                 </div>
                 <div className="header-right">
-                    <button className="btn-primary" onClick={openCreateModal}>
-                        <i className="fas fa-user-plus"></i> Add New User
-                    </button>
+                    {showAddButton && (
+                        <button className="btn-primary" onClick={openCreateModal}>
+                            <i className="fas fa-user-plus"></i>{' '}
+                            {variant === 'people' ? 'Add learner' : 'Add staff user'}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -597,7 +722,11 @@ const UsersManagement = () => {
                     <i className="fas fa-search"></i>
                     <input
                         type="text"
-                        placeholder="Search users by name, email or phone..."
+                        placeholder={
+                            variant === 'people'
+                                ? 'Search learners by name, email or phone...'
+                                : 'Search users by name, email or phone...'
+                        }
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && fetchUsers()}
@@ -616,12 +745,21 @@ const UsersManagement = () => {
                         value={filterRole}
                         onChange={(e) => setFilterRole(e.target.value)}
                     >
-                        <option value="all">All Roles</option>
-                        <option value="super-admin">Super Admin</option>
-                        <option value="admin">Admin/Manager</option>
-                        <option value="teacher">Teacher</option>
-                        <option value="accountant">Accountant</option>
-                        <option value="student">Student</option>
+                        {variant === 'people' ? (
+                            <>
+                                <option value="all">All learners</option>
+                                <option value="student">Students</option>
+                                <option value="teacher">Teachers</option>
+                                <option value="parent">Parents</option>
+                            </>
+                        ) : (
+                            <>
+                                <option value="all">All staff roles</option>
+                                <option value="super-admin">Super Admin</option>
+                                <option value="admin">Admin/Manager</option>
+                                <option value="accountant">Accountant</option>
+                            </>
+                        )}
                     </select>
                     
                     <button className="refresh-btn" onClick={fetchUsers}>
@@ -631,14 +769,24 @@ const UsersManagement = () => {
             </div>
 
             {/* Users Table */}
-            <div className="users-table-container">
+            <div
+                ref={tableContainerRef}
+                className={`users-table-container ${isTableDragging ? 'is-dragging' : ''}`}
+                onMouseDown={startTableDragScroll}
+                onMouseMove={onTableDragScroll}
+                onMouseUp={stopTableDragScroll}
+                onMouseLeave={stopTableDragScroll}
+            >
                 <table className="users-table">
                     <thead>
                         <tr>
                             <th className="checkbox-cell">
                                 <input
                                     type="checkbox"
-                                    checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                                    checked={
+                                        selectableFilteredUsers.length > 0 &&
+                                        selectedUsers.length === selectableFilteredUsers.length
+                                    }
                                     onChange={toggleAllUsers}
                                 />
                             </th>
@@ -646,7 +794,7 @@ const UsersManagement = () => {
                             <th>Role</th>
                             <th>Status</th>
                             <th>Phone</th>
-                            <th>Courses</th>
+                            <th>Email</th>
                             <th>Joined</th>
                             <th>Last Login</th>
                             <th>Actions</th>
@@ -660,6 +808,7 @@ const UsersManagement = () => {
                                         type="checkbox"
                                         checked={selectedUsers.includes(user._id)}
                                         onChange={() => toggleUserSelection(user._id)}
+                                        disabled={isRowActionsLocked(user)}
                                     />
                                 </td>
                                 <td>
@@ -669,7 +818,6 @@ const UsersManagement = () => {
                                         </div>
                                         <div className="user-details">
                                             <strong>{user.name}</strong>
-                                            <span className="user-email">{user.email}</span>
                                         </div>
                                     </div>
                                 </td>
@@ -680,6 +828,7 @@ const UsersManagement = () => {
                                             user.role === 'admin' ? 'user-cog' :
                                             user.role === 'teacher' ? 'chalkboard-teacher' :
                                             user.role === 'accountant' ? 'calculator' :
+                                            user.role === 'parent' ? 'people-roof' :
                                             'user-graduate'
                                         }`}></i>
                                         {user.role.replace('-', ' ')}
@@ -696,41 +845,58 @@ const UsersManagement = () => {
                                         {user.phone || 'Not set'}
                                     </span>
                                 </td>
-                                <td>
-                                    <div className="courses-count">
-                                        <i className="fas fa-book"></i>
-                                        {user.enrolledCourses || 0} course(s)
-                                    </div>
+                                <td className="cell-email">
+                                    <span className="email-cell" title={user.email}>
+                                        {user.email}
+                                    </span>
                                 </td>
                                 <td>
                                     {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : 'N/A'}
                                 </td>
                                 <td>
-                                    {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                                    {user.lastLogin
+                                        ? new Date(user.lastLogin).toLocaleString(undefined, {
+                                              dateStyle: 'short',
+                                              timeStyle: 'short',
+                                          })
+                                        : 'Never'}
                                 </td>
-                                <td>
+                                <td className="cell-actions">
                                     <div className="action-buttons">
-                                        <button 
-                                            className="action-btn edit-btn"
-                                            title="Edit User"
-                                            onClick={() => openEditModal(user)}
-                                        >
-                                            <i className="fas fa-edit"></i>
-                                        </button>
-                                        <button 
-                                            className={`action-btn status-btn ${user.status}`}
-                                            title={user.status === 'active' ? 'Deactivate User' : 'Activate User'}
-                                            onClick={() => updateUserStatus(user._id, user.status)}
-                                        >
-                                            <i className={`fas fa-${user.status === 'active' ? 'ban' : 'check'}`}></i>
-                                        </button>
-                                        <button 
-                                            className="action-btn delete-btn"
-                                            title="Delete User"
-                                            onClick={() => deleteUser(user._id)}
-                                        >
-                                            <i className="fas fa-trash"></i>
-                                        </button>
+                                        {isRowActionsLocked(user) ? (
+                                            <button
+                                                type="button"
+                                                className="action-btn view-btn"
+                                                title="View details (read-only)"
+                                                onClick={() => openViewModal(user)}
+                                            >
+                                                <i className="fas fa-eye"></i>
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button 
+                                                    className="action-btn edit-btn"
+                                                    title="Edit User"
+                                                    onClick={() => openEditModal(user)}
+                                                >
+                                                    <i className="fas fa-edit"></i>
+                                                </button>
+                                                <button 
+                                                    className={`action-btn status-btn ${user.status}`}
+                                                    title={user.status === 'active' ? 'Deactivate User' : 'Activate User'}
+                                                    onClick={() => updateUserStatus(user._id, user.status)}
+                                                >
+                                                    <i className={`fas fa-${user.status === 'active' ? 'ban' : 'check'}`}></i>
+                                                </button>
+                                                <button 
+                                                    className="action-btn delete-btn"
+                                                    title="Delete User"
+                                                    onClick={() => deleteUser(user._id)}
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -743,52 +909,124 @@ const UsersManagement = () => {
                         <i className="fas fa-user-slash"></i>
                         <h3>No users found</h3>
                         <p>Try a different search term or filter</p>
+                        {showAddButton && (
                         <button className="btn-primary" onClick={openCreateModal}>
-                            <i className="fas fa-user-plus"></i> Add First User
+                            <i className="fas fa-user-plus"></i> Add first record
                         </button>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Stats Summary */}
             <div className="stats-summary">
-                <div className="stat-card">
-                    <div className="stat-icon total">
-                        <i className="fas fa-users"></i>
-                    </div>
-                    <div className="stat-details">
-                        <h3>{users.length}</h3>
-                        <p>Total Users</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon teachers">
-                        <i className="fas fa-chalkboard-teacher"></i>
-                    </div>
-                    <div className="stat-details">
-                        <h3>{users.filter(u => u.role === 'teacher').length}</h3>
-                        <p>Teachers</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon active">
-                        <i className="fas fa-user-check"></i>
-                    </div>
-                    <div className="stat-details">
-                        <h3>{users.filter(u => u.status === 'active').length}</h3>
-                        <p>Active Users</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon admin">
-                        <i className="fas fa-user-shield"></i>
-                    </div>
-                    <div className="stat-details">
-                        <h3>{users.filter(u => ['super-admin', 'admin'].includes(u.role)).length}</h3>
-                        <p>Admins</p>
-                    </div>
-                </div>
+                {variant === 'people' ? (
+                    <>
+                        <div className="stat-card">
+                            <div className="stat-icon total">
+                                <i className="fas fa-users"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.length}</h3>
+                                <p>Total learners</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon teachers">
+                                <i className="fas fa-user-graduate"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'student').length}</h3>
+                                <p>Students</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon teachers">
+                                <i className="fas fa-chalkboard-teacher"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'teacher').length}</h3>
+                                <p>Teachers</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon active">
+                                <i className="fas fa-people-roof"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'parent').length}</h3>
+                                <p>Parents</p>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="stat-card">
+                            <div className="stat-icon total">
+                                <i className="fas fa-users"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.length}</h3>
+                                <p>Staff accounts</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon admin">
+                                <i className="fas fa-user-shield"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'super-admin').length}</h3>
+                                <p>Super admins</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon admin">
+                                <i className="fas fa-user-cog"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'admin').length}</h3>
+                                <p>Admins</p>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon teachers">
+                                <i className="fas fa-calculator"></i>
+                            </div>
+                            <div className="stat-details">
+                                <h3>{users.filter(u => u.role === 'accountant').length}</h3>
+                                <p>Accountants</p>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {viewUser && (
+                <div className="user-modal-overlay" role="dialog" aria-modal="true">
+                    <div className="user-modal user-view-modal">
+                        <div className="user-modal-header">
+                            <h2><i className="fas fa-eye"></i> Account details</h2>
+                            <button type="button" className="modal-close-btn" onClick={() => setViewUser(null)}>
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="form-scroll-container">
+                            <dl className="user-details-readonly">
+                                <dt>Name</dt><dd>{viewUser.name}</dd>
+                                <dt>Email</dt><dd>{viewUser.email}</dd>
+                                <dt>Role</dt><dd>{viewUser.role}</dd>
+                                <dt>Phone</dt><dd>{viewUser.phone || '—'}</dd>
+                                <dt>Status</dt><dd>{viewUser.status}</dd>
+                                <dt>Joined</dt><dd>{viewUser.joinDate ? new Date(viewUser.joinDate).toLocaleString() : '—'}</dd>
+                                <dt>Last login</dt><dd>{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</dd>
+                            </dl>
+                        </div>
+                        <div className="form-actions">
+                            <button type="button" className="btn-primary" onClick={() => setViewUser(null)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -32,6 +32,25 @@
             }
         }
 
+        .admin-remember-row {
+            margin-bottom: 16px;
+        }
+
+        .checkbox-inline {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            color: #4a5568;
+            font-weight: 500;
+            font-size: 15px;
+
+            input {
+                width: auto;
+                margin: 0;
+            }
+        }
+
         .form-group {
             margin-bottom: 20px;
 
@@ -81,24 +100,6 @@
 
             &:hover {
                 transform: translateY(-2px);
-            }
-        }
-
-        .login-info {
-            margin-top: 25px;
-            padding: 15px;
-            background: #f7fafc;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-
-            p {
-                margin: 5px 0;
-                color: #4a5568;
-                font-size: 14px;
-
-                strong {
-                    color: #2d3748;
-                }
             }
         }
     }

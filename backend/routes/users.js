@@ -2,17 +2,42 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { allowRoles } = require('../middleware/authorize');
+const { logAudit } = require('../utils/audit');
 
 router.use(authMiddleware);
+router.use(allowRoles('super-admin', 'admin'));
+
+const PEOPLE_ROLES = ['student', 'teacher', 'parent'];
+const STAFF_ROLES = ['admin', 'super-admin', 'accountant'];
+const ALL_MANAGED_ROLES = [...PEOPLE_ROLES, ...STAFF_ROLES];
 
 // Get all users (with pagination)
 router.get('/', async (req, res) => {
     try {
-        const { page = 1, limit = 20, role, search } = req.query;
+        const { page = 1, limit = 20, role, roles, search, segment } = req.query;
         
         // Build filter
         const filter = {};
-        if (role && role !== 'all') filter.role = role;
+        // Prefer explicit segment (People vs Users tabs) — avoids query-string comma issues
+        if (segment === 'people') {
+            filter.role = { $in: PEOPLE_ROLES };
+        } else if (segment === 'staff') {
+            filter.role = { $in: STAFF_ROLES };
+        } else if (roles) {
+            const list = String(roles)
+                .split(',')
+                .map((r) => r.trim())
+                .filter((r) => ALL_MANAGED_ROLES.includes(r));
+            if (list.length) {
+                filter.role = { $in: list };
+            } else {
+                // Invalid roles value: return empty set instead of all users
+                filter._id = { $in: [] };
+            }
+        } else if (role && role !== 'all') {
+            filter.role = role;
+        }
         if (search) {
             filter.$or = [
                 { name: { $regex: search, $options: 'i' } },
@@ -38,6 +63,8 @@ router.get('/', async (req, res) => {
                 phone: user.phone || '',
                 avatar: user.avatar,
                 isActive: user.isActive,
+                mustChangePassword: user.mustChangePassword,
+                isSystemAccount: !!user.isSystemAccount,
                 status: user.isActive ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
@@ -74,6 +101,8 @@ router.get('/:id', async (req, res) => {
                 phone: user.phone || '',
                 avatar: user.avatar,
                 isActive: user.isActive,
+                mustChangePassword: user.mustChangePassword,
+                isSystemAccount: !!user.isSystemAccount,
                 status: user.isActive ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
@@ -85,10 +114,28 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Create new user
+// Create new user (super-admin: any role; admin: student / teacher / parent only)
 router.post('/', async (req, res) => {
     try {
-        const { name, email, password, role, phone } = req.body;
+        const { name, email, password, role, phone, mustChangePassword } = req.body;
+
+        const actorRole = req.user?.role;
+        const isSuper = actorRole === 'super-admin';
+        const isAdmin = actorRole === 'admin';
+        if (!isSuper && !isAdmin) {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden'
+            });
+        }
+
+        const nextRole = role || 'student';
+        if (isAdmin && !isSuper && !PEOPLE_ROLES.includes(nextRole)) {
+            return res.status(403).json({
+                success: false,
+                error: 'Admins can only create student, teacher, or parent accounts'
+            });
+        }
         
         // Check if user exists
         const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -103,12 +150,21 @@ router.post('/', async (req, res) => {
             name,
             email: email.toLowerCase(),
             password,
-            role: role || 'student',
+            role: nextRole,
             phone: phone || '',
-            isActive: true
+            isActive: true,
+            mustChangePassword: mustChangePassword !== false,
+            isSystemAccount: role === 'super-admin'
         });
 
         await user.save();
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.create',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            details: { role: user.role, email: user.email }
+        });
 
         res.status(201).json({
             success: true,
@@ -120,6 +176,8 @@ router.post('/', async (req, res) => {
                 role: user.role,
                 phone: user.phone,
                 isActive: user.isActive,
+                mustChangePassword: user.mustChangePassword,
+                isSystemAccount: !!user.isSystemAccount,
                 status: 'active',
                 enrolledCourses: 0,
                 joinDate: user.createdAt,
@@ -136,10 +194,24 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { name, email, role, phone, isActive } = req.body;
-        
+        const actorRole = req.user?.role;
+
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+            return res.status(403).json({ success: false, error: 'You cannot modify super-admin accounts' });
+        }
+        if (actorRole === 'admin' && role === 'super-admin') {
+            return res.status(403).json({ success: false, error: 'Cannot assign super-admin role' });
+        }
+        if (actorRole === 'admin' && role && PEOPLE_ROLES.includes(user.role) && !PEOPLE_ROLES.includes(role)) {
+            return res.status(403).json({
+                success: false,
+                error: 'Admins cannot change learner accounts into staff roles',
+            });
         }
 
         // Check if email is being changed and if it already exists
@@ -165,6 +237,13 @@ router.put('/:id', async (req, res) => {
         
         user.updatedAt = Date.now();
         await user.save();
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.update',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            details: { role: user.role, isActive: user.isActive }
+        });
 
         res.json({
             success: true,
@@ -176,6 +255,8 @@ router.put('/:id', async (req, res) => {
                 role: user.role,
                 phone: user.phone,
                 isActive: user.isActive,
+                mustChangePassword: user.mustChangePassword,
+                isSystemAccount: !!user.isSystemAccount,
                 status: user.isActive ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
@@ -192,15 +273,26 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/password', async (req, res) => {
     try {
         const { password } = req.body;
-        
+        const actorRole = req.user?.role;
+
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+            return res.status(403).json({ success: false, error: 'You cannot change this account password' });
         }
 
         user.password = password;
         user.updatedAt = Date.now();
         await user.save();
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.password.reset',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            details: {}
+        });
 
         res.json({
             success: true,
@@ -215,15 +307,26 @@ router.patch('/:id/password', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
-        
+        const actorRole = req.user?.role;
+
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+            return res.status(403).json({ success: false, error: 'You cannot change super-admin account status' });
         }
 
         user.isActive = status === 'active';
         user.updatedAt = Date.now();
         await user.save();
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.status.update',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            details: { status }
+        });
 
         res.json({
             success: true,
@@ -237,7 +340,24 @@ router.patch('/:id/status', async (req, res) => {
 // Delete user
 router.delete('/:id', async (req, res) => {
     try {
+        const existing = await User.findById(req.params.id);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        if (existing.isSystemAccount) {
+            return res.status(403).json({ success: false, error: 'System account cannot be deleted' });
+        }
+        if (existing.role === 'super-admin' && req.user?.role !== 'super-admin') {
+            return res.status(403).json({ success: false, error: 'Only super-admin can delete super-admin accounts' });
+        }
         const user = await User.findByIdAndDelete(req.params.id);
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.delete',
+            targetType: 'User',
+            targetId: req.params.id,
+            details: {}
+        });
         
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
@@ -259,6 +379,23 @@ router.post('/bulk-delete', async (req, res) => {
         
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({ success: false, error: 'No user IDs provided' });
+        }
+
+        const systemCount = await User.countDocuments({
+            _id: { $in: ids },
+            isSystemAccount: true,
+        });
+        if (systemCount > 0) {
+            return res.status(403).json({ success: false, error: 'Selection contains protected system account(s)' });
+        }
+        if (req.user?.role === 'admin') {
+            const superCount = await User.countDocuments({
+                _id: { $in: ids },
+                role: 'super-admin',
+            });
+            if (superCount > 0) {
+                return res.status(403).json({ success: false, error: 'Admins cannot delete super-admin accounts' });
+            }
         }
 
         const result = await User.deleteMany({ _id: { $in: ids } });
@@ -283,6 +420,23 @@ router.patch('/bulk-status', async (req, res) => {
 
         if (!['active', 'inactive'].includes(status)) {
             return res.status(400).json({ success: false, error: 'Invalid status' });
+        }
+
+        const systemCount = await User.countDocuments({
+            _id: { $in: ids },
+            isSystemAccount: true,
+        });
+        if (systemCount > 0) {
+            return res.status(403).json({ success: false, error: 'Selection contains protected system account(s)' });
+        }
+        if (req.user?.role === 'admin') {
+            const superCount = await User.countDocuments({
+                _id: { $in: ids },
+                role: 'super-admin',
+            });
+            if (superCount > 0) {
+                return res.status(403).json({ success: false, error: 'Admins cannot change super-admin account status' });
+            }
         }
 
         await User.updateMany(

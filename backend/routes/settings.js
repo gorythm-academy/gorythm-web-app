@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middleware/auth');
+const { allowPermission } = require('../middleware/authorize');
 
 // In-memory settings storage (replace with MongoDB in production)
 let settings = {
@@ -39,7 +41,7 @@ let settings = {
 };
 
 // Get all settings
-router.get('/', (req, res) => {
+router.get('/', authMiddleware, allowPermission('settings.general.read'), (req, res) => {
     res.json({
         success: true,
         ...settings
@@ -47,12 +49,25 @@ router.get('/', (req, res) => {
 });
 
 // Save all settings
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, (req, res) => {
     try {
-        settings = {
-            ...settings,
-            ...req.body
-        };
+        const next = { ...settings };
+        const role = req.user.role;
+
+        if (req.body.general && ['super-admin', 'admin'].includes(role)) {
+            next.general = { ...next.general, ...req.body.general };
+        }
+        if (req.body.security && ['super-admin', 'admin'].includes(role)) {
+            next.security = { ...next.security, ...req.body.security };
+        }
+        if (req.body.email && ['super-admin', 'admin'].includes(role)) {
+            next.email = { ...next.email, ...req.body.email };
+        }
+        if (req.body.payment && ['super-admin', 'admin', 'accountant'].includes(role)) {
+            next.payment = { ...next.payment, ...req.body.payment };
+        }
+
+        settings = next;
         
         console.log('Settings saved:', settings);
         

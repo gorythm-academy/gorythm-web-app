@@ -27,6 +27,31 @@
         flex-direction: column;
     }
 
+    .user-view-modal {
+        width: min(440px, 100%);
+    }
+
+    .user-details-readonly {
+        display: grid;
+        grid-template-columns: minmax(100px, 130px) 1fr;
+        gap: 0.45rem 1rem;
+        margin: 0;
+        padding: 1rem 1.25rem;
+
+        dt {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.88rem;
+            margin: 0;
+        }
+
+        dd {
+            margin: 0;
+            color: #0f172a;
+            font-size: 0.92rem;
+        }
+    }
+
     .user-modal-header {
         display: flex;
         align-items: center;
@@ -495,12 +520,22 @@
     .users-table-container {
         background: white;
         border-radius: 12px;
-        overflow: hidden;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         margin-bottom: 1.5rem;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        cursor: grab;
+
+        &.is-dragging {
+            cursor: grabbing;
+            user-select: none;
+        }
         
         .users-table {
             width: 100%;
+            min-width: 1100px;
             border-collapse: collapse;
             
             th {
@@ -617,24 +652,35 @@
                 }
             }
             
-            .courses-count {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                color: #64748b;
-                
-                i {
-                    color: var(--color-accent);
-                }
+            .cell-email {
+                max-width: 220px;
+            }
+
+            .email-cell {
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: #475569;
+                font-size: 0.9rem;
+            }
+
+            .cell-actions {
+                white-space: nowrap;
+                width: 1%;
             }
             
             .action-buttons {
-                display: flex;
+                display: inline-flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                align-items: center;
                 gap: 6px;
                 
                 .action-btn {
                     width: 32px;
                     height: 32px;
+                    flex: 0 0 auto;
                     border: none;
                     border-radius: 6px;
                     display: flex;
@@ -795,11 +841,6 @@
             .search-box {
                 min-width: 100%;
             }
-        }
-        
-        .users-table {
-            display: block;
-            overflow-x: auto;
         }
         
         .stats-summary {

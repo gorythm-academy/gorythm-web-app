@@ -147,10 +147,14 @@
           color: var(--color-accent-2);
         }
         
-        /* Subtle icon effect */
-          .icon-container {
+        /* Subtle icon effect (skip TikTok — keep brand gradient) */
+        .icon-container:not(.tiktok-icon) {
           transform: scale(1.05);
           background: rgba(var(--color-accent-rgb), 0.08);
+        }
+
+        .icon-container.tiktok-icon {
+          transform: scale(1.08);
         }
       }
 
@@ -174,6 +178,28 @@
           -webkit-text-fill-color: transparent;
         }
         &.youtube-icon { color: #ff0000; }
+
+        /* TikTok: Simple Icons glyph via react-icons (SiTiktok), white via color prop — no CSS path fill */
+        &.tiktok-icon {
+          background: linear-gradient(145deg, #25f4ee 0%, #fe2c55 52%, #0f172a 100%);
+          border: 1px solid rgba(255, 255, 255, 0.22);
+          box-shadow:
+            0 4px 18px rgba(0, 0, 0, 0.35),
+            0 0 22px rgba(37, 244, 238, 0.2),
+            0 0 26px rgba(254, 44, 85, 0.15);
+
+          .social-tiktok-svg {
+            display: block;
+            flex-shrink: 0;
+          }
+        }
+      }
+
+      &.social-icon-item--tiktok:hover .icon-container.tiktok-icon {
+        box-shadow:
+          0 6px 24px rgba(0, 0, 0, 0.4),
+          0 0 32px rgba(37, 244, 238, 0.35),
+          0 0 36px rgba(254, 44, 85, 0.28);
       }
 
       .social-label {

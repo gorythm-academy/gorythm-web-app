@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import EnrollStudentModal from './EnrollStudentModal';
 import './EnrollmentsManagement.scss';
 
@@ -47,7 +48,7 @@ const EnrollmentsManagement = () => {
             setLoading(true);
             setErrorMessage('');
             
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             if (!token) {
                 throw new Error('No authentication token found');
             }
@@ -75,7 +76,7 @@ const EnrollmentsManagement = () => {
 
     const fetchCourses = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const response = await axios.get('http://localhost:5000/api/courses', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -145,7 +146,7 @@ const EnrollmentsManagement = () => {
         
         if (window.confirm(`Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`)) {
             try {
-                const token = localStorage.getItem('token');
+                const token = getAuthToken();
                 const response = await axios.post('http://localhost:5000/api/enrollments/bulk-update', {
                     enrollmentIds: selectedEnrollments,
                     status: newStatus
@@ -183,7 +184,7 @@ const EnrollmentsManagement = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             
             // Delete each enrollment
             for (const enrollmentId of selectedEnrollments) {
@@ -207,7 +208,7 @@ const EnrollmentsManagement = () => {
 
     const updateEnrollmentStatus = async (enrollmentId, newStatus) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const response = await axios.put(`http://localhost:5000/api/enrollments/${enrollmentId}`, {
                 status: newStatus
             }, {
@@ -239,7 +240,7 @@ const EnrollmentsManagement = () => {
         if (!window.confirm('Delete this enrollment?')) return;
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const response = await axios.delete(`http://localhost:5000/api/enrollments/${enrollmentId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -353,7 +354,7 @@ const EditEnrollmentModal = () => {
     useEffect(() => {
         const fetchCourses = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = getAuthToken();
                 const response = await axios.get('http://localhost:5000/api/courses', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -371,7 +372,7 @@ const EditEnrollmentModal = () => {
     const handleSave = async () => {
     try {
         setLoading(true);
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         
         // Update student info
         if (editingEnrollment.student?.email !== formData.studentEmail || 

@@ -13,7 +13,7 @@ const DashboardLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Unfreeze sidebar when footer enters viewport (native page scroll)
+    // Unfreeze sidebar when footer enters viewport (works with Lenis smooth scroll)
     useEffect(() => {
         const footer = footerRef.current;
         if (!footer) return;

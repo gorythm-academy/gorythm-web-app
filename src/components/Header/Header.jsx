@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { SiTiktok } from 'react-icons/si';
 import './Header.scss';
-import { CONTACT_EMAIL, INFO_EMAIL, FACEBOOK_URL, WHATSAPP_URL } from '../../config/constants';
+import {
+  CONTACT_EMAIL,
+  INFO_EMAIL,
+  FACEBOOK_URL,
+  WHATSAPP_URL,
+  INSTAGRAM_URL,
+  YOUTUBE_URL,
+  TIKTOK_URL,
+} from '../../config/constants';
 
-/** Viewports using compact nav (hamburger); header is not fixed — scrolls with the page. */
+/** Viewports using compact nav (hamburger / tablet layout). */
 const MOBILE_TABLET_MAX_WIDTH = 1279;
 
 const Header = () => {
@@ -28,6 +37,8 @@ const Header = () => {
   const gridPanelRef = useRef(null);
   const lastScrollYRef = useRef(0);
   const scrollRafRef = useRef(0);
+  const showCooldownRef = useRef(false);   // blocks hide for a short window after show
+  const showCooldownTimerRef = useRef(0);
   /** Hysteresis for frosted header: avoids flicker/jump at a single pixel line */
   const scrolledLatchRef = useRef(false);
 
@@ -41,9 +52,24 @@ const Header = () => {
 
   const socialLinks = [
     { id: 1, iconClass: 'fab fa-facebook-f', label: 'Facebook', url: FACEBOOK_URL, color: '#1877F2' },
-    { id: 2, iconClass: 'fab fa-instagram', label: 'Instagram', url: 'https://www.instagram.com/al_farhan_academy_?utm_source=ig_web_button_share_sheet&amp;igsh=ZDNlZDc0MzIxNw==', color: '#E4405F' },
-    { id: 3, iconClass: 'fab fa-youtube', label: 'YouTube', url: 'https://www.youtube.com/@alfarhanacademy', color: '#FF0000' },
+    { id: 2, iconClass: 'fab fa-instagram', label: 'Instagram', url: INSTAGRAM_URL, color: '#E4405F' },
+    { id: 3, iconClass: 'fab fa-youtube', label: 'YouTube', url: YOUTUBE_URL, color: '#FF0000' },
+    {
+      id: 4,
+      label: 'TikTok',
+      url: TIKTOK_URL,
+      color: '#ffffff',
+      useSiTiktok: true,
+    },
   ];
+
+  const renderSocialGlyph = (link, variant) => {
+    if (link.useSiTiktok) {
+      const size = variant === 'mobile' ? 22 : 24;
+      return <SiTiktok size={size} color="#ffffff" aria-hidden focusable={false} className="header-social-tiktok" />;
+    }
+    return <i className={link.iconClass} />;
+  };
 
   // Detect mobile viewport
   useEffect(() => {
@@ -73,28 +99,25 @@ const Header = () => {
     return () => mql.removeEventListener('change', handleChange);
   }, []);
 
-  // Scroll effects — desktop only (>1279px). Mobile/tablet: header is in flow, no sticky logic.
+  // Scroll effects — all viewports:
+  // - scrolled: frosted bar via hysteresis (on/off thresholds)
+  // - headerVisible: hide on scroll-down, show on scroll-up; always visible near top
+  //   Uses a 300ms cooldown after showing so residual scroll events can't re-hide immediately.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const TOP_REVEAL_Y = 20;
     const SCROLLED_ON_PX = 80;
     const SCROLLED_OFF_PX = 28;
-    const DELTA_THRESHOLD = 6;
+    const DELTA_THRESHOLD = 10;   // larger = less sensitive to micro-noise
+    const SHOW_COOLDOWN_MS = 300; // after showing, ignore hide signals for this long
 
     const syncStickyStateFromViewport = () => {
       const y0 = window.scrollY || 0;
-      const compact = window.innerWidth <= MOBILE_TABLET_MAX_WIDTH;
       lastScrollYRef.current = y0;
-      if (compact) {
-        scrolledLatchRef.current = false;
-        setScrolled(false);
-        setHeaderVisible(true);
-      } else {
-        scrolledLatchRef.current = y0 > SCROLLED_ON_PX;
-        setScrolled(scrolledLatchRef.current);
-        if (y0 <= TOP_REVEAL_Y) setHeaderVisible(true);
-      }
+      scrolledLatchRef.current = y0 > SCROLLED_ON_PX;
+      setScrolled(scrolledLatchRef.current);
+      if (y0 <= TOP_REVEAL_Y) setHeaderVisible(true);
     };
 
     syncStickyStateFromViewport();
@@ -104,15 +127,11 @@ const Header = () => {
       scrollRafRef.current = window.requestAnimationFrame(() => {
         scrollRafRef.current = 0;
 
-        if (window.innerWidth <= MOBILE_TABLET_MAX_WIDTH) {
-          lastScrollYRef.current = window.scrollY || 0;
-          return;
-        }
-
         const currentY = window.scrollY || 0;
         const lastY = lastScrollYRef.current;
         const delta = currentY - lastY;
 
+        // Update frosted background latch
         let nextScrolled = scrolledLatchRef.current;
         if (!nextScrolled && currentY > SCROLLED_ON_PX) nextScrolled = true;
         else if (nextScrolled && currentY < SCROLLED_OFF_PX) nextScrolled = false;
@@ -123,9 +142,23 @@ const Header = () => {
 
         if (!isMobileMenuOpen) {
           if (currentY <= TOP_REVEAL_Y) {
+            // Always show at page top; start fresh cooldown
+            if (showCooldownTimerRef.current) clearTimeout(showCooldownTimerRef.current);
+            showCooldownRef.current = false;
             setHeaderVisible(true);
           } else if (Math.abs(delta) >= DELTA_THRESHOLD) {
-            setHeaderVisible(delta > 0);
+            if (delta < 0) {
+              // Scrolling up → show and start cooldown so a quick down-tick can't hide it
+              setHeaderVisible(true);
+              if (showCooldownTimerRef.current) clearTimeout(showCooldownTimerRef.current);
+              showCooldownRef.current = true;
+              showCooldownTimerRef.current = setTimeout(() => {
+                showCooldownRef.current = false;
+              }, SHOW_COOLDOWN_MS);
+            } else if (!showCooldownRef.current) {
+              // Scrolling down and cooldown is over → hide
+              setHeaderVisible(false);
+            }
           }
         }
 
@@ -139,6 +172,9 @@ const Header = () => {
       if (scrollRafRef.current) {
         window.cancelAnimationFrame(scrollRafRef.current);
         scrollRafRef.current = 0;
+      }
+      if (showCooldownTimerRef.current) {
+        clearTimeout(showCooldownTimerRef.current);
       }
     };
   }, [isMobileMenuOpen, isMobile]);
@@ -257,7 +293,7 @@ const Header = () => {
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
       <header
-        className={`header ${scrolled && !isMobile ? 'scrolled' : ''}${!isMobile && !headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
+        className={`header ${scrolled ? 'scrolled' : ''}${!headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
         ref={headerRef}
         aria-hidden={isMobileMenuOpen}
       >
@@ -471,7 +507,7 @@ const Header = () => {
                       aria-label={`Follow us on ${link.label}`}
                       title={link.label}
                     >
-                      <i className={link.iconClass} />
+                      {renderSocialGlyph(link, 'mobile')}
                     </a>
                   ))}
                 </div>
@@ -549,7 +585,7 @@ const Header = () => {
                         aria-label={`Follow us on ${link.label}`}
                         title={link.label}
                       >
-                        <i className={link.iconClass} />
+                        {renderSocialGlyph(link, 'mobile')}
                       </a>
                     ))}
                   </div>
@@ -621,7 +657,7 @@ const Header = () => {
                   title={`Follow us on ${social.label}`}
                 >
                   <span className="social-icon" style={{ color: social.color }}>
-                    <i className={social.iconClass} />
+                    {renderSocialGlyph(social, 'grid')}
                   </span>
                   <span className="social-link-name">{social.label}</span>
                 </a>

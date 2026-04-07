@@ -5,13 +5,18 @@ export const INFO_EMAIL = 'info@gorythm.com';
 export const FACEBOOK_URL = 'https://www.facebook.com/share/1ByY4R1aei/';
 export const WHATSAPP_URL = 'https://wa.me/31684427025?text=I%27m%20interested%20in%20your%20courses';
 export const YOUTUBE_URL = 'https://www.youtube.com/@alfarhanacademy';
+export const INSTAGRAM_URL =
+  'https://www.instagram.com/al_farhan_academy_?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==';
+export const TIKTOK_URL = 'https://www.tiktok.com/@alfarhan621';
 
 const constants = {
   API_BASE_URL,
   CONTACT_EMAIL,
   FACEBOOK_URL,
   WHATSAPP_URL,
-  YOUTUBE_URL
+  YOUTUBE_URL,
+  INSTAGRAM_URL,
+  TIKTOK_URL
 };
 
 export default constants;

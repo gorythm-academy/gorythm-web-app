@@ -1,12 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FACEBOOK_URL } from '../../config/constants';
 import { courses } from './AllCourses';
 import VideoSection from '../HomeSections/Video';
 import aboutImage1 from '../../assets/images/About-Sect-01.jpg';
 import aboutImage2 from '../../assets/images/About-Sect-02.jpg';
 import aboutUsMainImg from '../../assets/images/aboutUs-main-img.jpg';
+import testimonialImg1 from '../../assets/images/milestone-img01.jpg';
+import testimonialImg2 from '../../assets/images/milestone-img02.jpg';
+import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
 import './AboutPage.scss';
+
+const studentTestimonials = [
+  {
+    name: 'Aisha Rahman',
+    role: 'Student',
+    image: testimonialImg1,
+    quote: [
+      'The teachers here meet you where you are — patient, clear, and deeply rooted in the Quran. I finally feel confident reciting with tajweed instead of rushing through words I did not understand.',
+      'The live sessions and structured practice between classes made a real difference. I would recommend this academy to anyone who wants serious learning with a warm community.',
+    ],
+  },
+  {
+    name: 'Yusuf Khan',
+    role: 'Student',
+    image: testimonialImg2,
+    quote: [
+      'I joined for Islamic studies and stayed for how everything connects back to character and daily life. The lessons are engaging and never feel like a lecture you forget the next day.',
+      'My parents noticed a positive change in how I approach salah and reflection. That is the kind of growth I was hoping for.',
+    ],
+  },
+  {
+    name: 'Maryam Siddiqui',
+    role: 'Student',
+    image: testimonialImg3,
+    quote: [
+      'As a busy student, I needed flexibility without losing quality. The platform is easy to follow and the support team actually responds when you need help.',
+      'Being able to revisit recordings and notes helped me keep pace. I am grateful for instructors who care about progress, not just attendance.',
+    ],
+  },
+  {
+    name: 'Ibrahim Hassan',
+    role: 'Student',
+    image: aboutImage1,
+    quote: [
+      'STEM with Islamic integration sounded ambitious, but the course design makes it practical. We solve real problems while keeping ethics and adab at the center.',
+      'Group projects taught me teamwork and how to disagree respectfully — skills I will use long after the term ends.',
+    ],
+  },
+  {
+    name: 'Fatima Noor',
+    role: 'Student',
+    image: aboutImage2,
+    quote: [
+      'I was nervous speaking up in class at first. The small group sizes and encouraging feedback helped me find my voice.',
+      'Today I lead a short reflection for my family after Maghrib sometimes. That confidence started in these sessions.',
+    ],
+  },
+  {
+    name: 'Omar Malik',
+    role: 'Student',
+    image: aboutUsMainImg,
+    quote: [
+      'From enrollment to coursework, everything felt organized and professional. You can tell the team has thought through the learner journey.',
+      'I have studied online before; this is the first place where I felt accountable in a good way — challenged but never overwhelmed.',
+    ],
+  },
+];
 
 const values = [
   {
@@ -45,6 +104,21 @@ const AboutPage = () => {
   const [statementWordIndex, setStatementWordIndex] = useState(0);
   const [statementCharIndex, setStatementCharIndex] = useState(0);
   const [statementErasing, setStatementErasing] = useState(false);
+  const [testimonialStart, setTestimonialStart] = useState(0);
+
+  const testimonialCount = studentTestimonials.length;
+  const testimonialIndex = (offset) =>
+    ((testimonialStart + offset) % testimonialCount + testimonialCount) % testimonialCount;
+  const visibleTestimonialIndices = [0, 1, 2].map(testimonialIndex);
+  const activeTestimonial = studentTestimonials[testimonialStart];
+
+  const goPrevTestimonial = () => {
+    setTestimonialStart((s) => (s - 1 + testimonialCount) % testimonialCount);
+  };
+
+  const goNextTestimonial = () => {
+    setTestimonialStart((s) => (s + 1) % testimonialCount);
+  };
 
   useEffect(() => {
     const word = statementWords[statementWordIndex];
@@ -111,9 +185,21 @@ const AboutPage = () => {
                 Quran and Sunnah.
               </p>
               <ul className="about-page-dark__intro-points">
-                <li>Passionate educators, researchers, and mentors</li>
-                <li>Dynamic and innovative Islamic learning experience</li>
-                <li>Quran and Sunnah rooted guidance for modern learners</li>
+                <li>
+                  <strong>Concept-Based Learning:</strong> Helping students understand, not just
+                  memorize
+                </li>
+                <li>
+                  <strong>Interactive Sessions:</strong> Encouraging participation and engagement
+                </li>
+                <li>
+                  <strong>Faith Integration:</strong> Connecting every subject back to Islamic
+                  values
+                </li>
+                <li>
+                  <strong>Personal Growth:</strong> Building confidence, discipline, and emotional
+                  awareness
+                </li>
               </ul>
               <div className="about-page-dark__intro-actions">
                 <Link to="/courses" className="about-page-dark__btn">
@@ -128,9 +214,14 @@ const AboutPage = () => {
             <h2>
               To guide youth in aligning their lives with the principles of Islam so they can
               thrive{' '}
+              {/* Fixed-width slot sized to the longest word so the heading never reflows */}
               <span className="about-page-dark__statement-words">
+                <span className="about-page-dark__statement-spacer" aria-hidden="true">
+                  {statementWords.reduce((a, b) => (a.length >= b.length ? a : b))}
+                </span>
                 <span
                   className={`about-page-dark__statement-word-current${statementCharIndex > 0 ? ' about-page-dark__statement-word-current--underlined' : ''}`}
+                  aria-live="polite"
                 >
                   {statementWords[statementWordIndex].slice(0, statementCharIndex)}
                 </span>
@@ -156,38 +247,111 @@ const AboutPage = () => {
 
       <section className="about-page-dark about-page-dark--continuation">
         <div className="about-page-dark__container">
-          <section className="about-page-dark__showcase">
-            <span className="about-page-dark__eyebrow">Explore the Academy</span>
-            <div className="about-page-dark__showcase-grid">
-              {showcaseItems.map((item) => (
-                <article key={item.title} className="about-page-dark__showcase-card">
-                  <div className="about-page-dark__showcase-image">
-                    <img src={item.image} alt={item.title} loading="lazy" width={400} height={250} sizes="(min-width: 768px) 400px, 100vw" />
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
-                </article>
-              ))}
+          <div className="about-page-dark__showcase-strip">
+            <div className="about-page-dark__container about-page-dark__showcase-inner">
+              <section className="about-page-dark__showcase">
+                <span className="about-page-dark__eyebrow">Explore the Academy</span>
+                <div className="about-page-dark__showcase-grid">
+                  {showcaseItems.map((item) => (
+                    <article key={item.title} className="about-page-dark__showcase-card">
+                      <div className="about-page-dark__showcase-image">
+                        <img src={item.image} alt={item.title} loading="lazy" width={400} height={250} sizes="(min-width: 768px) 400px, 100vw" />
+                      </div>
+                      <h3>{item.title}</h3>
+                      <p>{item.description}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
-          </section>
+          </div>
 
-          <section className="about-page-dark__quote">
-            <div className="about-page-dark__avatars" aria-hidden="true">
-              <span>A</span>
-              <span>F</span>
-              <span>A</span>
+          <div className="about-page-dark__section-rule-wrap" aria-hidden="true">
+            <hr className="about-page-dark__section-rule" />
+          </div>
+
+          <div className="about-page-dark__testimonials-strip">
+            <div className="about-page-dark__container about-page-dark__testimonials-inner">
+              <section
+                className="about-page-dark__quote"
+                aria-label="Student testimonials"
+                aria-roledescription="carousel"
+              >
+                <span className="about-page-dark__eyebrow about-page-dark__eyebrow--on-dark">
+                  Student Testimonials
+                </span>
+                <div className="about-page-dark__quote-row">
+                  <div className="about-page-dark__avatars" role="group" aria-label="Students featured">
+                    {visibleTestimonialIndices.map((studentIndex, slot) => {
+                      const t = studentTestimonials[studentIndex];
+                      const isActive = slot === 0;
+                      return (
+                        <div
+                          key={`${studentIndex}-${testimonialStart}-${slot}`}
+                          className={
+                            isActive
+                              ? 'about-page-dark__avatar-slot about-page-dark__avatar-slot--active'
+                              : 'about-page-dark__avatar-slot'
+                          }
+                        >
+                          <div className="about-page-dark__avatar-ring">
+                            <span className="about-page-dark__avatar-photo">
+                              <img src={t.image} alt="" width={96} height={96} loading="lazy" />
+                              {!isActive ? (
+                                <span className="about-page-dark__avatar-fade" aria-hidden="true" />
+                              ) : null}
+                            </span>
+                            {isActive ? (
+                              <span className="about-page-dark__avatar-quote-icon" aria-hidden="true">
+                                “
+                              </span>
+                            ) : null}
+                          </div>
+                          {isActive ? (
+                            <>
+                              <div className="about-page-dark__avatar-name">{t.name}</div>
+                              <div className="about-page-dark__avatar-role">{t.role}</div>
+                            </>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="about-page-dark__quote-copy">
+                    <div
+                      className="about-page-dark__quote-text"
+                      aria-live="polite"
+                      id="about-testimonial-quote"
+                    >
+                      {activeTestimonial.quote.map((paragraph, i) => (
+                        <p key={i}>{paragraph}</p>
+                      ))}
+                    </div>
+                    <div className="about-page-dark__quote-nav">
+                      <button
+                        type="button"
+                        className="about-page-dark__quote-nav-btn"
+                        onClick={goPrevTestimonial}
+                        aria-label="Previous testimonial"
+                        aria-controls="about-testimonial-quote"
+                      >
+                        <span aria-hidden="true">←</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="about-page-dark__quote-nav-btn"
+                        onClick={goNextTestimonial}
+                        aria-label="Next testimonial"
+                        aria-controls="about-testimonial-quote"
+                      >
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
-            <div className="about-page-dark__quote-copy">
-              <p>
-                We are a team of passionate educators, researchers, and mentors dedicated to
-                delivering a transformative learning experience. Our mission is to raise a
-                generation with clarity, integrity, and strength to lead by example.
-              </p>
-              <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer">
-                Join us on Facebook
-              </a>
-            </div>
-          </section>
+          </div>
         </div>
       </section>
     </>

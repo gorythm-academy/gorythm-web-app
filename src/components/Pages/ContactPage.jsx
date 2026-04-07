@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { FiMapPin, FiPhone, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
+import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
 import { HiOutlineInformationCircle } from 'react-icons/hi';
-import { API_BASE_URL, INFO_EMAIL } from '../../config/constants';
+import { FaWhatsapp } from 'react-icons/fa';
+import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL } from '../../config/constants';
 import './ContactPage.scss';
 
 const contactInfo = {
@@ -88,9 +89,14 @@ const ContactPage = () => {
                 <span>{contactInfo.address}</span>
               </li>
               <li>
-                <a href={`tel:${contactInfo.phone.replace(/\s/g, '')}`}>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`WhatsApp ${contactInfo.phone}`}
+                >
                   <span className="contact-page__icon-wrap" aria-hidden="true">
-                    <FiPhone className="contact-page__icon" />
+                    <FaWhatsapp className="contact-page__icon" />
                   </span>
                   <span>{contactInfo.phone}</span>
                 </a>
@@ -134,13 +140,14 @@ const ContactPage = () => {
               </div>
               <div className="contact-page__form-row">
                 <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><FiPhone /></span>
+                  <span className="contact-page__field-icon" aria-hidden="true"><FaWhatsapp /></span>
                   <input
                     type="tel"
                     name="phone"
-                    placeholder="Phone"
+                    placeholder="Whatsapp Number"
                     value={form.phone}
                     onChange={handleChange}
+                    autoComplete="tel"
                   />
                 </label>
                 <label className="contact-page__field">

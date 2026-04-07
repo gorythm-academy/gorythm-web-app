@@ -1,16 +1,25 @@
-// new created page
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
+import { setAuthSession, getAuthToken, getAuthUserJson, setAuthUserJson } from '../../utils/authStorage';
 import './Login.scss';
 
 const Login = () => {
-    const [isLogin, setIsLogin] = useState(true);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const isResetMode = useMemo(() => {
+        const query = new URLSearchParams(location.search);
+        return query.get('reset') === '1';
+    }, [location.search]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [formData, setFormData] = useState({
         email: '',
-        password: '',
-        name: '',
-        confirmPassword: ''
+        password: ''
     });
+    const [rememberMe, setRememberMe] = useState(false);
 
     const handleChange = (e) => {
         setFormData({
@@ -19,34 +28,126 @@ const Login = () => {
         });
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        // Handle login/register
-        console.log(formData);
+    const routeByRole = (role) => {
+        if (role === 'teacher') return '/teacher';
+        if (role === 'parent') return '/parent';
+        if (role === 'accountant') return '/accountant';
+        if (role === 'admin' || role === 'super-admin') return '/admin';
+        return '/student';
     };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        try {
+            setIsSubmitting(true);
+            const response = await axios.post('http://localhost:5000/api/auth/login', {
+                email: formData.email,
+                password: formData.password,
+                rememberMe,
+            });
+            setAuthSession(response.data.token, response.data.user, rememberMe);
+            if (response.data.user?.mustChangePassword) {
+                navigate('/login?reset=1', { replace: true });
+                return;
+            }
+            navigate(routeByRole(response.data.user.role), { replace: true });
+        } catch (err) {
+            setError(err.response?.data?.error || 'Authentication failed');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleInitialPasswordReset = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        if (!newPassword || newPassword.length < 6) {
+            setError('New password must be at least 6 characters');
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            setError('Passwords do not match');
+            return;
+        }
+
+        const token = getAuthToken();
+        const rawUser = getAuthUserJson();
+        if (!token || !rawUser) {
+            setError('Session expired. Please login again.');
+            navigate('/login');
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            const response = await axios.post(
+                'http://localhost:5000/api/auth/change-initial-password',
+                { newPassword },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            const user = JSON.parse(rawUser);
+            const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
+            setAuthUserJson(JSON.stringify(updatedUser));
+            navigate(routeByRole(updatedUser.role));
+        } catch (err) {
+            setError(err.response?.data?.error || 'Failed to update password');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (isResetMode) {
+        return (
+            <div className="login-page">
+                <div className="login-container">
+                    <div className="login-header">
+                        <h1>Reset Your Password</h1>
+                        <p>For security, please set a new password before continuing.</p>
+                    </div>
+                    <form className="login-form" onSubmit={handleInitialPasswordReset}>
+                        <div className="form-group">
+                            <label>New Password</label>
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password"
+                                required
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Confirm New Password</label>
+                            <input
+                                type="password"
+                                value={confirmNewPassword}
+                                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                placeholder="Confirm new password"
+                                required
+                            />
+                        </div>
+                        {error && <div className="auth-error">{error}</div>}
+                        <button type="submit" className="submit-btn" disabled={isSubmitting}>
+                            {isSubmitting ? 'Updating...' : 'Update Password'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="login-page">
             <div className="login-container">
                 <div className="login-header">
-                    <h1>{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
-                    <p>{isLogin ? 'Sign in to continue your learning journey' : 'Join our academy to start learning'}</p>
+                    <h1>Welcome Back</h1>
+                    <p>Sign in to continue your learning journey</p>
                 </div>
 
                 <form className="login-form" onSubmit={handleSubmit}>
-                    {!isLogin && (
-                        <div className="form-group">
-                            <label>Full Name</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                placeholder="Enter your full name"
-                                required
-                            />
-                        </div>
-                    )}
 
                     <div className="form-group">
                         <label>Email Address</label>
@@ -72,59 +173,25 @@ const Login = () => {
                         />
                     </div>
 
-                    {!isLogin && (
-                        <div className="form-group">
-                            <label>Confirm Password</label>
+                    <div className="form-options">
+                        <label className="remember-me">
                             <input
-                                type="password"
-                                name="confirmPassword"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                                placeholder="Confirm your password"
-                                required
+                                type="checkbox"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
                             />
-                        </div>
-                    )}
+                            Remember me
+                        </label>
+                        <a href="/forgot-password" className="forgot-password">
+                            Forgot Password?
+                        </a>
+                    </div>
 
-                    {isLogin && (
-                        <div className="form-options">
-                            <label className="remember-me">
-                                <input type="checkbox" /> Remember me
-                            </label>
-                            <a href="/forgot-password" className="forgot-password">
-                                Forgot Password?
-                            </a>
-                        </div>
-                    )}
+                    {error && <div className="auth-error">{error}</div>}
 
                     <button type="submit" className="submit-btn">
-                        {isLogin ? 'Sign In' : 'Create Account'}
+                        {isSubmitting ? 'Please wait...' : 'Sign In'}
                     </button>
-
-                    <div className="switch-mode">
-                        <p>
-                            {isLogin ? "Don't have an account? " : "Already have an account? "}
-                            <button
-                                type="button"
-                                className="switch-btn"
-                                onClick={() => setIsLogin(!isLogin)}
-                            >
-                                {isLogin ? 'Sign Up' : 'Sign In'}
-                            </button>
-                        </p>
-                    </div>
-
-                    <div className="social-login">
-                        <p>Or continue with</p>
-                        <div className="social-buttons">
-                            <button type="button" className="social-btn google">
-                                <i className="fab fa-google"></i> Google
-                            </button>
-                            <button type="button" className="social-btn github">
-                                <i className="fab fa-github"></i> GitHub
-                            </button>
-                        </div>
-                    </div>
                 </form>
             </div>
         </div>

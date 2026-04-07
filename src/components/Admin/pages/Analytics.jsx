@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import '../Admin.scss';
 
 const Analytics = () => {
@@ -17,9 +18,10 @@ const Analytics = () => {
     const [courseStats, setCourseStats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [timeFilter, setTimeFilter] = useState('30');
-const fetchPerformanceMetrics = useCallback(async () => {
+
+    const fetchPerformanceMetrics = useCallback(async () => {
     try {
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         
         // Fetch metrics from a new backend endpoint
         const response = await axios.get('http://localhost:5000/api/analytics/metrics', {
@@ -45,7 +47,7 @@ const fetchPerformanceMetrics = useCallback(async () => {
     const fetchAnalyticsData = useCallback(async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
 	    
 	    // Fetch performance metrics
 	    const metrics = await fetchPerformanceMetrics();

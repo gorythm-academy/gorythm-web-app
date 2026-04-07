@@ -48,6 +48,14 @@ import Analytics from './components/Admin/pages/Analytics';
 import Settings from './components/Admin/pages/Settings';
 import EnrollmentsManagement from './components/Admin/pages/EnrollmentsManagement';
 import PaymentGateway from './components/Admin/pages/PaymentGateway';
+import PeopleManagement from './components/Admin/pages/PeopleManagement';
+import ContactMessages from './components/Admin/pages/ContactMessages';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
+import PortalLayout from './components/Portals/PortalLayout';
+import StudentPortal from './components/Portals/StudentPortal';
+import TeacherPortal from './components/Portals/TeacherPortal';
+import ParentPortal from './components/Portals/ParentPortal';
+import AccountantPortal from './components/Portals/AccountantPortal';
 
 
 const Home = () => {
@@ -122,18 +130,55 @@ function AppLayout() {
               <Route path="/admin/login" element={<AdminLogin />} />
               
               {/* Protected Admin Routes */}
+              <Route element={<ProtectedRoute allowedRoles={['super-admin', 'admin']} />}>
                 <Route path="/admin/*" element={<DashboardLayout />}>
-                <Route index element={<DashboardHome />} />
-                <Route path="dashboard" element={<DashboardHome />} />
-                <Route path="users" element={<UsersManagement />} />
-                <Route path="courses" element={<CoursesManagement />} />
-                <Route path="assignments" element={<div>Assignments Management</div>} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="settings" element={<Settings />} />
-		<Route path="payments" element={<PaymentsManagement />} />
-		<Route path="enrollments" element={<EnrollmentsManagement />} />               
-	
-	      </Route>
+                  <Route index element={<DashboardHome />} />
+                  <Route path="dashboard" element={<DashboardHome />} />
+                  <Route path="users" element={<UsersManagement key="staff-users-tab" variant="staff" />} />
+                  <Route path="people" element={<PeopleManagement />} />
+                  <Route path="courses" element={<CoursesManagement />} />
+                  <Route path="assignments" element={<div>Assignments Management</div>} />
+                  <Route path="analytics" element={<Analytics />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="payments" element={<PaymentsManagement />} />
+                  <Route path="enrollments" element={<EnrollmentsManagement />} />
+                  <Route path="contact-messages" element={<ContactMessages />} />
+                </Route>
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['student']} />}>
+                <Route path="/student/*" element={<PortalLayout role="student" title="Student Portal" />}>
+                  <Route index element={<StudentPortal />} />
+                  <Route path="courses" element={<StudentPortal />} />
+                  <Route path="assignments" element={<StudentPortal />} />
+                  <Route path="quizzes" element={<StudentPortal />} />
+                </Route>
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['teacher']} />}>
+                <Route path="/teacher/*" element={<PortalLayout role="teacher" title="Teacher Portal" />}>
+                  <Route index element={<TeacherPortal />} />
+                  <Route path="classes" element={<TeacherPortal />} />
+                  <Route path="attendance" element={<TeacherPortal />} />
+                  <Route path="content" element={<TeacherPortal />} />
+                </Route>
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['parent']} />}>
+                <Route path="/parent/*" element={<PortalLayout role="parent" title="Parent Portal" />}>
+                  <Route index element={<ParentPortal />} />
+                  <Route path="children" element={<ParentPortal />} />
+                  <Route path="progress" element={<ParentPortal />} />
+                </Route>
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['accountant']} />}>
+                <Route path="/accountant/*" element={<PortalLayout role="accountant" title="Accountant Portal" />}>
+                  <Route index element={<AccountantPortal />} />
+                  <Route path="payments" element={<AccountantPortal />} />
+                  <Route path="reports" element={<AccountantPortal />} />
+                </Route>
+              </Route>
               
               {/* Redirect to home */}
               <Route path="*" element={<Navigate to="/" />} />

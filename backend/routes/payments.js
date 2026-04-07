@@ -5,6 +5,9 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
+const authMiddleware = require('../middleware/auth');
+
+router.use(authMiddleware);
 
 // Get all payments
 router.get('/', async (req, res) => {
@@ -152,6 +155,9 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
 
 // Refund payment
 router.post('/:id/refund', async (req, res) => {
+    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+        return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
+    }
     try {
         const payment = await Payment.findById(req.params.id);
         

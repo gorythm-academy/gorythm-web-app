@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getAuthToken, getAuthUserJson } from '../../utils/authStorage';
 import './DashboardHome.scss';
 
 const DashboardHome = () => {
@@ -16,8 +17,7 @@ const DashboardHome = () => {
     const [error, setError] = useState('');
     const [backendStatus, setBackendStatus] = useState('checking');
 
-    // Get user from localStorage
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(getAuthUserJson() || '{}');
 
     const checkBackendHealth = useCallback(async () => {
         try {
@@ -35,7 +35,7 @@ const DashboardHome = () => {
             setLoading(true);
             setError('');
             
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             
             if (!token && backendStatus === 'connected') {
                 navigate('/admin/login');

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import { CATEGORY_ORDER } from '../../HomeSections/Courses';
 import './CoursesManagement.scss';
 
@@ -182,7 +183,7 @@ const CoursesManagement = () => {
     const fetchCourses = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             
             console.log('Fetching courses...');
             const response = await axios.get('http://localhost:5000/api/courses', {
@@ -324,7 +325,7 @@ const CoursesManagement = () => {
         }
 
         setIsSubmitting(true);
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         
         if (!token) {
             alert('Authentication token not found. Please log in again.');
@@ -475,7 +476,7 @@ setFormData({
     const deleteCourse = async (courseId) => {
         if (window.confirm('Are you sure you want to delete this course?')) {
             try {
-                const token = localStorage.getItem('token');
+                const token = getAuthToken();
                 await axios.delete(`http://localhost:5000/api/courses/${courseId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -498,7 +499,7 @@ setFormData({
         }
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             console.log('Deleting courses:', selectedCourses);
             
             // FIXED: Use correct endpoint and payload format
@@ -524,7 +525,7 @@ setFormData({
     const toggleStatus = async (courseId, currentStatus) => {
         const newStatus = currentStatus === 'published' ? 'draft' : 'published';
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.patch(`http://localhost:5000/api/courses/${courseId}/status`, 
                 { status: newStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -542,7 +543,7 @@ setFormData({
         if (!targetStatus || !['published', 'draft'].includes(targetStatus)) return;
 
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.patch('http://localhost:5000/api/courses/bulk-status', 
                 { courseIds: selectedCourses, status: targetStatus },
                 { headers: { Authorization: `Bearer ${token}` } }

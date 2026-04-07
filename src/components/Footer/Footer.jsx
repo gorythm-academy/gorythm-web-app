@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FACEBOOK_URL } from '../../config/constants';
+import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL } from '../../config/constants';
 import footerBgImage from '../../assets/images/footer-bd-image.png';
 import './Footer.scss';
 
@@ -111,14 +111,17 @@ const Footer = () => {
 <a href="https://x.com" className="social-link" aria-label="Twitter">
     <i className="fab fa-twitter"></i>
 </a>
-<a href="https://www.instagram.com/al_farhan_academy_?utm_source=ig_web_button_share_sheet&amp;igsh=ZDNlZDc0MzIxNw==" className="social-link" aria-label="Instagram">
+<a href={INSTAGRAM_URL} className="social-link" aria-label="Instagram">
     <i className="fab fa-instagram"></i>
 </a>
 <a href="https://www.linkedin.com" className="social-link" aria-label="LinkedIn">
     <i className="fab fa-linkedin-in"></i>
 </a>
-<a href="https://www.youtube.com/@alfarhanacademy" className="social-link" aria-label="YouTube">
+<a href={YOUTUBE_URL} className="social-link" aria-label="YouTube">
     <i className="fab fa-youtube"></i>
+</a>
+<a href={TIKTOK_URL} className="social-link" aria-label="TikTok">
+    <i className="fab fa-tiktok"></i>
 </a>
                         </div>
                     </div>

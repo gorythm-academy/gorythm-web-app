@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
 const ContactMessage = require('../models/ContactMessage');
+const authMiddleware = require('../middleware/auth');
+const { allowRoles } = require('../middleware/authorize');
 
 // Helper: create transporter from settings
 async function createTransporter() {
@@ -73,7 +75,7 @@ router.post('/', async (req, res) => {
         `New contact enquiry from Gorythm website:\n\n` +
         `Name: ${name}\n` +
         `Email: ${email}\n` +
-        (phone ? `Phone: ${phone}\n` : '') +
+        (phone ? `Whatsapp Number: ${phone}\n` : '') +
         `Consent: ${consent ? 'Yes' : 'No'}\n\n` +
         `Message:\n${message}\n\n` +
         `Message ID: ${contactMessage._id}\n` +
@@ -84,7 +86,7 @@ router.post('/', async (req, res) => {
         `<ul>` +
         `<li><strong>Name:</strong> ${name}</li>` +
         `<li><strong>Email:</strong> ${email}</li>` +
-        (phone ? `<li><strong>Phone:</strong> ${phone}</li>` : '') +
+        (phone ? `<li><strong>Whatsapp Number:</strong> ${phone}</li>` : '') +
         `<li><strong>Consent:</strong> ${consent ? 'Yes' : 'No'}</li>` +
         `</ul>` +
         `<p><strong>Message:</strong></p>` +
@@ -123,4 +125,14 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+
+// Admin endpoint: list contact messages
+router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+  try {
+    const messages = await ContactMessage.find().sort({ createdAt: -1 }).limit(500);
+    return res.json({ success: true, messages });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to fetch contact messages' });
+  }
+});
 

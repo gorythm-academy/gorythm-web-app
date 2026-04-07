@@ -217,6 +217,11 @@
   .fab, .fas {
     font-size: 1.15em;
   }
+
+  .header-social-tiktok {
+    display: block;
+    flex-shrink: 0;
+  }
 }
 
 .social-link-name {
@@ -324,40 +329,6 @@
     .header-container {
       padding-top: 5px;
       padding-bottom: 5px;
-    }
-  }
-}
-
-// Mobile + tablet (all orientations): header scrolls with page — not fixed, no slide-away transform
-@media (max-width: $bp-legacy-1279) {
-  .header {
-    position: relative;
-    top: auto;
-    left: auto;
-    right: auto;
-    transform: none !important;
-    will-change: auto;
-    z-index: 100;
-
-    transition:
-      background 0.2s ease,
-      box-shadow 0.2s ease;
-
-    &.header--hidden {
-      transform: none !important;
-    }
-
-    // Safety: no frosted bar in document-flow mode
-    &.scrolled {
-      background: transparent !important;
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
-      box-shadow: none !important;
-
-      .header-container {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-      }
     }
   }
 }
@@ -1323,6 +1294,11 @@
 
   .fab, .fas {
     font-size: 1.25em;
+  }
+
+  .header-social-tiktok {
+    display: block;
+    flex-shrink: 0;
   }
 
   &:hover {

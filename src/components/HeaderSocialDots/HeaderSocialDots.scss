@@ -133,6 +133,13 @@ $social-dot-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.social-dot[data-social="tiktok"] {
+  &:hover,
+  &.active {
+    background: linear-gradient(135deg, #25f4ee 0%, #fe2c55 100%);
+  }
+}
+
 .social-dot[data-social="github"] {
   &:hover, &.active {
     background-color: #333; // GitHub black
@@ -184,6 +191,7 @@ $social-dot-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   &:nth-child(3) { animation-delay: 0.3s; }
   &:nth-child(4) { animation-delay: 0.4s; }
   &:nth-child(5) { animation-delay: 0.5s; }
+  &:nth-child(6) { animation-delay: 0.55s; }
 }
 
 // Dark mode support

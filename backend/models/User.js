@@ -13,12 +13,15 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { 
         type: String, 
-        enum: ['super-admin', 'admin', 'teacher', 'accountant', 'student'], 
+        enum: ['super-admin', 'admin', 'teacher', 'accountant', 'student', 'parent'], 
         default: 'student' 
     },
     phone: { type: String, default: '' },
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
+    canLogin: { type: Boolean, default: true },
+    mustChangePassword: { type: Boolean, default: false },
+    isSystemAccount: { type: Boolean, default: false },
     enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     lastLogin: { type: Date },
     createdAt: { type: Date, default: Date.now },

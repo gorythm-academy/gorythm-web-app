@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import './EnrollStudentModal.scss';
 
 const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
@@ -122,7 +123,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
             }
 
             // Get token
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             if (!token) {
                 throw new Error('Admin session expired. Please login again.');
             }

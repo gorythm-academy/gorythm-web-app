@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getAuthToken } from '../../../utils/authStorage';
 import './PaymentsManagement.scss';
 
 const PaymentsManagement = () => {
@@ -80,7 +81,7 @@ const PaymentsManagement = () => {
 
             // Try backend first
             try {
-                const token = localStorage.getItem('token');
+                const token = getAuthToken();
                 const response = await axios.get('http://localhost:5000/api/payments', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -155,7 +156,7 @@ const PaymentsManagement = () => {
         if (!window.confirm('Issue refund for this payment?')) return;
         
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             await axios.post(`http://localhost:5000/api/payments/${paymentId}/refund`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
