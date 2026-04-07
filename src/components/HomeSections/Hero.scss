@@ -29,8 +29,7 @@
   position: relative;
   z-index: 0; // establish stacking context baseline
   isolation: isolate; // prevent negative z-index/background paint issues on mobile browsers
- // min-height: 100dvh; // Full viewport height minimum
-  //height: 100dvh;
+  min-height: 100svh;
   width: 100%;
   margin: 0; // Remove any default margins
   padding: 0; // Remove any default padding
@@ -85,7 +84,7 @@
     flex-direction: column; // Stack content vertically
     align-items: flex-start; // Align to left by default
     justify-content: flex-end; // Push content to bottom
-    height: 100dvh;
+    height: 100svh;
     padding-bottom: 10px; // Space from bottom
     overflow-y: hidden; // Prevent vertical scroll if content overflows
     overflow-x: hidden;
@@ -394,7 +393,7 @@
    *   very-short ≤ 325px — only iPhone SE 1st-gen (320px); all else show description
    */
   @media (orientation: landscape) and (max-width: $bp-home-landscape-max) {
-    height: 100dvh; // lock section to viewport — no page scroll
+    height: 100svh; // lock section to viewport — no page scroll
     overflow: hidden; // clip anything outside
 
     .hero-background {
