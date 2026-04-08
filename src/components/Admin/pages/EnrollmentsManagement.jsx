@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import EnrollStudentModal from './EnrollStudentModal';
 import './EnrollmentsManagement.scss';
+
+const COLUMN_DEFS = ['checkbox', 'student', 'course', 'enrollmentDate', 'progress', 'status', 'lastAccessed', 'grade', 'action'];
+const DEFAULT_COLUMN_WIDTHS = [60, 240, 260, 150, 160, 180, 140, 100, 170];
+const COLUMN_MIN_WIDTHS = [50, 160, 160, 110, 110, 120, 110, 80, 130];
+const COLUMN_MAX_WIDTHS = [90, 380, 420, 280, 260, 320, 240, 180, 280];
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const EnrollmentsManagement = () => {
     const [enrollments, setEnrollments] = useState([]);
@@ -26,6 +32,16 @@ const EnrollmentsManagement = () => {
     const [courses, setCourses] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const tableContainerRef = useRef(null);
+    const dragStateRef = useRef({
+        isDragging: false,
+        startX: 0,
+        startScrollLeft: 0,
+    });
+    const [isTableDragging, setIsTableDragging] = useState(false);
+    const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+    const [sortBy, setSortBy] = useState('enrollmentDate');
+    const [sortOrder, setSortOrder] = useState('desc');
 
     const calculateStats = useCallback((data = []) => {
         const total = data.length;
@@ -120,6 +136,88 @@ const EnrollmentsManagement = () => {
         };
     }, [enrollments]); // Run when enrollments change
     // 👆 NEW useEffect ENDS HERE 👆
+
+    const startTableDragScroll = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, select, textarea, a, label, .col-resizer')) return;
+
+        const el = tableContainerRef.current;
+        if (!el) return;
+
+        dragStateRef.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startScrollLeft: el.scrollLeft,
+        };
+        setIsTableDragging(true);
+    };
+
+    const onTableDragScroll = (e) => {
+        const el = tableContainerRef.current;
+        const dragState = dragStateRef.current;
+        if (!el || !dragState.isDragging) return;
+        const deltaX = e.clientX - dragState.startX;
+        el.scrollLeft = dragState.startScrollLeft - deltaX;
+    };
+
+    const stopTableDragScroll = () => {
+        if (!dragStateRef.current.isDragging) return;
+        dragStateRef.current.isDragging = false;
+        setIsTableDragging(false);
+    };
+
+    const startColumnResize = (e, colIndex) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startWidth = columnWidths[colIndex];
+        const minWidth = COLUMN_MIN_WIDTHS[colIndex] ?? 80;
+        const maxWidth = COLUMN_MAX_WIDTHS[colIndex] ?? 600;
+        let rafId = null;
+        let latestWidth = startWidth;
+
+        const onPointerMove = (ev) => {
+            latestWidth = clamp(startWidth + (ev.clientX - startX), minWidth, maxWidth);
+            if (rafId) return;
+            rafId = window.requestAnimationFrame(() => {
+                rafId = null;
+                setColumnWidths((prev) => {
+                    const next = [...prev];
+                    next[colIndex] = latestWidth;
+                    return next;
+                });
+            });
+        };
+
+        const stop = () => {
+            window.removeEventListener('pointermove', onPointerMove);
+            if (rafId) window.cancelAnimationFrame(rafId);
+            document.body.style.cursor = '';
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', stop, { once: true });
+        window.addEventListener('pointercancel', stop, { once: true });
+        document.body.style.cursor = 'col-resize';
+    };
+
+    const resetColumnWidth = (colIndex) => {
+        setColumnWidths((prev) => {
+            const next = [...prev];
+            next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
+            return next;
+        });
+    };
+
+    const handleSort = (column) => {
+        if (sortBy === column) {
+            setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortBy(column);
+            setSortOrder(column === 'enrollmentDate' || column === 'lastAccessed' ? 'desc' : 'asc');
+        }
+    };
 
     const toggleEnrollmentSelection = (enrollmentId) => {
         setSelectedEnrollments(prev => 
@@ -300,6 +398,24 @@ const handleEditEnrollment = (enrollment) => {
         const matchesStatus = filterStatus === 'all' || enrollment.status === filterStatus;
         
         return matchesSearch && matchesStatus;
+    });
+
+    const sortedEnrollments = [...filteredEnrollments].sort((a, b) => {
+        const mult = sortOrder === 'asc' ? 1 : -1;
+        const getVal = (enrollment, key) => {
+            if (key === 'student') return (enrollment.student?.name || '').toLowerCase();
+            if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
+            if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
+            if (key === 'progress') return Number(enrollment.progress) || 0;
+            if (key === 'status') return (enrollment.status || '').toLowerCase();
+            if (key === 'lastAccessed') return new Date(enrollment.lastAccessed || 0).getTime();
+            if (key === 'grade') return (enrollment.grade || '').toLowerCase();
+            return 0;
+        };
+        const va = getVal(a, sortBy);
+        const vb = getVal(b, sortBy);
+        if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
+        return mult * (va < vb ? -1 : va > vb ? 1 : 0);
     });
 
     const getProgressColor = (progress) => {
@@ -807,8 +923,20 @@ const EditEnrollmentModal = () => {
             </div>
 
             {/* Enrollments Table */}
-            <div className="enrollments-table-container">
+            <div
+                ref={tableContainerRef}
+                className={`enrollments-table-container ${isTableDragging ? 'is-dragging' : ''}`}
+                onMouseDown={startTableDragScroll}
+                onMouseMove={onTableDragScroll}
+                onMouseUp={stopTableDragScroll}
+                onMouseLeave={stopTableDragScroll}
+            >
                 <table className="enrollments-table">
+                    <colgroup>
+                        {COLUMN_DEFS.map((key, idx) => (
+                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
+                        ))}
+                    </colgroup>
                     <thead>
                         <tr>
                             <th className="checkbox-cell">
@@ -818,20 +946,44 @@ const EditEnrollmentModal = () => {
                                     onChange={toggleAllEnrollments}
                                     disabled={filteredEnrollments.length === 0}
                                 />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
                             </th>
-                            <th>Student</th>
-                            <th>Course</th>
-                            <th>Enrollment Date</th>
-                            <th>Progress</th>
-                            <th>Status</th>
-                            <th>Last Accessed</th>
-                            <th>Grade</th>
-                            <th className="action-col">Action</th>
+                            <th className="sortable" onClick={() => handleSort('student')}>Student
+                                {sortBy === 'student' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('course')}>Course
+                                {sortBy === 'course' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('enrollmentDate')}>Enrollment Date
+                                {sortBy === 'enrollmentDate' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('progress')}>Progress
+                                {sortBy === 'progress' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('status')}>Status
+                                {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('lastAccessed')}>Last Accessed
+                                {sortBy === 'lastAccessed' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('grade')}>Grade
+                                {sortBy === 'grade' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                            </th>
+                            <th className="action-col">Action
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredEnrollments.length > 0 ? (
-                            filteredEnrollments.map((enrollment) => {
+                        {sortedEnrollments.length > 0 ? (
+                            sortedEnrollments.map((enrollment) => {
                                 const student = enrollment.student || {};
                                 const course = enrollment.course || {};
                                 

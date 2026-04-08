@@ -13,6 +13,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
+import { useCurrency } from '../../context/CurrencyContext';
+import { parsePriceAmount } from '../../utils/currency';
 // NOTE: Homepage courses are now API-only (no static fallback).
 import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
@@ -76,11 +78,11 @@ export const portfolioItems = [
   { id: 6, slug: 'the-universe', title: 'The Universe', category: 'Cosmology', image: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=700&q=80', aspectRatio: '4/5', description: 'An awe-inspiring glimpse into space-time.' },
 ];
 
-const formatPrice = (price) => {
+const formatPrice = (price, formatFromUsd) => {
   if (price == null || price === '') return '';
-  const n = Number(price);
+  const n = parsePriceAmount(price);
   if (Number.isNaN(n)) return String(price);
-  return n === 0 ? 'Free' : `$${n}/Month`;
+  return n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
 };
 
 const formatLevel = (level) => {
@@ -96,6 +98,7 @@ const CoursesSection = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const { formatFromUsd } = useCurrency();
 
   const fetchCourses = React.useCallback(async () => {
     setLoading(true);
@@ -148,7 +151,7 @@ const CoursesSection = () => {
       title: c.title || '',
       category: c.category || '',
       description: c.description || '',
-      price: formatPrice(c.price),
+      price: formatPrice(c.price, formatFromUsd),
       duration: c.duration || '',
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
@@ -193,8 +196,8 @@ const CoursesSection = () => {
                 <p className="courses-section-description courses-section_anim">
                 Adventure beyond the stars, adrenaline that defies gravity – Your Journey to Islamic Learning Starts Here. 
                 </p>
-                <Link to="/contact" className="courses-section-cta courses-section_anim">
-                  <span className="courses-section-cta-text">Contact Us</span>
+                <Link to="/courses" className="courses-section-cta courses-section_anim">
+                  <span className="courses-section-cta-text">Explore Courses</span>
                   <span className="courses-section-cta-arrow" aria-hidden="true">→</span>
                 </Link>
               </div>

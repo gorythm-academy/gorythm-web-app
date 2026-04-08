@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+    studentName: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    courseName: { type: String, trim: true },
     amount: { type: Number, required: true },
     currency: { type: String, default: 'USD' },
     status: { 

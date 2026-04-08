@@ -459,6 +459,13 @@
     overflow-x: auto; /* CHANGE THIS LINE - force horizontal scroll */
     overflow-y: hidden;
     position: relative;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+
+    &.is-dragging {
+        cursor: grabbing;
+        user-select: none;
+    }
     
     &::before {
         content: '';
@@ -509,6 +516,7 @@
     width: 100%;
     border-collapse: collapse;
     min-width: 1200px; /* Ensures all columns fit */
+    table-layout: fixed;
     
     thead {
         background: #f8fafc;
@@ -524,6 +532,24 @@
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
                 white-space: nowrap;
+                position: relative;
+
+                &.sortable {
+                    cursor: pointer;
+                    user-select: none;
+                    transition: background 0.2s, color 0.2s;
+
+                    &:hover {
+                        background: #f1f5f9;
+                        color: var(--color-accent);
+                    }
+
+                    i {
+                        font-size: 0.7rem;
+                        margin-left: 0.35rem;
+                        opacity: 0.85;
+                    }
+                }
                 
                 &.checkbox-cell {
                     width: 40px;
@@ -537,6 +563,30 @@
                 }
             }
         }
+    }
+
+    .col-resizer {
+        position: absolute;
+        right: -3px;
+        top: 0;
+        height: 100%;
+        width: 6px;
+        cursor: col-resize;
+        user-select: none;
+        touch-action: none;
+        z-index: 5;
+        opacity: 0;
+        background: rgba(59, 130, 246, 0.15);
+        transition: opacity 0.15s ease;
+    }
+
+    th:hover .col-resizer {
+        opacity: 1;
+    }
+
+    th .col-resizer:active {
+        opacity: 1;
+        background: rgba(59, 130, 246, 0.28);
     }
     
     tbody {
@@ -765,10 +815,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
 
     .action-btn {
         padding: 6px 12px;
+        flex: 0 0 auto;
         border-radius: 6px;
         border: 1px solid #e2e8f0;
         background: white;

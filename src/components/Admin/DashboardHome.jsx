@@ -118,7 +118,7 @@ const DashboardHome = () => {
 
     const quickActions = [
         { icon: 'fas fa-plus-circle', label: 'Add Course', action: () => navigate('/admin/courses'), color: 'var(--color-accent)' },
-        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/users'), color: '#10b981' },
+        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/enrollments'), color: '#10b981' },
         { icon: 'fas fa-file-invoice-dollar', label: 'Create Invoice', action: () => navigate('/admin/payments'), color: '#f59e0b' },
         { icon: 'fas fa-chart-line', label: 'View Reports', action: () => navigate('/admin/analytics'), color: '#8b5cf6' },
         { icon: 'fas fa-cog', label: 'Settings', action: () => navigate('/admin/settings'), color: '#64748b' },

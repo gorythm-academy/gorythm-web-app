@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '../../../config/constants';
 import './PaymentGateway.scss';
 
 const PaymentGateway = () => {
     const location = useLocation();
     const [paymentMethod, setPaymentMethod] = useState('card');
+    const [courseOptions, setCourseOptions] = useState([]);
     const [formData, setFormData] = useState({
         studentName: '',
         phone: '',
@@ -13,12 +15,13 @@ const PaymentGateway = () => {
         cvv: '',
         cardName: '',
         amount: '',
-        email: ''
+        email: '',
+        courseName: ''
     });
 
     const paymentDetails = useMemo(() => {
         const params = new URLSearchParams(location.search);
-        const courseName = params.get('courseName') || 'Selected Course';
+        const courseName = params.get('courseName') || '';
         const amount = params.get('amount') || '0';
         const feePlan = params.get('feePlan') || 'one-time';
         return { courseName, amount, feePlan };
@@ -52,6 +55,43 @@ const PaymentGateway = () => {
         };
     }, []);
 
+    useEffect(() => {
+        let cancelled = false;
+        const fetchCourses = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/courses/public`);
+                if (!response.ok) {
+                    if (!cancelled) setCourseOptions([]);
+                    return;
+                }
+                const data = await response.json();
+                if (!cancelled) {
+                    setCourseOptions(Array.isArray(data?.courses) ? data.courses : []);
+                }
+            } catch {
+                if (!cancelled) setCourseOptions([]);
+            }
+        };
+
+        fetchCourses();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        setFormData((prev) => ({
+            ...prev,
+            courseName: paymentDetails.courseName || prev.courseName || ''
+        }));
+    }, [paymentDetails.courseName]);
+
+    const selectedCourse = useMemo(
+        () => courseOptions.find((course) => course?.title === formData.courseName) || null,
+        [courseOptions, formData.courseName]
+    );
+    const resolvedAmount = Number(selectedCourse?.price ?? paymentDetails.amount) || 0;
+
     const paymentMethods = [
         { id: 'card', name: 'Credit/Debit Card', icon: 'fas fa-credit-card' },
         { id: 'paypal', name: 'PayPal', icon: 'fab fa-paypal' },
@@ -60,15 +100,48 @@ const PaymentGateway = () => {
         { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' }
     ];
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Payment processing logic here
-        console.log('Processing payment:', { paymentMethod, formData, paymentDetails });
+        try {
+            const payload = {
+                studentName: formData.studentName,
+                email: formData.email,
+                courseName: formData.courseName || paymentDetails.courseName || 'Selected Course',
+                amount: resolvedAmount,
+                paymentMethod
+            };
+
+            const response = await fetch(`${API_BASE_URL}/api/payments/register-online`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to complete payment');
+            }
+
+            alert('Payment completed and saved successfully.');
+            setFormData({
+                studentName: '',
+                phone: '',
+                cardNumber: '',
+                expiry: '',
+                cvv: '',
+                cardName: '',
+                amount: '',
+                email: '',
+                courseName: paymentDetails.courseName || ''
+            });
+        } catch (error) {
+            alert(`Payment failed: ${error.message}`);
+        }
     };
 
     const formattedFeePlan =
         paymentDetails.feePlan === 'per-month' ? 'Per Month' : paymentDetails.feePlan;
-    const usdAmount = Number(paymentDetails.amount) || 0;
+    const usdAmount = resolvedAmount;
     const hasConversionRate = typeof conversionRate === 'number' && conversionRate > 0;
     const pkrAmount = hasConversionRate ? usdAmount * conversionRate : 0;
 
@@ -82,8 +155,10 @@ const PaymentGateway = () => {
                     </div>
 
                     <div className="payment-summary-banner">
-                        <span className="payment-summary-course">{paymentDetails.courseName}</span>
-                        <strong>Total Amount: ${paymentDetails.amount}</strong>
+                        <span className="payment-summary-course">
+                            {formData.courseName || paymentDetails.courseName || 'Select a course'}
+                        </span>
+                        <strong>Total Amount: ${usdAmount.toFixed(2)}</strong>
                     </div>
 
                     <form className="payment-form" onSubmit={handleSubmit}>
@@ -119,6 +194,29 @@ const PaymentGateway = () => {
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     required
                                 />
+                            </div>
+
+                            <div className="form-group form-group-wide">
+                                <label>Select Course *</label>
+                                <select
+                                    value={formData.courseName}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            courseName: e.target.value
+                                        }))
+                                    }
+                                    required
+                                >
+                                    <option value="" disabled>
+                                        Choose a course
+                                    </option>
+                                    {courseOptions.map((course) => (
+                                        <option key={course._id || course.title} value={course.title}>
+                                            {course.title}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
 
@@ -260,7 +358,7 @@ const PaymentGateway = () => {
                                     <span>Back to All Courses</span>
                                 </Link>
                                 <button type="submit" className="pay-now-btn">
-                                    <i className="fas fa-credit-card"></i> Complete Payment (${paymentDetails.amount})
+                                    <i className="fas fa-credit-card"></i> Complete Payment (${usdAmount.toFixed(2)})
                                 </button>
                             </div>
                         </div>

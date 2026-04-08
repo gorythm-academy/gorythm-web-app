@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getImageFromAssets } from '../HomeSections/Courses';
 import { API_BASE_URL } from '../../config/constants';
+import { useCurrency } from '../../context/CurrencyContext';
+import { parsePriceAmount } from '../../utils/currency';
 import './SingleCourse.scss';
 
 const renderGallery = (images) => {
@@ -24,11 +26,11 @@ const renderGallery = (images) => {
   );
 };
 
-const formatPrice = (price) => {
+const formatPrice = (price, formatFromUsd) => {
   if (price == null || price === '') return '';
-  const n = Number(price);
+  const n = parsePriceAmount(price);
   if (Number.isNaN(n)) return String(price);
-  return n === 0 ? 'Free' : `$${n}/Month`;
+  return n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
 };
 
 const formatLevel = (level) => {
@@ -39,14 +41,12 @@ const formatLevel = (level) => {
 
 /** Numeric price for payment (handles raw number or formatted string like "$30/Month") */
 const getPriceAmount = (price) => {
-  if (price == null || price === '') return 0;
-  const n = Number(price);
-  if (!Number.isNaN(n)) return n;
-  const match = String(price).match(/[\d.]+/);
-  return match ? parseFloat(match[0], 10) : 0;
+  const n = parsePriceAmount(price);
+  return Number.isNaN(n) ? 0 : n;
 };
 
 export function SingleCourse() {
+  const { currency, formatFromUsd } = useCurrency();
   const { slug } = useParams();
   const [apiCourse, setApiCourse] = useState(null);
   const [apiList, setApiList] = useState([]);
@@ -104,13 +104,13 @@ export function SingleCourse() {
       description: apiCourse.description,
       image,
       galleryImages: [],
-      price: formatPrice(apiCourse.price),
+      price: formatPrice(apiCourse.price, formatFromUsd),
       priceAmount: getPriceAmount(apiCourse.price),
       level: formatLevel(apiCourse.level),
       duration: apiCourse.duration,
       category: apiCourse.category,
     };
-  }, [apiCourse, apiList]);
+  }, [apiCourse, apiList, formatFromUsd]);
 
   useEffect(() => {
     if (stickyRef.current) {
@@ -237,7 +237,7 @@ export function SingleCourse() {
                 </div>
                 <div className="cip-actions">
                   <Link
-                    to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}`}
+                    to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}&displayCurrency=${encodeURIComponent(currency)}`}
                     className="cip-cta"
                   >
                     Enroll Now
@@ -303,7 +303,7 @@ export function SingleCourse() {
             </div>
             <div className="cip-actions">
               <Link
-                to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}`}
+                to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}&displayCurrency=${encodeURIComponent(currency)}`}
                 className="cip-cta"
               >
                 Enroll Now

@@ -232,13 +232,24 @@
     .payments-table-container {
         background: white;
         border-radius: 12px;
-        overflow: hidden;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         margin-bottom: 1.5rem;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        cursor: grab;
+
+        &.is-dragging {
+            cursor: grabbing;
+            user-select: none;
+        }
         
         .payments-table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 1200px;
+            table-layout: fixed;
             
             th {
                 background: #f8fafc;
@@ -248,6 +259,48 @@
                 font-weight: 600;
                 border-bottom: 2px solid #e2e8f0;
                 white-space: nowrap;
+                position: relative;
+
+                &.sortable {
+                    cursor: pointer;
+                    user-select: none;
+                    transition: background 0.2s, color 0.2s;
+                    
+                    &:hover {
+                        background: #f1f5f9;
+                        color: var(--color-accent);
+                    }
+                    
+                    i {
+                        font-size: 0.7rem;
+                        margin-left: 0.35rem;
+                        opacity: 0.85;
+                    }
+                }
+            }
+
+            .col-resizer {
+                position: absolute;
+                right: -3px;
+                top: 0;
+                height: 100%;
+                width: 6px;
+                cursor: col-resize;
+                user-select: none;
+                touch-action: none;
+                z-index: 5;
+                opacity: 0;
+                background: rgba(59, 130, 246, 0.15);
+                transition: opacity 0.15s ease;
+            }
+
+            th:hover .col-resizer {
+                opacity: 1;
+            }
+
+            th .col-resizer:active {
+                opacity: 1;
+                background: rgba(59, 130, 246, 0.28);
             }
             
             td {
@@ -262,6 +315,21 @@
                 
                 &:hover {
                     background: #f8fafc;
+                }
+
+                &.selected {
+                    background: #eff6ff;
+                }
+            }
+
+            .checkbox-cell {
+                text-align: center;
+                min-width: 40px;
+
+                input[type="checkbox"] {
+                    width: 18px;
+                    height: 18px;
+                    cursor: pointer;
                 }
             }
             
@@ -400,10 +468,13 @@
             .action-buttons {
                 display: flex;
                 gap: 6px;
+                flex-wrap: nowrap;
+                white-space: nowrap;
                 
                 .action-btn {
                     width: 32px;
                     height: 32px;
+                    flex: 0 0 auto;
                     border: none;
                     border-radius: 6px;
                     display: flex;

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
+import { useCurrency } from '../../context/CurrencyContext';
+import { parsePriceAmount } from '../../utils/currency';
 import './AllCourses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
 import assetQuranRecitation from '../../assets/images/Quran Recitation with Tajweed.avif';
@@ -53,10 +55,10 @@ const getFirstLine = (text) => {
   }
   return raw;
 };
-const formatPrice = (price) => {
+const formatPrice = (price, formatFromUsd) => {
   if (price == null || price === '') return '';
-  const n = Number(price);
-  return Number.isNaN(n) ? String(price) : n === 0 ? 'Free' : `$${n}/Month`;
+  const n = parsePriceAmount(price);
+  return Number.isNaN(n) ? String(price) : n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
 };
 const formatLevel = (level) => {
   if (!level) return '';
@@ -276,6 +278,7 @@ export const courses = [
 ];
 
 const AllCourses = () => {
+  const { formatFromUsd } = useCurrency();
   const [apiCourses, setApiCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDesktopScrollZone, setIsDesktopScrollZone] = useState(
@@ -328,7 +331,7 @@ const AllCourses = () => {
       title: c.title || '',
       category: c.category || '',
       description: getFirstLine(c.description || ''),
-      price: formatPrice(c.price),
+      price: formatPrice(c.price, formatFromUsd),
       duration: c.duration || '',
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),

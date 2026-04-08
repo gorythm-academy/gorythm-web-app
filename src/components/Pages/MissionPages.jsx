@@ -22,6 +22,12 @@ const MissionPageLayout = ({ title, subtitle, description, points }) => (
           </ul>
         )}
       </div>
+      <div className="mission-page-cta-row">
+        <Link to="/courses" className="mission-page-cta" aria-label="Explore all courses">
+          <span className="mission-page-cta-text">Explore all courses</span>
+          <span className="mission-page-cta-arrow" aria-hidden="true">→</span>
+        </Link>
+      </div>
       <div className="mission-page-back">
         <Link to="/" className="mission-back-link">
           <span className="mission-back-arrow">←</span> Back to Home
@@ -34,14 +40,14 @@ const MissionPageLayout = ({ title, subtitle, description, points }) => (
 // Page 1 – Satellite Maintenance
 export const SatelliteMaintenancePage = () => (
   <MissionPageLayout
-    subtitle="Our Mission"
-    title="Satellite Maintenance"
-    description="We ensure the continued operation of critical satellite infrastructure through precise remote diagnostics, orbital adjustments, and advanced maintenance protocols."
+    subtitle="How We Support Growth"
+    title="Qur'an-Centered Learning"
+    description="Every course is built to help learners strengthen their relationship with the Qur'an through recitation, understanding, and reflection. We focus on meaningful progress so learners can apply Islamic guidance in everyday life with confidence."
     points={[
-      'Remote diagnostics and anomaly detection',
-      'Orbital altitude and attitude corrections',
-      'On-orbit servicing and component upgrades',
-      'End-of-life deorbit management',
+      'Step-by-step recitation with Tajweed and personalized feedback',
+      'Concept-based lessons that build understanding, not memorization only',
+      'Interactive sessions that connect learning to daily practice and character',
+      'A consistent learning path for kids, teens, and adults at all levels',
     ]}
   />
 );
@@ -49,14 +55,14 @@ export const SatelliteMaintenancePage = () => (
 // Page 2 – Exploration Missions
 export const ExplorationMissionsPage = () => (
   <MissionPageLayout
-    subtitle="Our Mission"
-    title="Exploration Missions"
-    description="Our exploration missions push the frontier of human knowledge, venturing into uncharted territories of our solar system and beyond with robotic and crewed spacecraft."
+    subtitle="How We Support Growth"
+    title="Character That Grows With Knowledge"
+    description="At GoRythm, education is not limited to academics. We nurture emotional awareness, discipline, leadership, and empathy through Islamic teachings so learners grow in both mindset and manners."
     points={[
-      'Robotic planetary surface exploration',
-      'Deep-space probe trajectory design',
-      'Crewed mission life-support systems',
-      'Scientific payload development and deployment',
+      'Life skills and communication rooted in Islamic values',
+      'Practical reflection through real-life scenarios and guided discussion',
+      'Focus on sincerity, consistency, and excellence in learning habits',
+      'A supportive environment that helps learners build confidence and akhlaq',
     ]}
   />
 );
@@ -64,14 +70,14 @@ export const ExplorationMissionsPage = () => (
 // Page 3 – Research and Observation
 export const ResearchObservationPage = () => (
   <MissionPageLayout
-    subtitle="Our Mission"
-    title="Research and Observation"
-    description="Leveraging state-of-the-art observatories and ground-based arrays, our research team monitors, analyses, and publishes findings on cosmic phenomena across the electromagnetic spectrum."
+    subtitle="How We Support Growth"
+    title="Flexible Learning for Modern Families"
+    description="Our online model combines qualified teachers, structured curriculum, and flexible scheduling so families can stay consistent in Islamic learning from anywhere in the world."
     points={[
-      'Multi-spectrum astronomical observation',
-      'Space weather monitoring and forecasting',
-      'Exoplanet detection and characterisation',
-      'Data sharing with global research institutions',
+      'Live online classes designed for convenience without compromising quality',
+      'Structured courses in Qur\'an, Arabic, and Islamic studies',
+      'Guided progress tracking and regular support from teachers',
+      'A faith-centered journey that builds knowledge, confidence, and purpose',
     ]}
   />
 );

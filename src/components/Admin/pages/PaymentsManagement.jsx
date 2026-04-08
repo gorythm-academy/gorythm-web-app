@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import './PaymentsManagement.scss';
+
+const COLUMN_DEFS = ['checkbox', 'transactionId', 'student', 'course', 'amount', 'email', 'status', 'method', 'date', 'actions'];
+const DEFAULT_COLUMN_WIDTHS = [60, 230, 220, 220, 130, 230, 130, 130, 190, 150];
+const COLUMN_MIN_WIDTHS = [50, 120, 140, 140, 90, 140, 100, 100, 130, 120];
+const COLUMN_MAX_WIDTHS = [90, 380, 360, 360, 220, 420, 220, 220, 320, 260];
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const PaymentsManagement = () => {
     const [payments, setPayments] = useState([]);
@@ -15,6 +21,17 @@ const PaymentsManagement = () => {
         pendingPayments: 0,
         failedPayments: 0
     });
+    const tableContainerRef = useRef(null);
+    const dragStateRef = useRef({
+        isDragging: false,
+        startX: 0,
+        startScrollLeft: 0,
+    });
+    const [isTableDragging, setIsTableDragging] = useState(false);
+    const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+    const [sortBy, setSortBy] = useState('date');
+    const [sortOrder, setSortOrder] = useState('desc');
+    const [selectedPayments, setSelectedPayments] = useState([]);
 
     const fetchPayments = useCallback(async () => {
         try {
@@ -85,13 +102,13 @@ const PaymentsManagement = () => {
                 const response = await axios.get('http://localhost:5000/api/payments', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                setPayments(response.data.payments || mockPayments);
+                const fetchedPayments = response.data.payments || mockPayments;
+                setPayments(fetchedPayments);
+                calculateStats(fetchedPayments);
             } catch {
                 setPayments(mockPayments);
+                calculateStats(mockPayments);
             }
-            
-            // Calculate stats
-            calculateStats(mockPayments);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching payments:', error);
@@ -102,6 +119,95 @@ const PaymentsManagement = () => {
     useEffect(() => {
         fetchPayments();
     }, [fetchPayments]);
+
+    const startTableDragScroll = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, select, textarea, a, .col-resizer')) return;
+
+        const el = tableContainerRef.current;
+        if (!el) return;
+
+        dragStateRef.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startScrollLeft: el.scrollLeft,
+        };
+        setIsTableDragging(true);
+    };
+
+    const onTableDragScroll = (e) => {
+        const el = tableContainerRef.current;
+        const dragState = dragStateRef.current;
+        if (!el || !dragState.isDragging) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        el.scrollLeft = dragState.startScrollLeft - deltaX;
+    };
+
+    const stopTableDragScroll = () => {
+        if (!dragStateRef.current.isDragging) return;
+        dragStateRef.current.isDragging = false;
+        setIsTableDragging(false);
+    };
+
+    const startColumnResize = (e, colIndex) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startWidth = columnWidths[colIndex];
+        const minWidth = COLUMN_MIN_WIDTHS[colIndex] ?? 80;
+        const maxWidth = COLUMN_MAX_WIDTHS[colIndex] ?? 600;
+        let rafId = null;
+        let latestWidth = startWidth;
+
+        const onPointerMove = (ev) => {
+            latestWidth = clamp(startWidth + (ev.clientX - startX), minWidth, maxWidth);
+            if (rafId) return;
+            rafId = window.requestAnimationFrame(() => {
+                rafId = null;
+                setColumnWidths((prev) => {
+                    const next = [...prev];
+                    next[colIndex] = latestWidth;
+                    return next;
+                });
+            });
+        };
+
+        const stop = () => {
+            window.removeEventListener('pointermove', onPointerMove);
+            if (rafId) window.cancelAnimationFrame(rafId);
+            document.body.style.cursor = '';
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', stop, { once: true });
+        window.addEventListener('pointercancel', stop, { once: true });
+        document.body.style.cursor = 'col-resize';
+    };
+
+    const resetColumnWidth = (colIndex) => {
+        setColumnWidths((prev) => {
+            const next = [...prev];
+            next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
+            return next;
+        });
+    };
+
+    const handleSort = (column) => {
+        if (sortBy === column) {
+            setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortBy(column);
+            setSortOrder(column === 'date' ? 'desc' : 'asc');
+        }
+    };
+
+    const togglePaymentSelection = (paymentId) => {
+        setSelectedPayments((prev) =>
+            prev.includes(paymentId) ? prev.filter((id) => id !== paymentId) : [...prev, paymentId]
+        );
+    };
 
     const calculateStats = (paymentData) => {
         const stats = {
@@ -127,10 +233,10 @@ const PaymentsManagement = () => {
 
     const filteredPayments = payments.filter(payment => {
         const matchesSearch = 
-            payment.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            payment.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            payment.course?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            payment.transactionId.toLowerCase().includes(searchTerm.toLowerCase());
+            (payment.user?.name || payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (payment.user?.email || payment.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (payment.course?.title || payment.courseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (payment.transactionId || '').toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
         
@@ -152,6 +258,34 @@ const PaymentsManagement = () => {
         return matchesSearch && matchesStatus && matchesDate;
     });
 
+    const sortedPayments = [...filteredPayments].sort((a, b) => {
+        const mult = sortOrder === 'asc' ? 1 : -1;
+        const getVal = (p, key) => {
+            if (key === 'transactionId') return (p.transactionId || '').toLowerCase();
+            if (key === 'student') return (p.user?.name || p.studentName || '').toLowerCase();
+            if (key === 'course') return (p.course?.title || p.courseName || '').toLowerCase();
+            if (key === 'amount') return Number(p.amount) || 0;
+            if (key === 'email') return (p.user?.email || p.email || '').toLowerCase();
+            if (key === 'status') return (p.status || '').toLowerCase();
+            if (key === 'method') return (p.paymentMethod || '').toLowerCase();
+            if (key === 'date') return new Date(p.createdAt || 0).getTime();
+            return 0;
+        };
+        const va = getVal(a, sortBy);
+        const vb = getVal(b, sortBy);
+        if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
+        return mult * (va < vb ? -1 : va > vb ? 1 : 0);
+    });
+
+    const toggleAllPayments = () => {
+        const visibleIds = sortedPayments.map((payment) => payment._id);
+        if (visibleIds.length > 0 && selectedPayments.length === visibleIds.length) {
+            setSelectedPayments([]);
+        } else {
+            setSelectedPayments(visibleIds);
+        }
+    };
+
     const handleRefund = async (paymentId) => {
         if (!window.confirm('Issue refund for this payment?')) return;
         
@@ -171,13 +305,13 @@ const PaymentsManagement = () => {
     const exportPayments = () => {
         const csvData = filteredPayments.map(p => ({
             'Transaction ID': p.transactionId,
-            'Student': p.user?.name,
-            'Email': p.user?.email,
-            'Course': p.course?.title,
+            'Student': p.user?.name || p.studentName || 'Unknown',
+            'Email': p.user?.email || p.email || '',
+            'Course': p.course?.title || p.courseName || 'Unknown Course',
             'Amount': `$${p.amount}`,
             'Status': p.status,
             'Payment Method': p.paymentMethod,
-            'Date': new Date(p.createdAt).toLocaleString()
+            'Date & Time': new Date(p.createdAt).toLocaleString()
         }));
 
         const csvContent = [
@@ -302,23 +436,86 @@ const PaymentsManagement = () => {
             </div>
 
             {/* Payments Table */}
-            <div className="payments-table-container">
+            <div
+                ref={tableContainerRef}
+                className={`payments-table-container ${isTableDragging ? 'is-dragging' : ''}`}
+                onMouseDown={startTableDragScroll}
+                onMouseMove={onTableDragScroll}
+                onMouseUp={stopTableDragScroll}
+                onMouseLeave={stopTableDragScroll}
+            >
                 <table className="payments-table">
+                    <colgroup>
+                        {COLUMN_DEFS.map((key, idx) => (
+                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
+                        ))}
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th>Transaction ID</th>
-                            <th>Student</th>
-                            <th>Course</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Method</th>
-                            <th>Date</th>
-                            <th>Actions</th>
+                            <th className="checkbox-cell">
+                                <input
+                                    type="checkbox"
+                                    checked={sortedPayments.length > 0 && selectedPayments.length === sortedPayments.length}
+                                    onChange={toggleAllPayments}
+                                />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('transactionId')}>
+                                Transaction ID
+                                {sortBy === 'transactionId' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('student')}>
+                                Student
+                                {sortBy === 'student' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('course')}>
+                                Course
+                                {sortBy === 'course' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('amount')}>
+                                Amount
+                                {sortBy === 'amount' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('email')}>
+                                Email
+                                {sortBy === 'email' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('status')}>
+                                Status
+                                {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('method')}>
+                                Method
+                                {sortBy === 'method' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('date')}>
+                                Date & Time
+                                {sortBy === 'date' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                            </th>
+                            <th>
+                                Actions
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredPayments.map((payment) => (
-                            <tr key={payment._id}>
+                        {sortedPayments.map((payment) => (
+                            <tr key={payment._id} className={selectedPayments.includes(payment._id) ? 'selected' : ''}>
+                                <td className="checkbox-cell">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedPayments.includes(payment._id)}
+                                        onChange={() => togglePaymentSelection(payment._id)}
+                                    />
+                                </td>
                                 <td>
                                     <div className="transaction-id">
                                         <i className="fas fa-receipt"></i>
@@ -328,18 +525,17 @@ const PaymentsManagement = () => {
                                 <td>
                                     <div className="student-info">
                                         <div className="student-avatar">
-                                            {payment.user?.name?.charAt(0) || 'U'}
+                                            {(payment.user?.name || payment.studentName || 'U').charAt(0)}
                                         </div>
                                         <div className="student-details">
-                                            <strong>{payment.user?.name || 'Unknown'}</strong>
-                                            <span className="student-email">{payment.user?.email || 'No email'}</span>
+                                            <strong>{payment.user?.name || payment.studentName || 'Unknown'}</strong>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
                                     <div className="course-info">
                                         <i className="fas fa-book"></i>
-                                        {payment.course?.title || 'Unknown Course'}
+                                        {payment.course?.title || payment.courseName || 'Unknown Course'}
                                     </div>
                                 </td>
                                 <td>
@@ -347,6 +543,9 @@ const PaymentsManagement = () => {
                                         <strong>${payment.amount.toFixed(2)}</strong>
                                         <small>{payment.currency}</small>
                                     </span>
+                                </td>
+                                <td>
+                                    {payment.user?.email || payment.email || 'No email'}
                                 </td>
                                 <td>
                                     <span className={`status-badge ${payment.status}`}>
@@ -395,7 +594,7 @@ const PaymentsManagement = () => {
                     </tbody>
                 </table>
 
-                {filteredPayments.length === 0 && (
+                {sortedPayments.length === 0 && (
                     <div className="no-results">
                         <i className="fas fa-credit-card"></i>
                         <h3>No payments found</h3>
