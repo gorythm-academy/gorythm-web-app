@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
+import { useCurrency } from '../../../context/CurrencyContext';
 import './PaymentGateway.scss';
 
 const PaymentGateway = () => {
     const location = useLocation();
+    const { currency, baseCurrency, formatFromUsd, rateDate } = useCurrency();
     const [paymentMethod, setPaymentMethod] = useState('card');
     const [courseOptions, setCourseOptions] = useState([]);
     const [formData, setFormData] = useState({
@@ -27,33 +29,6 @@ const PaymentGateway = () => {
         return { courseName, amount, feePlan };
     }, [location.search]);
 
-    const [conversionRate, setConversionRate] = useState(null);
-    const [rateDate, setRateDate] = useState('');
-
-    useEffect(() => {
-        let cancelled = false;
-        const fetchRate = async () => {
-            try {
-                const res = await fetch('https://open.er-api.com/v6/latest/USD');
-                if (!res.ok) return;
-                const data = await res.json();
-                if (cancelled) return;
-                const rate = data?.rates?.PKR;
-                if (typeof rate === 'number' && rate > 0) {
-                    setConversionRate(rate);
-                }
-                if (data?.date) {
-                    setRateDate(data.date);
-                }
-            } catch {
-                // Ignore; leave conversionRate as null so we don't show stale values
-            }
-        };
-        fetchRate();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -142,8 +117,8 @@ const PaymentGateway = () => {
     const formattedFeePlan =
         paymentDetails.feePlan === 'per-month' ? 'Per Month' : paymentDetails.feePlan;
     const usdAmount = resolvedAmount;
-    const hasConversionRate = typeof conversionRate === 'number' && conversionRate > 0;
-    const pkrAmount = hasConversionRate ? usdAmount * conversionRate : 0;
+    const localizedAmount = formatFromUsd(usdAmount);
+    const shouldShowApprox = currency !== baseCurrency;
 
     return (
         <section className="payment-page scheme_dark">
@@ -158,7 +133,7 @@ const PaymentGateway = () => {
                         <span className="payment-summary-course">
                             {formData.courseName || paymentDetails.courseName || 'Select a course'}
                         </span>
-                        <strong>Total Amount: ${usdAmount.toFixed(2)}</strong>
+                        <strong>Total Amount: {localizedAmount}</strong>
                     </div>
 
                     <form className="payment-form" onSubmit={handleSubmit}>
@@ -257,31 +232,28 @@ const PaymentGateway = () => {
                                     <div className="payment-details-box">
                                         <h4>Payment Details:</h4>
                                         <div className="payment-detail-line">
-                                            <span>Amount (USD):</span>
+                                            <span>Amount ({baseCurrency}):</span>
                                             <strong>${usdAmount.toFixed(2)}</strong>
                                         </div>
-                                        {hasConversionRate && (
+                                        {shouldShowApprox && (
                                             <>
                                                 <div className="payment-detail-line">
                                                     <span>
-                                                        Conversion Rate
+                                                        Displayed In
                                                         {rateDate ? ` (${rateDate})` : ''}:
                                                     </span>
-                                                    <strong>1 USD = {conversionRate.toFixed(2)} PKR</strong>
+                                                    <strong>{currency}</strong>
                                                 </div>
                                                 <div className="payment-detail-line">
-                                                    <span>Amount (PKR):</span>
-                                                    <strong>
-                                                        PKR{' '}
-                                                        {pkrAmount.toLocaleString(undefined, {
-                                                            maximumFractionDigits: 2,
-                                                        })}
-                                                    </strong>
+                                                    <span>Approx. Local Amount:</span>
+                                                    <strong>{localizedAmount}</strong>
                                                 </div>
                                             </>
                                         )}
                                         <p className="payment-detail-note">
-                                            * The PKR amount is approximate and based on the current exchange rate.
+                                            {shouldShowApprox
+                                                ? `* Displayed in ${currency} (approx.) based on live exchange rates. Final charge is in ${baseCurrency}.`
+                                                : `* Amount is displayed and charged in ${baseCurrency}.`}
                                         </p>
                                     </div>
 
@@ -358,7 +330,7 @@ const PaymentGateway = () => {
                                     <span>Back to All Courses</span>
                                 </Link>
                                 <button type="submit" className="pay-now-btn">
-                                    <i className="fas fa-credit-card"></i> Complete Payment (${usdAmount.toFixed(2)})
+                                    <i className="fas fa-credit-card"></i> Complete Payment ({localizedAmount})
                                 </button>
                             </div>
                         </div>
