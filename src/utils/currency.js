@@ -1,9 +1,138 @@
 const FX_CACHE_KEY = 'gorythm.fx.usd.v1';
 const CURRENCY_CACHE_KEY = 'gorythm.currency.v1';
 const CURRENCY_GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CURRENCY_FALLBACK_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const FX_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const USD = 'USD';
+
+// Timezone → currency map. Works on localhost and any environment without API calls.
+// Derived from IANA timezone names (Intl.DateTimeFormat().resolvedOptions().timeZone).
+const TIMEZONE_TO_CURRENCY = {
+  // South Asia
+  'Asia/Karachi': 'PKR',
+  'Asia/Kolkata': 'INR',
+  'Asia/Calcutta': 'INR',
+  'Asia/Dhaka': 'BDT',
+  'Asia/Kathmandu': 'NPR',
+  'Asia/Katmandu': 'NPR',
+  'Asia/Colombo': 'LKR',
+  // East Asia
+  'Asia/Shanghai': 'CNY',
+  'Asia/Chongqing': 'CNY',
+  'Asia/Harbin': 'CNY',
+  'Asia/Urumqi': 'CNY',
+  'Asia/Tokyo': 'JPY',
+  'Asia/Seoul': 'KRW',
+  'Asia/Hong_Kong': 'HKD',
+  'Asia/Taipei': 'TWD',
+  // Southeast Asia
+  'Asia/Singapore': 'SGD',
+  'Asia/Kuala_Lumpur': 'MYR',
+  'Asia/Jakarta': 'IDR',
+  'Asia/Manila': 'PHP',
+  'Asia/Bangkok': 'THB',
+  'Asia/Ho_Chi_Minh': 'VND',
+  'Asia/Saigon': 'VND',
+  'Asia/Rangoon': 'MMK',
+  'Asia/Yangon': 'MMK',
+  // Middle East
+  'Asia/Dubai': 'AED',
+  'Asia/Muscat': 'OMR',
+  'Asia/Riyadh': 'SAR',
+  'Asia/Qatar': 'QAR',
+  'Asia/Kuwait': 'KWD',
+  'Asia/Bahrain': 'BHD',
+  'Asia/Aden': 'YER',
+  'Asia/Baghdad': 'IQD',
+  'Asia/Tehran': 'IRR',
+  'Asia/Amman': 'JOD',
+  'Asia/Beirut': 'LBP',
+  'Asia/Jerusalem': 'ILS',
+  'Asia/Gaza': 'ILS',
+  // Central Asia
+  'Asia/Tashkent': 'UZS',
+  'Asia/Almaty': 'KZT',
+  'Asia/Tbilisi': 'GEL',
+  'Asia/Baku': 'AZN',
+  'Asia/Yerevan': 'AMD',
+  // Europe
+  'Europe/London': 'GBP',
+  'Europe/Dublin': 'EUR',
+  'Europe/Paris': 'EUR',
+  'Europe/Berlin': 'EUR',
+  'Europe/Rome': 'EUR',
+  'Europe/Madrid': 'EUR',
+  'Europe/Amsterdam': 'EUR',
+  'Europe/Brussels': 'EUR',
+  'Europe/Vienna': 'EUR',
+  'Europe/Zurich': 'CHF',
+  'Europe/Stockholm': 'SEK',
+  'Europe/Oslo': 'NOK',
+  'Europe/Copenhagen': 'DKK',
+  'Europe/Warsaw': 'PLN',
+  'Europe/Prague': 'CZK',
+  'Europe/Budapest': 'HUF',
+  'Europe/Bucharest': 'RON',
+  'Europe/Sofia': 'BGN',
+  'Europe/Helsinki': 'EUR',
+  'Europe/Lisbon': 'EUR',
+  'Europe/Athens': 'EUR',
+  'Europe/Moscow': 'RUB',
+  'Europe/Kiev': 'UAH',
+  'Europe/Kyiv': 'UAH',
+  'Europe/Istanbul': 'TRY',
+  'Europe/Belgrade': 'RSD',
+  // Americas
+  'America/New_York': 'USD',
+  'America/Chicago': 'USD',
+  'America/Denver': 'USD',
+  'America/Los_Angeles': 'USD',
+  'America/Phoenix': 'USD',
+  'America/Anchorage': 'USD',
+  'Pacific/Honolulu': 'USD',
+  'America/Toronto': 'CAD',
+  'America/Vancouver': 'CAD',
+  'America/Winnipeg': 'CAD',
+  'America/Halifax': 'CAD',
+  'America/Sao_Paulo': 'BRL',
+  'America/Manaus': 'BRL',
+  'America/Buenos_Aires': 'ARS',
+  'America/Argentina/Buenos_Aires': 'ARS',
+  'America/Santiago': 'CLP',
+  'America/Bogota': 'COP',
+  'America/Lima': 'PEN',
+  'America/Mexico_City': 'MXN',
+  'America/Monterrey': 'MXN',
+  'America/Caracas': 'VES',
+  'America/Montevideo': 'UYU',
+  // Africa
+  'Africa/Cairo': 'EGP',
+  'Africa/Lagos': 'NGN',
+  'Africa/Nairobi': 'KES',
+  'Africa/Johannesburg': 'ZAR',
+  'Africa/Casablanca': 'MAD',
+  'Africa/Addis_Ababa': 'ETB',
+  'Africa/Algiers': 'DZD',
+  'Africa/Tunis': 'TND',
+  'Africa/Tripoli': 'LYD',
+  'Africa/Khartoum': 'SDG',
+  'Africa/Accra': 'GHS',
+  'Africa/Dar_es_Salaam': 'TZS',
+  'Africa/Kampala': 'UGX',
+  'Africa/Lusaka': 'ZMW',
+  // Oceania
+  'Australia/Sydney': 'AUD',
+  'Australia/Melbourne': 'AUD',
+  'Australia/Brisbane': 'AUD',
+  'Australia/Perth': 'AUD',
+  'Australia/Adelaide': 'AUD',
+  'Pacific/Auckland': 'NZD',
+  'Pacific/Fiji': 'FJD',
+};
+
+const inferCurrencyFromTimezone = (timezone) => {
+  if (!timezone) return null;
+  return TIMEZONE_TO_CURRENCY[timezone] || null;
+};
 
 const LOCALE_REGION_TO_CURRENCY = {
   US: 'USD',
@@ -155,12 +284,15 @@ const detectFromIpWho = async () => {
 };
 
 export const detectUserCurrency = async () => {
+  // Only use geo-confirmed cache (never serve stale locale/USD fallback from cache).
   const cached = readCache(CURRENCY_CACHE_KEY, CURRENCY_GEO_CACHE_TTL_MS);
   if (cached?.currency && cached?.source === 'geo') return cached;
-  const fallbackCached = readCache(CURRENCY_CACHE_KEY, CURRENCY_FALLBACK_CACHE_TTL_MS);
-  if (fallbackCached?.currency && fallbackCached?.source !== 'geo') return fallbackCached;
 
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
+  const intlOptions = Intl.DateTimeFormat().resolvedOptions();
+  const locale = intlOptions.locale || 'en-US';
+  const timezone = intlOptions.timeZone || '';
+
+  // 1. Try geo IP detection (most accurate, but fails on localhost/rate-limit).
   try {
     const geo = (await detectFromIpApi()) || (await detectFromIpWho());
     if (geo?.currency) {
@@ -169,17 +301,32 @@ export const detectUserCurrency = async () => {
       return result;
     }
   } catch {
-    // Continue to locale fallback.
+    // Fall through to timezone detection.
   }
 
-  const fallback = {
-    currency: inferCurrencyFromLocale(locale),
+  // 2. Timezone-based detection (always works, no API needed, very accurate).
+  const tzCurrency = inferCurrencyFromTimezone(timezone);
+  if (tzCurrency) {
+    const result = {
+      currency: tzCurrency,
+      countryCode: getLocaleRegion(locale),
+      locale,
+      source: 'timezone',
+    };
+    writeCache(CURRENCY_CACHE_KEY, result);
+    return result;
+  }
+
+  // 3. Locale-based detection (least reliable — Windows often returns just "en").
+  const localeCurrency = inferCurrencyFromLocale(locale);
+  const result = {
+    currency: localeCurrency,
     countryCode: getLocaleRegion(locale),
     locale,
     source: 'locale',
   };
-  writeCache(CURRENCY_CACHE_KEY, fallback);
-  return fallback;
+  writeCache(CURRENCY_CACHE_KEY, result);
+  return result;
 };
 
 export const fetchUsdRates = async () => {
