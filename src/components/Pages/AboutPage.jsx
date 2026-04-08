@@ -100,11 +100,47 @@ const approach = [
   },
 ];
 
+const faqs = [
+  {
+    question: 'Who can enroll in GoRythm courses?',
+    answer:
+      'Our courses are designed for kids, teens, and adults of all levels. Whether you are a beginner or looking to improve your existing knowledge, we have structured programs to suit your needs.',
+  },
+  {
+    question: 'Are the classes conducted online or in-person?',
+    answer:
+      'All our classes are conducted online, allowing learners to study from anywhere in the world with flexible scheduling and convenience.',
+  },
+  {
+    question: 'Do I need prior knowledge to join a course?',
+    answer:
+      'No prior knowledge is required for most of our courses. We offer beginner-friendly options as well as advanced levels to ensure every learner can start comfortably.',
+  },
+  {
+    question: 'How are the classes structured?',
+    answer:
+      'Classes are interactive and guided by qualified teachers. We focus on step-by-step learning, regular practice, and personalized feedback to ensure steady progress.',
+  },
+  {
+    question: 'How can I enroll in a course?',
+    answer:
+      'You can enroll by contacting our team through Whatsapp or filling out the registration form. Our team will guide you through course selection, scheduling, and the onboarding process.',
+  },
+];
+
 const AboutPage = () => {
   const [statementWordIndex, setStatementWordIndex] = useState(0);
   const [statementCharIndex, setStatementCharIndex] = useState(0);
   const [statementErasing, setStatementErasing] = useState(false);
   const [testimonialStart, setTestimonialStart] = useState(0);
+  const [testimonialSlideDir, setTestimonialSlideDir] = useState(null);
+  const [isTestimonialDragging, setIsTestimonialDragging] = useState(false);
+  const [testimonialCursorDot, setTestimonialCursorDot] = useState({ x: 0, y: 0, visible: false });
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const dragActiveRef = React.useRef(false);
+  const dragStartXRef = React.useRef(0);
+  const dragThreshold = 56;
+  const testimonialsRef = React.useRef(null);
 
   const testimonialCount = studentTestimonials.length;
   const testimonialIndex = (offset) =>
@@ -113,11 +149,56 @@ const AboutPage = () => {
   const activeTestimonial = studentTestimonials[testimonialStart];
 
   const goPrevTestimonial = () => {
+    setTestimonialSlideDir('prev');
     setTestimonialStart((s) => (s - 1 + testimonialCount) % testimonialCount);
   };
 
   const goNextTestimonial = () => {
+    setTestimonialSlideDir('next');
     setTestimonialStart((s) => (s + 1) % testimonialCount);
+  };
+
+  const onTestimonialPointerDown = (e) => {
+    // Only primary button for mouse; allow touch/pen.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    dragActiveRef.current = true;
+    dragStartXRef.current = e.clientX;
+    setIsTestimonialDragging(true);
+  };
+
+  const onTestimonialPointerMove = (e) => {
+    if (!dragActiveRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    if (Math.abs(delta) < dragThreshold) return;
+    if (delta > 0) goPrevTestimonial();
+    else goNextTestimonial();
+    dragStartXRef.current = e.clientX;
+  };
+
+  const stopTestimonialDrag = () => {
+    if (!dragActiveRef.current) return;
+    dragActiveRef.current = false;
+    setIsTestimonialDragging(false);
+  };
+
+  const onTestimonialsMouseMove = (e) => {
+    if (typeof window !== 'undefined' && !window.matchMedia('(pointer: fine)').matches) return;
+    const el = testimonialsRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setTestimonialCursorDot({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      visible: true,
+    });
+  };
+
+  const onTestimonialsMouseEnter = (e) => {
+    onTestimonialsMouseMove(e);
+  };
+
+  const onTestimonialsMouseLeave = () => {
+    setTestimonialCursorDot((prev) => ({ ...prev, visible: false }));
   };
 
   useEffect(() => {
@@ -141,6 +222,12 @@ const AboutPage = () => {
     return () => clearTimeout(t);
   }, [statementWordIndex, statementCharIndex, statementErasing]);
 
+  useEffect(() => {
+    if (!testimonialSlideDir) return undefined;
+    const t = setTimeout(() => setTestimonialSlideDir(null), 520);
+    return () => clearTimeout(t);
+  }, [testimonialSlideDir]);
+
   const showcaseItems = [
     {
       title: approach[0].title,
@@ -156,6 +243,53 @@ const AboutPage = () => {
       title: approach[2].title,
       description: approach[2].description,
       image: courses[2]?.image ?? aboutImage1,
+    },
+  ];
+
+  const exploreAcademyItems = [
+    {
+      title: 'Our Mission',
+      description:
+        'To provide accessible, engaging, and faith-centered education that connects learners with the Qur’an, Arabic, and Islamic values. We aim to nurture knowledge, character, and confidence, helping individuals grow spiritually while navigating the modern world with purpose.',
+      image: showcaseItems[0]?.image ?? aboutImage2,
+    },
+    {
+      title: 'Our Vision',
+      description:
+        'To become a global platform for transformative Islamic learning, empowering a generation that lives with strong faith, ethical values, and a deep connection to the Qur’an, contributing positively to society.',
+      image: showcaseItems[1]?.image ?? aboutImage1,
+    },
+    {
+      title: 'Our Projects',
+      description:
+        'At GoRythm, our projects focus on meaningful research and exploration of classical and contemporary Islamic knowledge. We study authentic books and scholarly works to better understand the Qur’an, Sunnah, and various aspects of Islamic norms and practices. Through this, we aim to present knowledge in a way that is relevant, structured, and beneficial for modern learners, helping them connect deeply with their faith while applying it in everyday life.',
+      image: showcaseItems[2]?.image ?? aboutImage2,
+    },
+    {
+      title: 'Our Commitment',
+      description:
+      'We are committed to providing a learning experience that is both high in quality and deeply rooted in faith. Our teachers are dedicated to guiding each student with care, ensuring progress at every step. At GoRythm, we don’t just teach,  we aim to inspire a lifelong connection with knowledge, faith, and personal development.',
+      image: showcaseItems[2]?.image ?? aboutImage2,
+    },
+
+
+    {
+      title: 'Educational Programs',
+      description:
+        'At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically, and grow with purpose.',
+      image: showcaseItems[0]?.image ?? aboutImage1,
+    },
+    {
+      title: 'STEM Education with an Islamic Perspective',
+      description:
+        'Our STEM Education program integrates Science, Technology, Engineering, and Mathematics with Islamic principles, helping students explore innovation through faith. Learners develop problem-solving, creativity, and curiosity while understanding how modern knowledge aligns with the wisdom of the Qur’an.',
+      image: showcaseItems[1]?.image ?? aboutImage2,
+    },
+    {
+      title: 'Life Skills & Character Development',
+      description:
+        'This program focuses on emotional growth, communication, leadership, and empathy, all grounded in Islamic teachings. Through interactive lessons and real-life scenarios, students learn to navigate challenges and build strong moral character.',
+      image: showcaseItems[2]?.image ?? aboutImage1,
     },
   ];
 
@@ -229,6 +363,51 @@ const AboutPage = () => {
             </h2>
           </section>
 
+          <section className="about-page-dark__about-gorythm">
+            <div className="about-page-dark__about-gorythm-block">
+              <span className="about-page-dark__eyebrow about-page-dark__eyebrow--center">
+                About GoRythm
+              </span>
+              <div className="about-page-dark__section-copy">
+                <p>
+                  GoRythm is a project of Al Farhan Academy, created to provide meaningful and
+                  engaging Islamic education for learners of all ages. Our mission is to make
+                  learning accessible, relevant, and deeply rooted in faith.
+                </p>
+                <p>
+                  We believe that education is not just about knowledge, it is about
+                  transformation. Through our carefully designed programs, we aim to nurture
+                  confident individuals who live with purpose, اخلاق (Akhlaq), and a strong
+                  connection with Allah.
+                </p>
+                <p>
+                  Our approach combines traditional Islamic teachings with modern educational
+                  methods, ensuring that every learner benefits both spiritually and
+                  intellectually.
+                </p>
+              </div>
+            </div>
+
+            <div className="about-page-dark__about-gorythm-block">
+              <span className="about-page-dark__eyebrow about-page-dark__eyebrow--center">
+                Our Story
+              </span>
+              <div className="about-page-dark__section-copy">
+                <p>
+                  GoRythm was created as a forward-thinking initiative of Al Farhan Academy to
+                  make Islamic education more engaging, accessible, and relevant for today’s
+                  learners. Recognizing the need for a balanced approach, we combined traditional
+                  Islamic knowledge with modern teaching methods to create a platform that speaks
+                  to both the heart and mind.
+                </p>
+                <p>
+                  Our journey began with a simple goal, to help learners connect with the Qur’an
+                  and Islamic values in a way that is meaningful, practical, and lifelong.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="about-page-dark__values">
             <span className="about-page-dark__eyebrow">Our Values</span>
             <div className="about-page-dark__value-grid">
@@ -251,14 +430,23 @@ const AboutPage = () => {
             <div className="about-page-dark__container about-page-dark__showcase-inner">
               <section className="about-page-dark__showcase">
                 <span className="about-page-dark__eyebrow">Explore the Academy</span>
-                <div className="about-page-dark__showcase-grid">
-                  {showcaseItems.map((item) => (
-                    <article key={item.title} className="about-page-dark__showcase-card">
-                      <div className="about-page-dark__showcase-image">
-                        <img src={item.image} alt={item.title} loading="lazy" width={400} height={250} sizes="(min-width: 768px) 400px, 100vw" />
+                <div className="about-page-dark__explore-list" aria-label="Explore the Academy list">
+                  {exploreAcademyItems.map((item) => (
+                    <article key={item.title} className="about-page-dark__explore-item">
+                      <div className="about-page-dark__explore-media">
+                        <img
+                          src={item.image}
+                          alt=""
+                          loading="lazy"
+                          width={900}
+                          height={520}
+                          sizes="(min-width: 900px) 520px, 100vw"
+                        />
                       </div>
-                      <h3>{item.title}</h3>
-                      <p>{item.description}</p>
+                      <div className="about-page-dark__explore-copy">
+                        <h3 className="about-page-dark__explore-title">{item.title}</h3>
+                        <p className="about-page-dark__explore-desc">{item.description}</p>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -273,10 +461,26 @@ const AboutPage = () => {
           <div className="about-page-dark__testimonials-strip">
             <div className="about-page-dark__container about-page-dark__testimonials-inner">
               <section
-                className="about-page-dark__quote"
+                ref={testimonialsRef}
+                className={`about-page-dark__quote${isTestimonialDragging ? ' about-page-dark__quote--dragging' : ''}`}
                 aria-label="Student testimonials"
                 aria-roledescription="carousel"
+                onPointerDown={onTestimonialPointerDown}
+                onPointerMove={onTestimonialPointerMove}
+                onPointerUp={stopTestimonialDrag}
+                onPointerCancel={stopTestimonialDrag}
+                onPointerLeave={stopTestimonialDrag}
+                onMouseMove={onTestimonialsMouseMove}
+                onMouseEnter={onTestimonialsMouseEnter}
+                onMouseLeave={onTestimonialsMouseLeave}
               >
+                {testimonialCursorDot.visible ? (
+                  <span
+                    className="about-page-dark__testimonials-cursor-dot"
+                    style={{ left: `${testimonialCursorDot.x}px`, top: `${testimonialCursorDot.y}px` }}
+                    aria-hidden="true"
+                  />
+                ) : null}
                 <span className="about-page-dark__eyebrow about-page-dark__eyebrow--on-dark">
                   Student Testimonials
                 </span>
@@ -319,7 +523,7 @@ const AboutPage = () => {
                   </div>
                   <div className="about-page-dark__quote-copy">
                     <div
-                      className="about-page-dark__quote-text"
+                      className={`about-page-dark__quote-text${testimonialSlideDir === 'next' ? ' about-page-dark__quote-text--slide-next' : ''}${testimonialSlideDir === 'prev' ? ' about-page-dark__quote-text--slide-prev' : ''}`}
                       aria-live="polite"
                       id="about-testimonial-quote"
                     >
@@ -348,6 +552,52 @@ const AboutPage = () => {
                       </button>
                     </div>
                   </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div className="about-page-dark__faq-strip">
+            <div className="about-page-dark__container about-page-dark__faq-inner">
+              <section className="about-page-dark__faq" aria-label="Frequently asked questions">
+                <h2 className="about-page-dark__faq-title">FAQs</h2>
+                <span className="about-page-dark__page-arrow about-page-dark__faq-arrow" aria-hidden="true" />
+
+                <div className="about-page-dark__faq-list" role="list">
+                  {faqs.map((item, idx) => {
+                    const isOpen = openFaqIndex === idx;
+                    const panelId = `about-faq-panel-${idx}`;
+                    const buttonId = `about-faq-button-${idx}`;
+                    return (
+                      <div key={item.question} className="about-page-dark__faq-item" role="listitem">
+                        <button
+                          type="button"
+                          id={buttonId}
+                          className="about-page-dark__faq-trigger"
+                          aria-expanded={isOpen}
+                          aria-controls={panelId}
+                          onClick={() => setOpenFaqIndex((prev) => (prev === idx ? -1 : idx))}
+                        >
+                          <span className="about-page-dark__faq-question">{item.question}</span>
+                          <span
+                            className="about-page-dark__faq-icon"
+                            aria-hidden="true"
+                          >
+                            {isOpen ? '−' : '+'}
+                          </span>
+                        </button>
+
+                        <div
+                          id={panelId}
+                          role="region"
+                          aria-labelledby={buttonId}
+                          className={`about-page-dark__faq-panel${isOpen ? ' about-page-dark__faq-panel--open' : ''}`}
+                        >
+                          <div className="about-page-dark__faq-answer">{item.answer}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </div>

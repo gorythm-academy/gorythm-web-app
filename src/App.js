@@ -13,8 +13,9 @@ import BlogMainPage from './components/Pages/BlogMainPage';
 import BlogCategory from './components/Pages/BlogCategory';
 import SingleBlogPostPage from './components/Pages/SingleBlogPostPage';
 import SubscribeSection from './components/HomeSections/Subscribe';
-import KeyAchievementsSection from './components/HomeSections/KeyAchievements';
+import WhyGorythmSection from './components/HomeSections/WhyGorythm';
 import BlogSection from './components/HomeSections/BlogSection';
+import StudentTestimonialsSection from './components/HomeSections/StudentTestimonials';
 import SocialSidebar from './components/SocialSidebar/SocialSidebar';
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
 import DashboardLayout from './components/Admin/DashboardLayout';
@@ -56,6 +57,7 @@ import StudentPortal from './components/Portals/StudentPortal';
 import TeacherPortal from './components/Portals/TeacherPortal';
 import ParentPortal from './components/Portals/ParentPortal';
 import AccountantPortal from './components/Portals/AccountantPortal';
+import { CurrencyProvider } from './context/CurrencyContext';
 
 
 const Home = () => {
@@ -71,7 +73,8 @@ const Home = () => {
       <MarqueeSection />
       <CoursesSection />
       <SubscribeSection />
-      <KeyAchievementsSection />
+      <WhyGorythmSection />
+      <StudentTestimonialsSection />
       <BlogSection />
     </div>
   );
@@ -192,11 +195,13 @@ function AppLayout() {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="*" element={<AppLayout />} />
-      </Routes>
-    </Router>
+    <CurrencyProvider>
+      <Router>
+        <Routes>
+          <Route path="*" element={<AppLayout />} />
+        </Routes>
+      </Router>
+    </CurrencyProvider>
   );
 }
 

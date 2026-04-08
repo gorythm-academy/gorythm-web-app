@@ -1,11 +1,13 @@
 // About Section Component – Stargaze-style layout
 
 import React, { useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './About.scss';
 import aboutImage1 from '../../assets/images/About-Sect-01.jpg';
 import aboutImage2 from '../../assets/images/About-Sect-02.jpg';
 
 const AboutSection = () => {
+  const navigate = useNavigate();
   const sectionRef = useRef(null);
   const paragraphRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
@@ -54,6 +56,13 @@ const AboutSection = () => {
     <section
       ref={sectionRef}
       className={`front_page_section front_page_section_about scheme_dark ${inviewClass}`}
+      role="link"
+      tabIndex={0}
+      aria-label="About Gorythm. Open About Us page."
+      onClick={() => navigate('/about')}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') navigate('/about');
+      }}
     >
       <div className="front_page_section_inner front_page_section_about_inner">
         <div className="about_content_wrap">

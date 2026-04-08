@@ -1,0 +1,333 @@
+@import '../../styles/breakpoints';
+
+.student-testimonials-section {
+  position: relative;
+  width: 100%;
+  background: #000;
+  color: #fff;
+  padding: 76px 0 84px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.student-testimonials-rule-wrap,
+.student-testimonials-heading,
+.student-testimonials-quote-mark,
+.student-testimonials-quote-wrap,
+.student-testimonials-author,
+.student-testimonials-avatars {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.student-testimonials-inview {
+  .student-testimonials-rule-wrap { animation: studentFadeUp 0.55s ease-out 0.05s both; }
+  .student-testimonials-heading { animation: studentFadeUp 0.55s ease-out 0.12s both; }
+  /* Keep scaleY(-1) through animation so the quote mark stays upside down */
+  .student-testimonials-quote-mark { animation: studentFadeUpQuoteMark 0.55s ease-out 0.18s both; }
+  .student-testimonials-quote-wrap { animation: studentFadeUp 0.65s ease-out 0.24s both; }
+  .student-testimonials-author { animation: studentFadeUp 0.6s ease-out 0.32s both; }
+  .student-testimonials-avatars { animation: studentFadeUp 0.6s ease-out 0.4s both; }
+}
+
+@keyframes studentFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes studentFadeUpQuoteMark {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scaleY(-1);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(-1);
+  }
+}
+
+.student-testimonials-section--dragging {
+  user-select: none;
+}
+
+.student-testimonials-rule-wrap {
+  width: 100%;
+  padding: 0 0 36px;
+}
+
+.student-testimonials-rule-wrap--bottom {
+  padding: 42px 0 0;
+}
+
+.student-testimonials-rule {
+  display: block;
+  width: min(920px, calc(100% - clamp(48px, 12vw, 120px)));
+  height: 1px;
+  margin: 0 auto;
+  border: none;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.student-testimonials-cursor-dot {
+  position: absolute;
+  z-index: 6;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
+}
+
+.student-testimonials-content {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 var(--container-padding-horizontal, 20px);
+  text-align: center;
+}
+
+.student-testimonials-heading {
+  margin: 0 0 24px;
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.student-testimonials-quote-mark {
+  margin-bottom: 12px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(3rem, 6.2vw, 4.1rem);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.65;
+  color: rgba(177, 147, 100, 0.82);
+  user-select: none;
+  transform: scaleY(-1);
+}
+
+.student-testimonials-quote-wrap {
+  position: relative;
+  margin: 0 auto;
+  max-width: 740px;
+  cursor: none;
+}
+
+.student-testimonials-section--dragging .student-testimonials-quote-wrap {
+  cursor: none;
+}
+
+.student-testimonials-quote {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: Cambria, 'Palatino Linotype', Palatino, serif;
+  font-size: clamp(1.18rem, 2.4vw, 1.48rem);
+  line-height: 1.85;
+  transition: opacity 0.2s ease;
+}
+
+.student-testimonials-quote--slide-next {
+  animation: studentSlideNext 0.5s ease;
+}
+
+.student-testimonials-quote--slide-prev {
+  animation: studentSlidePrev 0.5s ease;
+}
+
+.student-testimonials-author--slide-next {
+  animation: studentSlideNext 0.5s ease;
+}
+
+.student-testimonials-author--slide-prev {
+  animation: studentSlidePrev 0.5s ease;
+}
+
+@keyframes studentSlideNext {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes studentSlidePrev {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.student-testimonials-author {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  strong {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.01em;
+  }
+
+  span {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.55);
+  }
+}
+
+.student-testimonials-avatars {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.student-testimonials-avatar {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: #111;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.22s ease;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.56);
+    transition: filter 0.2s ease;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.38);
+
+    img {
+      filter: brightness(0.78);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid #b19364;
+    outline-offset: 3px;
+  }
+
+  &--active {
+    border-color: rgba(255, 255, 255, 0.62);
+    cursor: default;
+    transform: scale(1.02);
+
+    img {
+      filter: brightness(1);
+    }
+  }
+}
+
+.student-testimonials-side-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  height: auto;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 4;
+  transition: color 0.2s ease;
+  padding: 10px;
+
+  span {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  &:hover {
+    color: #fff;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #b19364;
+    outline-offset: 4px;
+  }
+
+  &--left {
+    left: clamp(16px, 3.4vw, 38px);
+  }
+
+  &--right {
+    right: clamp(16px, 3.4vw, 38px);
+  }
+}
+
+@media (max-width: $bp-section-sm) {
+  .student-testimonials-section {
+    padding: 56px 0 68px;
+  }
+
+  .student-testimonials-rule-wrap {
+    padding-bottom: 24px;
+  }
+
+  .student-testimonials-rule-wrap--bottom {
+    padding: 34px 0 0;
+  }
+
+  .student-testimonials-quote-wrap {
+    max-width: 100%;
+  }
+
+  .student-testimonials-quote {
+    line-height: 1.75;
+  }
+
+  .student-testimonials-side-arrow {
+    span {
+      font-size: 1.5rem;
+    }
+  }
+
+  .student-testimonials-avatar {
+    width: 54px;
+    height: 54px;
+  }
+
+  .student-testimonials-quote-wrap {
+    cursor: default;
+  }
+}
+
+/* Hide side arrows only on mobile portrait screens */
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  .student-testimonials-side-arrow {
+    display: none;
+  }
+
+  .student-testimonials-cursor-dot {
+    display: none;
+  }
+}

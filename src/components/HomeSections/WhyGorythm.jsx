@@ -1,10 +1,10 @@
-// Key Achievements Section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, View All Projects
+// Why GoRythm Section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, CTA
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import './KeyAchievements.scss';
+import './WhyGorythm.scss';
 
-// Key Achievement images from src/assets/images – rename paths if your files differ (e.g. milestone-img01.jpg)
+// Section images from src/assets/images
 import milestoneImg01 from '../../assets/images/milestone-img01.jpg';
 import milestoneImg02 from '../../assets/images/milestone-img02.jpg';
 
@@ -12,18 +12,20 @@ const achievementsImages = [
   {
     id: 1,
     image: milestoneImg01,
-    title: 'Human Spaceflight',
-    description: 'Astronauts in orbit — a symbol of human ambition and international cooperation in space.',
+    title: 'Guided by Qualified Teachers',
+    description:
+      'Learn with caring instructors who combine authentic Islamic knowledge with clear, student-friendly teaching.',
   },
   {
     id: 2,
     image: milestoneImg02,
-    title: 'Planetary Exploration',
-    description: 'Rovers and landers on distant worlds, expanding our understanding of the solar system.',
+    title: 'Built for Real Growth',
+    description:
+      'Our lessons support progress in recitation, understanding, character, and daily practice, not just class attendance.',
   },
 ];
 
-const KeyAchievementsSection = () => {
+const WhyGorythmSection = () => {
   const sectionRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
   const [popupId, setPopupId] = useState(null);
@@ -32,8 +34,10 @@ const KeyAchievementsSection = () => {
     const el = sectionRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setIsInView(true); },
-      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+      ([entry]) => {
+        if (entry.isIntersecting) setIsInView(true);
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -54,7 +58,14 @@ const KeyAchievementsSection = () => {
                 className={`key-achievements-img-wrap key-achievements-img-${idx + 1}${popupId === item.id ? ' img-wrap--popup-open' : ''}`}
               >
                 <div className="key-achievements-img-inner">
-                  <img src={item.image} alt={item.title} loading="lazy" width={300} height={200} sizes="(min-width: 768px) 300px, 100vw" />
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    loading="lazy"
+                    width={300}
+                    height={200}
+                    sizes="(min-width: 768px) 300px, 100vw"
+                  />
                 </div>
                 <button
                   type="button"
@@ -64,7 +75,9 @@ const KeyAchievementsSection = () => {
                   onMouseLeave={() => setPopupId(null)}
                   onClick={() => setPopupId(popupId === item.id ? null : item.id)}
                 >
-                  <span className="key-achievements-plus-icon" aria-hidden="true">+</span>
+                  <span className="key-achievements-plus-icon" aria-hidden="true">
+                    +
+                  </span>
                 </button>
                 {popupId === item.id && (
                   <div
@@ -83,18 +96,21 @@ const KeyAchievementsSection = () => {
 
         {/* Right – 03, eyebrow, title, description, button */}
         <div className="key-achievements-right">
-          <span className="key-achievements-big-number key_anim" aria-hidden="true">03</span>
+          <span className="key-achievements-big-number key_anim" aria-hidden="true">
+            03
+          </span>
           <div className="key-achievements-content">
-            <p className="key-achievements-eyebrow key_anim">Key achievements</p>
+            <p className="key-achievements-eyebrow key_anim">Why GoRythm</p>
             <h2 className="key-achievements-title key_anim">
-              Our milestones in space exploration
+              A meaningful learning journey, rooted in faith
             </h2>
             <p className="key-achievements-description key_anim">
-              Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium
-              doloremque laudantium.
+              GoRythm helps learners build a strong connection with the Qur&apos;an, Arabic, and Islamic
+              values through engaging online classes designed for real growth. Our focus is not only
+              on knowledge, but on confidence, character, and a deeper sense of purpose.
             </p>
-            <Link to="/portfolio" className="key-achievements-cta key_anim">
-              View All Projects
+            <Link to="/contact" className="key-achievements-cta key_anim">
+              Contact Us
             </Link>
           </div>
         </div>
@@ -103,4 +119,5 @@ const KeyAchievementsSection = () => {
   );
 };
 
-export default KeyAchievementsSection;
+export default WhyGorythmSection;
+

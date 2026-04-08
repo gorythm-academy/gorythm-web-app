@@ -7,6 +7,55 @@ const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 
+// Public endpoint for website Course Registration form
+router.post('/register-online', async (req, res) => {
+    try {
+        const { studentName, email, courseName, amount, paymentMethod } = req.body || {};
+
+        if (!studentName || !email || !courseName || amount == null) {
+            return res.status(400).json({
+                success: false,
+                error: 'studentName, email, courseName, and amount are required'
+            });
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const normalizedCourseName = String(courseName).trim();
+        const numericAmount = Number(amount);
+        if (Number.isNaN(numericAmount) || numericAmount < 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid amount'
+            });
+        }
+
+        const course = await Course.findOne({ title: normalizedCourseName }).select('_id title');
+
+        const payment = new Payment({
+            studentName: String(studentName).trim(),
+            email: normalizedEmail,
+            courseName: normalizedCourseName,
+            course: course?._id || undefined,
+            amount: numericAmount,
+            currency: 'USD',
+            status: 'completed',
+            paymentMethod: paymentMethod || 'card',
+            transactionId: `online_${Date.now()}_${Math.floor(Math.random() * 100000)}`
+        });
+
+        await payment.save();
+
+        res.json({
+            success: true,
+            message: 'Payment registration stored successfully',
+            payment
+        });
+    } catch (error) {
+        console.error('Error storing online registration payment:', error);
+        res.status(500).json({ success: false, error: 'Failed to store payment registration' });
+    }
+});
+
 router.use(authMiddleware);
 
 // Get all payments

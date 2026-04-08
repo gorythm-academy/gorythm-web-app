@@ -12,6 +12,12 @@ const PEOPLE_ROLE_OPTIONS = [
     { value: 'parent', label: 'Parent/Guardian', icon: 'fa-people-roof' },
 ];
 
+const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'joined', 'lastLogin', 'actions'];
+const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 130, 180, 150];
+const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 100, 120, 120];
+const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 220, 320, 260];
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
 const UsersManagement = ({ variant = 'staff' }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,6 +38,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         startScrollLeft: 0,
     });
     const [isTableDragging, setIsTableDragging] = useState(false);
+    const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+    const [sortBy, setSortBy] = useState('joined');
+    const [sortOrder, setSortOrder] = useState('desc');
 
     const startTableDragScroll = (e) => {
         if (e.button !== 0) return;
@@ -61,6 +70,59 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (!dragStateRef.current.isDragging) return;
         dragStateRef.current.isDragging = false;
         setIsTableDragging(false);
+    };
+
+    const startColumnResize = (e, colIndex) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startWidth = columnWidths[colIndex];
+        const minWidth = COLUMN_MIN_WIDTHS[colIndex] ?? 80;
+        const maxWidth = COLUMN_MAX_WIDTHS[colIndex] ?? 600;
+        let rafId = null;
+        let latestWidth = startWidth;
+
+        const onPointerMove = (ev) => {
+            latestWidth = clamp(startWidth + (ev.clientX - startX), minWidth, maxWidth);
+            if (rafId) return;
+            rafId = window.requestAnimationFrame(() => {
+                rafId = null;
+                setColumnWidths((prev) => {
+                    const next = [...prev];
+                    next[colIndex] = latestWidth;
+                    return next;
+                });
+            });
+        };
+
+        const stop = () => {
+            window.removeEventListener('pointermove', onPointerMove);
+            if (rafId) window.cancelAnimationFrame(rafId);
+            document.body.style.cursor = '';
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', stop, { once: true });
+        window.addEventListener('pointercancel', stop, { once: true });
+        document.body.style.cursor = 'col-resize';
+    };
+
+    const resetColumnWidth = (colIndex) => {
+        setColumnWidths((prev) => {
+            const next = [...prev];
+            next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
+            return next;
+        });
+    };
+
+    const handleSort = (column) => {
+        if (sortBy === column) {
+            setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortBy(column);
+            setSortOrder(column === 'joined' || column === 'lastLogin' ? 'desc' : 'asc');
+        }
     };
 
     let currentUser = {};
@@ -419,7 +481,25 @@ const UsersManagement = ({ variant = 'staff' }) => {
         return matchesSearch && matchesRole;
     });
 
-    const selectableFilteredUsers = filteredUsers.filter((u) => !isRowActionsLocked(u));
+    const sortedUsers = [...filteredUsers].sort((a, b) => {
+        const mult = sortOrder === 'asc' ? 1 : -1;
+        const getVal = (u, key) => {
+            if (key === 'user') return (u.name || '').toLowerCase();
+            if (key === 'role') return (u.role || '').toLowerCase();
+            if (key === 'status') return (u.status || '').toLowerCase();
+            if (key === 'phone') return (u.phone || '').toLowerCase();
+            if (key === 'email') return (u.email || '').toLowerCase();
+            if (key === 'joined') return new Date(u.joinDate || 0).getTime();
+            if (key === 'lastLogin') return new Date(u.lastLogin || 0).getTime();
+            return 0;
+        };
+        const va = getVal(a, sortBy);
+        const vb = getVal(b, sortBy);
+        if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
+        return mult * (va < vb ? -1 : va > vb ? 1 : 0);
+    });
+
+    const selectableFilteredUsers = sortedUsers.filter((u) => !isRowActionsLocked(u));
 
     const toggleAllUsers = () => {
         if (selectedUsers.length === selectableFilteredUsers.length && selectableFilteredUsers.length > 0) {
@@ -778,6 +858,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 onMouseLeave={stopTableDragScroll}
             >
                 <table className="users-table">
+                    <colgroup>
+                        {COLUMN_DEFS.map((key, idx) => (
+                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
+                        ))}
+                    </colgroup>
                     <thead>
                         <tr>
                             <th className="checkbox-cell">
@@ -789,19 +874,43 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                     }
                                     onChange={toggleAllUsers}
                                 />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
                             </th>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Phone</th>
-                            <th>Email</th>
-                            <th>Joined</th>
-                            <th>Last Login</th>
-                            <th>Actions</th>
+                            <th className="sortable" onClick={() => handleSort('user')}>User
+                                {sortBy === 'user' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('role')}>Role
+                                {sortBy === 'role' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('status')}>Status
+                                {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('phone')}>Phone
+                                {sortBy === 'phone' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('email')}>Email
+                                {sortBy === 'email' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('joined')}>Joined
+                                {sortBy === 'joined' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('lastLogin')}>Last Login
+                                {sortBy === 'lastLogin' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                            </th>
+                            <th>Actions
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredUsers.map(user => (
+                        {sortedUsers.map(user => (
                             <tr key={user._id} className={selectedUsers.includes(user._id) ? 'selected' : ''}>
                                 <td className="checkbox-cell">
                                     <input
@@ -904,7 +1013,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     </tbody>
                 </table>
 
-                {filteredUsers.length === 0 && (
+                {sortedUsers.length === 0 && (
                     <div className="no-results">
                         <i className="fas fa-user-slash"></i>
                         <h3>No users found</h3>

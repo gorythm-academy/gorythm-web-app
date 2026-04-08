@@ -2,7 +2,7 @@
 // ============================================================================
 @import '../../styles/breakpoints';
 
-// Scroll-triggered animation (same pattern as About, KeyAchievements, Blog)
+// Scroll-triggered animation (same pattern as About, WhyGorythm, Blog)
 @keyframes coursesSectionFadeUp {
   from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0); }
