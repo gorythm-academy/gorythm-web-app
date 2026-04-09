@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'production') {
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
+}
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -65,19 +68,26 @@ app.use(helmet());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(() => {
-    console.log('✅ MongoDB Connected to:', process.env.MONGODB_URI);
-    console.log('📊 Database ready for academy data');
-    ensureDefaultAdmin();
-})
-.catch(err => {
-    console.log('❌ MongoDB Connection Error:', err.message);
+const mongoUri = process.env.MONGODB_URI;
+
+if (!mongoUri) {
+    console.log('❌ MongoDB Connection Error: MONGODB_URI is missing');
     console.log('⚠️ Using mock data mode');
-});
+} else {
+    mongoose.connect(mongoUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    })
+    .then(() => {
+        console.log('✅ MongoDB Connected to:', mongoUri);
+        console.log('📊 Database ready for academy data');
+        ensureDefaultAdmin();
+    })
+    .catch(err => {
+        console.log('❌ MongoDB Connection Error:', err.message);
+        console.log('⚠️ Using mock data mode');
+    });
+}
 
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
