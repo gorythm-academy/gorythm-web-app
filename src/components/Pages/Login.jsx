@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { setAuthSession, getAuthToken, getAuthUserJson, setAuthUserJson } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './Login.scss';
 
 const Login = () => {
@@ -42,7 +43,7 @@ const Login = () => {
 
         try {
             setIsSubmitting(true);
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
                 email: formData.email,
                 password: formData.password,
                 rememberMe,
@@ -84,7 +85,7 @@ const Login = () => {
         try {
             setIsSubmitting(true);
             const response = await axios.post(
-                'http://localhost:5000/api/auth/change-initial-password',
+                `${API_BASE_URL}/api/auth/change-initial-password`,
                 { newPassword },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

@@ -53,11 +53,11 @@ router.post('/', async (req, res) => {
 
     // Save to MongoDB so you can see all queries in admin later
     const contactMessage = await ContactMessage.create({
-      name,
-      email,
-      phone,
-      subject,
-      message,
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: phone ? String(phone).trim() : '',
+      subject: subject ? String(subject).trim() : '',
+      message: String(message).trim(),
       consent: !!consent,
     });
 
@@ -124,8 +124,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // Admin endpoint: list contact messages
 router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
   try {
@@ -135,4 +133,35 @@ router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin')
     return res.status(500).json({ success: false, error: 'Failed to fetch contact messages' });
   }
 });
+
+// Admin endpoint: update contact message status
+router.patch('/admin/messages/:id/status', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    const allowedStatuses = ['new', 'in-progress', 'resolved'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid status. Allowed: new, in-progress, resolved'
+      });
+    }
+
+    const updated = await ContactMessage.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Contact message not found' });
+    }
+
+    return res.json({ success: true, message: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to update message status' });
+  }
+});
+
+module.exports = router;
 

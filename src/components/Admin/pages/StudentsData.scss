@@ -1,9 +1,9 @@
 @import '../../../styles/_variables.scss';
 @import '../../../styles/_mixins.scss';
 @import '../../../styles/_breakpoints.scss';
-@import './enrollments-management-modal';
+@import './students-data-modal';
 
-.enrollments-management {
+.students-data-page {
     padding: 24px;
     min-height: calc(100vh - 80px);
     background: #f8fafc;
@@ -70,7 +70,7 @@
             gap: 6px;
             
             &::before {
-                content: '💾';
+                content: 'ðŸ’¾';
                 font-size: 12px;
             }
         }
@@ -360,11 +360,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
     border: 1px solid #e2e8f0;
     
     .search-box {
-        flex: 1;
-        max-width: 400px;
+        flex: 0 1 320px;
+        max-width: 320px;
         position: relative;
         
         i {
@@ -402,6 +404,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-wrap: nowrap;
         
         .status-filter {
             padding: 10px 16px;
@@ -411,7 +414,7 @@
             color: #1e293b;
             font-size: 14px;
             cursor: pointer;
-            min-width: 160px;
+            min-width: 150px;
             
             &:focus {
                 outline: none;
@@ -447,11 +450,46 @@
                 font-size: 14px;
             }
         }
+
+        .enroll-btn,
+        .download-btn {
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+
+            &:hover {
+                transform: translateY(-2px);
+            }
+        }
+
+        .enroll-btn {
+            background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+            color: #fff;
+
+            &:hover {
+                box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
+            }
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+
+            &:hover {
+                box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+            }
+        }
     }
 }
 
 /* Enrollments Table Container - FIXED SCROLLING */
-.enrollments-table-container {
+.students-data-table-container {
     background: white;
     border-radius: 12px;
     border: 1px solid #e2e8f0;
@@ -485,7 +523,7 @@
     }
 }
 
-.enrollments-table {
+.students-data-table {
     width: 100%;
     border-collapse: collapse;
     min-width: 1200px; /* This ensures table is wider than container */
@@ -494,16 +532,16 @@
 }
 
 /* Add scrollbar styling */
-.enrollments-table-container::-webkit-scrollbar {
+.students-data-table-container::-webkit-scrollbar {
     height: 8px;
 }
 
-.enrollments-table-container::-webkit-scrollbar-track {
+.students-data-table-container::-webkit-scrollbar-track {
     background: #f1f5f9;
     border-radius: 4px;
 }
 
-.enrollments-table-container::-webkit-scrollbar-thumb {
+.students-data-table-container::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
     
@@ -512,7 +550,7 @@
     }
 }
 
-.enrollments-table {
+.students-data-table {
     width: 100%;
     border-collapse: collapse;
     min-width: 1200px; /* Ensures all columns fit */
@@ -625,6 +663,104 @@
     }
 }
 
+/* No course assigned pill */
+.no-course-assigned {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-style: italic;
+
+    i { font-size: 0.8rem; }
+}
+
+/* Student ID cell */
+.student-id-cell {
+    display: inline-block;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #2563eb;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+
+    &.no-id {
+        color: #94a3b8;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+        font-family: inherit;
+        font-weight: 400;
+    }
+}
+
+/* Edit modal read-only student block */
+.edit-student-readonly {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #f0fdf4;
+    border: 2px solid #86efac;
+    border-radius: 12px;
+    padding: 14px 16px;
+
+    .student-avatar-large {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--color-accent), #8b5cf6);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .student-readonly-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+
+        strong {
+            font-size: 1rem;
+            color: #1e293b;
+        }
+
+        span {
+            font-size: 0.82rem;
+            color: #64748b;
+        }
+
+        .student-id-badge-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: monospace;
+            width: fit-content;
+        }
+
+        .readonly-note {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 4px;
+            font-style: italic;
+            i { margin-right: 4px; }
+        }
+    }
+}
+
 /* Student Info */
 .student-info {
     display: flex;
@@ -656,6 +792,12 @@
             font-size: 13px;
         }
     }
+}
+
+.student-email-cell {
+    font-size: 13px;
+    color: #475569;
+    word-break: break-all;
 }
 
 /* Course Info */
@@ -868,7 +1010,7 @@
     }
     
     .no-data-message {
-        max-width: 400px;
+        max-width: 520px;
         margin: 0 auto;
         text-align: center;
         
@@ -880,8 +1022,15 @@
         
         p {
             color: #64748b;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             font-size: 16px;
+        }
+
+        .no-data-hint {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #64748b;
+            margin-bottom: 20px;
         }
         
         .btn-primary {
@@ -962,7 +1111,7 @@
 }
 
 @media (max-width: $bp-legacy-768) {
-    .enrollments-management {
+    .students-data-page {
         padding: 16px;
     }
 
@@ -1015,7 +1164,7 @@
 }
 
 @media (min-width: $bp-legacy-769) and (max-width: $bp-legacy-1024) and (orientation: landscape) {
-    .enrollments-table {
+    .students-data-table {
         min-width: 1000px;
     }
 }

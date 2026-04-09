@@ -4,13 +4,52 @@ const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { backfillMissingStudentIds } = require('../utils/studentIds');
+
+const STUDENT_POPULATE = 'name email personalEmail avatar studentId';
+const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
+
+const coursePopulate = () => ({
+    path: 'course',
+    select: 'title category instructorName instructor students',
+    populate: { path: 'instructor', select: 'name' },
+});
+
+const ensureStudentEnrollmentBackfill = async () => {
+    const students = await User.find({ role: 'student' }).select('_id');
+    if (!students.length) return;
+
+    const studentIds = students.map((student) => student._id.toString());
+    const enrolledStudentIds = await Enrollment.distinct('student', {
+        student: { $in: students.map((student) => student._id) },
+    });
+    const enrolledSet = new Set(enrolledStudentIds.map((id) => String(id)));
+
+    const missingStudents = studentIds.filter((id) => !enrolledSet.has(id));
+    if (!missingStudents.length) return;
+
+    await Enrollment.insertMany(
+        missingStudents.map((studentId) => ({
+            student: studentId,
+            course: null,
+            status: 'pending',
+            progress: 0,
+            grade: null,
+            enrollmentDate: new Date(),
+            lastAccessed: new Date(),
+            paymentStatus: 'pending',
+        }))
+    );
+};
 
 // Get all enrollments (admin only)
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        await ensureStudentEnrollmentBackfill();
+        await backfillMissingStudentIds();
         const enrollments = await Enrollment.find()
-            .populate('student', 'name email avatar')
-            .populate('course', 'title category instructor')
+            .populate('student', STUDENT_POPULATE)
+            .populate(coursePopulate())
             .sort({ enrollmentDate: -1 });
         
         res.json({
@@ -27,156 +66,164 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Create new enrollment - FIXED VERSION
+// Assign a course to an existing student (reuses placeholder row when course is null)
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        console.log('Received enrollment request:', req.body);
-        
-        const { studentName, studentEmail, courseId, status, progress, grade } = req.body;
-        
-        // Validate required fields
-        if (!studentName || !studentEmail || !courseId) {
+        const { studentUserId, courseId, status, progress, grade, enrollmentDate } = req.body;
+
+        if (!studentUserId || !courseId) {
             return res.status(400).json({
                 success: false,
-                message: 'Student name, email and course are required'
+                message: 'Student and course are required'
             });
         }
 
-        console.log('Checking course:', courseId);
-        
-        // Check if course exists
+        // Validate course exists
         const course = await Course.findById(courseId);
         if (!course) {
-            return res.status(404).json({
-                success: false,
-                message: 'Course not found'
-            });
+            return res.status(404).json({ success: false, message: 'Course not found' });
         }
 
-        console.log('Course found:', course.title);
-        
-        // Find or create student user
-        let student = await User.findOne({ email: studentEmail.toLowerCase() });
-        
+        // Validate student exists and has student role
+        const student = await User.findById(studentUserId);
         if (!student) {
-            console.log('Creating new student:', studentName, studentEmail);
-            
-            // Create new student user with temporary password
-            const randomPassword = Math.random().toString(36).slice(-8);
-            
-            student = new User({
-                name: studentName,
-                email: studentEmail.toLowerCase(),
-                password: randomPassword,
-                role: 'student',
-                avatar: studentName.charAt(0).toUpperCase(),
-                isActive: true
-            });
-            
-            await student.save();
-            console.log('Student created with ID:', student._id);
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+        if (student.role !== 'student') {
+            return res.status(400).json({ success: false, message: 'Selected user is not a student' });
+        }
+        if (student.isActive === false) {
+            return res.status(400).json({ success: false, message: 'Cannot enroll an inactive student' });
+        }
+
+        // Check if already enrolled in this course
+        const alreadyEnrolled = await Enrollment.findOne({ student: student._id, course: courseId });
+        if (alreadyEnrolled) {
+            return res.status(400).json({ success: false, message: 'Student is already enrolled in this course' });
+        }
+
+        // Reuse the placeholder row (course: null) if one exists — avoids creating a duplicate row
+        const placeholder = await Enrollment.findOne({
+            student: student._id,
+            $or: [{ course: null }, { course: { $exists: false } }]
+        });
+
+        let enrollment;
+        if (placeholder) {
+            placeholder.course = courseId;
+            placeholder.status = status || 'pending';
+            placeholder.progress = progress || 0;
+            placeholder.grade = grade || null;
+            placeholder.enrollmentDate = enrollmentDate ? new Date(enrollmentDate) : new Date();
+            placeholder.lastAccessed = new Date();
+            placeholder.paymentStatus = 'paid';
+            await placeholder.save();
+            enrollment = placeholder;
         } else {
-            console.log('Existing student found:', student._id);
-        }
-
-        // Check if enrollment already exists
-        const existingEnrollment = await Enrollment.findOne({
-            student: student._id,
-            course: courseId
-        });
-        
-        if (existingEnrollment) {
-            return res.status(400).json({
-                success: false,
-                message: 'Student is already enrolled in this course'
+            enrollment = await Enrollment.create({
+                student: student._id,
+                course: courseId,
+                status: status || 'pending',
+                progress: progress || 0,
+                grade: grade || null,
+                enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : new Date(),
+                lastAccessed: new Date(),
+                paymentStatus: 'paid'
             });
         }
-        
-        console.log('Creating new enrollment...');
-        
-        // Create new enrollment
-        const enrollment = new Enrollment({
-            student: student._id,
-            course: courseId,
-            status: status || 'pending',
-            progress: progress || 0,
-            grade: grade || null,
-            enrollmentDate: req.body.enrollmentDate ? new Date(req.body.enrollmentDate) : new Date(),
-            lastAccessed: new Date(),
-            paymentStatus: 'paid'
-        });
-        
-        await enrollment.save();
-        console.log('Enrollment saved:', enrollment._id);
 
-        // Update course's students array
         if (!course.students.includes(student._id)) {
             course.students.push(student._id);
             await course.save();
-            console.log('Course updated with new student');
         }
 
-        // Update student's enrolledCourses
         if (!student.enrolledCourses.includes(courseId)) {
             student.enrolledCourses.push(courseId);
             await student.save();
-            console.log('Student updated with new course');
         }
-        
-        // Populate the saved enrollment
+
         const populatedEnrollment = await Enrollment.findById(enrollment._id)
-            .populate('student', 'name email avatar')
-            .populate('course', 'title category instructor');
-        
-        console.log('Enrollment process completed successfully');
-        
+            .populate('student', STUDENT_POPULATE)
+            .populate(coursePopulate());
+
         res.status(201).json({
             success: true,
             message: 'Student enrolled successfully',
             enrollment: populatedEnrollment
         });
     } catch (error) {
-        console.error('❌ Enrollment error details:', error);
-        console.error('Error stack:', error.stack);
-        
+        console.error('Enrollment error:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating enrollment',
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
 });
 
-// Update enrollment
+// Update enrollment (status, progress, grade, course change, enrollmentDate)
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const { status, progress, grade, lastAccessed } = req.body;
-        
-        const enrollment = await Enrollment.findByIdAndUpdate(
-            req.params.id,
-            {
-                status,
-                progress,
-                grade,
-                lastAccessed: lastAccessed || new Date(),
-                ...(status === 'completed' && { completionDate: new Date() })
-            },
-            { new: true }
-        ).populate('student', 'name email avatar')
-         .populate('course', 'title category instructor');
-        
+        const { status, progress, grade, lastAccessed, courseId, enrollmentDate } = req.body;
+
+        const enrollment = await Enrollment.findById(req.params.id)
+            .populate('student', STUDENT_POPULATE_WITH_ENROLLED)
+            .populate(coursePopulate());
+
         if (!enrollment) {
-            return res.status(404).json({
-                success: false,
-                message: 'Enrollment not found'
-            });
+            return res.status(404).json({ success: false, message: 'Enrollment not found' });
         }
-        
+
+        // Handle course change
+        if (courseId && String(courseId) !== String(enrollment.course?._id)) {
+            const newCourse = await Course.findById(courseId);
+            if (!newCourse) {
+                return res.status(404).json({ success: false, message: 'New course not found' });
+            }
+
+            // Pull from old course arrays (if old course existed)
+            if (enrollment.course) {
+                await Course.findByIdAndUpdate(enrollment.course._id, {
+                    $pull: { students: enrollment.student._id }
+                });
+                await User.findByIdAndUpdate(enrollment.student._id, {
+                    $pull: { enrolledCourses: enrollment.course._id }
+                });
+            }
+
+            // Push into new course arrays
+            if (!newCourse.students.includes(enrollment.student._id)) {
+                await Course.findByIdAndUpdate(courseId, {
+                    $push: { students: enrollment.student._id }
+                });
+            }
+            const studentDoc = await User.findById(enrollment.student._id);
+            if (!studentDoc.enrolledCourses.includes(courseId)) {
+                await User.findByIdAndUpdate(enrollment.student._id, {
+                    $push: { enrolledCourses: courseId }
+                });
+            }
+
+            enrollment.course = courseId;
+        }
+
+        if (status !== undefined) enrollment.status = status;
+        if (progress !== undefined) enrollment.progress = progress;
+        if (grade !== undefined) enrollment.grade = grade;
+        if (enrollmentDate) enrollment.enrollmentDate = new Date(enrollmentDate);
+        enrollment.lastAccessed = lastAccessed ? new Date(lastAccessed) : new Date();
+        if (status === 'completed') enrollment.completionDate = new Date();
+
+        await enrollment.save();
+
+        const populated = await Enrollment.findById(enrollment._id)
+            .populate('student', STUDENT_POPULATE)
+            .populate(coursePopulate());
+
         res.json({
             success: true,
             message: 'Enrollment updated successfully',
-            enrollment
+            enrollment: populated
         });
     } catch (error) {
         res.status(500).json({
@@ -199,15 +246,15 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             });
         }
         
-        // Remove student from course
-        await Course.findByIdAndUpdate(enrollment.course, {
-            $pull: { students: enrollment.student }
-        });
-        
-        // Remove course from student
-        await User.findByIdAndUpdate(enrollment.student, {
-            $pull: { enrolledCourses: enrollment.course }
-        });
+        // Only clean up arrays when a real course was assigned
+        if (enrollment.course) {
+            await Course.findByIdAndUpdate(enrollment.course, {
+                $pull: { students: enrollment.student }
+            });
+            await User.findByIdAndUpdate(enrollment.student, {
+                $pull: { enrolledCourses: enrollment.course }
+            });
+        }
         
         res.json({
             success: true,

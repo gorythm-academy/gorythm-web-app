@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
+import { API_BASE_URL } from '../../../config/constants';
 import '../Admin.scss';
 
 const Settings = () => {
@@ -53,7 +54,7 @@ const Settings = () => {
         try {
             setLoading(true);
             const token = getAuthToken();
-            const response = await axios.get('http://localhost:5000/api/admin/settings', {
+            const response = await axios.get(`${API_BASE_URL}/api/admin/settings`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -89,7 +90,7 @@ const Settings = () => {
                 security: securitySettings
             };
             
-            const response = await axios.post('http://localhost:5000/api/admin/settings', settingsData, {
+            const response = await axios.post(`${API_BASE_URL}/api/admin/settings`, settingsData, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             

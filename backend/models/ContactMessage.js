@@ -10,7 +10,7 @@ const contactMessageSchema = new mongoose.Schema(
     consent: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ['new', 'read', 'archived'],
+      enum: ['new', 'in-progress', 'resolved'],
       default: 'new',
     },
   },

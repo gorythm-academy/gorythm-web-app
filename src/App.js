@@ -47,7 +47,7 @@ import CoursesManagement from './components/Admin/pages/CoursesManagement';
 import PaymentsManagement from './components/Admin/pages/PaymentsManagement';
 import Analytics from './components/Admin/pages/Analytics';
 import Settings from './components/Admin/pages/Settings';
-import EnrollmentsManagement from './components/Admin/pages/EnrollmentsManagement';
+import StudentsData from './components/Admin/pages/StudentsData';
 import PaymentGateway from './components/Admin/pages/PaymentGateway';
 import PeopleManagement from './components/Admin/pages/PeopleManagement';
 import ContactMessages from './components/Admin/pages/ContactMessages';
@@ -144,7 +144,8 @@ function AppLayout() {
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="payments" element={<PaymentsManagement />} />
-                  <Route path="enrollments" element={<EnrollmentsManagement />} />
+                  <Route path="students-data" element={<StudentsData />} />
+                  <Route path="enrollments" element={<Navigate to="/admin/students-data" replace />} />
                   <Route path="contact-messages" element={<ContactMessages />} />
                 </Route>
               </Route>

@@ -16,6 +16,9 @@ const userSchema = new mongoose.Schema({
         enum: ['super-admin', 'admin', 'teacher', 'accountant', 'student', 'parent'], 
         default: 'student' 
     },
+    studentId: { type: String, unique: true, sparse: true },
+    /** Optional Gmail/Hotmail/etc.; portal login uses `email`. */
+    personalEmail: { type: String, default: '', trim: true, lowercase: false },
     phone: { type: String, default: '' },
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },

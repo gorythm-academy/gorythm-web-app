@@ -299,60 +299,57 @@ router.get('/revenue', async (req, res) => {
 // Performance metrics endpoint
 router.get('/metrics', async (req, res) => {
     try {
-        console.log('📊 Fetching performance metrics...');
-        
-        // 1. Enrollment Rate (New student signups this month vs total)
+        const days = Math.max(1, parseInt(req.query.days, 10) || 30);
+        console.log(`📊 Fetching performance metrics (${days} days)...`);
+
+        const now = new Date();
+        const periodStart = new Date(now);
+        periodStart.setDate(periodStart.getDate() - days);
+        const previousPeriodStart = new Date(periodStart);
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
+
+        // 1. Enrollment Rate (new students in selected period vs total)
         const totalStudents = await User.countDocuments({ role: 'student' });
-        const lastMonth = new Date();
-        lastMonth.setMonth(lastMonth.getMonth() - 1);
         const newStudents = await User.countDocuments({ 
             role: 'student', 
-            createdAt: { $gte: lastMonth } 
+            createdAt: { $gte: periodStart, $lt: now } 
         });
         const enrollmentRate = totalStudents > 0 ? 
             ((newStudents / totalStudents) * 100).toFixed(1) + '%' : '0%';
         
-        // 2. Course Completion Rate
+        // 2. Course Completion Rate in selected period
         const completedEnrollments = await Enrollment.countDocuments({ 
-            status: 'completed' 
+            status: 'completed',
+            enrollmentDate: { $gte: periodStart, $lt: now }
         });
-        const totalEnrollments = await Enrollment.countDocuments();
+        const totalEnrollments = await Enrollment.countDocuments({
+            enrollmentDate: { $gte: periodStart, $lt: now }
+        });
         const completionRate = totalEnrollments > 0 ? 
             ((completedEnrollments / totalEnrollments) * 100).toFixed(1) + '%' : '0%';
         
-        // 3. Student Satisfaction (Placeholder - add ratings to Enrollment schema later)
-        // For now, calculate based on progress > 70% as "satisfied"
+        // 3. Student Satisfaction proxy in selected period
         const highProgressEnrollments = await Enrollment.countDocuments({ 
-            progress: { $gte: 70 } 
+            progress: { $gte: 70 },
+            enrollmentDate: { $gte: periodStart, $lt: now }
         });
         const satisfactionScore = totalEnrollments > 0 ? 
             ((highProgressEnrollments / totalEnrollments) * 4.8).toFixed(1) : '0.0';
         
-        // 4. Revenue Growth (Current month vs previous month)
-        const currentMonth = new Date();
-        const prevMonth = new Date();
-        prevMonth.setMonth(prevMonth.getMonth() - 1);
-        
-        // Current month revenue
+        // 4. Revenue Growth (selected period vs previous period)
         const currentRevenueResult = await Payment.aggregate([
             { $match: { 
                 status: 'completed',
-                createdAt: { 
-                    $gte: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
-                    $lt: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-                }
+                createdAt: { $gte: periodStart, $lt: now }
             }},
             { $group: { _id: null, total: { $sum: "$amount" } } }
         ]);
         
-        // Previous month revenue
+        // Previous period revenue
         const previousRevenueResult = await Payment.aggregate([
             { $match: { 
                 status: 'completed',
-                createdAt: { 
-                    $gte: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1),
-                    $lt: new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 1)
-                }
+                createdAt: { $gte: previousPeriodStart, $lt: periodStart }
             }},
             { $group: { _id: null, total: { $sum: "$amount" } } }
         ]);
@@ -372,14 +369,15 @@ router.get('/metrics', async (req, res) => {
         
         res.json({
             success: true,
+            timeframe: `${days} days`,
             metrics: {
                 enrollmentRate,
                 completionRate,
                 satisfactionScore,
                 revenueGrowth,
-                currentMonthRevenue: currentRevenue,
-                previousMonthRevenue: previousRevenue,
-                newStudentsThisMonth: newStudents
+                currentPeriodRevenue: currentRevenue,
+                previousPeriodRevenue: previousRevenue,
+                newStudentsInPeriod: newStudents
             }
         });
         
@@ -392,9 +390,9 @@ router.get('/metrics', async (req, res) => {
                 completionRate: '0%',
                 satisfactionScore: '0.0',
                 revenueGrowth: '+0%',
-                currentMonthRevenue: 0,
-                previousMonthRevenue: 0,
-                newStudentsThisMonth: 0
+                currentPeriodRevenue: 0,
+                previousPeriodRevenue: 0,
+                newStudentsInPeriod: 0
             }
         });
     }

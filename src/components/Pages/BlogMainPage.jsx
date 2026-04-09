@@ -4,9 +4,8 @@ import axios from 'axios';
 import BlogSidebar from './BlogSidebar';
 import { blogPosts, categoryFromSlug, tagFromSlug } from './BlogData';
 import { useStickyPanel } from './useStickyPanel';
+import { API_BASE_URL } from '../../config/constants';
 import './BlogMainPage.scss';
-
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const BlogMainPage = () => {
   const navigate = useNavigate();
@@ -60,7 +59,7 @@ export const BlogMainPage = () => {
   });
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/blog/counts`).then((res) => {
+    axios.get(`${API_BASE_URL}/api/blog/counts`).then((res) => {
       if (res.data?.success && res.data.counts) setCommentCounts(res.data.counts);
     }).catch(() => {});
   }, []);

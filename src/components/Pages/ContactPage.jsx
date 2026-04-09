@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
-import { HiOutlineInformationCircle } from 'react-icons/hi';
 import { FaWhatsapp } from 'react-icons/fa';
 import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL, CONTACT_PHONE, CONTACT_ADDRESS } from '../../config/constants';
 import './ContactPage.scss';
@@ -16,7 +15,6 @@ const ContactPage = () => {
     name: '',
     email: '',
     phone: '',
-    subject: '',
     message: '',
     consent: false,
   });
@@ -54,7 +52,6 @@ const ContactPage = () => {
         name: '',
         email: '',
         phone: '',
-        subject: '',
         message: '',
         consent: false,
       });
@@ -148,16 +145,6 @@ const ContactPage = () => {
                     value={form.phone}
                     onChange={handleChange}
                     autoComplete="tel"
-                  />
-                </label>
-                <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><HiOutlineInformationCircle /></span>
-                  <input
-                    type="text"
-                    name="subject"
-                    placeholder="Subject"
-                    value={form.subject}
-                    onChange={handleChange}
                   />
                 </label>
               </div>

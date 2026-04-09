@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
+import { API_BASE_URL } from '../../../config/constants';
 import EnrollStudentModal from './EnrollStudentModal';
-import './EnrollmentsManagement.scss';
+import './StudentsData.scss';
 
-const COLUMN_DEFS = ['checkbox', 'student', 'course', 'enrollmentDate', 'progress', 'status', 'lastAccessed', 'grade', 'action'];
-const DEFAULT_COLUMN_WIDTHS = [60, 240, 260, 150, 160, 180, 140, 100, 170];
-const COLUMN_MIN_WIDTHS = [50, 160, 160, 110, 110, 120, 110, 80, 130];
-const COLUMN_MAX_WIDTHS = [90, 380, 420, 280, 260, 320, 240, 180, 280];
+const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'course', 'enrollmentDate', 'status', 'action'];
+const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 220, 130, 140, 120];
+const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 120, 100, 100, 90];
+const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 400, 220, 260, 180];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const EnrollmentsManagement = () => {
+const StudentsData = () => {
     const [enrollments, setEnrollments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -69,7 +70,7 @@ const EnrollmentsManagement = () => {
                 throw new Error('No authentication token found');
             }
 
-            const response = await axios.get('http://localhost:5000/api/enrollments', {
+            const response = await axios.get(`${API_BASE_URL}/api/enrollments`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -93,7 +94,7 @@ const EnrollmentsManagement = () => {
     const fetchCourses = useCallback(async () => {
         try {
             const token = getAuthToken();
-            const response = await axios.get('http://localhost:5000/api/courses', {
+            const response = await axios.get(`${API_BASE_URL}/api/courses`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (response.data.courses) {
@@ -105,6 +106,52 @@ const EnrollmentsManagement = () => {
         }
     }, []);
 
+    const downloadStudentsDataCsv = () => {
+        const data = (sortedEnrollments || []).map((enrollment) => {
+            const s = enrollment.student || {};
+            const c = enrollment.course || {};
+            return {
+                studentId: s.studentId || '',
+                name: s.name || '',
+                portalEmail: s.email || '',
+                personalEmail: s.personalEmail || '',
+                course: c.title || '',
+                enrollmentDate: enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10) : '',
+                status: enrollment.status || '',
+            };
+        });
+
+        const columns = [
+            ['studentId', 'Student ID'],
+            ['name', 'Name'],
+            ['portalEmail', 'Portal email'],
+            ['personalEmail', 'Personal email'],
+            ['course', 'Course'],
+            ['enrollmentDate', 'Enrollment date'],
+            ['status', 'Status'],
+        ];
+
+        const esc = (v) => {
+            const s = String(v ?? '');
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+
+        const csv = [
+            columns.map((c) => esc(c[1])).join(','),
+            ...data.map((row) => columns.map((c) => esc(row[c[0]])).join(',')),
+        ].join('\n');
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gorythm-students-data-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    };
+
     useEffect(() => {
         fetchEnrollments();
         fetchCourses();
@@ -113,8 +160,8 @@ const EnrollmentsManagement = () => {
     // 👇 ADD THIS NEW useEffect HERE 👇
     useEffect(() => {
         const checkTableScroll = () => {
-            const tableContainer = document.querySelector('.enrollments-table-container');
-            const table = document.querySelector('.enrollments-table');
+            const tableContainer = document.querySelector('.students-data-table-container');
+            const table = document.querySelector('.students-data-table');
             
             if (tableContainer && table) {
                 if (table.scrollWidth > tableContainer.clientWidth) {
@@ -215,7 +262,7 @@ const EnrollmentsManagement = () => {
             setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
         } else {
             setSortBy(column);
-            setSortOrder(column === 'enrollmentDate' || column === 'lastAccessed' ? 'desc' : 'asc');
+            setSortOrder(column === 'enrollmentDate' ? 'desc' : 'asc');
         }
     };
 
@@ -245,7 +292,7 @@ const EnrollmentsManagement = () => {
         if (window.confirm(`Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`)) {
             try {
                 const token = getAuthToken();
-                const response = await axios.post('http://localhost:5000/api/enrollments/bulk-update', {
+                const response = await axios.post(`${API_BASE_URL}/api/enrollments/bulk-update`, {
                     enrollmentIds: selectedEnrollments,
                     status: newStatus
                 }, {
@@ -276,38 +323,10 @@ const EnrollmentsManagement = () => {
         }
     };
 
-    const deleteSelectedEnrollments = async () => {
-        if (!selectedEnrollments.length || !window.confirm(`Delete ${selectedEnrollments.length} selected enrollment(s)?`)) {
-            return;
-        }
-
-        try {
-            const token = getAuthToken();
-            
-            // Delete each enrollment
-            for (const enrollmentId of selectedEnrollments) {
-                await axios.delete(`http://localhost:5000/api/enrollments/${enrollmentId}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-            }
-
-            // Update local state
-            const updated = enrollments.filter(enrollment => !selectedEnrollments.includes(enrollment._id));
-            setEnrollments(updated);
-            setSelectedEnrollments([]);
-            calculateStats(updated);
-            
-            setSuccessMessage(`${selectedEnrollments.length} enrollment(s) deleted successfully`);
-            setTimeout(() => setSuccessMessage(''), 3000);
-        } catch (error) {
-            setErrorMessage(error.response?.data?.message || 'Failed to delete enrollments');
-        }
-    };
-
     const updateEnrollmentStatus = async (enrollmentId, newStatus) => {
         try {
             const token = getAuthToken();
-            const response = await axios.put(`http://localhost:5000/api/enrollments/${enrollmentId}`, {
+            const response = await axios.put(`${API_BASE_URL}/api/enrollments/${enrollmentId}`, {
                 status: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -334,29 +353,6 @@ const EnrollmentsManagement = () => {
         }
     };
 
-    const deleteEnrollment = async (enrollmentId) => {
-        if (!window.confirm('Delete this enrollment?')) return;
-
-        try {
-            const token = getAuthToken();
-            const response = await axios.delete(`http://localhost:5000/api/enrollments/${enrollmentId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (response.data.success) {
-                const updated = enrollments.filter(enrollment => enrollment._id !== enrollmentId);
-                setEnrollments(updated);
-                setSelectedEnrollments(prev => prev.filter(id => id !== enrollmentId));
-                calculateStats(updated);
-                
-                setSuccessMessage('Enrollment deleted successfully');
-                setTimeout(() => setSuccessMessage(''), 3000);
-            }
-        } catch (error) {
-            setErrorMessage(error.response?.data?.message || 'Failed to delete enrollment');
-        }
-    };
-
 const handleEditEnrollment = (enrollment) => {
     setEditingEnrollment(enrollment);
     setShowEditModal(true);
@@ -372,14 +368,19 @@ const handleEditEnrollment = (enrollment) => {
         console.log('New enrollment added:', newEnrollment);
         
         // Add to beginning of the list
-        const updatedEnrollments = [newEnrollment, ...enrollments];
+        const updatedEnrollments = enrollments.some((enrollment) => enrollment._id === newEnrollment._id)
+            ? enrollments.map((enrollment) =>
+                enrollment._id === newEnrollment._id ? newEnrollment : enrollment
+            )
+            : [newEnrollment, ...enrollments];
         setEnrollments(updatedEnrollments);
         
         // Update stats
         calculateStats(updatedEnrollments);
         
         // Show success message
-        setSuccessMessage(`Successfully enrolled ${newEnrollment.student.name} in ${newEnrollment.course.title}!`);
+        const courseName = newEnrollment.course?.title || 'a course';
+        setSuccessMessage(`Successfully enrolled ${newEnrollment.student?.name || 'student'} in ${courseName}!`);
         setTimeout(() => setSuccessMessage(''), 3000);
         
         // Close modal
@@ -393,6 +394,7 @@ const handleEditEnrollment = (enrollment) => {
         const matchesSearch = 
             student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (student.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.title?.toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesStatus = filterStatus === 'all' || enrollment.status === filterStatus;
@@ -404,12 +406,10 @@ const handleEditEnrollment = (enrollment) => {
         const mult = sortOrder === 'asc' ? 1 : -1;
         const getVal = (enrollment, key) => {
             if (key === 'student') return (enrollment.student?.name || '').toLowerCase();
+            if (key === 'personalEmail') return (enrollment.student?.personalEmail || '').toLowerCase();
             if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
             if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
-            if (key === 'progress') return Number(enrollment.progress) || 0;
             if (key === 'status') return (enrollment.status || '').toLowerCase();
-            if (key === 'lastAccessed') return new Date(enrollment.lastAccessed || 0).getTime();
-            if (key === 'grade') return (enrollment.grade || '').toLowerCase();
             return 0;
         };
         const va = getVal(a, sortBy);
@@ -418,12 +418,6 @@ const handleEditEnrollment = (enrollment) => {
         return mult * (va < vb ? -1 : va > vb ? 1 : 0);
     });
 
-    const getProgressColor = (progress) => {
-        if (progress >= 80) return '#10b981';
-        if (progress >= 50) return '#f59e0b';
-        return '#ef4444';
-    };
-
     const getStudentAvatar = (student) => {
         if (student.avatar) return student.avatar;
         return student.name ? student.name.charAt(0).toUpperCase() : '?';
@@ -431,10 +425,10 @@ const handleEditEnrollment = (enrollment) => {
 
     if (loading) {
         return (
-            <div className="enrollments-management loading">
+            <div className="students-data-page loading">
                 <div className="loading-spinner">
                     <i className="fas fa-spinner fa-spin"></i>
-                    <p>Loading enrollments from database...</p>
+                    <p>Loading students data...</p>
                     <small>Connected to MongoDB</small>
                 </div>
             </div>
@@ -456,11 +450,10 @@ const EditEnrollmentModal = () => {
     const [availableCourses, setAvailableCourses] = useState([]);
     const [formData, setFormData] = useState(() => ({
         studentName: editingEnrollment?.student?.name || '',
-        studentEmail: editingEnrollment?.student?.email || '',
+        studentId: editingEnrollment?.student?.studentId || '',
+        personalEmail: editingEnrollment?.student?.personalEmail || '',
         courseId: editingEnrollment?.course?._id || '',
-        progress: editingEnrollment?.progress || 0,
         status: editingEnrollment?.status || 'pending',
-        grade: editingEnrollment?.grade || '',
         enrollmentDate: editingEnrollment?.enrollmentDate
             ? new Date(editingEnrollment.enrollmentDate).toISOString().split('T')[0]
             : new Date().toISOString().split('T')[0]
@@ -471,7 +464,7 @@ const EditEnrollmentModal = () => {
         const fetchCourses = async () => {
             try {
                 const token = getAuthToken();
-                const response = await axios.get('http://localhost:5000/api/courses', {
+                const response = await axios.get(`${API_BASE_URL}/api/courses`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (response.data.courses) {
@@ -488,37 +481,44 @@ const EditEnrollmentModal = () => {
     const handleSave = async () => {
     try {
         setLoading(true);
+        setErrorMessage('');
         const token = getAuthToken();
-        
-        // Update student info
-        if (editingEnrollment.student?.email !== formData.studentEmail || 
-            editingEnrollment.student?.name !== formData.studentName) {
-            
+
+        const studentIdTrim = (formData.studentId || '').trim();
+        if (studentIdTrim && !/^GRT-\d{4}-\d{5}$/.test(studentIdTrim)) {
+            setErrorMessage('Student ID must match GRT-YYYY-##### (e.g. GRT-2026-00042) or be left blank.');
+            setLoading(false);
+            return;
+        }
+
+        const personalTrim = (formData.personalEmail || '').trim();
+        if (personalTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalTrim)) {
+            setErrorMessage('Personal email must be valid, or leave it blank.');
+            setLoading(false);
+            return;
+        }
+
+        if (
+            editingEnrollment.student?._id &&
+            (editingEnrollment.student?.name !== formData.studentName ||
+             String(editingEnrollment.student?.personalEmail || '').trim() !== personalTrim)
+        ) {
             await axios.put(
-                `http://localhost:5000/api/users/${editingEnrollment.student?._id}`,
-                {
-                    name: formData.studentName,
-                    email: formData.studentEmail
-                },
+                `${API_BASE_URL}/api/users/${editingEnrollment.student._id}`,
+                { name: formData.studentName, personalEmail: personalTrim, studentId: studentIdTrim || undefined },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
         }
 
         // Update enrollment (including course change)
         const updateData = {
-            progress: formData.progress,
             status: formData.status,
-            grade: formData.grade,
-            enrollmentDate: formData.enrollmentDate
+            enrollmentDate: formData.enrollmentDate,
+            courseId: formData.courseId || undefined,
         };
 
-        // Only include courseId if changed
-        if (formData.courseId && formData.courseId !== editingEnrollment.course?._id) {
-            updateData.courseId = formData.courseId;
-        }
-
         const response = await axios.put(
-            `http://localhost:5000/api/enrollments/${editingEnrollment._id}`,
+            `${API_BASE_URL}/api/enrollments/${editingEnrollment._id}`,
             updateData,
             { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -530,13 +530,14 @@ const EditEnrollmentModal = () => {
             
             const updated = enrollments.map(enrollment =>
                 enrollment._id === editingEnrollment._id
-                    ? { 
-                        ...enrollment, 
+                    ? {
+                        ...enrollment,
                         ...response.data.enrollment,
                         student: {
                             ...enrollment.student,
                             name: formData.studentName,
-                            email: formData.studentEmail
+                            studentId: studentIdTrim || enrollment.student?.studentId,
+                            personalEmail: personalTrim,
                         },
                         course: newCourse
                     }
@@ -569,7 +570,6 @@ const EditEnrollmentModal = () => {
                 <div className="modal-header">
                     <h2><i className="fas fa-edit"></i> Edit Enrollment</h2>
                     <div className="header-subtitle">
-                        <span className="enrollment-id">ID: {editingEnrollment._id}</span>
                         <span className={`status-badge ${editingEnrollment.status}`}>
                             {editingEnrollment.status}
                         </span>
@@ -595,14 +595,40 @@ const EditEnrollmentModal = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Email Address</label>
+                                <label>
+                                    <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-#####)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.studentId}
+                                    onChange={(e) => setFormData({...formData, studentId: e.target.value})}
+                                    className="form-input"
+                                    placeholder="GRT-2026-00042"
+                                />
+                                <small className="form-hint-muted">Leave blank to keep existing ID (if any).</small>
+                            </div>
+                            <div className="form-group">
+                                <label>
+                                    <i className="fas fa-key"></i> Portal login email (People)
+                                </label>
+                                <div className="portal-email-readonly-edit">
+                                    {editingEnrollment.student?.email || '—'}
+                                </div>
+                                <small className="form-hint-muted">Student portal sign-in. Change account email in People if required.</small>
+                            </div>
+                            <div className="form-group">
+                                <label>
+                                    <i className="fas fa-envelope"></i> Personal email (optional)
+                                </label>
                                 <input
                                     type="email"
-                                    value={formData.studentEmail}
-                                    onChange={(e) => setFormData({...formData, studentEmail: e.target.value})}
+                                    value={formData.personalEmail}
+                                    onChange={(e) => setFormData({...formData, personalEmail: e.target.value})}
                                     className="form-input"
-                                    placeholder="student@example.com"
+                                    placeholder="Gmail, Hotmail, etc."
+                                    autoComplete="email"
                                 />
+                                <small className="form-hint-muted">Separate from portal login; same field as Enroll Student form.</small>
                             </div>
                         </div>
 
@@ -650,19 +676,6 @@ const EditEnrollmentModal = () => {
                                     />
                                 </div>
                                 <div className="form-group half">
-                                    <label>Progress (%)</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={formData.progress}
-                                        onChange={(e) => setFormData({...formData, progress: parseInt(e.target.value) || 0})}
-                                        className="form-input"
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group half">
                                     <label>Status</label>
                                     <select
                                         value={formData.status}
@@ -675,24 +688,6 @@ const EditEnrollmentModal = () => {
                                         <option value="inactive">Inactive</option>
                                     </select>
                                 </div>
-                                <div className="form-group half">
-                                    <label>Grade</label>
-                                    <select
-                                        value={formData.grade}
-                                        onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                                        className="form-select"
-                                    >
-                                        <option value="">Not Graded</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A">A</option>
-                                        <option value="A-">A-</option>
-                                        <option value="B+">B+</option>
-                                        <option value="B">B</option>
-                                        <option value="C">C</option>
-                                        <option value="D">D</option>
-                                        <option value="F">F</option>
-                                    </select>
-                                </div>
                             </div>
                         </div>
 
@@ -702,19 +697,27 @@ const EditEnrollmentModal = () => {
                             <div className="preview-card">
                                 <div className="preview-row">
                                     <span className="preview-label">Student:</span>
-                                    <span className="preview-value">{formData.studentName}</span>
+                                    <span className="preview-value">{formData.studentName || editingEnrollment.student?.name}</span>
                                 </div>
                                 <div className="preview-row">
-                                    <span className="preview-label">Email:</span>
-                                    <span className="preview-value">{formData.studentEmail}</span>
+                                    <span className="preview-label">Portal email:</span>
+                                    <span className="preview-value">{editingEnrollment.student?.email || '—'}</span>
+                                </div>
+                                <div className="preview-row">
+                                    <span className="preview-label">Personal email:</span>
+                                    <span className="preview-value">{formData.personalEmail?.trim() || '—'}</span>
+                                </div>
+                                <div className="preview-row">
+                                    <span className="preview-label">Student ID:</span>
+                                    <span className="preview-value" style={{ fontFamily: 'monospace', color: '#2563eb' }}>
+                                        {formData.studentId?.trim() || editingEnrollment.student?.studentId || '—'}
+                                    </span>
                                 </div>
                                 <div className="preview-row">
                                     <span className="preview-label">Course:</span>
-                                    <span className="preview-value">{editingEnrollment.course?.title}</span>
-                                </div>
-                                <div className="preview-row">
-                                    <span className="preview-label">Progress:</span>
-                                    <span className="preview-value">{formData.progress}%</span>
+                                    <span className="preview-value">
+                                        {availableCourses.find(c => c._id === formData.courseId)?.title || editingEnrollment.course?.title}
+                                    </span>
                                 </div>
                                 <div className="preview-row">
                                     <span className="preview-label">Status:</span>
@@ -752,8 +755,10 @@ const EditEnrollmentModal = () => {
             </div>
         </div>
     );
-};    return (
-        <div className="enrollments-management">
+};
+
+    return (
+        <div className="students-data-page">
             {/* MODAL */}
             {showEnrollModal && (
                 <EnrollStudentModal 
@@ -767,17 +772,9 @@ const EditEnrollmentModal = () => {
             {/* Header */}
             <div className="page-header">
                 <div className="header-left">
-                    <h1><i className="fas fa-user-graduate"></i> Enrollment Management</h1>
-                    <p>Track student enrollments and course progress</p>
-                    <small>Data stored in MongoDB | {enrollments.length} total enrollments</small>
-                </div>
-                <div className="header-right">
-                    <button className="btn-primary" onClick={handleEnrollStudent}>
-                        <i className="fas fa-user-plus"></i> Enroll Student
-                    </button>
-                    <button className="btn-secondary" onClick={fetchEnrollments}>
-                        <i className="fas fa-sync-alt"></i> Refresh
-                    </button>
+                    <h1><i className="fas fa-user-graduate"></i> Students data</h1>
+                    <p>View and manage student records and course assignments</p>
+                    <small>Data stored in MongoDB | {enrollments.length} total records</small>
                 </div>
             </div>
 
@@ -803,7 +800,7 @@ const EditEnrollmentModal = () => {
                 <div className="bulk-actions-bar">
                     <div className="selected-count">
                         <i className="fas fa-check-circle"></i>
-                        {selectedEnrollments.length} enrollment(s) selected
+                        {selectedEnrollments.length} row(s) selected
                     </div>
                     <div className="bulk-buttons">
                         <button className="bulk-btn" onClick={() => updateSelectedStatus('active')}>
@@ -832,9 +829,6 @@ const EditEnrollmentModal = () => {
 >
     <i className="fas fa-edit"></i> Edit Selected
 </button>
-                        <button className="bulk-btn delete" onClick={deleteSelectedEnrollments}>
-                            <i className="fas fa-trash"></i> Delete Selected
-                        </button>
                         <button className="bulk-btn cancel" onClick={() => setSelectedEnrollments([])}>
                             <i className="fas fa-times"></i> Clear Selection
                         </button>
@@ -850,7 +844,7 @@ const EditEnrollmentModal = () => {
                     </div>
                     <div className="stat-info">
                         <h3>{stats.totalEnrollments}</h3>
-                        <p>Total Enrollments</p>
+                        <p>Total records</p>
                     </div>
                 </div>
                 <div className="stat-card active">
@@ -919,19 +913,25 @@ const EditEnrollmentModal = () => {
                     <button className="refresh-btn" onClick={fetchEnrollments}>
                         <i className="fas fa-sync-alt"></i> Refresh
                     </button>
+                    <button className="btn-primary enroll-btn" onClick={handleEnrollStudent}>
+                        <i className="fas fa-user-plus"></i> Enroll Student
+                    </button>
+                    <button className="btn-secondary download-btn" onClick={downloadStudentsDataCsv}>
+                        <i className="fas fa-file-export"></i> Download Excel
+                    </button>
                 </div>
             </div>
 
-            {/* Enrollments Table */}
+            {/* Students data table */}
             <div
                 ref={tableContainerRef}
-                className={`enrollments-table-container ${isTableDragging ? 'is-dragging' : ''}`}
+                className={`students-data-table-container ${isTableDragging ? 'is-dragging' : ''}`}
                 onMouseDown={startTableDragScroll}
                 onMouseMove={onTableDragScroll}
                 onMouseUp={stopTableDragScroll}
                 onMouseLeave={stopTableDragScroll}
             >
-                <table className="enrollments-table">
+                <table className="students-data-table">
                     <colgroup>
                         {COLUMN_DEFS.map((key, idx) => (
                             <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
@@ -948,36 +948,31 @@ const EditEnrollmentModal = () => {
                                 />
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
                             </th>
+                            <th>Student ID
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
+                            </th>
                             <th className="sortable" onClick={() => handleSort('student')}>Student
                                 {sortBy === 'student' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('personalEmail')}>Personal email
+                                {sortBy === 'personalEmail' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('course')}>Course
                                 {sortBy === 'course' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('enrollmentDate')}>Enrollment Date
                                 {sortBy === 'enrollmentDate' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('progress')}>Progress
-                                {sortBy === 'progress' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('status')}>Status
                                 {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('lastAccessed')}>Last Accessed
-                                {sortBy === 'lastAccessed' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
                             </th>
-                            <th className="sortable" onClick={() => handleSort('grade')}>Grade
-                                {sortBy === 'grade' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
-                            </th>
                             <th className="action-col">Action
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
                             </th>
                         </tr>
                     </thead>
@@ -986,7 +981,13 @@ const EditEnrollmentModal = () => {
                             sortedEnrollments.map((enrollment) => {
                                 const student = enrollment.student || {};
                                 const course = enrollment.course || {};
-                                
+                                const courseInstructorLabel =
+                                    course.instructorName ||
+                                    (typeof course.instructor === 'object' && course.instructor?.name
+                                        ? course.instructor.name
+                                        : '') ||
+                                    '';
+
                                 return (
                                     <tr key={enrollment._id} className={selectedEnrollments.includes(enrollment._id) ? 'selected' : ''}>
                                         <td className="checkbox-cell">
@@ -997,26 +998,44 @@ const EditEnrollmentModal = () => {
                                             />
                                         </td>
                                         <td>
+                                            {student.studentId ? (
+                                                <span className="student-id-cell">
+                                                    {student.studentId}
+                                                </span>
+                                            ) : (
+                                                <span className="student-id-cell no-id">—</span>
+                                            )}
+                                        </td>
+                                        <td>
                                             <div className="student-info">
                                                 <div className="student-avatar">
                                                     {getStudentAvatar(student)}
                                                 </div>
                                                 <div className="student-details">
                                                     <strong>{student.name || 'Unknown Student'}</strong>
-                                                    <span className="student-email">{student.email || 'No email'}</span>
+                                                    <span className="student-email">{student.email || 'No portal email'}</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            <div className="course-info">
-                                                <div className="course-title">{course.title || 'Unknown Course'}</div>
-                                                <div className="course-meta">
-                                                    <span className="course-category">{course.category || 'General'}</span>
-                                                    {course.instructor && (
-                                                        <span className="course-instructor">By {course.instructor}</span>
-                                                    )}
+                                            <span className="student-email-cell">{student.personalEmail || '—'}</span>
+                                        </td>
+                                        <td>
+                                            {course._id ? (
+                                                <div className="course-info">
+                                                    <div className="course-title">{course.title || 'Unknown Course'}</div>
+                                                    <div className="course-meta">
+                                                        <span className="course-category">{course.category || 'General'}</span>
+                                                        {courseInstructorLabel ? (
+                                                            <span className="course-instructor">By {courseInstructorLabel}</span>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            ) : (
+                                                <div className="no-course-assigned">
+                                                    <i className="fas fa-book-open"></i> No course assigned
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             {enrollment.enrollmentDate ? 
@@ -1027,20 +1046,6 @@ const EditEnrollmentModal = () => {
                                                 }) : 
                                                 'Not set'
                                             }
-                                        </td>
-                                        <td>
-                                            <div className="progress-container">
-                                                <div className="progress-bar">
-                                                    <div 
-                                                        className="progress-fill"
-                                                        style={{
-                                                            width: `${enrollment.progress || 0}%`,
-                                                            backgroundColor: getProgressColor(enrollment.progress || 0)
-                                                        }}
-                                                    ></div>
-                                                </div>
-                                                <span className="progress-text">{enrollment.progress || 0}%</span>
-                                            </div>
                                         </td>
                                         <td>
                                             <div className="status-cell">
@@ -1061,24 +1066,6 @@ const EditEnrollmentModal = () => {
                                                 </select>
                                             </div>
                                         </td>
-                                        <td>
-                                            {enrollment.lastAccessed ? 
-                                                new Date(enrollment.lastAccessed).toLocaleDateString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric'
-                                                }) : 
-                                                'Never'
-                                            }
-                                        </td>
-                                        <td>
-                                            {enrollment.grade ? (
-                                                <span className={`grade-badge grade-${enrollment.grade.charAt(0)}`}>
-                                                    {enrollment.grade}
-                                                </span>
-                                            ) : (
-                                                <span className="grade-badge no-grade">-</span>
-                                            )}
-                                        </td>
                                         <td className="action-cell">
                                             <div className="action-buttons">
                                                 <button
@@ -1089,14 +1076,6 @@ const EditEnrollmentModal = () => {
                                                 >
                                                     <i className="fas fa-edit"></i> Edit
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    className="action-btn delete-btn"
-                                                    title="Delete"
-                                                    onClick={() => deleteEnrollment(enrollment._id)}
-                                                >
-                                                    <i className="fas fa-trash"></i> Delete
-                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1104,12 +1083,15 @@ const EditEnrollmentModal = () => {
                             })
                         ) : (
                             <tr>
-                                <td colSpan="9" className="no-data-row">
+                                <td colSpan="8" className="no-data-row">
                                     <div className="no-data-message">
                                         <i className="fas fa-user-graduate"></i>
-                                        <p>No enrollments found in database.</p>
+                                        <p><strong>No course enrollments yet.</strong></p>
+                                        <p className="no-data-hint">
+                                            This table shows one row per student per course. Students from the People tab appear here only after you assign them to a course (use <strong>Enroll Student</strong> or the graduation-cap button on a student row in People).
+                                        </p>
                                         <button className="btn-primary" onClick={handleEnrollStudent}>
-                                            <i className="fas fa-user-plus"></i> Enroll First Student
+                                            <i className="fas fa-user-plus"></i> Enroll Student in a Course
                                         </button>
                                     </div>
                                 </td>
@@ -1125,7 +1107,7 @@ const EditEnrollmentModal = () => {
                     <i className="fas fa-database"></i>
                     <div>
                         <h4>MongoDB Storage</h4>
-                        <p>All enrollments are stored permanently in MongoDB</p>
+                        <p>All student records are stored permanently in MongoDB</p>
                         <small>Total: {enrollments.length} records</small>
                     </div>
                 </div>
@@ -1142,4 +1124,4 @@ const EditEnrollmentModal = () => {
     );
 };
 
-export default EnrollmentsManagement;
+export default StudentsData;
