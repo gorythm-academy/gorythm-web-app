@@ -1,11 +1,21 @@
 const express = require('express');
 const router = express.Router();
-//const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_demo_key');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY
+    ? require('stripe')(process.env.STRIPE_SECRET_KEY)
+    : null;
 const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+
+const requireStripe = (res) => {
+    if (stripe) return true;
+    res.status(503).json({
+        success: false,
+        error: 'Stripe is not configured on this deployment'
+    });
+    return false;
+};
 
 // Public endpoint for website Course Registration form
 router.post('/register-online', async (req, res) => {
@@ -78,6 +88,7 @@ router.get('/', async (req, res) => {
 
 // Create Stripe checkout session
 router.post('/create-checkout', async (req, res) => {
+    if (!requireStripe(res)) return;
     try {
         const { courseId, userId } = req.body;
         
@@ -143,6 +154,7 @@ router.post('/create-checkout', async (req, res) => {
 
 // Stripe webhook handler
 router.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+    if (!requireStripe(res)) return;
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -207,6 +219,7 @@ router.post('/:id/refund', async (req, res) => {
     if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
+    if (!requireStripe(res)) return;
     try {
         const payment = await Payment.findById(req.params.id);
         
