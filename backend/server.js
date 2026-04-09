@@ -129,15 +129,19 @@ app.get('/', (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log('\n' + '='.repeat(50));
-    console.log('🚀 GORYTHM ACADEMY BACKEND STARTED');
-    console.log('='.repeat(50));
-    console.log(`📍 Port: ${PORT}`);
-    console.log(`📁 Database: ${process.env.MONGODB_URI}`);
-    console.log(`🌐 Frontend: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}`);
-    console.log(`🔐 Admin Login: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}/admin/login`);
-    console.log(`📊 API Health: http://localhost:5000/health`);
-    console.log('='.repeat(50) + '\n');
-});
+if (require.main === module) {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log('\n' + '='.repeat(50));
+        console.log('🚀 GORYTHM ACADEMY BACKEND STARTED');
+        console.log('='.repeat(50));
+        console.log(`📍 Port: ${PORT}`);
+        console.log(`📁 Database: ${process.env.MONGODB_URI}`);
+        console.log(`🌐 Frontend: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}`);
+        console.log(`🔐 Admin Login: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}/admin/login`);
+        console.log(`📊 API Health: http://localhost:5000/health`);
+        console.log('='.repeat(50) + '\n');
+    });
+}
+
+module.exports = app;
