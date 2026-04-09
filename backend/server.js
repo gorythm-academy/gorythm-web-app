@@ -46,8 +46,19 @@ const ensureDefaultAdmin = async () => {
 };
 
 // Middleware
+const allowedOrigins = new Set([
+    'http://localhost:3000',
+    'https://gorythm-client.vercel.app',
+    process.env.FRONTEND_URL,
+].filter(Boolean));
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app',
+    origin: (origin, callback) => {
+        // Allow server-to-server/curl requests that have no Origin header.
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.has(origin)) return callback(null, true);
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true
 }));
 app.use(helmet());
