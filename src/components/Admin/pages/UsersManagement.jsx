@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken, getAuthUserJson } from '../../../utils/authStorage';
+import { API_BASE_URL } from '../../../config/constants';
+import EnrollStudentModal from './EnrollStudentModal';
 import './UsersManagement.scss';
 
 const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
@@ -30,6 +32,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [viewUser, setViewUser] = useState(null);
     const [editingUser, setEditingUser] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Enroll modal state (People tab only)
+    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [enrollingStudent, setEnrollingStudent] = useState(null);
+    const [coursesForEnroll, setCoursesForEnroll] = useState([]);
 
     const tableContainerRef = useRef(null);
     const dragStateRef = useRef({
@@ -158,6 +165,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
+        personalEmail: '',
         password: '',
         confirmPassword: '',
         role: 'teacher',
@@ -172,7 +180,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             const token = getAuthToken();
             const segment = variant === 'people' ? 'people' : 'staff';
 
-            const response = await axios.get('http://localhost:5000/api/users', {
+            const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
                 params: { segment, limit: 500 },
             });
@@ -204,6 +212,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         setFormData({
             name: '',
             email: '',
+            personalEmail: '',
             password: '',
             confirmPassword: '',
             role: defaultRole,
@@ -221,6 +230,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         setFormData({
             name: user.name || '',
             email: user.email || '',
+            personalEmail: user.personalEmail || '',
             password: '',
             confirmPassword: '',
             role: user.role || (variant === 'people' ? 'student' : 'admin'),
@@ -234,6 +244,23 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const openViewModal = (user) => {
         if (!user) return;
         setViewUser(user);
+    };
+
+    const openEnrollModal = async (student) => {
+        setEnrollingStudent(student);
+        setShowEnrollModal(true);
+        // Fetch courses lazily when modal opens
+        try {
+            const token = getAuthToken();
+            const response = await axios.get(`${API_BASE_URL}/api/courses`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.courses) {
+                setCoursesForEnroll(response.data.courses);
+            }
+        } catch {
+            setCoursesForEnroll([]);
+        }
     };
 
     const handleFormChange = (e) => {
@@ -259,6 +286,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (!emailRegex.test(formData.email)) {
             alert('Please enter a valid email address');
             return false;
+        }
+
+        if (formData.role === 'student' && formData.personalEmail?.trim()) {
+            if (!emailRegex.test(formData.personalEmail.trim())) {
+                alert('Please enter a valid personal email, or leave it blank');
+                return false;
+            }
         }
         
         // Password validation for new users
@@ -297,6 +331,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 phone: formData.phone.trim(),
                 isActive: formData.isActive
             };
+            if (formData.role === 'student') {
+                payload.personalEmail = (formData.personalEmail || '').trim();
+            }
             
             if (!editingUser) {
                 // Create new user
@@ -304,7 +341,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 payload.mustChangePassword = formData.mustChangePassword;
                 
                 const response = await axios.post(
-                    'http://localhost:5000/api/users',
+                    `${API_BASE_URL}/api/users`,
                     payload,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -314,7 +351,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             } else {
                 // Update existing user
                 const response = await axios.put(
-                    `http://localhost:5000/api/users/${editingUser._id}`,
+                    `${API_BASE_URL}/api/users/${editingUser._id}`,
                     payload,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -329,7 +366,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 // Update password separately if changed
                 if (formData.password && formData.password === formData.confirmPassword) {
                     await axios.patch(
-                        `http://localhost:5000/api/users/${editingUser._id}/password`,
+                        `${API_BASE_URL}/api/users/${editingUser._id}/password`,
                         { password: formData.password },
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
@@ -371,7 +408,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         try {
             const token = getAuthToken();
             await axios.patch(
-                `http://localhost:5000/api/users/${userId}/status`, 
+                `${API_BASE_URL}/api/users/${userId}/status`, 
                 { status: newStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -400,7 +437,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
         try {
             const token = getAuthToken();
-            await axios.delete(`http://localhost:5000/api/users/${userId}`, {
+            await axios.delete(`${API_BASE_URL}/api/users/${userId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -428,7 +465,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         try {
             const token = getAuthToken();
             const response = await axios.post(
-                'http://localhost:5000/api/users/bulk-delete', 
+                `${API_BASE_URL}/api/users/bulk-delete`, 
                 { ids: selectedUsers },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -456,7 +493,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
         try {
             const token = getAuthToken();
-            await axios.patch('http://localhost:5000/api/users/bulk-status', 
+            await axios.patch(`${API_BASE_URL}/api/users/bulk-status`, 
                 { ids: selectedUsers, status },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -474,6 +511,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         const matchesSearch = 
             user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (user.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesRole = filterRole === 'all' || user.role === filterRole;
@@ -499,6 +537,50 @@ const UsersManagement = ({ variant = 'staff' }) => {
         return mult * (va < vb ? -1 : va > vb ? 1 : 0);
     });
 
+    const downloadUsersCsv = () => {
+        const rows = (users || []).map((u) => ({
+            studentId: u.role === 'student' ? (u.studentId || '') : '',
+            name: u.name || '',
+            portalEmail: u.email || '',
+            personalEmail: u.personalEmail || '',
+            role: u.role || '',
+            phone: u.phone || '',
+            status: u.status || (u.isActive !== false ? 'active' : 'inactive'),
+            joined: u.joinDate ? new Date(u.joinDate).toISOString().slice(0, 10) : '',
+        }));
+
+        const cols = [
+            ['studentId', 'Student ID'],
+            ['name', 'Name'],
+            ['portalEmail', 'Portal email'],
+            ['personalEmail', 'Personal email'],
+            ['role', 'Role'],
+            ['phone', 'Phone'],
+            ['status', 'Status'],
+            ['joined', 'Joined'],
+        ];
+
+        const esc = (v) => {
+            const s = String(v ?? '');
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+
+        const csv = [
+            cols.map((c) => esc(c[1])).join(','),
+            ...rows.map((r) => cols.map((c) => esc(r[c[0]])).join(',')),
+        ].join('\n');
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gorythm-${variant}-records-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    };
+
     const selectableFilteredUsers = sortedUsers.filter((u) => !isRowActionsLocked(u));
 
     const toggleAllUsers = () => {
@@ -522,6 +604,17 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     return (
         <div className="users-management">
+            {/* Enroll Student Modal (People tab) */}
+            {showEnrollModal && enrollingStudent && (
+                <EnrollStudentModal
+                    isOpen={showEnrollModal}
+                    onClose={() => { setShowEnrollModal(false); setEnrollingStudent(null); }}
+                    onEnrollSuccess={() => { setShowEnrollModal(false); setEnrollingStudent(null); fetchUsers(); }}
+                    courses={coursesForEnroll}
+                    preselectedStudent={enrollingStudent}
+                />
+            )}
+
             {/* User Form Modal */}
             {showUserModal && (
                 <div className="user-modal-overlay">
@@ -586,6 +679,23 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 </small>
                                             )}
                                         </div>
+
+                                        {formData.role === 'student' && (
+                                            <div className="form-group">
+                                                <label>Personal email (optional)</label>
+                                                <input
+                                                    type="email"
+                                                    name="personalEmail"
+                                                    value={formData.personalEmail}
+                                                    onChange={handleFormChange}
+                                                    placeholder="Gmail, Hotmail, etc. (not portal login)"
+                                                    disabled={isSubmitting}
+                                                />
+                                                <small className="form-hint">
+                                                    Separate from portal login above; for contact only.
+                                                </small>
+                                            </div>
+                                        )}
 
                                         <div className="form-group">
                                             <label>Phone Number</label>
@@ -845,6 +955,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     <button className="refresh-btn" onClick={fetchUsers}>
                         <i className="fas fa-sync-alt"></i> Refresh
                     </button>
+                    <button className="btn-secondary download-btn" onClick={downloadUsersCsv}>
+                        <i className="fas fa-file-export"></i> Download Excel
+                    </button>
                 </div>
             </div>
 
@@ -927,6 +1040,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         </div>
                                         <div className="user-details">
                                             <strong>{user.name}</strong>
+                                            {user.role === 'student' && user.studentId && (
+                                                <span className="student-id-tag">
+                                                    <i className="fas fa-id-card"></i> {user.studentId}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </td>
@@ -990,6 +1108,15 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 >
                                                     <i className="fas fa-edit"></i>
                                                 </button>
+                                                {variant === 'people' && user.role === 'student' && user.isActive !== false && (
+                                                    <button
+                                                        className="action-btn enroll-btn"
+                                                        title="Enroll in Course"
+                                                        onClick={() => openEnrollModal(user)}
+                                                    >
+                                                        <i className="fas fa-user-graduate"></i>
+                                                    </button>
+                                                )}
                                                 <button 
                                                     className={`action-btn status-btn ${user.status}`}
                                                     title={user.status === 'active' ? 'Deactivate User' : 'Activate User'}
@@ -1123,6 +1250,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                             <dl className="user-details-readonly">
                                 <dt>Name</dt><dd>{viewUser.name}</dd>
                                 <dt>Email</dt><dd>{viewUser.email}</dd>
+                                {viewUser.role === 'student' && (
+                                    <>
+                                        <dt>Personal email</dt>
+                                        <dd>{viewUser.personalEmail || '—'}</dd>
+                                    </>
+                                )}
                                 <dt>Role</dt><dd>{viewUser.role}</dd>
                                 <dt>Phone</dt><dd>{viewUser.phone || '—'}</dd>
                                 <dt>Status</dt><dd>{viewUser.status}</dd>

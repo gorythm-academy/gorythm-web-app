@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken, getAuthUserJson } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './DashboardHome.scss';
 
 const DashboardHome = () => {
@@ -21,7 +22,7 @@ const DashboardHome = () => {
 
     const checkBackendHealth = useCallback(async () => {
         try {
-            const response = await axios.get('http://localhost:5000/health');
+            const response = await axios.get(`${API_BASE_URL}/health`);
             setBackendStatus('connected');
             console.log('✅ Backend health:', response.data);
         } catch (err) {
@@ -42,7 +43,7 @@ const DashboardHome = () => {
                 return;
             }
 
-            const response = await axios.get('http://localhost:5000/api/admin/dashboard', {
+            const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -118,7 +119,7 @@ const DashboardHome = () => {
 
     const quickActions = [
         { icon: 'fas fa-plus-circle', label: 'Add Course', action: () => navigate('/admin/courses'), color: 'var(--color-accent)' },
-        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/enrollments'), color: '#10b981' },
+        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/students-data'), color: '#10b981' },
         { icon: 'fas fa-file-invoice-dollar', label: 'Create Invoice', action: () => navigate('/admin/payments'), color: '#f59e0b' },
         { icon: 'fas fa-chart-line', label: 'View Reports', action: () => navigate('/admin/analytics'), color: '#8b5cf6' },
         { icon: 'fas fa-cog', label: 'Settings', action: () => navigate('/admin/settings'), color: '#64748b' },

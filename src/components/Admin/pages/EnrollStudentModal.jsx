@@ -1,47 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
+import { API_BASE_URL } from '../../../config/constants';
 import './EnrollStudentModal.scss';
 
-const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
+/**
+ * EnrollStudentModal
+ *
+ * Props:
+ *  isOpen             - boolean
+ *  onClose            - fn
+ *  onEnrollSuccess    - fn(newEnrollment)
+ *  courses            - array of course objects (passed from parent)
+ *  preselectedStudent - optional: { _id, name, email, studentId, personalEmail } – skips student dropdown
+ */
+const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, preselectedStudent }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [backendConnected, setBackendConnected] = useState(true);
-    
-    // Form data
+    const [students, setStudents] = useState([]);
+    const [studentsLoading, setStudentsLoading] = useState(false);
+
     const [formData, setFormData] = useState({
-        studentName: '',
-        studentEmail: '',
+        studentUserId: preselectedStudent?._id || '',
+        studentId: preselectedStudent?.studentId || '',
+        personalEmail: preselectedStudent?.personalEmail || '',
         courseId: '',
-        enrollmentDate: new Date().toISOString().split('T')[0],
         status: 'pending',
-        progress: 0,
-        grade: ''
     });
 
-    // Status options
     const statusOptions = [
-        { value: 'pending', label: 'Pending', color: '#f59e0b' },
-        { value: 'active', label: 'Active', color: '#10b981' },
-        { value: 'completed', label: 'Completed', color: 'var(--color-accent)' },
-        { value: 'inactive', label: 'Inactive', color: '#64748b' }
+        { value: 'pending',   label: 'Pending',   color: '#f59e0b' },
+        { value: 'active',    label: 'Active',     color: '#10b981' },
+        { value: 'completed', label: 'Completed',  color: 'var(--color-accent)' },
+        { value: 'inactive',  label: 'Inactive',   color: '#64748b' }
     ];
 
-    // Grade options
-    const gradeOptions = [
-        { value: '', label: 'Not Graded' },
-        { value: 'A+', label: 'A+ (Excellent)' },
-        { value: 'A', label: 'A (Very Good)' },
-        { value: 'A-', label: 'A- (Good)' },
-        { value: 'B+', label: 'B+ (Above Average)' },
-        { value: 'B', label: 'B (Average)' },
-        { value: 'C', label: 'C (Below Average)' },
-        { value: 'D', label: 'D (Poor)' },
-        { value: 'F', label: 'F (Fail)' }
-    ];
-
-    // Lock body scroll when modal is open so background page doesn't scroll
+    // Lock body scroll
     useEffect(() => {
         if (isOpen) {
             const prev = document.body.style.overflow;
@@ -50,29 +45,82 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
         }
     }, [isOpen]);
 
-    // Check backend connection on open
+    // Reset form when modal opens
     useEffect(() => {
         if (isOpen) {
-            checkBackendConnection();
+            setFormData({
+                studentUserId: preselectedStudent?._id || '',
+                studentId: preselectedStudent?.studentId || '',
+                personalEmail: preselectedStudent?.personalEmail || '',
+                courseId: '',
+                status: 'pending',
+            });
+            setError('');
+            setSuccess('');
+            if (!preselectedStudent) {
+                fetchStudents();
+            }
         }
-    }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, preselectedStudent]);
 
-    const checkBackendConnection = async () => {
+    const fetchStudents = async () => {
         try {
-            await axios.get('http://localhost:5000/health');
-            setBackendConnected(true);
-        } catch {
-            setBackendConnected(false);
-            setError('Backend server is not responding. Enrollment data will not be saved.');
+            setStudentsLoading(true);
+            const token = getAuthToken();
+            if (!token) {
+                setError('Please sign in again to load students.');
+                setStudents([]);
+                return;
+            }
+            const response = await axios.get(`${API_BASE_URL}/api/users`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { segment: 'people', limit: 500 }
+            });
+            if (response.data.success) {
+                // Treat missing isActive as active (legacy DB rows)
+                const activeStudents = (response.data.users || []).filter(
+                    (u) => u.role === 'student' && u.isActive !== false
+                );
+                setStudents(activeStudents);
+            } else {
+                setError(response.data.error || 'Failed to load students.');
+                setStudents([]);
+            }
+        } catch (err) {
+            setError(
+                err.response?.data?.error ||
+                    err.message ||
+                    'Failed to load students. Check People tab and API connection.'
+            );
+            setStudents([]);
+        } finally {
+            setStudentsLoading(false);
         }
     };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        if (name === 'studentUserId') {
+            const s = students.find((u) => u._id === value);
+            setFormData((prev) => ({
+                ...prev,
+                studentUserId: value,
+                studentId: s ? (s.studentId || '') : '',
+                personalEmail: s ? (s.personalEmail || '') : '',
+            }));
+            return;
+        }
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleStatusSelect = (statusValue) => {
+        setFormData(prev => ({ ...prev, status: statusValue }));
+    };
+
+    const getSelectedStudent = () => {
+        if (preselectedStudent) return preselectedStudent;
+        return students.find((s) => s._id === formData.studentUserId);
     };
 
     const handleSubmit = async (e) => {
@@ -82,106 +130,78 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
         setSuccess('');
 
         try {
-            // Validation
-            if (!formData.studentName.trim()) {
-                throw new Error('Student name is required');
-            }
-            if (!formData.studentEmail.trim()) {
-                throw new Error('Student email is required');
+            if (!formData.studentUserId) {
+                throw new Error('Please select a student');
             }
             if (!formData.courseId) {
                 throw new Error('Please select a course');
             }
-            
-            // Email validation
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(formData.studentEmail)) {
-                throw new Error('Please enter a valid email address');
+
+            const personalTrim = (formData.personalEmail || '').trim();
+            if (personalTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalTrim)) {
+                throw new Error('Please enter a valid personal email, or leave it blank');
             }
 
-            // Create enrollment data for backend
-            const enrollmentData = {
-                studentName: formData.studentName.trim(),
-                studentEmail: formData.studentEmail.trim().toLowerCase(),
-                courseId: formData.courseId,
-                enrollmentDate: formData.enrollmentDate,
-                status: formData.status,
-                progress: parseInt(formData.progress) || 0,
-                grade: formData.grade || null
-            };
-
-            console.log('Sending enrollment data to backend:', enrollmentData);
-
-            // Check if we have courses
-            if (!courses || courses.length === 0) {
-                throw new Error('No courses available. Please create a course first.');
+            const studentIdTrim = (formData.studentId || '').trim();
+            if (studentIdTrim && !/^GRT-\d{4}-\d{5}$/.test(studentIdTrim)) {
+                throw new Error('Student ID must match GRT-YYYY-##### (e.g. GRT-2026-00042) or be left blank');
             }
 
-            // Check backend connection
-            if (!backendConnected) {
-                throw new Error('Cannot connect to server. Please check backend connection.');
-            }
-
-            // Get token
             const token = getAuthToken();
             if (!token) {
                 throw new Error('Admin session expired. Please login again.');
             }
 
-            // Send to backend API - REAL DATABASE SAVE
+            const selected = getSelectedStudent();
+            if (
+                selected?._id &&
+                (personalTrim !== String(selected.personalEmail || '').trim() ||
+                    (studentIdTrim && studentIdTrim !== String(selected.studentId || '').trim()))
+            ) {
+                await axios.put(
+                    `${API_BASE_URL}/api/users/${selected._id}`,
+                    { personalEmail: personalTrim, studentId: studentIdTrim || undefined },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+            }
+
+            const payload = {
+                studentUserId: formData.studentUserId,
+                courseId: formData.courseId,
+                status: formData.status,
+            };
+
             const response = await axios.post(
-                'http://localhost:5000/api/enrollments', 
-                enrollmentData, 
+                `${API_BASE_URL}/api/enrollments`,
+                payload,
                 {
-                    headers: { 
+                    headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 }
             );
 
-            console.log('Backend response:', response.data);
-
             if (response.data.success) {
-                const newEnrollment = response.data.enrollment;
-                
-                setSuccess(`Student enrolled successfully! Data saved to MongoDB.`);
-                
-                // Call success callback with REAL data from backend
+                setSuccess('Student enrolled successfully!');
                 if (onEnrollSuccess) {
-                    onEnrollSuccess(newEnrollment);
+                    onEnrollSuccess(response.data.enrollment);
                 }
-                
-                // Close modal after 2 seconds
-                setTimeout(() => {
-                    handleClose();
-                }, 2000);
-                
+                setTimeout(() => { handleClose(); }, 1500);
             } else {
                 throw new Error(response.data.message || 'Failed to enroll student');
             }
-
         } catch (err) {
-            console.error('Enrollment error:', err);
-            
-            // Handle specific error cases
             if (err.response) {
-                // Backend returned an error
-                if (err.response.status === 400) {
-                    setError(err.response.data.message || 'Invalid data provided');
-                } else if (err.response.status === 401) {
-                    setError('Session expired. Please login again.');
-                } else if (err.response.status === 404) {
-                    setError('Course not found. Please select a different course.');
-                } else {
-                    setError(`Server error: ${err.response.data.message || err.message}`);
-                }
+                setError(err.response.data.message || 'Server error. Please try again.');
             } else if (err.request) {
-                // No response received
-                setError('Cannot connect to server. Please check if backend is running on port 5000.');
-                setBackendConnected(false);
+                setError('Cannot connect to server. Please check backend is running.');
             } else {
-                // Other errors
                 setError(err.message || 'Failed to enroll student');
             }
         } finally {
@@ -190,46 +210,34 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
     };
 
     const handleClose = () => {
-        // Reset form
         setFormData({
-            studentName: '',
-            studentEmail: '',
+            studentUserId: preselectedStudent?._id || '',
+            studentId: preselectedStudent?.studentId || '',
+            personalEmail: preselectedStudent?.personalEmail || '',
             courseId: '',
-            enrollmentDate: new Date().toISOString().split('T')[0],
             status: 'pending',
-            progress: 0,
-            grade: ''
         });
         setError('');
         setSuccess('');
-        setBackendConnected(true);
         onClose();
     };
 
-    const handleStatusSelect = (statusValue) => {
-        setFormData(prev => ({
-            ...prev,
-            status: statusValue
-        }));
-    };
-
-    const getSelectedCourse = () => {
-        return courses.find(c => c._id === formData.courseId);
-    };
+    const getSelectedCourse = () => courses.find((c) => c._id === formData.courseId);
 
     if (!isOpen) return null;
+
+    const selectedStudent = getSelectedStudent();
 
     return (
         <div className="modal-overlay enroll-modal-overlay">
             <div className="modal-container enroll-modal-container">
                 <div className="modal-header enroll-modal-header">
-                    <h2><i className="fas fa-user-plus"></i> Enroll New Student</h2>
-                    <div className="modal-subtitle">
-                        <span className={`backend-status ${backendConnected ? 'connected' : 'disconnected'}`}>
-                            <i className={`fas fa-${backendConnected ? 'database' : 'exclamation-triangle'}`}></i>
-                            {backendConnected ? 'Connected to MongoDB' : 'Backend disconnected'}
-                        </span>
-                    </div>
+                    <h2>
+                        <i className="fas fa-user-plus"></i>{' '}
+                        {preselectedStudent
+                            ? `Enroll ${preselectedStudent.name} in a Course`
+                            : 'Enroll Student in Course'}
+                    </h2>
                     <button type="button" className="close-btn" onClick={handleClose} disabled={loading}>
                         <i className="fas fa-times"></i>
                     </button>
@@ -240,9 +248,6 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
                         <i className="fas fa-exclamation-circle"></i>
                         <div className="alert-content">
                             <strong>Error:</strong> {error}
-                            {error.includes('Cannot connect') && (
-                                <small>Make sure backend server is running on http://localhost:5000</small>
-                            )}
                         </div>
                         <button type="button" onClick={() => setError('')} className="alert-close">×</button>
                     </div>
@@ -253,55 +258,134 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
                         <i className="fas fa-check-circle"></i>
                         <div className="alert-content">
                             <strong>Success!</strong> {success}
-                            <small>Data saved permanently in database.</small>
                         </div>
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="enrollment-form">
-                    {/* Scrollable form body: cursor (desktop) and touch (mobile/tablet) scroll only inside this area */}
                     <div className="enrollment-form-scroll">
                         <div className="form-grid">
-                            {/* Student Information */}
+
+                            {/* Student Selection */}
                             <div className="form-section form-card">
-                                <h3><i className="fas fa-user"></i> Student Information</h3>
-                                <div className="form-group">
-                                    <label>
-                                        <i className="fas fa-user-circle"></i> Full Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="studentName"
-                                        value={formData.studentName}
-                                        onChange={handleChange}
-                                        placeholder="Enter student's full name"
-                                        required
-                                        className="form-input"
-                                        disabled={loading || success}
-                                    />
-                                    <small className="form-help">This will create a student account</small>
-                                </div>
-                                <div className="form-group">
-                                    <label>
-                                        <i className="fas fa-envelope"></i> Email Address *
-                                    </label>
-                                    <input
-                                        type="email"
-                                        name="studentEmail"
-                                        value={formData.studentEmail}
-                                        onChange={handleChange}
-                                        placeholder="student@example.com"
-                                        required
-                                        className="form-input"
-                                        disabled={loading || success}
-                                    />
-                                    <small className="form-help">Student's login email</small>
-                                </div>
+                                <h3><i className="fas fa-user-graduate"></i> Student</h3>
+
+                                {preselectedStudent ? (
+                                    <div className="preselected-student-card">
+                                        <div className="student-avatar-large">
+                                            {preselectedStudent.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="student-info-details">
+                                            <strong>{preselectedStudent.name}</strong>
+                                            {preselectedStudent.studentId && (
+                                                <span className="student-id-badge">
+                                                    <i className="fas fa-id-card"></i> {preselectedStudent.studentId}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="form-group">
+                                        <label>
+                                            <i className="fas fa-search"></i> Select Student *
+                                        </label>
+                                        {studentsLoading ? (
+                                            <div className="loading-inline">
+                                                <i className="fas fa-spinner fa-spin"></i> Loading students...
+                                            </div>
+                                        ) : (
+                                            <select
+                                                name="studentUserId"
+                                                value={formData.studentUserId}
+                                                onChange={handleChange}
+                                                required
+                                                className="form-select"
+                                                disabled={loading || success || students.length === 0}
+                                            >
+                                                <option value="">
+                                                    {students.length === 0
+                                                        ? 'No students — add a learner with role “Student” in People'
+                                                        : 'Choose a student...'}
+                                                </option>
+                                                {students.map(s => (
+                                                    <option key={s._id} value={s._id}>
+                                                        {s.studentId ? `[${s.studentId}] ` : ''}{s.name} — {s.email}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        {students.length === 0 && !studentsLoading && (
+                                            <small className="form-error">
+                                                This list only includes users with role <strong>Student</strong> in People.
+                                                Teachers and parents do not appear here.
+                                            </small>
+                                        )}
+                                        {selectedStudent && (
+                                            <div className="selected-student-preview">
+                                                <i className="fas fa-user-check"></i>
+                                                <span>{selectedStudent.name}</span>
+                                                {selectedStudent.studentId && (
+                                                    <span className="student-id-badge">
+                                                        {selectedStudent.studentId}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {(preselectedStudent || formData.studentUserId) && selectedStudent && (
+                                    <>
+                                        <div className="form-group">
+                                            <label>
+                                                <i className="fas fa-key"></i> Portal login email (People)
+                                            </label>
+                                            <div className="portal-email-readonly">
+                                                {selectedStudent.email || '—'}
+                                            </div>
+                                            <small className="form-hint">Used to sign in to the Gorythm student portal. Edit this in People if needed.</small>
+                                        </div>
+                                        <div className="form-group">
+                                            <label htmlFor="enroll-student-id">
+                                                <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-#####)
+                                            </label>
+                                            <input
+                                                id="enroll-student-id"
+                                                type="text"
+                                                name="studentId"
+                                                value={formData.studentId}
+                                                onChange={handleChange}
+                                                className="form-input"
+                                                placeholder="GRT-2026-00042"
+                                                disabled={loading || success}
+                                            />
+                                            <small className="form-hint">Optional. If entered, it will be saved to the student account.</small>
+                                        </div>
+                                        <div className="form-group">
+                                            <label htmlFor="enroll-personal-email">
+                                                <i className="fas fa-envelope"></i> Personal email (optional)
+                                            </label>
+                                            <input
+                                                id="enroll-personal-email"
+                                                type="email"
+                                                name="personalEmail"
+                                                value={formData.personalEmail}
+                                                onChange={handleChange}
+                                                className="form-input"
+                                                placeholder="gmail.com, hotmail.com, etc."
+                                                autoComplete="email"
+                                                disabled={loading || success}
+                                            />
+                                            <small className="form-hint">Separate from portal login; for contact only.</small>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
-                            {/* Course & Enrollment Details */}
+                            {/* Course & status */}
                             <div className="form-section form-card">
-                                <h3><i className="fas fa-book"></i> Course Details</h3>
+                                <h3><i className="fas fa-book"></i> Course &amp; status</h3>
+
                                 <div className="form-group">
                                     <label>
                                         <i className="fas fa-graduation-cap"></i> Select Course *
@@ -314,7 +398,9 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
                                         className="form-select"
                                         disabled={loading || success || courses.length === 0}
                                     >
-                                        <option value="">{courses.length === 0 ? 'No courses available' : 'Choose a course...'}</option>
+                                        <option value="">
+                                            {courses.length === 0 ? 'No courses available' : 'Choose a course...'}
+                                        </option>
                                         {courses.map(course => (
                                             <option key={course._id} value={course._id}>
                                                 {course.title} ({course.category})
@@ -326,127 +412,61 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
                                     )}
                                 </div>
 
-                                {/* Calendar-style enrollment date */}
-                                <div className="form-group enrollment-date-block">
-                                    <label>
-                                        <i className="fas fa-calendar-alt"></i> Enrollment Date
-                                    </label>
-                                    <div className="calendar-date-wrapper">
-                                        <i className="fas fa-calendar-check calendar-icon"></i>
-                                        <input
-                                            type="date"
-                                            name="enrollmentDate"
-                                            value={formData.enrollmentDate}
-                                            onChange={handleChange}
-                                            className="form-input calendar-input"
-                                            disabled={loading || success}
-                                            max={new Date().toISOString().split('T')[0]}
-                                            title="Pick enrollment date"
-                                        />
-                                        <span className="calendar-hint">Click to open calendar</span>
-                                    </div>
-                                    <small className="form-help">Date of enrollment</small>
-                                </div>
-
                                 <div className="form-group">
                                     <label>
-                                        <i className="fas fa-percentage"></i> Initial Progress (%)
+                                        <i className="fas fa-toggle-on"></i> Enrollment status
                                     </label>
-                                    <input
-                                        type="number"
-                                        name="progress"
-                                        value={formData.progress}
-                                        onChange={handleChange}
-                                        min="0"
-                                        max="100"
-                                        className="form-input"
-                                        disabled={loading || success}
-                                    />
-                                    <small className="form-help">Starting progress percentage</small>
-                                </div>
-                            </div>
-
-                            {/* Status & Grading */}
-                            <div className="form-section form-card">
-                                <h3><i className="fas fa-cog"></i> Status & Grading</h3>
-                                <div className="form-row">
-                                    <div className="form-group half">
-                                        <label>
-                                            <i className="fas fa-toggle-on"></i> Enrollment Status
-                                        </label>
-                                        <div className="status-buttons">
-                                            {statusOptions.map(status => (
-                                                <button
-                                                    key={status.value}
-                                                    type="button"
-                                                    className={`status-btn ${formData.status === status.value ? 'active' : ''}`}
-                                                    onClick={() => handleStatusSelect(status.value)}
-                                                    style={{ borderLeftColor: status.color }}
-                                                    disabled={loading || success}
-                                                >
-                                                    <i className="fas fa-circle" style={{ color: status.color }}></i>
-                                                    {status.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <input type="hidden" name="status" value={formData.status} />
-                                    </div>
-                                    <div className="form-group half">
-                                        <label>
-                                            <i className="fas fa-star"></i> Initial Grade (Optional)
-                                        </label>
-                                        <select
-                                            name="grade"
-                                            value={formData.grade}
-                                            onChange={handleChange}
-                                            className="form-select"
-                                            disabled={loading || success}
-                                        >
-                                            {gradeOptions.map(grade => (
-                                                <option key={grade.value} value={grade.value}>
-                                                    {grade.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <small className="form-help">Set initial grade if applicable</small>
+                                    <div className="status-buttons">
+                                        {statusOptions.map((status) => (
+                                            <button
+                                                key={status.value}
+                                                type="button"
+                                                className={`status-btn ${formData.status === status.value ? 'active' : ''}`}
+                                                onClick={() => handleStatusSelect(status.value)}
+                                                style={{ borderLeftColor: status.color }}
+                                                disabled={loading || success}
+                                            >
+                                                <i className="fas fa-circle" style={{ color: status.color }}></i>
+                                                {status.label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Database Preview */}
+                        {/* Preview */}
                         <div className="preview-section">
-                            <h3><i className="fas fa-database"></i> Database Preview</h3>
+                            <h3><i className="fas fa-eye"></i> Preview</h3>
                             <div className="preview-card">
                                 <div className="preview-header">
                                     <span className="preview-student">
-                                        <i className="fas fa-user"></i> {formData.studentName || 'New Student'}
+                                        <i className="fas fa-user"></i>{' '}
+                                        {selectedStudent?.name || '—'}
+                                        {selectedStudent?.studentId && (
+                                            <span className="student-id-badge" style={{ marginLeft: 8 }}>
+                                                {selectedStudent.studentId}
+                                            </span>
+                                        )}
                                     </span>
                                     <span className={`preview-status ${formData.status}`}>
-                                        <i className="fas fa-database"></i> MongoDB Ready
+                                        {formData.status}
                                     </span>
                                 </div>
                                 <div className="preview-body">
                                     <div className="preview-grid">
                                         <div>
-                                            <p><strong>Email:</strong> {formData.studentEmail || 'student@example.com'}</p>
-                                            <p><strong>Course:</strong> {getSelectedCourse()?.title || 'No course selected'}</p>
+                                            <p><strong>Portal email:</strong> {selectedStudent?.email || '—'}</p>
+                                            <p><strong>Student ID:</strong> {formData.studentId?.trim() || selectedStudent?.studentId || '—'}</p>
+                                            <p><strong>Personal email:</strong> {formData.personalEmail?.trim() || '—'}</p>
+                                            <p><strong>Course:</strong> {getSelectedCourse()?.title || '—'}</p>
                                         </div>
-                                        <div>
-                                            <p><strong>Progress:</strong> {formData.progress}%</p>
-                                            <p><strong>Status:</strong> <span className={`status-label ${formData.status}`}>{formData.status}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="database-info">
-                                        <i className="fas fa-info-circle"></i>
-                                        <small>This data will be saved permanently in MongoDB database</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Form Actions - fixed at bottom of modal */}
                     <div className="form-actions">
                         <button
                             type="button"
@@ -456,61 +476,21 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses }) => {
                         >
                             <i className="fas fa-times"></i> Cancel
                         </button>
-                        
-                        <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => {
-                                setFormData({
-                                    studentName: '',
-                                    studentEmail: '',
-                                    courseId: '',
-                                    enrollmentDate: new Date().toISOString().split('T')[0],
-                                    status: 'pending',
-                                    progress: 0,
-                                    grade: ''
-                                });
-                                setError('');
-                            }}
-                            disabled={loading || success}
-                        >
-                            <i className="fas fa-redo"></i> Clear
-                        </button>
-                        
                         <button
                             type="submit"
                             className="btn-primary"
-                            disabled={loading || success || !backendConnected || courses.length === 0}
+                            disabled={loading || success || courses.length === 0 || (!preselectedStudent && students.length === 0)}
                         >
                             {loading ? (
-                                <>
-                                    <i className="fas fa-spinner fa-spin"></i> Saving to Database...
-                                </>
+                                <><i className="fas fa-spinner fa-spin"></i> Saving...</>
                             ) : success ? (
-                                <>
-                                    <i className="fas fa-check"></i> Saved Successfully
-                                </>
+                                <><i className="fas fa-check"></i> Enrolled!</>
                             ) : (
-                                <>
-                                    <i className="fas fa-database"></i> Save to MongoDB
-                                </>
+                                <><i className="fas fa-user-graduate"></i> Enroll Student</>
                             )}
                         </button>
                     </div>
                 </form>
-
-                {/* Database Connection Info */}
-                {!backendConnected && (
-                    <div className="connection-info">
-                        <h4><i className="fas fa-server"></i> Backend Connection Required</h4>
-                        <p>To save enrollments permanently, ensure backend server is running:</p>
-                        <code>node backend/server.js</code>
-                        <p className="connection-status">
-                            <i className="fas fa-exclamation-triangle"></i>
-                            Currently running in demo mode - data will not persist
-                        </p>
-                    </div>
-                )}
             </div>
         </div>
     );

@@ -3,9 +3,8 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
 import BlogSidebar from './BlogSidebar';
 import { blogPosts } from './BlogData';
+import { API_BASE_URL } from '../../config/constants';
 import './BlogMainPage.scss';
-
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 // Require full format: local@domain.tld with TLD at least 2 chars (e.g. .com, .co.uk)
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -22,7 +21,7 @@ const BlogCommentSection = ({ postSlug }) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    axios.get(`${API_BASE}/api/blog/${postSlug}/comments`).then((res) => {
+    axios.get(`${API_BASE_URL}/api/blog/${postSlug}/comments`).then((res) => {
       if (!cancelled && res.data?.success) setComments(res.data.comments || []);
     }).catch(() => {
       if (!cancelled) setComments([]);
@@ -42,7 +41,7 @@ const BlogCommentSection = ({ postSlug }) => {
       if (!EMAIL_REGEX.test(email)) return;
       setSubmitting(true);
       setSubmitError('');
-      axios.post(`${API_BASE}/api/blog/${postSlug}/comments`, {
+      axios.post(`${API_BASE_URL}/api/blog/${postSlug}/comments`, {
         authorName: name,
         authorEmail: email,
         text

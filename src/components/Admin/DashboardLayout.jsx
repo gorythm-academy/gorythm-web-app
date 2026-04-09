@@ -80,10 +80,10 @@ const DashboardLayout = () => {
         { path: '/admin/people', icon: 'fas fa-people-group', label: 'People' },
         { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
         { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments' },
-        { path: '/admin/enrollments', icon: 'fas fa-user-graduate', label: 'Enrollments' },
+        { path: '/admin/students-data', icon: 'fas fa-user-graduate', label: 'Students data' },
         { path: '/admin/assignments', icon: 'fas fa-tasks', label: 'Assignments' },
         { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
-        { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact' },
+        { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
         { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
     ];
 

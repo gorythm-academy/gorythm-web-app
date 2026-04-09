@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './PortalLayout.scss';
 
 const StudentPortal = () => {
@@ -13,7 +14,7 @@ const StudentPortal = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/portal/student/dashboard', {
+        const res = await axios.get(`${API_BASE_URL}/api/portal/student/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(res.data);
@@ -29,7 +30,7 @@ const StudentPortal = () => {
     e.preventDefault();
     setMsg('');
     try {
-      await axios.post('http://localhost:5000/api/portal/student/submissions', submission, {
+      await axios.post(`${API_BASE_URL}/api/portal/student/submissions`, submission, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMsg('Homework submitted.');
@@ -43,7 +44,7 @@ const StudentPortal = () => {
     setMsg('');
     try {
       const answers = quizAttempt.answers.split(',').map((x) => Number(x.trim())).filter((x) => !Number.isNaN(x));
-      await axios.post('http://localhost:5000/api/portal/student/quiz-attempts', { quizId: quizAttempt.quizId, answers }, {
+      await axios.post(`${API_BASE_URL}/api/portal/student/quiz-attempts`, { quizId: quizAttempt.quizId, answers }, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMsg('Quiz submitted.');

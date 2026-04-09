@@ -488,27 +488,19 @@
                         transform: translateY(-2px);
                     }
                     
-                    &.view-btn {
-                        background: var(--color-accent);
-                        
-                        &:hover {
-                            background: var(--color-accent-dark);
-                        }
-                    }
-                    
-                    &.refund-btn {
-                        background: #f59e0b;
-                        
-                        &:hover {
-                            background: #d97706;
-                        }
-                    }
-                    
                     &.invoice-btn {
                         background: #10b981;
                         
                         &:hover {
                             background: #059669;
+                        }
+                    }
+
+                    &.delete-btn {
+                        background: #ef4444;
+
+                        &:hover {
+                            background: #dc2626;
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './PortalLayout.scss';
 
 const AccountantPortal = () => {
@@ -17,9 +18,9 @@ const AccountantPortal = () => {
     const fetchData = async () => {
       try {
         const [payRes, teachersRes, runsRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/payments', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('http://localhost:5000/api/payroll/teachers', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('http://localhost:5000/api/payroll/runs', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/api/payments`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/api/payroll/teachers`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/api/payroll/runs`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
         const payments = payRes.data?.payments || [];
         setTeachers(teachersRes.data?.teachers || []);
@@ -41,7 +42,7 @@ const AccountantPortal = () => {
     e.preventDefault();
     setMsg('');
     try {
-      await axios.post('http://localhost:5000/api/payroll/salary-profile', salaryForm, {
+      await axios.post(`${API_BASE_URL}/api/payroll/salary-profile`, salaryForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMsg('Teacher salary profile saved.');
@@ -54,7 +55,7 @@ const AccountantPortal = () => {
     e.preventDefault();
     setMsg('');
     try {
-      await axios.post('http://localhost:5000/api/payroll/attendance', attendanceForm, {
+      await axios.post(`${API_BASE_URL}/api/payroll/attendance`, attendanceForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMsg('Teacher attendance saved.');
@@ -67,10 +68,10 @@ const AccountantPortal = () => {
     e.preventDefault();
     setMsg('');
     try {
-      await axios.post('http://localhost:5000/api/payroll/run', runForm, {
+      await axios.post(`${API_BASE_URL}/api/payroll/run`, runForm, {
           headers: { Authorization: `Bearer ${token}` },
         });
-      const runsRes = await axios.get('http://localhost:5000/api/payroll/runs', {
+      const runsRes = await axios.get(`${API_BASE_URL}/api/payroll/runs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRuns(runsRes.data?.runs || []);

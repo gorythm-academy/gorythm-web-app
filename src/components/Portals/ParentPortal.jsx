@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './PortalLayout.scss';
 
 const ParentPortal = () => {
@@ -12,7 +13,7 @@ const ParentPortal = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/portal/parent/dashboard', {
+        const res = await axios.get(`${API_BASE_URL}/api/portal/parent/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setSummary(res.data.summary);
@@ -28,7 +29,7 @@ const ParentPortal = () => {
     e.preventDefault();
     setMsg('');
     try {
-      await axios.post('http://localhost:5000/api/portal/admin/link-parent-student', linkForm, {
+      await axios.post(`${API_BASE_URL}/api/portal/admin/link-parent-student`, linkForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMsg('Link request submitted.');

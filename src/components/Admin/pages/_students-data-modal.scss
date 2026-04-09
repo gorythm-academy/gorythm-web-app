@@ -1,20 +1,20 @@
 /* Responsive Design */
 @media (max-width: $bp-legacy-1400) {
-    .enrollments-table-container {
+    .students-data-table-container {
         overflow-x: auto;
         
         &::before {
             display: block;
         }
         
-        .enrollments-table {
+        .students-data-table {
             min-width: 1200px;
         }
     }
 }
 
 @media (max-width: $bp-legacy-768) {
-    .enrollments-management {
+    .students-data-page {
         padding: 16px;
     }
     
@@ -201,6 +201,24 @@
                     background: #f1f5f9;
                     color: #64748b;
                 }
+            }
+
+            .form-hint-muted {
+                display: block;
+                margin-top: 6px;
+                font-size: 12px;
+                color: #64748b;
+                line-height: 1.35;
+            }
+
+            .portal-email-readonly-edit {
+                padding: 10px 12px;
+                background: #f1f5f9;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 14px;
+                color: #334155;
+                word-break: break-all;
             }
         }
         

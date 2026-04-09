@@ -240,4 +240,28 @@ router.post('/:id/refund', async (req, res) => {
     }
 });
 
+// Delete payment by id
+router.delete('/:id', async (req, res) => {
+    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+        return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
+    }
+
+    try {
+        const deletedPayment = await Payment.findByIdAndDelete(req.params.id);
+
+        if (!deletedPayment) {
+            return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Payment deleted successfully',
+            paymentId: req.params.id
+        });
+    } catch (error) {
+        console.error('Delete payment error:', error);
+        return res.status(500).json({ success: false, error: 'Failed to delete payment' });
+    }
+});
+
 module.exports = router;

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { jsPDF } from 'jspdf';
 import { getAuthToken } from '../../../utils/authStorage';
+import { API_BASE_URL } from '../../../config/constants';
 import './PaymentsManagement.scss';
 
 const COLUMN_DEFS = ['checkbox', 'transactionId', 'student', 'course', 'amount', 'email', 'status', 'method', 'date', 'actions'];
@@ -99,7 +101,7 @@ const PaymentsManagement = () => {
             // Try backend first
             try {
                 const token = getAuthToken();
-                const response = await axios.get('http://localhost:5000/api/payments', {
+                const response = await axios.get(`${API_BASE_URL}/api/payments`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const fetchedPayments = response.data.payments || mockPayments;
@@ -286,20 +288,124 @@ const PaymentsManagement = () => {
         }
     };
 
-    const handleRefund = async (paymentId) => {
-        if (!window.confirm('Issue refund for this payment?')) return;
-        
+    const handleDeletePayment = async (paymentId) => {
+        if (!window.confirm('Delete this payment record? This action cannot be undone.')) return;
+
         try {
             const token = getAuthToken();
-            await axios.post(`http://localhost:5000/api/payments/${paymentId}/refund`, {}, {
+            await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
-            alert('Refund initiated successfully');
-            fetchPayments(); // Refresh data
         } catch (error) {
-            alert('Refund failed: ' + (error.response?.data?.error || error.message));
+            console.warn('Backend delete failed, removing locally instead:', error);
         }
+
+        setPayments((prev) => {
+            const nextPayments = prev.filter((payment) => payment._id !== paymentId);
+            calculateStats(nextPayments);
+            return nextPayments;
+        });
+        setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
+    };
+
+    const triggerDownload = (blob, fileName) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const downloadInvoice = async (payment) => {
+        const safeTransactionId = (payment.transactionId || payment._id || 'invoice').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const fileName = `invoice_${safeTransactionId}.pdf`;
+
+        try {
+            const token = getAuthToken();
+            const response = await axios.get(`${API_BASE_URL}/api/payments/${payment._id}/invoice`, {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob'
+            });
+
+            const contentType = response.headers['content-type'] || 'application/pdf';
+            const extension = contentType.includes('pdf') ? 'pdf' : 'txt';
+            triggerDownload(response.data, `invoice_${safeTransactionId}.${extension}`);
+            return;
+        } catch (error) {
+            console.warn('Invoice endpoint unavailable, generating local invoice file instead:', error);
+        }
+
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const marginX = 14;
+        let cursorY = 18;
+
+        const rowHeight = 10;
+        const leftColWidth = 55;
+        const rightColWidth = pageWidth - (marginX * 2) - leftColWidth;
+        const tableWidth = leftColWidth + rightColWidth;
+
+        const invoiceRows = [
+            ['Transaction ID', payment.transactionId || 'N/A'],
+            ['Student', payment.user?.name || payment.studentName || 'Unknown'],
+            ['Email', payment.user?.email || payment.email || 'N/A'],
+            ['Course', payment.course?.title || payment.courseName || 'Unknown Course'],
+            ['Amount', `$${Number(payment.amount || 0).toFixed(2)} ${payment.currency || ''}`.trim()],
+            ['Status', payment.status || 'N/A'],
+            ['Payment Method', payment.paymentMethod || 'N/A'],
+            ['Payment Date', payment.createdAt ? new Date(payment.createdAt).toLocaleString() : 'N/A'],
+            ['Generated At', new Date().toLocaleString()]
+        ];
+
+        doc.setFontSize(17);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Gorythm - Payment Invoice', marginX, cursorY);
+        cursorY += 8;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Invoice #: ${safeTransactionId}`, marginX, cursorY);
+        cursorY += 10;
+
+        // Table header
+        doc.setFillColor(243, 244, 246);
+        doc.rect(marginX, cursorY, tableWidth, rowHeight, 'F');
+        doc.rect(marginX, cursorY, leftColWidth, rowHeight);
+        doc.rect(marginX + leftColWidth, cursorY, rightColWidth, rowHeight);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text('Field', marginX + 2, cursorY + 6.5);
+        doc.text('Value', marginX + leftColWidth + 2, cursorY + 6.5);
+        cursorY += rowHeight;
+
+        // Table body
+        invoiceRows.forEach(([label, value], idx) => {
+            if (idx % 2 === 0) {
+                doc.setFillColor(250, 250, 250);
+                doc.rect(marginX, cursorY, tableWidth, rowHeight, 'F');
+            }
+
+            doc.rect(marginX, cursorY, leftColWidth, rowHeight);
+            doc.rect(marginX + leftColWidth, cursorY, rightColWidth, rowHeight);
+            doc.setFont('helvetica', 'bold');
+            doc.text(String(label), marginX + 2, cursorY + 6.5);
+            doc.setFont('helvetica', 'normal');
+
+            const wrappedValue = doc.splitTextToSize(String(value), rightColWidth - 4);
+            doc.text(wrappedValue, marginX + leftColWidth + 2, cursorY + 6.5);
+
+            const dynamicRowHeight = Math.max(rowHeight, (wrappedValue.length * 5) + 3);
+            if (dynamicRowHeight > rowHeight) {
+                doc.rect(marginX, cursorY, leftColWidth, dynamicRowHeight);
+                doc.rect(marginX + leftColWidth, cursorY, rightColWidth, dynamicRowHeight);
+            }
+
+            cursorY += dynamicRowHeight;
+        });
+
+        doc.save(fileName);
     };
 
     const exportPayments = () => {
@@ -565,27 +671,18 @@ const PaymentsManagement = () => {
                                 <td>
                                     <div className="action-buttons">
                                         <button 
-                                            className="action-btn view-btn"
-                                            title="View Details"
-                                            onClick={() => alert(`Payment Details:\n\nTransaction: ${payment.transactionId}\nAmount: $${payment.amount}\nStatus: ${payment.status}\nDate: ${new Date(payment.createdAt).toLocaleString()}`)}
-                                        >
-                                            <i className="fas fa-eye"></i>
-                                        </button>
-                                        {payment.status === 'completed' && (
-                                            <button 
-                                                className="action-btn refund-btn"
-                                                title="Issue Refund"
-                                                onClick={() => handleRefund(payment._id)}
-                                            >
-                                                <i className="fas fa-undo"></i>
-                                            </button>
-                                        )}
-                                        <button 
                                             className="action-btn invoice-btn"
                                             title="Download Invoice"
-                                            onClick={() => alert('Invoice download feature coming soon!')}
+                                            onClick={() => downloadInvoice(payment)}
                                         >
                                             <i className="fas fa-file-invoice"></i>
+                                        </button>
+                                        <button
+                                            className="action-btn delete-btn"
+                                            title="Delete Payment"
+                                            onClick={() => handleDeletePayment(payment._id)}
+                                        >
+                                            <i className="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 </td>

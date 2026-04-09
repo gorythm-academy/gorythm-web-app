@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { CATEGORY_ORDER } from '../../HomeSections/Courses';
+import { API_BASE_URL } from '../../../config/constants';
 import './CoursesManagement.scss';
 
 const getCategorySortIndex = (category) => {
@@ -186,7 +187,7 @@ const CoursesManagement = () => {
             const token = getAuthToken();
             
             console.log('Fetching courses...');
-            const response = await axios.get('http://localhost:5000/api/courses', {
+            const response = await axios.get(`${API_BASE_URL}/api/courses`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -357,10 +358,10 @@ const CoursesManagement = () => {
                 
                 console.log('Updating course - ID:', courseId);
                 console.log('Payload:', payload);
-                console.log('URL:', `http://localhost:5000/api/courses/${courseId}`);
+                console.log('URL:', `${API_BASE_URL}/api/courses/${courseId}`);
                 
                 const response = await axios.put(
-                    `http://localhost:5000/api/courses/${courseId}`,
+                    `${API_BASE_URL}/api/courses/${courseId}`,
                     payload,
                     { 
                         headers: { 
@@ -379,7 +380,7 @@ const CoursesManagement = () => {
                         .filter(id => id !== courseId)
                         .map(id => 
                             axios.put(
-                                `http://localhost:5000/api/courses/${id}`,
+                                `${API_BASE_URL}/api/courses/${id}`,
                                 payload,
                                 { headers: { Authorization: `Bearer ${token}` } }
                             ).catch(err => {
@@ -395,7 +396,7 @@ const CoursesManagement = () => {
             } else {
                 console.log('Creating new course:', payload);
                 const response = await axios.post(
-                    'http://localhost:5000/api/courses',
+                    `${API_BASE_URL}/api/courses`,
                     payload,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -477,7 +478,7 @@ setFormData({
         if (window.confirm('Are you sure you want to delete this course?')) {
             try {
                 const token = getAuthToken();
-                await axios.delete(`http://localhost:5000/api/courses/${courseId}`, {
+                await axios.delete(`${API_BASE_URL}/api/courses/${courseId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 
@@ -504,7 +505,7 @@ setFormData({
             
             // FIXED: Use correct endpoint and payload format
             const response = await axios.post(
-                'http://localhost:5000/api/courses/bulk-delete', 
+                `${API_BASE_URL}/api/courses/bulk-delete`, 
                 { ids: selectedCourses },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -526,7 +527,7 @@ setFormData({
         const newStatus = currentStatus === 'published' ? 'draft' : 'published';
         try {
             const token = getAuthToken();
-            await axios.patch(`http://localhost:5000/api/courses/${courseId}/status`, 
+            await axios.patch(`${API_BASE_URL}/api/courses/${courseId}/status`, 
                 { status: newStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -544,7 +545,7 @@ setFormData({
 
         try {
             const token = getAuthToken();
-            await axios.patch('http://localhost:5000/api/courses/bulk-status', 
+            await axios.patch(`${API_BASE_URL}/api/courses/bulk-status`, 
                 { courseIds: selectedCourses, status: targetStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

@@ -1,12 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const Enrollment = require('../models/Enrollment');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
+const { generateStudentId } = require('../utils/studentIds');
 
 router.use(authMiddleware);
 router.use(allowRoles('super-admin', 'admin'));
+
+/** Treat missing isActive as true (legacy documents). */
+const isUserActive = (u) => u.isActive !== false;
+
+const ensureStudentPlaceholderEnrollment = async (userId) => {
+    const existingEnrollment = await Enrollment.findOne({ student: userId });
+    if (existingEnrollment) return existingEnrollment;
+
+    return Enrollment.create({
+        student: userId,
+        course: null,
+        status: 'pending',
+        progress: 0,
+        grade: null,
+        enrollmentDate: new Date(),
+        lastAccessed: new Date(),
+        paymentStatus: 'pending',
+    });
+};
 
 const PEOPLE_ROLES = ['student', 'teacher', 'parent'];
 const STAFF_ROLES = ['admin', 'super-admin', 'accountant'];
@@ -57,15 +78,17 @@ router.get('/', async (req, res) => {
             success: true,
             users: users.map(user => ({
                 _id: user._id,
+                studentId: user.studentId || null,
                 name: user.name,
                 email: user.email,
+                personalEmail: user.personalEmail || '',
                 role: user.role,
                 phone: user.phone || '',
                 avatar: user.avatar,
-                isActive: user.isActive,
+                isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: user.isActive ? 'active' : 'inactive',
+                status: isUserActive(user) ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null,
@@ -95,15 +118,17 @@ router.get('/:id', async (req, res) => {
             success: true,
             user: {
                 _id: user._id,
+                studentId: user.studentId || null,
                 name: user.name,
                 email: user.email,
+                personalEmail: user.personalEmail || '',
                 role: user.role,
                 phone: user.phone || '',
                 avatar: user.avatar,
-                isActive: user.isActive,
+                isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: user.isActive ? 'active' : 'inactive',
+                status: isUserActive(user) ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null
@@ -117,7 +142,7 @@ router.get('/:id', async (req, res) => {
 // Create new user (super-admin: any role; admin: student / teacher / parent only)
 router.post('/', async (req, res) => {
     try {
-        const { name, email, password, role, phone, mustChangePassword } = req.body;
+        const { name, email, password, role, phone, mustChangePassword, personalEmail, studentId } = req.body;
 
         const actorRole = req.user?.role;
         const isSuper = actorRole === 'super-admin';
@@ -146,7 +171,7 @@ router.post('/', async (req, res) => {
             });
         }
 
-        const user = new User({
+        const userFields = {
             name,
             email: email.toLowerCase(),
             password,
@@ -155,9 +180,43 @@ router.post('/', async (req, res) => {
             isActive: true,
             mustChangePassword: mustChangePassword !== false,
             isSystemAccount: role === 'super-admin'
-        });
+        };
 
+        if (nextRole === 'student') {
+            const sid = String(studentId || '').trim();
+            if (sid) {
+                if (!/^GRT-\d{4}-\d{5}$/.test(sid)) {
+                    return res.status(400).json({ success: false, error: 'Invalid student ID format' });
+                }
+                const existingSid = await User.findOne({ studentId: sid });
+                if (existingSid) {
+                    return res.status(400).json({ success: false, error: 'Student ID already in use' });
+                }
+                userFields.studentId = sid;
+            } else {
+                userFields.studentId = await generateStudentId();
+            }
+            if (personalEmail !== undefined && personalEmail !== null) {
+                const pe = String(personalEmail).trim();
+                if (pe && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pe)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid personal email format',
+                    });
+                }
+                userFields.personalEmail = pe;
+            }
+        }
+
+        const user = new User(userFields);
         await user.save();
+
+        // Auto-create a placeholder enrollment so students appear on the Enrollment tab immediately.
+        // The placeholder has course = null; it gets filled when admin assigns a course.
+        if (nextRole === 'student') {
+            await ensureStudentPlaceholderEnrollment(user._id);
+        }
+
         await logAudit({
             actor: req.user.userId || req.user.id,
             action: 'user.create',
@@ -171,14 +230,16 @@ router.post('/', async (req, res) => {
             message: 'User created successfully',
             user: {
                 _id: user._id,
+                studentId: user.studentId || null,
                 name: user.name,
                 email: user.email,
+                personalEmail: user.personalEmail || '',
                 role: user.role,
                 phone: user.phone,
-                isActive: user.isActive,
+                isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: 'active',
+                status: isUserActive(user) ? 'active' : 'inactive',
                 enrolledCourses: 0,
                 joinDate: user.createdAt,
                 lastLogin: null
@@ -193,7 +254,7 @@ router.post('/', async (req, res) => {
 // Update user
 router.put('/:id', async (req, res) => {
     try {
-        const { name, email, role, phone, isActive } = req.body;
+        const { name, email, role, phone, isActive, personalEmail, studentId } = req.body;
         const actorRole = req.user?.role;
 
         const user = await User.findById(req.params.id);
@@ -229,14 +290,50 @@ router.put('/:id', async (req, res) => {
             user.email = email.toLowerCase();
         }
 
+        const wasStudent = user.role === 'student';
+
         // Update fields
         if (name) user.name = name;
         if (role) user.role = role;
         if (phone !== undefined) user.phone = phone;
         if (isActive !== undefined) user.isActive = isActive;
+
+        if (personalEmail !== undefined && user.role === 'student') {
+            const pe = String(personalEmail).trim();
+            if (pe && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pe)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid personal email format',
+                });
+            }
+            user.personalEmail = pe;
+        }
+
+        if (studentId !== undefined && user.role === 'student') {
+            const sid = String(studentId || '').trim();
+            if (sid && !/^GRT-\d{4}-\d{5}$/.test(sid)) {
+                return res.status(400).json({ success: false, error: 'Invalid student ID format' });
+            }
+            if (sid) {
+                const existingSid = await User.findOne({ studentId: sid, _id: { $ne: user._id } });
+                if (existingSid) {
+                    return res.status(400).json({ success: false, error: 'Student ID already in use' });
+                }
+                user.studentId = sid;
+            }
+        }
+
+        if (role === 'student' && !user.studentId) {
+            user.studentId = await generateStudentId();
+        }
         
         user.updatedAt = Date.now();
         await user.save();
+
+        if (!wasStudent && user.role === 'student') {
+            await ensureStudentPlaceholderEnrollment(user._id);
+        }
+
         await logAudit({
             actor: req.user.userId || req.user.id,
             action: 'user.update',
@@ -250,14 +347,16 @@ router.put('/:id', async (req, res) => {
             message: 'User updated successfully',
             user: {
                 _id: user._id,
+                studentId: user.studentId || null,
                 name: user.name,
                 email: user.email,
+                personalEmail: user.personalEmail || '',
                 role: user.role,
                 phone: user.phone,
-                isActive: user.isActive,
+                isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: user.isActive ? 'active' : 'inactive',
+                status: isUserActive(user) ? 'active' : 'inactive',
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null

@@ -41,8 +41,8 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
         
-        // Check if user is active
-        if (!user.isActive) {
+        // Check if user is active (missing field treated as active for legacy documents)
+        if (user.isActive === false) {
             return res.status(400).json({ error: 'Account is deactivated' });
         }
 
@@ -88,7 +88,7 @@ router.post('/admin-login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        if (!user.isActive || user.canLogin === false) {
+        if (user.isActive === false || user.canLogin === false) {
             return res.status(403).json({ error: 'Account cannot access admin login' });
         }
 

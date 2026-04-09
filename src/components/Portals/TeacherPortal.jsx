@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../utils/authStorage';
+import { API_BASE_URL } from '../../config/constants';
 import './PortalLayout.scss';
 
 const TeacherPortal = () => {
@@ -13,7 +14,7 @@ const TeacherPortal = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/portal/teacher/dashboard', {
+        const res = await axios.get(`${API_BASE_URL}/api/portal/teacher/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setSummary(res.data.summary);
@@ -29,7 +30,7 @@ const TeacherPortal = () => {
     e.preventDefault();
     setActionMsg('');
     try {
-      await axios.post('http://localhost:5000/api/portal/teacher/attendance', attendanceForm, {
+      await axios.post(`${API_BASE_URL}/api/portal/teacher/attendance`, attendanceForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setActionMsg('Attendance marked successfully.');
@@ -42,7 +43,7 @@ const TeacherPortal = () => {
     e.preventDefault();
     setActionMsg('');
     try {
-      await axios.post('http://localhost:5000/api/portal/teacher/assignments', assignmentForm, {
+      await axios.post(`${API_BASE_URL}/api/portal/teacher/assignments`, assignmentForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setActionMsg('Assignment published successfully.');
