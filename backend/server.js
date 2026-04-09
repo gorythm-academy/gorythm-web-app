@@ -47,7 +47,7 @@ const ensureDefaultAdmin = async () => {
 
 // Middleware
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app',
     credentials: true
 }));
 app.use(helmet());
@@ -125,8 +125,8 @@ app.listen(PORT, () => {
     console.log('='.repeat(50));
     console.log(`📍 Port: ${PORT}`);
     console.log(`📁 Database: ${process.env.MONGODB_URI}`);
-    console.log(`🌐 Frontend: http://localhost:3000`);
-    console.log(`🔐 Admin Login: http://localhost:3000/admin/login`);
+    console.log(`🌐 Frontend: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}`);
+    console.log(`🔐 Admin Login: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}/admin/login`);
     console.log(`📊 API Health: http://localhost:5000/health`);
     console.log('='.repeat(50) + '\n');
 });
