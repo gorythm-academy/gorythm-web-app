@@ -75,6 +75,11 @@ if (!mongoUri) {
     console.log('⚠️ Using mock data mode');
 } else {
     mongoose.connect(mongoUri, {
+        dbName: 'gorythm_academy',
+        family: 4,
+        serverSelectionTimeoutMS: 30000,
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 60000,
         useNewUrlParser: true,
         useUnifiedTopology: true,
     })
