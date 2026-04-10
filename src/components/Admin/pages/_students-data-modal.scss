@@ -144,6 +144,22 @@
         flex: 1;
         padding: 24px;
         overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    .modal-inline-error {
+        margin: 14px 24px 0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     
     .edit-form-grid {

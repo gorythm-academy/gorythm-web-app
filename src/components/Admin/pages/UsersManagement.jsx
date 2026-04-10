@@ -206,6 +206,20 @@ const UsersManagement = ({ variant = 'staff' }) => {
         fetchUsers();
     }, [fetchUsers]);
 
+    // Keep scrolling inside Add/Edit user modal (not the page behind)
+    useEffect(() => {
+        if (!showUserModal) return undefined;
+        const prevOverflow = document.body.style.overflow;
+        const prevTouchAction = document.body.style.touchAction;
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+
+        return () => {
+            document.body.style.overflow = prevOverflow || '';
+            document.body.style.touchAction = prevTouchAction || '';
+        };
+    }, [showUserModal]);
+
     const openCreateModal = () => {
         setEditingUser(null);
         const defaultRole = variant === 'people' ? 'student' : 'admin';

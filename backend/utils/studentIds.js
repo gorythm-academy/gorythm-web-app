@@ -1,13 +1,13 @@
 const User = require('../models/User');
 
 /**
- * Next GRT-{year}-{5-digit-seq} ID (e.g. GRT-2026-00042).
- * Sequence is max existing GRT-{year}-##### for that year + 1.
+ * Next GRT-{year}-{3-digit-seq} ID (e.g. GRT-2026-001).
+ * Sequence is max existing GRT-{year}-### for that year + 1.
  */
 async function generateStudentId() {
     const year = new Date().getFullYear();
     const prefix = `GRT-${year}-`;
-    const regex = new RegExp(`^GRT-${year}-(\\d{5})$`);
+    const regex = new RegExp(`^GRT-${year}-(\\d{3})$`);
 
     const students = await User.find({
         role: 'student',
@@ -27,7 +27,7 @@ async function generateStudentId() {
     let attempts = 0;
     while ((await User.findOne({ studentId: id })) && attempts < 500) {
         seq += 1;
-        id = `${prefix}${String(seq).padStart(5, '0')}`;
+        id = `${prefix}${String(seq).padStart(3, '0')}`;
         attempts += 1;
     }
     return id;

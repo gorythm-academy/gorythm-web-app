@@ -138,13 +138,16 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             }
 
             const personalTrim = (formData.personalEmail || '').trim();
-            if (personalTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalTrim)) {
-                throw new Error('Please enter a valid personal email, or leave it blank');
+            if (personalTrim && personalTrim !== personalTrim.toLowerCase()) {
+                throw new Error('Personal email must be in lowercase letters.');
+            }
+            if (personalTrim && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(personalTrim)) {
+                throw new Error('Please enter a valid personal email format, or leave it blank.');
             }
 
             const studentIdTrim = (formData.studentId || '').trim();
-            if (studentIdTrim && !/^GRT-\d{4}-\d{5}$/.test(studentIdTrim)) {
-                throw new Error('Student ID must match GRT-YYYY-##### (e.g. GRT-2026-00042) or be left blank');
+            if (studentIdTrim && !/^GRT-\d{4}-\d{3}$/.test(studentIdTrim)) {
+                throw new Error('Student ID must match GRT-YYYY-### (e.g. GRT-2026-001) or be left blank.');
             }
 
             const token = getAuthToken();
@@ -347,7 +350,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                         </div>
                                         <div className="form-group">
                                             <label htmlFor="enroll-student-id">
-                                                <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-#####)
+                                                <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-###)
                                             </label>
                                             <input
                                                 id="enroll-student-id"
@@ -356,7 +359,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                                 value={formData.studentId}
                                                 onChange={handleChange}
                                                 className="form-input"
-                                                placeholder="GRT-2026-00042"
+                                                placeholder="GRT-2026-001"
                                                 disabled={loading || success}
                                             />
                                             <small className="form-hint">Optional. If entered, it will be saved to the student account.</small>

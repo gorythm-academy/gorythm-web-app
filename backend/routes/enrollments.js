@@ -4,9 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
-const { backfillMissingStudentIds } = require('../utils/studentIds');
-
-const STUDENT_POPULATE = 'name email personalEmail avatar studentId';
+const STUDENT_POPULATE = 'name email personalEmail avatar studentId isActive';
 const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
 
 const coursePopulate = () => ({
@@ -46,7 +44,6 @@ const ensureStudentEnrollmentBackfill = async () => {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         await ensureStudentEnrollmentBackfill();
-        await backfillMissingStudentIds();
         const enrollments = await Enrollment.find()
             .populate('student', STUDENT_POPULATE)
             .populate(coursePopulate())

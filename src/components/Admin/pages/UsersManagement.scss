@@ -92,7 +92,12 @@
         flex: 1;
 
         .form-scroll-container {
-            overflow: auto;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
             padding: 1.2rem;
         }
 

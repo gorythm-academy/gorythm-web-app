@@ -46,16 +46,14 @@ const StudentsData = () => {
 
     const calculateStats = useCallback((data = []) => {
         const total = data.length;
-        const active = data.filter(e => e.status === 'active').length;
-        const completed = data.filter(e => e.status === 'completed').length;
-        const pending = data.filter(e => e.status === 'pending').length;
-        const inactive = data.filter(e => e.status === 'inactive').length;
+        const active = data.filter(e => e.student?.isActive !== false).length;
+        const inactive = data.filter(e => e.student?.isActive === false).length;
             
         setStats({
             totalEnrollments: total,
             activeEnrollments: active,
-            completedEnrollments: completed,
-            pendingEnrollments: pending,
+            completedEnrollments: 0,
+            pendingEnrollments: 0,
             inactiveEnrollments: inactive
         });
     }, []);
@@ -117,7 +115,7 @@ const StudentsData = () => {
                 personalEmail: s.personalEmail || '',
                 course: c.title || '',
                 enrollmentDate: enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10) : '',
-                status: enrollment.status || '',
+                status: s.isActive === false ? 'inactive' : 'active',
             };
         });
 
@@ -292,62 +290,71 @@ const StudentsData = () => {
         if (window.confirm(`Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`)) {
             try {
                 const token = getAuthToken();
-                const response = await axios.post(`${API_BASE_URL}/api/enrollments/bulk-update`, {
-                    enrollmentIds: selectedEnrollments,
-                    status: newStatus
-                }, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const targetActive = newStatus === 'active';
+                const selectedRows = enrollments.filter((e) => selectedEnrollments.includes(e._id));
+                const uniqueStudentIds = [...new Set(selectedRows.map((e) => e.student?._id).filter(Boolean))];
 
-                if (response.data.success) {
-                    // Update local state
-                    const updated = enrollments.map(enrollment => 
-                        selectedEnrollments.includes(enrollment._id) 
-                            ? { 
-                                ...enrollment, 
-                                status: newStatus,
-                                ...(newStatus === 'completed' && { completionDate: new Date().toISOString() })
-                            }
-                            : enrollment
-                    );
-                    setEnrollments(updated);
-                    calculateStats(updated);
-                    setSelectedEnrollments([]);
-                    
-                    setSuccessMessage(`Status updated for ${selectedEnrollments.length} enrollment(s)`);
-                    setTimeout(() => setSuccessMessage(''), 3000);
-                }
+                await Promise.all(
+                    uniqueStudentIds.map((studentId) =>
+                        axios.put(
+                            `${API_BASE_URL}/api/users/${studentId}`,
+                            { isActive: targetActive },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        )
+                    )
+                );
+
+                const updated = enrollments.map((enrollment) => {
+                    if (!selectedEnrollments.includes(enrollment._id)) return enrollment;
+                    return {
+                        ...enrollment,
+                        student: {
+                            ...enrollment.student,
+                            isActive: targetActive,
+                        },
+                    };
+                });
+                setEnrollments(updated);
+                calculateStats(updated);
+                setSelectedEnrollments([]);
+
+                setSuccessMessage(`Account status updated for ${uniqueStudentIds.length} student(s)`);
+                setTimeout(() => setSuccessMessage(''), 3000);
             } catch (error) {
                 setErrorMessage(error.response?.data?.message || 'Failed to update status');
             }
         }
     };
 
-    const updateEnrollmentStatus = async (enrollmentId, newStatus) => {
+    const updateEnrollmentStatus = async (enrollment, newStatus) => {
         try {
             const token = getAuthToken();
-            const response = await axios.put(`${API_BASE_URL}/api/enrollments/${enrollmentId}`, {
-                status: newStatus
+            const targetActive = newStatus === 'active';
+            const studentId = enrollment?.student?._id;
+            if (!studentId) return;
+
+            await axios.put(`${API_BASE_URL}/api/users/${studentId}`, {
+                isActive: targetActive
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (response.data.success) {
-                const updated = enrollments.map(enrollment => 
-                    enrollment._id === enrollmentId 
-                        ? { 
-                            ...enrollment, 
-                            status: newStatus,
-                            ...(newStatus === 'completed' && { completionDate: new Date().toISOString() })
-                        }
-                        : enrollment
-                );
-                setEnrollments(updated);
-                calculateStats(updated);
-                
-                setSuccessMessage('Status updated successfully');
-                setTimeout(() => setSuccessMessage(''), 3000);
-            }
+            const updated = enrollments.map((row) =>
+                row._id === enrollment._id
+                    ? {
+                          ...row,
+                          student: {
+                              ...row.student,
+                              isActive: targetActive,
+                          },
+                      }
+                    : row
+            );
+            setEnrollments(updated);
+            calculateStats(updated);
+
+            setSuccessMessage('Account status updated successfully');
+            setTimeout(() => setSuccessMessage(''), 3000);
         } catch (error) {
             setErrorMessage(error.response?.data?.message || 'Failed to update status');
         }
@@ -397,7 +404,8 @@ const handleEditEnrollment = (enrollment) => {
             (student.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.title?.toLowerCase().includes(searchTerm.toLowerCase());
         
-        const matchesStatus = filterStatus === 'all' || enrollment.status === filterStatus;
+        const accountStatus = enrollment.student?.isActive === false ? 'inactive' : 'active';
+        const matchesStatus = filterStatus === 'all' || accountStatus === filterStatus;
         
         return matchesSearch && matchesStatus;
     });
@@ -409,7 +417,7 @@ const handleEditEnrollment = (enrollment) => {
             if (key === 'personalEmail') return (enrollment.student?.personalEmail || '').toLowerCase();
             if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
             if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
-            if (key === 'status') return (enrollment.status || '').toLowerCase();
+            if (key === 'status') return (enrollment.student?.isActive === false ? 'inactive' : 'active');
             return 0;
         };
         const va = getVal(a, sortBy);
@@ -438,8 +446,6 @@ const handleEditEnrollment = (enrollment) => {
 const getEnrollmentStatusIcon = (status) => {
     switch(status) {
         case 'active': return 'play-circle';
-        case 'completed': return 'check-circle';
-        case 'pending': return 'clock';
         case 'inactive': return 'pause-circle';
         default: return 'question-circle';
     }
@@ -447,17 +453,27 @@ const getEnrollmentStatusIcon = (status) => {
 
 const EditEnrollmentModal = () => {
     const [loading, setLoading] = useState(false);
+    const [formError, setFormError] = useState('');
     const [availableCourses, setAvailableCourses] = useState([]);
     const [formData, setFormData] = useState(() => ({
         studentName: editingEnrollment?.student?.name || '',
         studentId: editingEnrollment?.student?.studentId || '',
         personalEmail: editingEnrollment?.student?.personalEmail || '',
         courseId: editingEnrollment?.course?._id || '',
-        status: editingEnrollment?.status || 'pending',
+        status: editingEnrollment?.student?.isActive === false ? 'inactive' : 'active',
         enrollmentDate: editingEnrollment?.enrollmentDate
             ? new Date(editingEnrollment.enrollmentDate).toISOString().split('T')[0]
             : new Date().toISOString().split('T')[0]
     }));
+
+    // Keep scroll inside modal (touch + mouse), not the page behind it
+    useEffect(() => {
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev || '';
+        };
+    }, []);
 
     // Fetch available courses
     useEffect(() => {
@@ -481,38 +497,55 @@ const EditEnrollmentModal = () => {
     const handleSave = async () => {
     try {
         setLoading(true);
-        setErrorMessage('');
+        setFormError('');
         const token = getAuthToken();
 
         const studentIdTrim = (formData.studentId || '').trim();
-        if (studentIdTrim && !/^GRT-\d{4}-\d{5}$/.test(studentIdTrim)) {
-            setErrorMessage('Student ID must match GRT-YYYY-##### (e.g. GRT-2026-00042) or be left blank.');
+        if (studentIdTrim && !/^GRT-\d{4}-\d{3}$/.test(studentIdTrim)) {
+            setFormError('Student ID must match GRT-YYYY-### (e.g. GRT-2026-001) or be left blank.');
             setLoading(false);
             return;
         }
 
         const personalTrim = (formData.personalEmail || '').trim();
-        if (personalTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalTrim)) {
-            setErrorMessage('Personal email must be valid, or leave it blank.');
+        if (personalTrim && personalTrim !== personalTrim.toLowerCase()) {
+            setFormError('Personal email must be in lowercase letters.');
+            setLoading(false);
+            return;
+        }
+        if (personalTrim && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(personalTrim)) {
+            setFormError('Personal email must be in valid email format, or leave it blank.');
             setLoading(false);
             return;
         }
 
-        if (
-            editingEnrollment.student?._id &&
-            (editingEnrollment.student?.name !== formData.studentName ||
-             String(editingEnrollment.student?.personalEmail || '').trim() !== personalTrim)
-        ) {
-            await axios.put(
-                `${API_BASE_URL}/api/users/${editingEnrollment.student._id}`,
-                { name: formData.studentName, personalEmail: personalTrim, studentId: studentIdTrim || undefined },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+        if (editingEnrollment.student?._id) {
+            const currentStudentId = String(editingEnrollment.student?.studentId || '').trim();
+            const shouldUpdateStudentId = !!studentIdTrim && studentIdTrim !== currentStudentId;
+            const shouldUpdateName = editingEnrollment.student?.name !== formData.studentName;
+            const shouldUpdatePersonalEmail =
+                String(editingEnrollment.student?.personalEmail || '').trim() !== personalTrim;
+            const currentAccountStatus = editingEnrollment.student?.isActive === false ? 'inactive' : 'active';
+            const shouldUpdateIsActive = formData.status !== currentAccountStatus;
+
+            const userUpdatePayload = {};
+            if (shouldUpdateName) userUpdatePayload.name = formData.studentName;
+            if (shouldUpdatePersonalEmail) userUpdatePayload.personalEmail = personalTrim;
+            // Only set studentId when admin explicitly enters it
+            if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
+            if (shouldUpdateIsActive) userUpdatePayload.isActive = formData.status === 'active';
+
+            if (Object.keys(userUpdatePayload).length) {
+                await axios.put(
+                    `${API_BASE_URL}/api/users/${editingEnrollment.student._id}`,
+                    userUpdatePayload,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+            }
         }
 
         // Update enrollment (including course change)
         const updateData = {
-            status: formData.status,
             enrollmentDate: formData.enrollmentDate,
             courseId: formData.courseId || undefined,
         };
@@ -538,6 +571,7 @@ const EditEnrollmentModal = () => {
                             name: formData.studentName,
                             studentId: studentIdTrim || enrollment.student?.studentId,
                             personalEmail: personalTrim,
+                            isActive: formData.status === 'active',
                         },
                         course: newCourse
                     }
@@ -551,13 +585,14 @@ const EditEnrollmentModal = () => {
             handleClose();
         }
     } catch (error) {
-        setErrorMessage(error.response?.data?.message || 'Failed to update');
+        setFormError(error.response?.data?.message || 'Failed to update');
     } finally {
         setLoading(false);
     }
 };
 
     const handleClose = () => {
+        setFormError('');
         setShowEditModal(false);
         setEditingEnrollment(null);
     };
@@ -570,14 +605,20 @@ const EditEnrollmentModal = () => {
                 <div className="modal-header">
                     <h2><i className="fas fa-edit"></i> Edit Enrollment</h2>
                     <div className="header-subtitle">
-                        <span className={`status-badge ${editingEnrollment.status}`}>
-                            {editingEnrollment.status}
+                        <span className={`status-badge ${editingEnrollment?.student?.isActive === false ? 'inactive' : 'active'}`}>
+                            {editingEnrollment?.student?.isActive === false ? 'inactive' : 'active'}
                         </span>
                     </div>
                     <button className="close-btn" onClick={handleClose}>
                         <i className="fas fa-times"></i>
                     </button>
                 </div>
+
+                {formError && (
+                    <div className="modal-inline-error">
+                        <i className="fas fa-exclamation-circle"></i> {formError}
+                    </div>
+                )}
 
                 <div className="modal-body">
                     <div className="edit-form-grid">
@@ -596,14 +637,14 @@ const EditEnrollmentModal = () => {
                             </div>
                             <div className="form-group">
                                 <label>
-                                    <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-#####)
+                                    <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-###)
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.studentId}
                                     onChange={(e) => setFormData({...formData, studentId: e.target.value})}
                                     className="form-input"
-                                    placeholder="GRT-2026-00042"
+                                    placeholder="GRT-2026-001"
                                 />
                                 <small className="form-hint-muted">Leave blank to keep existing ID (if any).</small>
                             </div>
@@ -682,9 +723,7 @@ const EditEnrollmentModal = () => {
                                         onChange={(e) => setFormData({...formData, status: e.target.value})}
                                         className="form-select"
                                     >
-                                        <option value="pending">Pending</option>
                                         <option value="active">Active</option>
-                                        <option value="completed">Completed</option>
                                         <option value="inactive">Inactive</option>
                                     </select>
                                 </div>
@@ -806,15 +845,9 @@ const EditEnrollmentModal = () => {
                         <button className="bulk-btn" onClick={() => updateSelectedStatus('active')}>
                             <i className="fas fa-play"></i> Set Active
                         </button>
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('completed')}>
-                            <i className="fas fa-check"></i> Set Completed
+                        <button className="bulk-btn" onClick={() => updateSelectedStatus('inactive')}>
+                            <i className="fas fa-pause"></i> Set Inactive
                         </button>
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('pending')}>
-                            <i className="fas fa-clock"></i> Set Pending
-                        </button>
-<button className="bulk-btn" onClick={() => updateSelectedStatus('inactive')}>
-    <i className="fas fa-pause"></i> Set Inactive
-</button>
 {/* 👇 ADD THIS LINE AFTER INACTIVE BUTTON 👇 */}
 <button 
     className="bulk-btn edit"
@@ -856,33 +889,15 @@ const EditEnrollmentModal = () => {
                         <p>Active Students</p>
                     </div>
                 </div>
-                <div className="stat-card completed">
+                <div className="stat-card inactive">
                     <div className="stat-icon">
-                        <i className="fas fa-check-circle"></i>
+                        <i className="fas fa-pause-circle"></i>
                     </div>
                     <div className="stat-info">
-                        <h3>{stats.completedEnrollments}</h3>
-                        <p>Completed</p>
+                        <h3>{stats.inactiveEnrollments}</h3>
+                        <p>Inactive</p>
                     </div>
                 </div>
-                <div className="stat-card pending">
-                    <div className="stat-icon">
-                        <i className="fas fa-clock"></i>
-                    </div>
-                    <div className="stat-info">
-                        <h3>{stats.pendingEnrollments}</h3>
-                        <p>Pending</p>
-                    </div>
-                </div>
-    <div className="stat-card inactive">
-        <div className="stat-icon">
-            <i className="fas fa-pause-circle"></i>
-        </div>
-        <div className="stat-info">
-            <h3>{stats.inactiveEnrollments}</h3>
-            <p>Inactive</p>
-        </div>
-    </div>
             </div>
 
             {/* Controls Bar */}
@@ -905,8 +920,6 @@ const EditEnrollmentModal = () => {
                     >
                         <option value="all">All Status</option>
                         <option value="active">Active</option>
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
                         <option value="inactive">Inactive</option>
                     </select>
                     
@@ -1049,19 +1062,17 @@ const EditEnrollmentModal = () => {
                                         </td>
                                         <td>
                                             <div className="status-cell">
-                                                <span className={`status-badge ${enrollment.status || 'pending'}`}>
-                                                    <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.status)}`}></i>
-                                                    {(enrollment.status || 'pending').charAt(0).toUpperCase() + (enrollment.status || 'pending').slice(1)}
+                                                <span className={`status-badge ${enrollment.student?.isActive === false ? 'inactive' : 'active'}`}>
+                                                    <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.student?.isActive === false ? 'inactive' : 'active')}`}></i>
+                                                    {(enrollment.student?.isActive === false ? 'inactive' : 'active').charAt(0).toUpperCase() + (enrollment.student?.isActive === false ? 'inactive' : 'active').slice(1)}
                                                 </span>
                                                 <select
                                                     className="status-select-inline"
-                                                    value={enrollment.status || 'pending'}
-                                                    onChange={(e) => updateEnrollmentStatus(enrollment._id, e.target.value)}
+                                                    value={enrollment.student?.isActive === false ? 'inactive' : 'active'}
+                                                    onChange={(e) => updateEnrollmentStatus(enrollment, e.target.value)}
                                                     title="Change status"
                                                 >
-                                                    <option value="pending">Pending</option>
                                                     <option value="active">Active</option>
-                                                    <option value="completed">Completed</option>
                                                     <option value="inactive">Inactive</option>
                                                 </select>
                                             </div>

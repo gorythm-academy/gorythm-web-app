@@ -5,7 +5,7 @@ const Enrollment = require('../models/Enrollment');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
-const { generateStudentId } = require('../utils/studentIds');
+// NOTE: studentId is now manual-entry only (no auto-generation).
 
 router.use(authMiddleware);
 router.use(allowRoles('super-admin', 'admin'));
@@ -185,7 +185,7 @@ router.post('/', async (req, res) => {
         if (nextRole === 'student') {
             const sid = String(studentId || '').trim();
             if (sid) {
-                if (!/^GRT-\d{4}-\d{5}$/.test(sid)) {
+                if (!/^GRT-\d{4}-\d{3}$/.test(sid)) {
                     return res.status(400).json({ success: false, error: 'Invalid student ID format' });
                 }
                 const existingSid = await User.findOne({ studentId: sid });
@@ -193,8 +193,6 @@ router.post('/', async (req, res) => {
                     return res.status(400).json({ success: false, error: 'Student ID already in use' });
                 }
                 userFields.studentId = sid;
-            } else {
-                userFields.studentId = await generateStudentId();
             }
             if (personalEmail !== undefined && personalEmail !== null) {
                 const pe = String(personalEmail).trim();
@@ -311,7 +309,7 @@ router.put('/:id', async (req, res) => {
 
         if (studentId !== undefined && user.role === 'student') {
             const sid = String(studentId || '').trim();
-            if (sid && !/^GRT-\d{4}-\d{5}$/.test(sid)) {
+            if (sid && !/^GRT-\d{4}-\d{3}$/.test(sid)) {
                 return res.status(400).json({ success: false, error: 'Invalid student ID format' });
             }
             if (sid) {
@@ -323,9 +321,7 @@ router.put('/:id', async (req, res) => {
             }
         }
 
-        if (role === 'student' && !user.studentId) {
-            user.studentId = await generateStudentId();
-        }
+        // No auto-generation: studentId is set only when explicitly provided.
         
         user.updatedAt = Date.now();
         await user.save();
