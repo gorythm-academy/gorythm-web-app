@@ -67,32 +67,56 @@ app.use(cors({
 app.use(helmet());
 app.use(express.json());
 
-// MongoDB Connection
+// MongoDB Connection — cached for Vercel serverless warm reuse
 const mongoUri = process.env.MONGODB_URI;
 
-if (!mongoUri) {
-    console.log('❌ MongoDB Connection Error: MONGODB_URI is missing');
-    console.log('⚠️ Using mock data mode');
-} else {
-    mongoose.connect(mongoUri, {
-        dbName: 'gorythm_academy',
-        family: 4,
-        serverSelectionTimeoutMS: 30000,
-        connectTimeoutMS: 10000,
-        socketTimeoutMS: 60000,
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    })
-    .then(() => {
-        console.log('✅ MongoDB Connected to:', mongoUri);
-        console.log('📊 Database ready for academy data');
+let isConnecting = false;
+
+const connectDB = async () => {
+    if (mongoose.connection.readyState === 1) return; // already connected
+    if (isConnecting) {
+        // wait up to 10s for in-progress connection
+        for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 500));
+            if (mongoose.connection.readyState === 1) return;
+        }
+        return;
+    }
+
+    if (!mongoUri) {
+        console.log('❌ MONGODB_URI is not set');
+        return;
+    }
+
+    isConnecting = true;
+    try {
+        await mongoose.connect(mongoUri, {
+            dbName: 'gorythm_academy',
+            family: 4,
+            serverSelectionTimeoutMS: 15000,
+            connectTimeoutMS: 10000,
+            socketTimeoutMS: 45000,
+            maxPoolSize: 10,
+        });
+        console.log('✅ MongoDB Connected');
+        isConnecting = false;
         ensureDefaultAdmin();
-    })
-    .catch(err => {
+    } catch (err) {
+        isConnecting = false;
         console.log('❌ MongoDB Connection Error:', err.message);
-        console.log('⚠️ Using mock data mode');
-    });
-}
+    }
+};
+
+// Start connecting immediately (warm start)
+connectDB();
+
+// Middleware: ensure DB is connected before handling any request
+app.use(async (req, res, next) => {
+    if (mongoose.connection.readyState !== 1) {
+        await connectDB();
+    }
+    next();
+});
 
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
