@@ -13,6 +13,7 @@ const contactMessageSchema = new mongoose.Schema(
       enum: ['new', 'in-progress', 'resolved'],
       default: 'new',
     },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

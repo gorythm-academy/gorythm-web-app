@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL, CONTACT_EMAIL, INFO_EMAIL, SITE_URL } from '../../../config/constants';
 import '../Admin.scss';
 
 const Settings = () => {
@@ -199,7 +199,7 @@ const Settings = () => {
                                         type="email"
                                         value={generalSettings.contactEmail}
                                         onChange={(e) => handleInputChange('general', 'contactEmail', e.target.value)}
-                                        placeholder="contact@academy.com"
+                                        placeholder={INFO_EMAIL}
                                     />
                                 </div>
                                 <div className="form-group">
@@ -217,7 +217,7 @@ const Settings = () => {
                                         type="url"
                                         value={generalSettings.websiteUrl}
                                         onChange={(e) => handleInputChange('general', 'websiteUrl', e.target.value)}
-                                        placeholder="https://academy.com"
+                                        placeholder={SITE_URL}
                                     />
                                 </div>
                                 <div className="form-group">
@@ -366,7 +366,7 @@ const Settings = () => {
                                         type="email"
                                         value={emailSettings.fromEmail}
                                         onChange={(e) => handleInputChange('email', 'fromEmail', e.target.value)}
-                                        placeholder="noreply@academy.com"
+                                        placeholder={CONTACT_EMAIL}
                                     />
                                 </div>
                                 <div className="form-group">

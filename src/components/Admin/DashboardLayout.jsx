@@ -135,7 +135,7 @@ const DashboardLayout = () => {
                         {sidebarOpen && (
                             <div className="profile-info">
                                 <h4>{user.name || 'Admin User'}</h4>
-                                <p>{user.email || 'admin@academy.com'}</p>
+                                {user.email ? <p>{user.email}</p> : null}
                                 <span className="role-badge">{user.role || 'admin'}</span>
                             </div>
                         )}

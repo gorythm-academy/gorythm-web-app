@@ -27,7 +27,12 @@ const app = express();
 
 const ensureDefaultAdmin = async () => {
     try {
-        const adminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'admin@academy.com').toLowerCase();
+        const rawEmail = process.env.DEFAULT_ADMIN_EMAIL;
+        if (!rawEmail || !String(rawEmail).trim()) {
+            console.log('ℹ️ DEFAULT_ADMIN_EMAIL not set; skipping default admin seed');
+            return;
+        }
+        const adminEmail = String(rawEmail).toLowerCase().trim();
         const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
         const existing = await User.findOne({ email: adminEmail });
         if (existing) return;

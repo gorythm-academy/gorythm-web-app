@@ -1162,6 +1162,61 @@
         }
     }
 
+    .contact-list-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .contact-list-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.55rem 1rem;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+
+        &.active {
+            background: white;
+            border-color: var(--color-accent, #2563eb);
+            color: var(--color-accent, #2563eb);
+            box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb, 37, 99, 235), 0.12);
+        }
+
+        &:hover:not(.active) {
+            border-color: #cbd5e1;
+            color: #1e293b;
+        }
+    }
+
+    .contact-tab-badge {
+        margin-left: 0.15rem;
+        min-width: 1.35rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        background: #fee2e2;
+        color: #b91c1c;
+        font-size: 0.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .contact-list-tab.active .contact-tab-badge {
+        background: rgba(var(--color-accent-rgb, 37, 99, 235), 0.12);
+        color: var(--color-accent, #2563eb);
+    }
+
+    .contact-empty-hint {
+        margin: 1rem 0;
+        color: #64748b;
+    }
+
     .contact-controls-bar {
         background: white;
         border: 1px solid #e2e8f0;
@@ -1220,12 +1275,26 @@
 
     .contact-messages-table-wrap {
         overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+        overscroll-behavior-x: contain;
+        cursor: grab;
+
+        &--dragging {
+            cursor: grabbing;
+            user-select: none;
+        }
     }
 
     .contact-messages-table {
         width: 100%;
         border-collapse: collapse;
         min-width: 980px;
+
+        &--trash {
+            min-width: 1240px;
+        }
 
         th {
             background: #f8fafc;
@@ -1325,15 +1394,58 @@
         }
     }
 
+    .contact-trash-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        align-items: center;
+    }
+
+    .contact-purge-btn {
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        background: #fef2f2;
+        color: #991b1b;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.82rem;
+        white-space: nowrap;
+
+        i {
+            margin-right: 0.25rem;
+        }
+
+        &:hover:not(:disabled) {
+            background: #fee2e2;
+        }
+
+        &:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        &--bulk {
+            padding: 0.55rem 1rem;
+            font-size: 0.9rem;
+        }
+    }
+
     .contact-summary-footer {
         margin-top: 1rem;
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 1rem;
         flex-wrap: wrap;
         padding: 0.9rem 1rem;
         border: 1px solid #e2e8f0;
         border-radius: 10px;
+
+        &--bulk-top {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
 
         .summary-item {
             display: flex;
@@ -1344,6 +1456,71 @@
         .summary-value {
             color: #1e293b;
             font-weight: 600;
+        }
+
+        .contact-summary-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+
+            &--row {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+
+        .contact-delete-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 0.55rem 1rem;
+            background: #fee2e2;
+            color: #b91c1c;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+
+            i {
+                margin-right: 0.25rem;
+            }
+
+            &:hover:not(:disabled) {
+                background: #fecaca;
+            }
+
+            &:disabled {
+                opacity: 0.65;
+                cursor: not-allowed;
+            }
+        }
+
+        .contact-restore-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 0.85rem;
+            background: #dcfce7;
+            color: #15803d;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            white-space: nowrap;
+
+            i {
+                margin-right: 0.25rem;
+            }
+
+            &:hover:not(:disabled) {
+                background: #bbf7d0;
+            }
+
+            &:disabled {
+                opacity: 0.65;
+                cursor: not-allowed;
+            }
+
+            &--bulk {
+                padding: 0.55rem 1rem;
+                font-size: 0.9rem;
+            }
         }
     }
 
