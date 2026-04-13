@@ -1,5 +1,7 @@
 // Centralized project constants
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+/** Public site URL for UI placeholders and links (override in .env). */
+export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythm.com';
 export const CONTACT_EMAIL = 'support@gorythm.com';
 export const INFO_EMAIL = 'info@gorythm.com';
 export const CONTACT_PHONE = '+31 684 427 025';
@@ -13,6 +15,7 @@ export const TIKTOK_URL = 'https://www.tiktok.com/@alfarhan621';
 
 const constants = {
   API_BASE_URL,
+  SITE_URL,
   CONTACT_EMAIL,
   INFO_EMAIL,
   CONTACT_PHONE,

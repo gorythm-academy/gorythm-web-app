@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"teacher":{"$numberInt":"1"},"monthKey":{"$numberInt":"1"}},"name":"teacher_1_monthKey_1","background":true,"unique":true}],"uuid":"8558df8e33a343f39f01249916e46c60","collectionName":"teacherattendances","type":"collection"}

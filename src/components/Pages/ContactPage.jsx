@@ -4,6 +4,26 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL, CONTACT_PHONE, CONTACT_ADDRESS } from '../../config/constants';
 import './ContactPage.scss';
 
+/** WhatsApp / E.164-style: digits only, 7–15 when provided (optional field). */
+const PHONE_DIGITS_MIN = 7;
+const PHONE_DIGITS_MAX = 15;
+
+const normalizePhoneDigits = (raw) =>
+  String(raw ?? '')
+    .replace(/\D/g, '')
+    .slice(0, PHONE_DIGITS_MAX);
+
+const isPhoneValidOrEmpty = (digits) =>
+  !digits || (digits.length >= PHONE_DIGITS_MIN && digits.length <= PHONE_DIGITS_MAX);
+
+const EMAIL_MAX_LEN = 254;
+/** Practical format check (aligned with backend). */
+const isValidEmail = (value) => {
+  const s = String(value).trim();
+  if (!s || s.length > EMAIL_MAX_LEN) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
+};
+
 const contactInfo = {
   address: CONTACT_ADDRESS,
   phone: CONTACT_PHONE,
@@ -25,9 +45,28 @@ const ContactPage = () => {
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
+  const handlePhoneChange = (e) => {
+    const digits = normalizePhoneDigits(e.target.value);
+    setForm((prev) => ({ ...prev, phone: digits }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.consent) return;
+
+    if (!isValidEmail(form.email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
+    if (!isPhoneValidOrEmpty(form.phone)) {
+      alert(
+        `Please enter a valid WhatsApp number (${PHONE_DIGITS_MIN}–${PHONE_DIGITS_MAX} digits), or leave the field empty.`
+      );
+      return;
+    }
+
+    setSubmitted(false);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/contact`, {
@@ -35,7 +74,10 @@ const ContactPage = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          email: form.email.trim().toLowerCase(),
+        }),
       });
 
       const data = await response.json();
@@ -111,6 +153,11 @@ const ContactPage = () => {
 
           <div className="contact-page__form-wrap">
             <form className="contact-page__form" onSubmit={handleSubmit} noValidate>
+              {submitted && (
+                <p className="contact-page__success" role="status" aria-live="polite">
+                  Thank you. Your message has been sent. We’ll get back to you soon.
+                </p>
+              )}
               <div className="contact-page__form-row">
                 <label className="contact-page__field">
                   <span className="contact-page__field-icon" aria-hidden="true"><FiUser /></span>
@@ -132,6 +179,8 @@ const ContactPage = () => {
                     value={form.email}
                     onChange={handleChange}
                     required
+                    maxLength={EMAIL_MAX_LEN}
+                    autoComplete="email"
                   />
                 </label>
               </div>
@@ -141,10 +190,11 @@ const ContactPage = () => {
                   <input
                     type="tel"
                     name="phone"
-                    placeholder="Whatsapp Number"
+                    placeholder="WhatsApp number (digits only, with country code)"
                     value={form.phone}
-                    onChange={handleChange}
+                    onChange={handlePhoneChange}
                     autoComplete="tel"
+                    inputMode="numeric"
                   />
                 </label>
               </div>
@@ -176,11 +226,6 @@ const ContactPage = () => {
                 </label>
               </div>
             </form>
-            {submitted && (
-              <p className="contact-page__success">
-                Thank you. Your message has been sent. We’ll get back to you soon.
-              </p>
-            )}
           </div>
         </div>
       </div>

@@ -5,50 +5,53 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 async function createAdmin() {
     try {
-        console.log('🔍 Checking .env file...');
-        console.log('MONGODB_URI:', process.env.MONGODB_URI);
-        
+        const adminEmail = String(process.env.DEFAULT_ADMIN_EMAIL || '').toLowerCase().trim();
+        const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+        const adminName = process.env.DEFAULT_ADMIN_NAME || 'Super Admin';
+
         if (!process.env.MONGODB_URI) {
             throw new Error('MONGODB_URI is not defined in .env file');
         }
-        
+        if (!adminEmail) {
+            throw new Error('DEFAULT_ADMIN_EMAIL is not defined in .env (required for this script)');
+        }
+
         console.log('🔗 Connecting to MongoDB...');
         await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
+            dbName: 'gorythm_academy',
         });
         console.log('✅ MongoDB Connected');
-        
-        // Check if admin already exists
-        const existingAdmin = await User.findOne({ email: 'admin@academy.com' });
-        
+
+        const existingAdmin = await User.findOne({ email: adminEmail });
         if (existingAdmin) {
             console.log('ℹ️ Admin user already exists');
             console.log('Email:', existingAdmin.email);
             process.exit(0);
         }
-        
-        // Create admin user
+
         const admin = new User({
-            name: 'Super Admin',
-            email: 'admin@academy.com',
-            password: 'admin123', // Will be hashed automatically
-            role: 'admin',
-            isActive: true
+            name: adminName,
+            email: adminEmail,
+            password: adminPassword,
+            role: 'super-admin',
+            isActive: true,
+            canLogin: true,
+            mustChangePassword: false,
+            isSystemAccount: true,
         });
-        
+
         await admin.save();
         console.log('\n✅ Admin user created successfully!');
-        console.log('📧 Email: admin@academy.com');
-        console.log('🔑 Password: admin123');
-        console.log('\n⚠️ Remember to change this password after first login!');
-        
+        console.log('📧 Email:', adminEmail);
+        console.log('\n⚠️ Change DEFAULT_ADMIN_PASSWORD after first login if you used a default.');
     } catch (error) {
         console.error('❌ Error creating admin:', error.message);
         console.log('\n💡 Troubleshooting:');
-        console.log('1. Make sure .env file exists in backend folder');
-        console.log('2. Check if .env contains MONGODB_URI');
-        console.log('3. Ensure MongoDB is running (mongod command)');
+        console.log('1. Ensure backend/.env has MONGODB_URI and DEFAULT_ADMIN_EMAIL');
+        console.log('2. Ensure MongoDB is running');
+        process.exitCode = 1;
     } finally {
         if (mongoose.connection.readyState === 1) {
             await mongoose.connection.close();

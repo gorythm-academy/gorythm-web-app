@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"parent":{"$numberInt":"1"},"student":{"$numberInt":"1"}},"name":"parent_1_student_1","background":true,"unique":true}],"uuid":"79f78ca0b494472c820bf4da9221b6b0","collectionName":"parentstudentlinks","type":"collection"}

@@ -5,6 +5,14 @@ const ContactMessage = require('../models/ContactMessage');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 
+const activeMessageFilter = () => ({
+  $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+});
+
+const trashedMessageFilter = () => ({
+  deletedAt: { $exists: true, $ne: null },
+});
+
 // Helper: create transporter from settings
 async function createTransporter() {
   // In a real app you might cache settings in DB; here we read from env
@@ -51,11 +59,22 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const phoneStr = phone != null && String(phone).trim() !== '' ? String(phone).trim() : '';
+    if (phoneStr) {
+      const digitsOnly = /^\d{7,15}$/;
+      if (!digitsOnly.test(phoneStr)) {
+        return res.status(400).json({
+          success: false,
+          error: 'WhatsApp number must be 7–15 digits (country code, numbers only).',
+        });
+      }
+    }
+
     // Save to MongoDB so you can see all queries in admin later
     const contactMessage = await ContactMessage.create({
       name: String(name).trim(),
       email: String(email).trim().toLowerCase(),
-      phone: phone ? String(phone).trim() : '',
+      phone: phoneStr,
       subject: subject ? String(subject).trim() : '',
       message: String(message).trim(),
       consent: !!consent,
@@ -75,7 +94,7 @@ router.post('/', async (req, res) => {
         `New contact enquiry from Gorythm website:\n\n` +
         `Name: ${name}\n` +
         `Email: ${email}\n` +
-        (phone ? `Whatsapp Number: ${phone}\n` : '') +
+        (phoneStr ? `Whatsapp Number: ${phoneStr}\n` : '') +
         `Consent: ${consent ? 'Yes' : 'No'}\n\n` +
         `Message:\n${message}\n\n` +
         `Message ID: ${contactMessage._id}\n` +
@@ -86,7 +105,7 @@ router.post('/', async (req, res) => {
         `<ul>` +
         `<li><strong>Name:</strong> ${name}</li>` +
         `<li><strong>Email:</strong> ${email}</li>` +
-        (phone ? `<li><strong>Whatsapp Number:</strong> ${phone}</li>` : '') +
+        (phoneStr ? `<li><strong>Whatsapp Number:</strong> ${phoneStr}</li>` : '') +
         `<li><strong>Consent:</strong> ${consent ? 'Yes' : 'No'}</li>` +
         `</ul>` +
         `<p><strong>Message:</strong></p>` +
@@ -124,11 +143,19 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Admin endpoint: list contact messages
+// Admin endpoint: list contact messages (inbox) or deleted (trash=1)
 router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
   try {
-    const messages = await ContactMessage.find().sort({ createdAt: -1 }).limit(500);
-    return res.json({ success: true, messages });
+    const trash = req.query.trash === 'true' || req.query.trash === '1';
+    const filter = trash ? trashedMessageFilter() : activeMessageFilter();
+    const sort = trash ? { deletedAt: -1 } : { createdAt: -1 };
+
+    const [messages, trashCount] = await Promise.all([
+      ContactMessage.find(filter).sort(sort).limit(500).lean(),
+      ContactMessage.countDocuments(trashedMessageFilter()),
+    ]);
+
+    return res.json({ success: true, messages, trashCount });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to fetch contact messages' });
   }
@@ -147,14 +174,14 @@ router.patch('/admin/messages/:id/status', authMiddleware, allowRoles('super-adm
       });
     }
 
-    const updated = await ContactMessage.findByIdAndUpdate(
-      req.params.id,
+    const updated = await ContactMessage.findOneAndUpdate(
+      { _id: req.params.id, ...activeMessageFilter() },
       { status },
       { new: true }
     );
 
     if (!updated) {
-      return res.status(404).json({ success: false, error: 'Contact message not found' });
+      return res.status(404).json({ success: false, error: 'Contact message not found or deleted' });
     }
 
     return res.json({ success: true, message: updated });
@@ -162,6 +189,61 @@ router.patch('/admin/messages/:id/status', authMiddleware, allowRoles('super-adm
     return res.status(500).json({ success: false, error: 'Failed to update message status' });
   }
 });
+
+// Admin endpoint: soft-delete a contact message
+router.delete('/admin/messages/:id', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+  try {
+    const updated = await ContactMessage.findOneAndUpdate(
+      { _id: req.params.id, ...activeMessageFilter() },
+      { $set: { deletedAt: new Date() } },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Contact message not found or already deleted' });
+    }
+    return res.json({ success: true, message: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to delete contact message' });
+  }
+});
+
+// Admin endpoint: restore a soft-deleted message
+router.post('/admin/messages/:id/restore', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+  try {
+    const updated = await ContactMessage.findOneAndUpdate(
+      { _id: req.params.id, ...trashedMessageFilter() },
+      { $set: { deletedAt: null } },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Deleted message not found' });
+    }
+    return res.json({ success: true, message: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to restore contact message' });
+  }
+});
+
+// Admin endpoint: permanently remove a message (must already be in trash)
+router.delete(
+  '/admin/messages/:id/permanent',
+  authMiddleware,
+  allowRoles('super-admin', 'admin'),
+  async (req, res) => {
+    try {
+      const removed = await ContactMessage.findOneAndDelete({
+        _id: req.params.id,
+        ...trashedMessageFilter(),
+      });
+      if (!removed) {
+        return res.status(404).json({ success: false, error: 'Deleted message not found' });
+      }
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ success: false, error: 'Failed to permanently delete message' });
+    }
+  }
+);
 
 module.exports = router;
 
