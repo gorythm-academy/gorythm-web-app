@@ -336,7 +336,6 @@ const ContactMessages = () => {
 
     setDeleting(true);
     const token = getAuthToken();
-    const idSet = new Set(selectedMessages.map(idKey));
     try {
       await Promise.all(
         selectedMessages.map((id) =>

@@ -86,9 +86,11 @@ export function SingleCourse() {
   }, [slug]);
 
   useEffect(() => {
+    const previousDocumentTitle = documentTitleRef.current;
     return () => {
-      if (shareFeedbackTimerRef.current) clearTimeout(shareFeedbackTimerRef.current);
-      if (documentTitleRef.current != null) document.title = documentTitleRef.current;
+      const shareTimerId = shareFeedbackTimerRef.current;
+      if (shareTimerId) clearTimeout(shareTimerId);
+      if (previousDocumentTitle != null) document.title = previousDocumentTitle;
     };
   }, []);
 
