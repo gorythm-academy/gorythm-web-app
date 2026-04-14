@@ -128,6 +128,15 @@ const faqs = [
   },
 ];
 
+const teamMembers = [
+  { name: 'Tina Jones', role: 'Scientist', image: aboutImage1 },
+  { name: 'Natalie Coleman', role: 'Astrophysicist', image: testimonialImg1 },
+  { name: 'Richard Gilmore', role: 'Engineer', image: testimonialImg2 },
+  { name: 'Nicole Carter', role: 'Astronomer', image: aboutImage2 },
+  { name: 'Michael Lewis', role: 'Engineer', image: aboutUsMainImg },
+  { name: 'Christina Newman', role: 'Scientist', image: testimonialImg3 },
+];
+
 const AboutPage = () => {
   const [statementWordIndex, setStatementWordIndex] = useState(0);
   const [statementCharIndex, setStatementCharIndex] = useState(0);
@@ -424,6 +433,27 @@ const AboutPage = () => {
 
       <VideoSection />
 
+      <section className="about-page-team" aria-label="Our team">
+        <div className="about-page-team__container">
+          <header className="about-page-team__header about-page-dark__title-with-arrow">
+            <h2 className="about-page-team__title">Our Team</h2>
+            <span className="about-page-dark__page-arrow" aria-hidden="true" />
+          </header>
+
+          <div className="about-page-team__grid">
+            {teamMembers.map((member) => (
+              <article key={member.name} className="about-page-team__card">
+                <div className="about-page-team__media">
+                  <img src={member.image} alt={member.name} loading="lazy" width={420} height={540} />
+                </div>
+                <h3 className="about-page-team__name">{member.name}</h3>
+                <p className="about-page-team__role">{member.role}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="about-page-dark about-page-dark--continuation">
         <div className="about-page-dark__container">
           <div className="about-page-dark__showcase-strip">
@@ -560,8 +590,10 @@ const AboutPage = () => {
           <div className="about-page-dark__faq-strip">
             <div className="about-page-dark__container about-page-dark__faq-inner">
               <section className="about-page-dark__faq" aria-label="Frequently asked questions">
-                <h2 className="about-page-dark__faq-title">FAQs</h2>
-                <span className="about-page-dark__page-arrow about-page-dark__faq-arrow" aria-hidden="true" />
+                <div className="about-page-dark__title-with-arrow">
+                  <h2 className="about-page-dark__faq-title">FAQs</h2>
+                  <span className="about-page-dark__page-arrow about-page-dark__faq-arrow" aria-hidden="true" />
+                </div>
 
                 <div className="about-page-dark__faq-list" role="list">
                   {faqs.map((item, idx) => {

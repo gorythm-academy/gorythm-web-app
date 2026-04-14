@@ -122,10 +122,28 @@ function slugFromTitle(title) {
         .replace(/[^a-z0-9-]/g, '');
 }
 
+async function buildUniqueSlug(raw, excludeId = null) {
+    const base = slugFromTitle(raw);
+    if (!base) return '';
+
+    let candidate = base;
+    let suffix = 2;
+    while (true) {
+        const query = { slug: candidate };
+        if (excludeId) query._id = { $ne: excludeId };
+        const existing = await Course.findOne(query).select('_id').lean();
+        if (!existing) return candidate;
+        candidate = `${base}-${suffix}`;
+        suffix += 1;
+    }
+}
+
 // Create new course
 router.post('/', async (req, res) => {
     try {
         console.log('Creating course with data:', req.body);
+        const requestedSlug = (req.body.slug && String(req.body.slug).trim()) || slugFromTitle(req.body.title);
+        const uniqueSlug = await buildUniqueSlug(requestedSlug);
         
         const course = new Course({
             title: req.body.title,
@@ -139,7 +157,7 @@ router.post('/', async (req, res) => {
             modules: [],
             students: [],
             homepageImage: (req.body.homepageImage && String(req.body.homepageImage).trim()) || '',
-            slug: (req.body.slug && String(req.body.slug).trim()) || slugFromTitle(req.body.title),
+            slug: uniqueSlug,
             isPublished: req.body.status === 'published'
         });
 
@@ -170,6 +188,9 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
 
+        const previousTitle = course.title;
+        const hasExplicitSlug = Object.prototype.hasOwnProperty.call(req.body, 'slug');
+
         // Update all fields
         course.title = req.body.title || course.title;
         course.description = req.body.description || course.description;
@@ -181,7 +202,12 @@ router.put('/:id', async (req, res) => {
         if (req.body.instructorId) course.instructor = req.body.instructorId;
         if (req.body.instructorName !== undefined) course.instructorName = req.body.instructorName || '';
         if (req.body.homepageImage !== undefined) course.homepageImage = String(req.body.homepageImage || '').trim();
-        if (req.body.slug !== undefined) course.slug = String(req.body.slug || '').trim() || slugFromTitle(course.title);
+        if (hasExplicitSlug) {
+            const requestedSlug = String(req.body.slug || '').trim() || slugFromTitle(course.title);
+            course.slug = await buildUniqueSlug(requestedSlug, course._id);
+        } else if (!course.slug || course.title !== previousTitle) {
+            course.slug = await buildUniqueSlug(course.title, course._id);
+        }
 
         await course.save();
 

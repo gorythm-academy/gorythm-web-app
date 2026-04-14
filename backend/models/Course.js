@@ -49,9 +49,15 @@ const courseSchema = new mongoose.Schema({
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     imageUrl: { type: String, default: '' },
     homepageImage: { type: String, default: '' },
-    slug: { type: String, default: '' },
+    slug: { type: String },
     isPublished: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
+
+// Keep slug unique when present, while allowing legacy empty values.
+courseSchema.index(
+    { slug: 1 },
+    { unique: true, partialFilterExpression: { slug: { $exists: true, $type: 'string' } } }
+);
 
 module.exports = mongoose.model('Course', courseSchema);
