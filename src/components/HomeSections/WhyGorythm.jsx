@@ -1,4 +1,4 @@
-// Why GoRythm Section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, CTA
+// Why Choose GoRythm section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, CTA
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -100,14 +100,15 @@ const WhyGorythmSection = () => {
             03
           </span>
           <div className="key-achievements-content">
-            <p className="key-achievements-eyebrow key_anim">Why GoRythm</p>
+            <p className="key-achievements-eyebrow key_anim">Why Choose GoRythm</p>
             <h2 className="key-achievements-title key_anim">
-              A meaningful learning journey, rooted in faith
+              A learning experience designed with purpose and care.
             </h2>
             <p className="key-achievements-description key_anim">
-              GoRythm helps learners build a strong connection with the Qur&apos;an, Arabic, and Islamic
-              values through engaging online classes designed for real growth. Our focus is not only
-              on knowledge, but on confidence, character, and a deeper sense of purpose.
+              At GoRythm, we combine qualified teachers, interactive teaching methods, and a structured
+              curriculum to create a meaningful learning journey. Our focus is not only on knowledge but
+              also on character development, ensuring every learner grows with confidence, discipline, and a
+              deeper connection to their faith.
             </p>
             <Link to="/contact" className="key-achievements-cta key_anim">
               Contact Us

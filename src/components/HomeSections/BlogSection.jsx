@@ -108,7 +108,7 @@ const BlogSection = () => {
       <div className="blog-inner">
         <header className="blog-header">
           <p className="blog-eyebrow blog_anim">From the blog</p>
-          <h2 className="blog-title blog_anim">Latest from the blog</h2>
+          <h2 className="blog-title blog_anim">Insights for the Heart and Mind</h2>
         </header>
 
         <div

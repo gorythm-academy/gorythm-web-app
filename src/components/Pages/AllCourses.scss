@@ -72,7 +72,7 @@
 .courses-inner {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 7fr 13fr;
   gap: 0 32px;
   align-items: stretch;
   margin-top: -64px;
@@ -203,7 +203,7 @@
 
 .courses-masonry {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0 16px;
   align-items: start;
 }
@@ -258,10 +258,12 @@
   gap: 16px;
   margin-top: 0;
   padding: 14px 0 0;
+  min-width: 0;
 }
 
 .courses-item-copy {
   max-width: 92%;
+  min-width: 0;
 }
 
 .courses-item-category {
@@ -276,7 +278,7 @@
 
 .courses-item-title {
   margin: 0 0 10px;
-  font-size: 1.18rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -296,9 +298,27 @@
 }
 
 .courses-item-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   color: #fff;
   font-size: 1.1rem;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.courses-item-price-amount {
+  line-height: 1.2;
+}
+
+.courses-item-price-period {
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .courses-item-duration,
@@ -372,7 +392,7 @@
 // Mobile landscape: desktop-like split layout – equal-height panels, masonry scrolls independently
 @media (max-width: $bp-section-md) and (orientation: landscape) {
   .courses-inner {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 7fr 13fr;
     gap: 0 24px;
     align-items: stretch;
   }
@@ -408,7 +428,7 @@
   }
 
   .courses-masonry {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0 12px;
   }
 
@@ -473,7 +493,7 @@
   }
 
   .courses-item-title {
-    font-size: 1.05rem;
+    font-size: 0.88rem;
   }
 
   .courses-item-description,

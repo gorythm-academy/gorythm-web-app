@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/admin');
 const courseRoutes = require('./routes/courses');
 const enrollmentsRoute = require('./routes/enrollments');
 const paymentRoutes = require('./routes/payments');
+const stripeWebhookHandler = require('./routes/stripeWebhook');
 const analyticsRoutes = require('./routes/analytics');
 const settingsRoutes = require('./routes/settings');
 const blogCommentRoutes = require('./routes/blogComments');
@@ -70,7 +71,6 @@ app.use(cors({
     credentials: true
 }));
 app.use(helmet());
-app.use(express.json());
 
 // MongoDB Connection — cached for Vercel serverless warm reuse
 const mongoUri = process.env.MONGODB_URI;
@@ -123,6 +123,15 @@ app.use(async (req, res, next) => {
     next();
 });
 
+// Stripe webhook must receive raw body (before express.json)
+app.post(
+    '/api/payments/webhook',
+    express.raw({ type: 'application/json' }),
+    stripeWebhookHandler
+);
+
+app.use(express.json());
+
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -157,6 +166,7 @@ app.get('/health', (req, res) => {
     'DELETE /api/courses/:id',  
     'GET  /api/payments',
     'POST /api/payments/create-checkout',
+    'GET  /api/payments/verify-session',
     'POST /api/payments/webhook',
     'POST /api/payments/:id/refund'
       ]

@@ -1,0 +1,52 @@
+.payment-result-page {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.payment-result-card {
+  max-width: 32rem;
+  text-align: center;
+
+  h1 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+  }
+
+  p {
+    line-height: 1.55;
+    opacity: 0.9;
+    margin-bottom: 0.75rem;
+  }
+}
+
+.payment-result-course {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.payment-result-note {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.payment-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.payment-result-link {
+  display: inline-block;
+  margin-top: 1.25rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+
+  &--secondary {
+    opacity: 0.85;
+  }
+}

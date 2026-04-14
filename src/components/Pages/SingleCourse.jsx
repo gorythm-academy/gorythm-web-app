@@ -3,7 +3,8 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { getImageFromAssets } from '../HomeSections/Courses';
 import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
-import { parsePriceAmount } from '../../utils/currency';
+import { getPriceDisplayParts, parsePriceAmount } from '../../utils/currency';
+import { courseUrlSegment } from '../../utils/courseLinks';
 import './SingleCourse.scss';
 
 const renderGallery = (images) => {
@@ -26,13 +27,6 @@ const renderGallery = (images) => {
   );
 };
 
-const formatPrice = (price, formatFromUsd) => {
-  if (price == null || price === '') return '';
-  const n = parsePriceAmount(price);
-  if (Number.isNaN(n)) return String(price);
-  return n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
-};
-
 const formatLevel = (level) => {
   if (!level) return '';
   const s = String(level);
@@ -46,7 +40,7 @@ const getPriceAmount = (price) => {
 };
 
 export function SingleCourse() {
-  const { currency, formatFromUsd } = useCurrency();
+  const { currency, formatFromUsdWhole } = useCurrency();
   const { slug } = useParams();
   const [apiCourse, setApiCourse] = useState(null);
   const [apiList, setApiList] = useState([]);
@@ -57,6 +51,9 @@ export function SingleCourse() {
   const stickyRef = useRef(null);
   const naturalHeightRef = useRef(0);
   const [stickyState, setStickyState] = useState({ mode: 'static', width: null, left: null });
+  const [shareFeedback, setShareFeedback] = useState('');
+  const shareFeedbackTimerRef = useRef(null);
+  const documentTitleRef = useRef(typeof document !== 'undefined' ? document.title : '');
 
   useEffect(() => {
     if (!slug) return;
@@ -88,6 +85,18 @@ export function SingleCourse() {
     return () => { cancelled = true; };
   }, [slug]);
 
+  useEffect(() => {
+    return () => {
+      if (shareFeedbackTimerRef.current) clearTimeout(shareFeedbackTimerRef.current);
+      if (documentTitleRef.current != null) document.title = documentTitleRef.current;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!apiCourse?.title) return;
+    document.title = `${apiCourse.title} | Courses`;
+  }, [apiCourse?.title]);
+
   const course = useMemo(() => {
     if (!apiCourse) return null;
     const idx = apiList.findIndex((c) => c._id === apiCourse._id);
@@ -96,6 +105,7 @@ export function SingleCourse() {
       apiCourse.homepageImage && apiCourse.homepageImage.trim()
         ? apiCourse.homepageImage.trim()
         : getImageFromAssets(apiCourse.title, imageIndex);
+    const priceParts = getPriceDisplayParts(apiCourse.price, formatFromUsdWhole);
     return {
       _id: apiCourse._id,
       slug: apiCourse.slug || apiCourse._id,
@@ -104,13 +114,14 @@ export function SingleCourse() {
       description: apiCourse.description,
       image,
       galleryImages: [],
-      price: formatPrice(apiCourse.price, formatFromUsd),
+      priceDisplay: priceParts.amount,
+      priceShowMonth: priceParts.showMonth,
       priceAmount: getPriceAmount(apiCourse.price),
       level: formatLevel(apiCourse.level),
       duration: apiCourse.duration,
       category: apiCourse.category,
     };
-  }, [apiCourse, apiList, formatFromUsd]);
+  }, [apiCourse, apiList, formatFromUsdWhole]);
 
   useEffect(() => {
     if (stickyRef.current) {
@@ -181,13 +192,45 @@ export function SingleCourse() {
   if (!course) return <Navigate to="/courses" replace />;
 
   const list = apiList;
-  const resolveLinkParam = (c) => (c && (c._id || c.slug || c.id)) || '';
-  const currentIndex = list.findIndex((c) => resolveLinkParam(c) === (course._id || course.slug || course.id));
+  const currentIndex = list.findIndex((c) => String(c._id) === String(course._id));
   const isRightColumn = currentIndex >= 0 && currentIndex % 2 === 1; // match masonry: left=even, right=odd
   const prevItem = currentIndex > 0 ? list[currentIndex - 1] : null;
   const nextItem = currentIndex >= 0 && currentIndex < list.length - 1 ? list[currentIndex + 1] : null;
-  const prevCourse = prevItem ? { slug: resolveLinkParam(prevItem), title: prevItem.title } : null;
-  const nextCourse = nextItem ? { slug: resolveLinkParam(nextItem), title: nextItem.title } : null;
+  const prevCourse = prevItem ? { slug: courseUrlSegment(prevItem), title: prevItem.title } : null;
+  const nextCourse = nextItem ? { slug: courseUrlSegment(nextItem), title: nextItem.title } : null;
+
+  const handleShareCourse = async () => {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}${window.location.pathname}${window.location.search}`
+        : '';
+    if (!url) return;
+    const title = course.title || 'Course';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (shareFeedbackTimerRef.current) clearTimeout(shareFeedbackTimerRef.current);
+      setShareFeedback('Link copied');
+      shareFeedbackTimerRef.current = setTimeout(() => {
+        setShareFeedback('');
+        shareFeedbackTimerRef.current = null;
+      }, 2500);
+    } catch {
+      if (shareFeedbackTimerRef.current) clearTimeout(shareFeedbackTimerRef.current);
+      setShareFeedback('Could not copy');
+      shareFeedbackTimerRef.current = setTimeout(() => {
+        setShareFeedback('');
+        shareFeedbackTimerRef.current = null;
+      }, 2500);
+    }
+  };
 
   const stickyStyle =
     stickyState.mode === 'fixed' && stickyState.width != null
@@ -204,7 +247,22 @@ export function SingleCourse() {
   return (
     <section className="course-item-page scheme_dark">
       <div className="cip-page-header">
-        <h1 className="cip-page-title">{course.title}</h1>
+        <div className="cip-page-title-row">
+          <h1 className="cip-page-title">{course.title}</h1>
+          <button
+            type="button"
+            className="cip-share-btn"
+            onClick={handleShareCourse}
+            aria-label="Share link to this course"
+          >
+            <i className="fa-solid fa-share-nodes" aria-hidden="true" />
+          </button>
+        </div>
+        {shareFeedback ? (
+          <p className="cip-share-feedback" role="status">
+            {shareFeedback}
+          </p>
+        ) : null}
         <span className="cip-page-arrow" aria-hidden="true" />
       </div>
 
@@ -220,7 +278,12 @@ export function SingleCourse() {
                 <div className="cip-meta">
                   <div className="cip-meta-row">
                     <span className="cip-meta-label">Price</span>
-                    <span className="cip-meta-value">{course.price}</span>
+                    <span className="cip-meta-value cip-meta-value--price">
+                      <span className="cip-meta-price-amount">{course.priceDisplay}</span>
+                      {course.priceShowMonth ? (
+                        <span className="cip-meta-price-period">Monthly</span>
+                      ) : null}
+                    </span>
                   </div>
                   <div className="cip-meta-row">
                     <span className="cip-meta-label">Level</span>
@@ -237,7 +300,7 @@ export function SingleCourse() {
                 </div>
                 <div className="cip-actions">
                   <Link
-                    to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}&displayCurrency=${encodeURIComponent(currency)}`}
+                    to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount}&displayCurrency=${encodeURIComponent(currency)}`}
                     className="cip-cta"
                   >
                     Enroll Now
@@ -286,7 +349,12 @@ export function SingleCourse() {
             <div className="cip-meta">
               <div className="cip-meta-row">
                 <span className="cip-meta-label">Price</span>
-                <span className="cip-meta-value">{course.price}</span>
+                <span className="cip-meta-value cip-meta-value--price">
+                  <span className="cip-meta-price-amount">{course.priceDisplay}</span>
+                  {course.priceShowMonth ? (
+                    <span className="cip-meta-price-period">Monthly</span>
+                  ) : null}
+                </span>
               </div>
               <div className="cip-meta-row">
                 <span className="cip-meta-label">Level</span>
@@ -303,7 +371,7 @@ export function SingleCourse() {
             </div>
             <div className="cip-actions">
               <Link
-                to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount ?? getPriceAmount(course.price)}&displayCurrency=${encodeURIComponent(currency)}`}
+                to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount}&displayCurrency=${encodeURIComponent(currency)}`}
                 className="cip-cta"
               >
                 Enroll Now

@@ -1,22 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL, BANK_TRANSFER_NOTE, CONTACT_EMAIL } from '../../../config/constants';
+import { getAuthUserJson } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
 import './PaymentGateway.scss';
 
 const PaymentGateway = () => {
     const location = useLocation();
     const { currency, baseCurrency, formatFromUsd, rateDate } = useCurrency();
-    const [paymentMethod, setPaymentMethod] = useState('card');
+    const [paymentMethod, setPaymentMethod] = useState('stripe');
     const [courseOptions, setCourseOptions] = useState([]);
+    const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [formData, setFormData] = useState({
         studentName: '',
         phone: '',
-        cardNumber: '',
-        expiry: '',
-        cvv: '',
-        cardName: '',
-        amount: '',
         email: '',
         courseName: ''
     });
@@ -28,7 +25,6 @@ const PaymentGateway = () => {
         const feePlan = params.get('feePlan') || 'one-time';
         return { courseName, amount, feePlan };
     }, [location.search]);
-
 
     useEffect(() => {
         let cancelled = false;
@@ -68,49 +64,107 @@ const PaymentGateway = () => {
     const resolvedAmount = Number(selectedCourse?.price ?? paymentDetails.amount) || 0;
 
     const paymentMethods = [
-        { id: 'card', name: 'Credit/Debit Card', icon: 'fas fa-credit-card' },
-        { id: 'paypal', name: 'PayPal', icon: 'fab fa-paypal' },
-        { id: 'jazzcash', name: 'JazzCash', icon: 'fas fa-mobile-alt' },
-        { id: 'easypaisa', name: 'EasyPaisa', icon: 'fas fa-wallet' },
-        { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' }
+        {
+            id: 'stripe',
+            name: 'Card, Apple Pay, Google Pay & more',
+            icon: 'fas fa-credit-card',
+            subtitle: 'Powered by Stripe Checkout'
+        },
+        { id: 'bank', name: 'Bank transfer', icon: 'fas fa-university', subtitle: 'Manual payment' }
     ];
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try {
-            const payload = {
-                studentName: formData.studentName,
-                email: formData.email,
-                courseName: formData.courseName || paymentDetails.courseName || 'Selected Course',
-                amount: resolvedAmount,
-                paymentMethod
-            };
 
-            const response = await fetch(`${API_BASE_URL}/api/payments/register-online`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'Failed to complete payment');
+        if (paymentMethod === 'stripe') {
+            if (!selectedCourse?._id) {
+                alert('Please select a course from the list.');
+                return;
             }
+            if (resolvedAmount <= 0) {
+                alert('This course has no charge. Contact us to enroll.');
+                return;
+            }
+            setCheckoutLoading(true);
+            try {
+                let userId;
+                try {
+                    const raw = getAuthUserJson();
+                    if (raw) {
+                        const u = JSON.parse(raw);
+                        if (u?._id) userId = u._id;
+                    }
+                } catch {
+                    /* ignore */
+                }
 
-            alert('Payment completed and saved successfully.');
-            setFormData({
-                studentName: '',
-                phone: '',
-                cardNumber: '',
-                expiry: '',
-                cvv: '',
-                cardName: '',
-                amount: '',
-                email: '',
-                courseName: paymentDetails.courseName || ''
-            });
-        } catch (error) {
-            alert(`Payment failed: ${error.message}`);
+                const response = await fetch(`${API_BASE_URL}/api/payments/create-checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        courseId: String(selectedCourse._id),
+                        studentName: formData.studentName.trim(),
+                        email: formData.email.trim(),
+                        ...(userId ? { userId: String(userId) } : {})
+                    })
+                });
+                const raw = await response.text();
+                let data = {};
+                try {
+                    data = raw ? JSON.parse(raw) : {};
+                } catch {
+                    throw new Error(
+                        `Server returned non-JSON (${response.status}). Check API URL and CORS. ${raw.slice(0, 120)}`
+                    );
+                }
+                if (!response.ok || !data.success || !data.url) {
+                    throw new Error(
+                        data.error ||
+                            (response.status === 503
+                                ? 'Stripe is not configured on the server (set STRIPE_SECRET_KEY).'
+                                : `Could not start checkout (${response.status})`)
+                    );
+                }
+                window.location.href = data.url;
+            } catch (error) {
+                alert(error.message || 'Checkout failed');
+                setCheckoutLoading(false);
+            }
+            return;
+        }
+
+        if (paymentMethod === 'bank') {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/payments/register-online`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        studentName: formData.studentName,
+                        email: formData.email,
+                        courseName: formData.courseName || paymentDetails.courseName || 'Selected Course',
+                        amount: resolvedAmount,
+                        paymentMethod: 'bank'
+                    })
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to submit');
+                }
+
+                alert(
+                    data.message ||
+                        'Bank transfer request saved. We will confirm payment and update your status.'
+                );
+                setFormData({
+                    studentName: '',
+                    phone: '',
+                    email: '',
+                    courseName: paymentDetails.courseName || ''
+                });
+            } catch (error) {
+                alert(`Submission failed: ${error.message}`);
+            }
         }
     };
 
@@ -126,7 +180,7 @@ const PaymentGateway = () => {
                 <div className="payment-shell">
                     <div className="payment-header">
                         <h1>Course Registration</h1>
-                        <p>Complete your registration and payment to start learning.</p>
+                        <p>Pay online with Stripe or request bank transfer instructions.</p>
                     </div>
 
                     <div className="payment-summary-banner">
@@ -196,7 +250,7 @@ const PaymentGateway = () => {
                         </div>
 
                         <div className="payment-methods">
-                            <h3>Payment Method</h3>
+                            <h3>Payment method</h3>
                             <div className="methods-grid">
                                 {paymentMethods.map((method) => (
                                     <button
@@ -207,30 +261,41 @@ const PaymentGateway = () => {
                                     >
                                         <span className="method-radio" aria-hidden="true" />
                                         <i className={method.icon}></i>
-                                        <span>{method.name}</span>
+                                        <span className="method-btn-text">
+                                            <span className="method-btn-title">{method.name}</span>
+                                            {method.subtitle ? (
+                                                <span className="method-btn-sub">{method.subtitle}</span>
+                                            ) : null}
+                                        </span>
                                     </button>
                                 ))}
                             </div>
-                            <div className="payment-brand-row" aria-hidden="true">
-                                <span>Pay securely with card</span>
-                                <div className="payment-brand-icons">
-                                    <span>AMEX</span>
-                                    <span>MC</span>
-                                    <span>VISA</span>
+                            {paymentMethod === 'stripe' ? (
+                                <div className="payment-brand-row" aria-hidden="true">
+                                    <span>Secured by Stripe</span>
+                                    <div className="payment-brand-icons">
+                                        <span>AMEX</span>
+                                        <span>MC</span>
+                                        <span>VISA</span>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : null}
                         </div>
 
                         <div className="payment-panel">
-                            {paymentMethod === 'card' ? (
+                            {paymentMethod === 'stripe' ? (
                                 <>
                                     <div className="payment-panel-header">
-                                        <h3>Credit Card Payment</h3>
-                                        <p>Pay securely using your debit or credit card.</p>
+                                        <h3>Stripe Checkout</h3>
+                                        <p>
+                                            You will be redirected to Stripe to pay. Depending on your device and
+                                            region, you may see Apple Pay, Google Pay, Link, and other options enabled
+                                            for your account in the Stripe Dashboard.
+                                        </p>
                                     </div>
 
                                     <div className="payment-details-box">
-                                        <h4>Payment Details:</h4>
+                                        <h4>Payment details</h4>
                                         <div className="payment-detail-line">
                                             <span>Amount ({baseCurrency}):</span>
                                             <strong>${usdAmount.toFixed(2)}</strong>
@@ -245,74 +310,24 @@ const PaymentGateway = () => {
                                                     <strong>{currency}</strong>
                                                 </div>
                                                 <div className="payment-detail-line">
-                                                    <span>Approx. Local Amount:</span>
+                                                    <span>Approx. local amount:</span>
                                                     <strong>{localizedAmount}</strong>
                                                 </div>
                                             </>
                                         )}
                                         <p className="payment-detail-note">
                                             {shouldShowApprox
-                                                ? `* Displayed in ${currency} (approx.) based on live exchange rates. Final charge is in ${baseCurrency}.`
-                                                : `* Amount is displayed and charged in ${baseCurrency}.`}
+                                                ? `* Shown in ${currency} (approx.) from live rates. You are charged in ${baseCurrency}.`
+                                                : `* Charged in ${baseCurrency}.`}
                                         </p>
                                     </div>
-
-                                    <div className="card-fields">
-                                        <div className="form-group">
-                                            <label>Card Number</label>
-                                            <input
-                                                type="text"
-                                                placeholder="1234 5678 9012 3456"
-                                                maxLength="19"
-                                                value={formData.cardNumber}
-                                                onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="form-row">
-                                            <div className="form-group">
-                                                <label>Expiry Date</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="MM/YY"
-                                                    value={formData.expiry}
-                                                    onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
-                                                />
-                                            </div>
-
-                                            <div className="form-group">
-                                                <label>CVV</label>
-                                                <input
-                                                    type="password"
-                                                    placeholder="123"
-                                                    maxLength="4"
-                                                    value={formData.cvv}
-                                                    onChange={(e) => setFormData({ ...formData, cvv: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Cardholder Name</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Name on card"
-                                                value={formData.cardName}
-                                                onChange={(e) => setFormData({ ...formData, cardName: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <button type="button" className="paypal-btn">
-                                        <i className="fas fa-credit-card"></i> Pay with Card
-                                    </button>
                                 </>
                             ) : (
-                                <div className="paypal-info">
-                                    <h3>{paymentMethods.find((method) => method.id === paymentMethod)?.name}</h3>
-                                    <p>
-                                        This payment option can be connected next. For now, the page keeps the same
-                                        registration design and amount summary for the selected course.
+                                <div className="paypal-info payment-bank-info">
+                                    <h3>Bank transfer</h3>
+                                    <p>{BANK_TRANSFER_NOTE}</p>
+                                    <p className="payment-bank-contact">
+                                        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
                                     </p>
                                 </div>
                             )}
@@ -321,7 +336,9 @@ const PaymentGateway = () => {
                         <div className="payment-footer-row">
                             <div className="payment-security">
                                 <i className="fas fa-lock"></i>
-                                <span>Secure Payment</span>
+                                <span>
+                                    {paymentMethod === 'stripe' ? 'Stripe secure checkout' : 'Encrypted form'}
+                                </span>
                             </div>
 
                             <div className="payment-footer-actions">
@@ -329,14 +346,19 @@ const PaymentGateway = () => {
                                     <span className="back-arrow">←</span>
                                     <span>Back to All Courses</span>
                                 </Link>
-                                <button type="submit" className="pay-now-btn">
-                                    <i className="fas fa-credit-card"></i> Complete Payment ({localizedAmount})
+                                <button type="submit" className="pay-now-btn" disabled={checkoutLoading}>
+                                    <i className="fas fa-credit-card"></i>{' '}
+                                    {paymentMethod === 'stripe'
+                                        ? checkoutLoading
+                                            ? 'Redirecting…'
+                                            : `Continue to Stripe (${localizedAmount})`
+                                        : `Submit bank transfer request (${localizedAmount})`}
                                 </button>
                             </div>
                         </div>
 
                         <p className="payment-note">
-                            Fee plan: {formattedFeePlan}. By completing this payment, you agree to our terms and privacy policy.
+                            Fee plan: {formattedFeePlan}. By continuing, you agree to our terms and privacy policy.
                         </p>
                     </form>
                 </div>

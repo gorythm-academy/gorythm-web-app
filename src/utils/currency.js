@@ -393,12 +393,43 @@ export const formatCurrency = (amount, currency, locale = 'en-US') => {
   }
 };
 
+/** Full localized currency, whole units only (no compact / no fractional digits). */
+export const formatCurrencyWhole = (amount, currency, locale = 'en-US') => {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return '';
+  const cur = currency || USD;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: cur,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: USD,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+  }
+};
+
 export const parsePriceAmount = (value) => {
   if (value == null || value === '') return NaN;
   const direct = Number(value);
   if (!Number.isNaN(direct)) return direct;
   const match = String(value).match(/[\d.]+/);
   return match ? Number(match[0]) : NaN;
+};
+
+/** Formatted amount + whether to show a “Monthly” line (false for free / unparsed). */
+export const getPriceDisplayParts = (rawPrice, formatWholeFromUsd) => {
+  if (rawPrice == null || rawPrice === '') return { amount: '', showMonth: false };
+  const n = parsePriceAmount(rawPrice);
+  if (Number.isNaN(n)) return { amount: String(rawPrice), showMonth: false };
+  if (n === 0) return { amount: 'Free', showMonth: false };
+  return { amount: formatWholeFromUsd(n), showMonth: true };
 };
 
 export const USD_CURRENCY = USD;

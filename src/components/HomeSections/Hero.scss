@@ -1,3 +1,4 @@
+
 /*
  * ============================================================================
  * HERO SECTION - RESPONSIVE TYPOGRAPHY APPROACH
@@ -12,7 +13,7 @@
  * - Better UX with continuous scaling vs. abrupt jumps
  * 
  * Key clamp() implementations:
- * - .hero-title-word & .hero-subtitle: clamp(1.8rem, 0.8rem + 4.8vw, 8rem)
+ * - .hero-title-word & .hero-subtitle: clamp(1.5rem, 0.65rem + 4vw, 5rem)
  * - .hero-description: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem)
  * 
  * Responsive strategy:
@@ -159,7 +160,7 @@
       }
     }
 
-    /* First line: "Your [image] Future" */
+    /* First line: "Knowledge [image] that" */
     .hero-title-line-1 {
       display: flex;
       align-items: center;
@@ -170,8 +171,8 @@
       .hero-title-word {
         /* UPDATED: Using clamp() for smooth responsive scaling - replaces 12+ media queries */
         /* Formula: clamp(min-size-mobile, base + viewport-scale, max-size-desktop) */
-        /* Scales from 1.8rem (375px) to 8rem (1920px+) smoothly */
-        font-size: clamp(1.8rem, 0.8rem + 4.8vw, 6rem);
+        /* Scales from 1.5rem (small phones) up to 5rem on large screens */
+        font-size: clamp(1.5rem, 0.65rem + 4vw, 5rem);
         font-weight: 650;
         color: white;
         line-height: normal;
@@ -180,7 +181,7 @@
         text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
       }
 
-      /* Center image container - between "Your" and "Future" */
+      /* Center image container - between first-line words */
       .hero-center-image {
         width: 15vw; // Responsive based on viewport width
         height: auto; // Maintain aspect ratio
@@ -200,15 +201,15 @@
       }
     }
 
-    /* Second line: "Guided by Experts" */
+    /* Second line: "builds character" */
     .hero-title-line-2 {
       width: 100%;
       margin-top: 4px;
 
       .hero-subtitle {
         /* UPDATED: Using clamp() for smooth responsive scaling - matches hero-title-word */
-        /* Scales from 1.8rem (mobile) to 8rem (desktop) automatically */
-        font-size: clamp(1.8rem, 0.8rem + 4.8vw, 6rem);
+        /* Matches .hero-title-word fluid scale */
+        font-size: clamp(1.5rem, 0.65rem + 4vw, 5rem);
         font-weight: 550;
         color: white;
         margin: 0;
@@ -434,7 +435,7 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-title-word {
-      font-size: clamp(3.9rem, 7.5vw, 6rem);
+      font-size: clamp(3.25rem, 6.2vw, 5rem);
       line-height: 1.1;
     }
 
@@ -443,7 +444,7 @@
     }
 
     .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
-      font-size: clamp(3.7rem, 7.2vw, 5.8rem);
+      font-size: clamp(3.1rem, 6vw, 4.85rem);
       line-height: 1.1;
       white-space: nowrap;
     }
@@ -491,11 +492,11 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-title-word {
-      font-size: clamp(3.2rem, 6.2vw, 5rem); // scaled back for short heights
+      font-size: clamp(2.65rem, 5.1vw, 4.1rem); // scaled back for short heights
     }
 
     .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
-      font-size: clamp(3rem, 5.8vw, 4.8rem);
+      font-size: clamp(2.5rem, 4.85vw, 4rem);
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
@@ -533,11 +534,11 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-title-word {
-      font-size: clamp(1.1rem, 2.6vw, 1.6rem);
+      font-size: clamp(0.95rem, 2.2vw, 1.35rem);
     }
 
     .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
-      font-size: clamp(1.05rem, 2.4vw, 1.5rem);
+      font-size: clamp(0.9rem, 2.05vw, 1.28rem);
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {

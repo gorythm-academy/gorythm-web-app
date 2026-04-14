@@ -52,7 +52,7 @@ const SubscribeSection = () => {
             {/* 1. Big headline – left */}
             <div className="subscribe-headline-wrap">
               <h2 className="subscribe-headline subscribe_anim">
-                Stay updated with cosmic discoveries!
+                Stay updated with our latest courses.
               </h2>
             </div>
 

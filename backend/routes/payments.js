@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY
     ? require('stripe')(process.env.STRIPE_SECRET_KEY)
@@ -12,12 +13,49 @@ const requireStripe = (res) => {
     if (stripe) return true;
     res.status(503).json({
         success: false,
-        error: 'Stripe is not configured on this deployment'
+        error: 'Stripe is not configured on this deployment',
     });
     return false;
 };
 
-// Public endpoint for website Course Registration form
+const frontendBase = () =>
+    (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+/** Checkout payment method types; Apple Pay / Google Pay use `card` when enabled in Stripe Dashboard. Default `card` only — `link` often errors if not enabled for the account. */
+const checkoutPaymentMethodTypes = () => {
+    const raw = process.env.STRIPE_CHECKOUT_PAYMENT_METHOD_TYPES;
+    if (raw && String(raw).trim()) {
+        const list = String(raw)
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+        if (list.length) return list;
+    }
+    return ['card'];
+};
+
+const createCheckoutSession = async (params) => {
+    return stripe.checkout.sessions.create(params);
+};
+
+/** If requested payment_method_types fail (e.g. Link not activated), retry with card only. */
+const createCheckoutSessionWithFallback = async (baseParams, types) => {
+    try {
+        return await createCheckoutSession({ ...baseParams, payment_method_types: types });
+    } catch (err) {
+        const isStripeInvalid =
+            err?.type === 'StripeInvalidRequestError' ||
+            err?.rawType === 'invalid_request_error';
+        const hasOtherTypes = types.length > 1 || (types.length === 1 && types[0] !== 'card');
+        if (isStripeInvalid && hasOtherTypes) {
+            console.warn('Stripe checkout retry with card only:', err.message);
+            return createCheckoutSession({ ...baseParams, payment_method_types: ['card'] });
+        }
+        throw err;
+    }
+};
+
+// --- Public: bank transfer registration (manual verification) ---
 router.post('/register-online', async (req, res) => {
     try {
         const { studentName, email, courseName, amount, paymentMethod } = req.body || {};
@@ -25,7 +63,15 @@ router.post('/register-online', async (req, res) => {
         if (!studentName || !email || !courseName || amount == null) {
             return res.status(400).json({
                 success: false,
-                error: 'studentName, email, courseName, and amount are required'
+                error: 'studentName, email, courseName, and amount are required',
+            });
+        }
+
+        const method = String(paymentMethod || 'bank').toLowerCase();
+        if (method !== 'bank') {
+            return res.status(400).json({
+                success: false,
+                error: 'Only bank transfer registrations are accepted here. Use Stripe for card and digital wallets.',
             });
         }
 
@@ -35,7 +81,7 @@ router.post('/register-online', async (req, res) => {
         if (Number.isNaN(numericAmount) || numericAmount < 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid amount'
+                error: 'Invalid amount',
             });
         }
 
@@ -48,37 +94,163 @@ router.post('/register-online', async (req, res) => {
             course: course?._id || undefined,
             amount: numericAmount,
             currency: 'USD',
-            status: 'completed',
-            paymentMethod: paymentMethod || 'card',
-            transactionId: `online_${Date.now()}_${Math.floor(Math.random() * 100000)}`
+            status: 'pending',
+            paymentMethod: 'bank',
+            transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
         });
 
         await payment.save();
 
         res.json({
             success: true,
-            message: 'Payment registration stored successfully',
-            payment
+            message:
+                'Bank transfer request saved. Our team will confirm payment and update your status in the admin dashboard.',
+            payment,
         });
     } catch (error) {
-        console.error('Error storing online registration payment:', error);
-        res.status(500).json({ success: false, error: 'Failed to store payment registration' });
+        console.error('Error storing bank registration:', error);
+        res.status(500).json({ success: false, error: 'Failed to save registration' });
+    }
+});
+
+// --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
+router.post('/create-checkout', async (req, res) => {
+    if (!requireStripe(res)) return;
+    try {
+        const { courseId, studentName, email, userId } = req.body || {};
+
+        if (!courseId || !studentName || !email) {
+            return res.status(400).json({
+                success: false,
+                error: 'courseId, studentName, and email are required',
+            });
+        }
+
+        const course = await Course.findById(String(courseId));
+        if (!course) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
+
+        const priceUsd = Number(course.price);
+        if (Number.isNaN(priceUsd) || priceUsd <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'This course has no payable amount. Contact us to enroll.',
+            });
+        }
+
+        const unitAmount = Math.round(priceUsd * 100);
+        if (unitAmount < 50) {
+            return res.status(400).json({
+                success: false,
+                error: 'Amount is below the minimum charge allowed by Stripe.',
+            });
+        }
+
+        let linkedUserId;
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            const user = await User.findById(userId).select('_id');
+            if (user) linkedUserId = user._id;
+        }
+
+        const base = frontendBase();
+        const paymentMethodTypes = checkoutPaymentMethodTypes();
+
+        const sessionParams = {
+            customer_email: String(email).trim().toLowerCase(),
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: course.title,
+                            description: (course.description || '').slice(0, 500),
+                        },
+                        unit_amount: unitAmount,
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${base}/payment-cancel`,
+            metadata: {
+                courseId: String(courseId),
+                studentName: String(studentName).trim(),
+                email: String(email).trim().toLowerCase(),
+                ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
+            },
+        };
+
+        const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
+
+        const payment = new Payment({
+            user: linkedUserId,
+            course: courseId,
+            studentName: String(studentName).trim(),
+            email: String(email).trim().toLowerCase(),
+            courseName: course.title,
+            amount: priceUsd,
+            currency: 'USD',
+            status: 'pending',
+            paymentMethod: 'stripe',
+            transactionId: session.id,
+        });
+
+        await payment.save();
+
+        res.json({
+            success: true,
+            sessionId: session.id,
+            url: session.url,
+        });
+    } catch (error) {
+        console.error('Stripe error:', error);
+        const msg =
+            (error?.type === 'StripeInvalidRequestError' || error?.rawType === 'invalid_request_error') &&
+            error?.message
+                ? error.message
+                : error?.message || 'Payment initialization failed';
+        res.status(500).json({ success: false, error: msg });
+    }
+});
+
+router.get('/verify-session', async (req, res) => {
+    if (!requireStripe(res)) return;
+    const sessionId = req.query.session_id;
+    if (!sessionId || typeof sessionId !== 'string') {
+        return res.status(400).json({ success: false, error: 'session_id is required' });
+    }
+    try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const payment = await Payment.findOne({ transactionId: sessionId })
+            .populate('course', 'title')
+            .lean();
+
+        res.json({
+            success: true,
+            paid: session.payment_status === 'paid',
+            paymentStatus: payment?.status || null,
+            courseTitle: payment?.course?.title || payment?.courseName || null,
+        });
+    } catch (error) {
+        console.error('verify-session:', error.message);
+        res.status(400).json({ success: false, error: 'Could not verify session' });
     }
 });
 
 router.use(authMiddleware);
 
-// Get all payments
 router.get('/', async (req, res) => {
     try {
         const payments = await Payment.find()
             .populate('user', 'name email')
             .populate('course', 'title')
             .sort({ createdAt: -1 });
-        
+
         res.json({
             success: true,
-            payments: payments
+            payments,
         });
     } catch (error) {
         console.error('Error fetching payments:', error);
@@ -86,135 +258,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Create Stripe checkout session
-router.post('/create-checkout', async (req, res) => {
-    if (!requireStripe(res)) return;
-    try {
-        const { courseId, userId } = req.body;
-        
-        // Get course details
-        const course = await Course.findById(courseId);
-        if (!course) {
-            return res.status(404).json({ success: false, error: 'Course not found' });
-        }
-        
-        // Get user details
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-        
-        // Create Stripe session
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [{
-                price_data: {
-                    currency: 'usd',
-                    product_data: {
-                        name: course.title,
-                        description: course.description,
-                    },
-                    unit_amount: course.price * 100, // Convert to cents
-                },
-                quantity: 1,
-            }],
-            mode: 'payment',
-            success_url: `${process.env.FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.FRONTEND_URL}/payment-cancel`,
-            metadata: {
-                courseId: courseId,
-                userId: userId
-            }
-        });
-        
-        // Create pending payment record
-        const payment = new Payment({
-            user: userId,
-            course: courseId,
-            amount: course.price,
-            currency: 'USD',
-            status: 'pending',
-            paymentMethod: 'stripe',
-            transactionId: session.id
-        });
-        
-        await payment.save();
-        
-        res.json({
-            success: true,
-            sessionId: session.id,
-            url: session.url
-        });
-        
-    } catch (error) {
-        console.error('Stripe error:', error);
-        res.status(500).json({ success: false, error: 'Payment initialization failed' });
-    }
-});
-
-// Stripe webhook handler
-router.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
-    if (!requireStripe(res)) return;
-    const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    let event;
-
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } catch (err) {
-        console.error('Webhook signature verification failed:', err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    // Handle the event
-    switch (event.type) {
-        case 'checkout.session.completed':
-            const session = event.data.object;
-            
-            // Update payment status
-            await Payment.findOneAndUpdate(
-                { transactionId: session.id },
-                { 
-                    status: 'completed',
-                    paymentMethod: session.payment_method_types[0]
-                }
-            );
-            
-            // Enroll user in course
-            const payment = await Payment.findOne({ transactionId: session.id })
-                .populate('user')
-                .populate('course');
-            
-            if (payment && payment.user && payment.course) {
-                // Add course to user's enrolled courses
-                await User.findByIdAndUpdate(payment.user._id, {
-                    $addToSet: { enrolledCourses: payment.course._id }
-                });
-                
-                // Add user to course's students
-                await Course.findByIdAndUpdate(payment.course._id, {
-                    $addToSet: { students: payment.user._id }
-                });
-            }
-            break;
-            
-        case 'checkout.session.expired':
-            const expiredSession = event.data.object;
-            await Payment.findOneAndUpdate(
-                { transactionId: expiredSession.id },
-                { status: 'failed' }
-            );
-            break;
-            
-        default:
-            console.log(`Unhandled event type ${event.type}`);
-    }
-
-    res.json({ received: true });
-});
-
-// Refund payment
 router.post('/:id/refund', async (req, res) => {
     if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
@@ -222,38 +265,45 @@ router.post('/:id/refund', async (req, res) => {
     if (!requireStripe(res)) return;
     try {
         const payment = await Payment.findById(req.params.id);
-        
+
         if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment not found' });
         }
-        
+
         if (payment.status !== 'completed') {
             return res.status(400).json({ success: false, error: 'Only completed payments can be refunded' });
         }
-        
-        // Create Stripe refund
+
+        const intentId =
+            payment.stripePaymentIntentId ||
+            (payment.transactionId?.startsWith('pi_') ? payment.transactionId : null);
+
+        if (!intentId) {
+            return res.status(400).json({
+                success: false,
+                error: 'No Stripe PaymentIntent on this record; refund is not available.',
+            });
+        }
+
         const refund = await stripe.refunds.create({
-            payment_intent: payment.transactionId,
+            payment_intent: intentId,
         });
-        
-        // Update payment status
+
         payment.status = 'refunded';
         payment.refundId = refund.id;
         await payment.save();
-        
+
         res.json({
             success: true,
             message: 'Refund processed successfully',
-            refundId: refund.id
+            refundId: refund.id,
         });
-        
     } catch (error) {
         console.error('Refund error:', error);
         res.status(500).json({ success: false, error: 'Refund failed' });
     }
 });
 
-// Delete payment by id
 router.delete('/:id', async (req, res) => {
     if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
@@ -269,11 +319,11 @@ router.delete('/:id', async (req, res) => {
         return res.json({
             success: true,
             message: 'Payment deleted successfully',
-            paymentId: req.params.id
+            paymentId: req.params.id,
         });
     } catch (error) {
         console.error('Delete payment error:', error);
-        return res.status(500).json({ success: false, error: 'Failed to delete payment' });
+        res.status(500).json({ success: false, error: 'Failed to delete payment' });
     }
 });
 

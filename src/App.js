@@ -49,6 +49,8 @@ import Analytics from './components/Admin/pages/Analytics';
 import Settings from './components/Admin/pages/Settings';
 import StudentsData from './components/Admin/pages/StudentsData';
 import PaymentGateway from './components/Admin/pages/PaymentGateway';
+import { PaymentSuccess } from './components/Pages/PaymentSuccess';
+import { PaymentCancel } from './components/Pages/PaymentCancel';
 import PeopleManagement from './components/Admin/pages/PeopleManagement';
 import ContactMessages from './components/Admin/pages/ContactMessages';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
@@ -67,11 +69,11 @@ const Home = () => {
       <HeroSection />
       
       {/* Other sections */}
-      <AboutSection />
+      <CoursesSection />
       <MissionSection />
       <VideoSection />
       <MarqueeSection />
-      <CoursesSection />
+      <AboutSection />
       <SubscribeSection />
       <WhyGorythmSection />
       <StudentTestimonialsSection />
@@ -109,6 +111,8 @@ function AppLayout() {
               <Route path="/courses" element={<AllCourses />} />
               <Route path="/courses/:slug" element={<SingleCourse />} />
               <Route path="/payment" element={<PaymentGateway />} />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
+              <Route path="/payment-cancel" element={<PaymentCancel />} />
               <Route path="/instructors" element={<div className="content-container"><h1>Instructors</h1><p>Page content.</p></div>} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />

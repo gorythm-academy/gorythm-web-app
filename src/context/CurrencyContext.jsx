@@ -4,6 +4,7 @@ import {
   detectUserCurrency,
   fetchUsdRates,
   formatCurrency,
+  formatCurrencyWhole,
   USD_CURRENCY,
 } from '../utils/currency';
 
@@ -56,6 +57,11 @@ export const CurrencyProvider = ({ children }) => {
       return formatCurrency(converted, currency, locale);
     };
 
+    const formatFromUsdWhole = (amountUsd) => {
+      const converted = convertUsd(amountUsd);
+      return formatCurrencyWhole(converted, currency, locale);
+    };
+
     return {
       currency,
       locale,
@@ -66,6 +72,7 @@ export const CurrencyProvider = ({ children }) => {
       isLoading,
       convertUsd,
       formatFromUsd,
+      formatFromUsdWhole,
       formatCurrency: (amount) => formatCurrency(amount, currency, locale),
       baseCurrency: USD_CURRENCY,
     };

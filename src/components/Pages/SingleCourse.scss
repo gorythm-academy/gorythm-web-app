@@ -17,12 +17,57 @@
   text-align: center;
 }
 
+.cip-page-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 16px;
+  max-width: min(920px, 100%);
+}
+
 .cip-page-title {
   margin: 0;
   color: #fff;
   font-size: clamp(2rem, 3.4vw, 3rem);
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+.cip-share-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.55);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 3px;
+  }
+
+  i {
+    font-size: 1rem;
+  }
+}
+
+.cip-share-feedback {
+  margin: -12px 0 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .cip-page-arrow {
@@ -182,6 +227,29 @@
   color: rgba(255, 255, 255, 0.72);
   font-size: 0.95rem;
   line-height: 1.6;
+}
+
+.cip-meta-value--price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.cip-meta-price-amount {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cip-meta-price-period {
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.52);
 }
 
 .cip-actions {

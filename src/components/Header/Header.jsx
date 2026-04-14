@@ -6,7 +6,8 @@ import {
   INFO_EMAIL,
   CONTACT_PHONE,
   FACEBOOK_URL,
-  WHATSAPP_URL,
+  getWhatsAppDirectUrl,
+  onWhatsAppAnchorClick,
   INSTAGRAM_URL,
   YOUTUBE_URL,
   TIKTOK_URL,
@@ -373,11 +374,12 @@ const Header = () => {
                     <Link to="/login" className="btn btn-login">Login</Link>
                   </div>
 
-                  {/* WhatsApp – opens chat in new tab */}
+                  {/* WhatsApp – direct app (mobile) or WhatsApp Web (desktop); avoids wa.me chooser */}
                   <a
-                    href={WHATSAPP_URL}
+                    href={getWhatsAppDirectUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={onWhatsAppAnchorClick}
                     className="header-whatsapp"
                     aria-label="Chat on WhatsApp"
                   >

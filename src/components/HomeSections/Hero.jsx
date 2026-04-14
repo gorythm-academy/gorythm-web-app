@@ -89,11 +89,11 @@ const HeroSection = () => {
   };
 
   const heroData = {
-    caption: "your",
-    caption2: "learning",
-    caption3: "meets faith",
+    caption: "Knowledge",
+    caption2: "that",
+    caption3: "builds character",
     description:
-    "Empowering kids, teens, and adults to connect with the Qur’an, Arabic, and Islamic values through engaging online learning.",
+    "GoRythm helps learners of every age build knowledge, confidence, and character through online Qur’an courses, Arabic language courses, and Islamic studies.",
     bgImage: heroBgImage,
     centerImage: centerImage,
     particles: [

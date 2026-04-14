@@ -14,7 +14,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
-import { parsePriceAmount } from '../../utils/currency';
+import { getPriceDisplayParts } from '../../utils/currency';
+import { courseUrlSegment } from '../../utils/courseLinks';
 // NOTE: Homepage courses are now API-only (no static fallback).
 import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
@@ -41,9 +42,7 @@ const ASSETS_BY_COURSE_TITLE = {
 };
 const PLACEHOLDER_IMAGES = [assetPlaceholder1, assetPlaceholder2, assetPlaceholder3, assetPlaceholder4];
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
-const isMongoId = (s) => (s != null && /^[a-f0-9]{24}$/i.test(String(s)));
-const courseLinkParam = (c) =>
-  (c._id && isMongoId(c._id) ? c._id : (c.slug || c._id || c.id));
+const courseLinkParam = (c) => courseUrlSegment(c);
 export const getImageFromAssets = (title, index) =>
   ASSETS_BY_COURSE_TITLE[normalizeTitle(title)] || PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
 
@@ -78,13 +77,6 @@ export const portfolioItems = [
   { id: 6, slug: 'the-universe', title: 'The Universe', category: 'Cosmology', image: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=700&q=80', aspectRatio: '4/5', description: 'An awe-inspiring glimpse into space-time.' },
 ];
 
-const formatPrice = (price, formatFromUsd) => {
-  if (price == null || price === '') return '';
-  const n = parsePriceAmount(price);
-  if (Number.isNaN(n)) return String(price);
-  return n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
-};
-
 const formatLevel = (level) => {
   if (!level) return '';
   const s = String(level);
@@ -98,7 +90,7 @@ const CoursesSection = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const { formatFromUsd } = useCurrency();
+  const { formatFromUsdWhole } = useCurrency();
 
   const fetchCourses = React.useCallback(async () => {
     setLoading(true);
@@ -144,26 +136,31 @@ const CoursesSection = () => {
   }, [fetchCourses]);
 
   const apiCourses = courses
-    .map((c, index) => ({
+    .map((c, index) => {
+      const priceParts = getPriceDisplayParts(c.price, formatFromUsdWhole);
+      return {
       id: c._id,
       _id: c._id,
       slug: c.slug || c._id,
       title: c.title || '',
       category: c.category || '',
       description: c.description || '',
-      price: formatPrice(c.price, formatFromUsd),
+      priceDisplay: priceParts.amount,
+      priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
       aspectRatio: MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length],
-    }))
+    };
+    })
     .sort((a, b) => getCategorySortIndex(a.category) - getCategorySortIndex(b.category) || (a.title || '').localeCompare(b.title || ''));
 
   // API-only display (no static fallback)
   const displayCourses = apiCourses;
 
-  const leftColumnCourses = displayCourses.filter((_, index) => index % 2 === 0);
-  const rightColumnCourses = displayCourses.filter((_, index) => index % 2 === 1);
+  const masonryColumns = [0, 1, 2].map((mod) =>
+    displayCourses.filter((_, index) => index % 3 === mod)
+  );
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -186,15 +183,17 @@ const CoursesSection = () => {
         <div className="courses-section-left">
           <div className="courses-section-left-sticky">
             <div className="courses-section-left-content">
-              <span className="courses-section-big-number" aria-hidden="true">02</span>
+              <span className="courses-section-big-number" aria-hidden="true">01</span>
               <h2 className="courses-section-title courses-section_anim">
-                Learn Quran, Arabic, STEM, and Islamic studies in one place
+                Educational program
               </h2>
               <img src={titleLineSvg} alt="" className="courses-section-title-line courses-section_anim" aria-hidden="true" />
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                Adventure beyond the stars, adrenaline that defies gravity – Your Journey to Islamic Learning Starts Here. 
+                  At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith
+                  through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically,
+                  and grow with purpose.
                 </p>
                 <Link to="/courses" className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">Explore Courses</span>
@@ -226,64 +225,42 @@ const CoursesSection = () => {
             </div>
           ) : (
           <div className="courses-section-masonry">
-            <div className="courses-section-column">
-              {leftColumnCourses.map((course) => (
-                <Link
-                  key={course.id || course._id}
-                  to={`/courses/${courseLinkParam(course)}`}
-                  className="courses-section-item courses-section_anim"
-                >
-                  <div
-                    className="courses-section-item-img-wrap"
-                    style={{ aspectRatio: course.aspectRatio }}
+            {masonryColumns.map((columnCourses, columnIndex) => (
+              <div key={columnIndex} className="courses-section-column">
+                {columnCourses.map((course) => (
+                  <Link
+                    key={course.id || course._id}
+                    to={`/courses/${courseLinkParam(course)}`}
+                    className="courses-section-item courses-section_anim"
                   >
-                    <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
-                  </div>
-                  <div className="courses-section-item-caption">
-                    <div className="courses-section-item-copy">
-                      <span className="courses-section-item-category">{course.category}</span>
-                      <h2 className="courses-section-item-title">{course.title}</h2>
-                      <p className="courses-section-item-description">{course.description}</p>
-                      <div className="courses-section-item-meta">
-                        <span className="courses-section-item-price">{course.price}</span>
-                        <span className="courses-section-item-duration">{course.duration}</span>
-                        <span className="courses-section-item-audience">{course.level}</span>
-                      </div>
+                    <div
+                      className="courses-section-item-img-wrap"
+                      style={{ aspectRatio: course.aspectRatio }}
+                    >
+                      <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
                     </div>
-                    <span className="courses-section-item-arrow" aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <div className="courses-section-column">
-              {rightColumnCourses.map((course) => (
-                <Link
-                  key={course.id || course._id}
-                  to={`/courses/${courseLinkParam(course)}`}
-                  className="courses-section-item courses-section_anim"
-                >
-                  <div
-                    className="courses-section-item-img-wrap"
-                    style={{ aspectRatio: course.aspectRatio }}
-                  >
-                    <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
-                  </div>
-                  <div className="courses-section-item-caption">
-                    <div className="courses-section-item-copy">
-                      <span className="courses-section-item-category">{course.category}</span>
-                      <h2 className="courses-section-item-title">{course.title}</h2>
-                      <p className="courses-section-item-description">{course.description}</p>
-                      <div className="courses-section-item-meta">
-                        <span className="courses-section-item-price">{course.price}</span>
-                        <span className="courses-section-item-duration">{course.duration}</span>
-                        <span className="courses-section-item-audience">{course.level}</span>
+                    <div className="courses-section-item-caption">
+                      <div className="courses-section-item-copy">
+                        <span className="courses-section-item-category">{course.category}</span>
+                        <h2 className="courses-section-item-title">{course.title}</h2>
+                        <p className="courses-section-item-description">{course.description}</p>
+                        <div className="courses-section-item-meta">
+                          <span className="courses-section-item-price">
+                            <span className="courses-section-item-price-amount">{course.priceDisplay}</span>
+                            {course.priceShowMonth ? (
+                              <span className="courses-section-item-price-period">Monthly</span>
+                            ) : null}
+                          </span>
+                          <span className="courses-section-item-duration">{course.duration}</span>
+                          <span className="courses-section-item-audience">{course.level}</span>
+                        </div>
                       </div>
+                      <span className="courses-section-item-arrow" aria-hidden="true">→</span>
                     </div>
-                    <span className="courses-section-item-arrow" aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            ))}
           </div>
           )}
         </div>

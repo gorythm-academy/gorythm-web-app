@@ -45,7 +45,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 9fr 11fr;
   gap: 0 32px;
   align-items: start;
 }
@@ -110,20 +110,20 @@
 }
 
 .courses-section-title {
-  font-size: clamp(1.9rem, 4.2vw, 3.5rem);
+  font-size: clamp(1.55rem, 3.5vw, 2.85rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: #fff;
   margin: 70px 0 5px;
-  max-width: 80%;
+  max-width: 100%;
 }
 
 .courses-section-title-line {
   display: block;
   width: 100%;
-  max-width: 40%;
+  max-width: 55%;
   height: auto;
   margin: 0 0 32px;
   object-fit: contain;
@@ -219,7 +219,7 @@
 
 .courses-section-masonry {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0 16px;
   align-items: start;
 }
@@ -268,9 +268,13 @@
   gap: 16px;
   margin-top: 0;
   padding: 14px 0 0;
+  min-width: 0;
 }
 
-.courses-section-item-copy { max-width: 92%; }
+.courses-section-item-copy {
+  max-width: 92%;
+  min-width: 0;
+}
 
 .courses-section-item-category {
   display: inline-block;
@@ -284,7 +288,7 @@
 
 .courses-section-item-title {
   margin: 0 0 10px;
-  font-size: 1.18rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -309,9 +313,27 @@
 }
 
 .courses-section-item-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   color: #fff;
   font-size: 1.1rem;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.courses-section-item-price-amount {
+  line-height: 1.2;
+}
+
+.courses-section-item-price-period {
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .courses-section-item-duration,
@@ -379,7 +401,9 @@
     gap: 0;
   }
   .courses-section-column { gap: 20px; }
-  .courses-section-column + .courses-section-column { margin-top: 20px; }
+  .courses-section-column + .courses-section-column {
+    margin-top: 20px;
+  }
 }
 
 // Portrait: let the left section span full screen width (no inner padding)
@@ -422,7 +446,7 @@
   }
 
   .courses-section-inner {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 9fr 11fr;
     gap: 0 32px;
     align-items: stretch;
   }
@@ -451,7 +475,7 @@
     }
   }
   .courses-section-masonry {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0 16px;
   }
   .courses-section-column {
@@ -502,7 +526,7 @@
 }
 
 // ≤768px: typography/padding for all orientations. Do NOT force single-column masonry here —
-// that would override the two-column masonry from the $bp-section-md landscape block on
+// that would override the three-column masonry from the sm-1+landscape block on
 // phones like S8+ (740×360) and iPhone SE (667×375) where width is still ≤768px.
 @media (max-width: $bp-section-sm) {
   .courses-section-inner {
@@ -517,14 +541,18 @@
   .courses-section-description { max-width: 100%; }
 }
 
-// Portrait only: single-column masonry (landscape keeps 1fr 1fr from md+landscape above).
+// Portrait only: stacked masonry (single grid track); landscape uses three columns above.
 @media (max-width: $bp-section-sm) and (orientation: portrait) {
   .courses-section-masonry {
     grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .courses-section-column + .courses-section-column {
+    margin-top: 20px;
   }
 }
 
-// Small phone landscape (≤768px): tighten padding; re-assert two-column masonry so it wins
+// Small phone landscape (≤768px): tighten padding; re-assert three-column masonry so it wins
 // over any same-specificity rules and matches wider mobile landscape behavior.
 @media (max-width: $bp-section-sm) and (orientation: landscape) {
   .courses-section-inner {
@@ -538,7 +566,7 @@
     padding: 0 24px 64px 0;
   }
   .courses-section-masonry {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0 12px;
   }
 }
@@ -551,7 +579,7 @@
   }
 
   .courses-section-title {
-    font-size: clamp(2.5rem, 8.2vw, 3.4rem);
+    font-size: clamp(2.05rem, 6.8vw, 2.85rem);
     line-height: 1.18;
     max-width: 100%;
   }
@@ -571,7 +599,7 @@
   }
 
   .courses-section-item-title {
-    font-size: 1.75rem;
+    font-size: 1.35rem;
     line-height: 1.35;
   }
 
@@ -676,7 +704,7 @@
   }
 
   .courses-section-item-title {
-    font-size: 1.35rem;
+    font-size: 1.08rem;
   }
 
   .courses-section-item-description {

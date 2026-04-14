@@ -15,6 +15,9 @@ const paymentSchema = new mongoose.Schema({
     },
     paymentMethod: { type: String, default: 'stripe' },
     transactionId: { type: String },
+    stripePaymentIntentId: { type: String },
+    refundId: { type: String },
+    failureReason: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
 

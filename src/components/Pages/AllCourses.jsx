@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
-import { parsePriceAmount } from '../../utils/currency';
+import { getPriceDisplayParts } from '../../utils/currency';
+import { courseUrlSegment } from '../../utils/courseLinks';
 import './AllCourses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
 import assetQuranRecitation from '../../assets/images/Quran Recitation with Tajweed.avif';
@@ -54,11 +55,6 @@ const getFirstLine = (text) => {
     return match[1].trim();
   }
   return raw;
-};
-const formatPrice = (price, formatFromUsd) => {
-  if (price == null || price === '') return '';
-  const n = parsePriceAmount(price);
-  return Number.isNaN(n) ? String(price) : n === 0 ? 'Free' : `${formatFromUsd(n)}/Month`;
 };
 const formatLevel = (level) => {
   if (!level) return '';
@@ -278,7 +274,7 @@ export const courses = [
 ];
 
 const AllCourses = () => {
-  const { formatFromUsd } = useCurrency();
+  const { formatFromUsdWhole } = useCurrency();
   const [apiCourses, setApiCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDesktopScrollZone, setIsDesktopScrollZone] = useState(
@@ -324,23 +320,28 @@ const AllCourses = () => {
   }, [fetchCourses]);
 
   const displayCourses = apiCourses
-    .map((c, index) => ({
+    .map((c, index) => {
+      const priceParts = getPriceDisplayParts(c.price, formatFromUsdWhole);
+      return {
       id: c._id,
       _id: c._id,
       slug: c.slug || c._id,
       title: c.title || '',
       category: c.category || '',
       description: getFirstLine(c.description || ''),
-      price: formatPrice(c.price, formatFromUsd),
+      priceDisplay: priceParts.amount,
+      priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
       aspectRatio: MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length],
-    }))
+    };
+    })
     .sort((a, b) => getCategorySortIndex(a.category) - getCategorySortIndex(b.category) || (a.title || '').localeCompare(b.title || ''));
 
-  const leftColumnCourses = displayCourses.filter((_, index) => index % 2 === 0);
-  const rightColumnCourses = displayCourses.filter((_, index) => index % 2 === 1);
+  const masonryColumns = [0, 1, 2].map((mod) =>
+    displayCourses.filter((_, index) => index % 3 === mod)
+  );
 
   useEffect(() => {
     document.body.classList.add('courses-cursor-visible');
@@ -369,7 +370,7 @@ const AllCourses = () => {
           <div className="courses-left-panel">
             <div className="courses-left-content">
               <h1 className="courses-title">
-                Learn Quran, Arabic, STEM, and Islamic studies in one place
+                Educational program
               </h1>
               <img
                 src={titleLineSvg}
@@ -379,8 +380,9 @@ const AllCourses = () => {
               />
               <div className="courses-left-footer">
                 <p className="courses-description">
-                  A portfolio-style overview of the core programs offered by Al
-                  Farhan Academy, adapted to your landing-page visual language.
+                  At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith
+                  through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically,
+                  and grow with purpose.
                 </p>
                 <Link to="/contact" className="courses-cta">
                   <span className="courses-cta-text">Contact Us</span>
@@ -406,64 +408,42 @@ const AllCourses = () => {
             </div>
           ) : (
           <div className="courses-masonry">
-            <div className="courses-column">
-              {leftColumnCourses.map((course) => (
-                <Link
-                  key={course.id || course._id}
-                  to={`/courses/${course._id || course.slug || course.id}`}
-                  className="courses-item"
-                >
-                  <div
-                    className="courses-item-img-wrap"
-                    style={{ aspectRatio: course.aspectRatio }}
+            {masonryColumns.map((columnCourses, columnIndex) => (
+              <div key={columnIndex} className="courses-column">
+                {columnCourses.map((course) => (
+                  <Link
+                    key={course.id || course._id}
+                    to={`/courses/${courseUrlSegment(course)}`}
+                    className="courses-item"
                   >
-                    <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
-                  </div>
-                  <div className="courses-item-caption">
-                    <div className="courses-item-copy">
-                      <span className="courses-item-category">{course.category}</span>
-                      <h2 className="courses-item-title">{course.title}</h2>
-                      <p className="courses-item-description">{course.description}</p>
-                      <div className="courses-item-meta">
-                        <span className="courses-item-price">{course.price}</span>
-                        <span className="courses-item-duration">{course.duration}</span>
-                        <span className="courses-item-audience">{course.level}</span>
-                      </div>
+                    <div
+                      className="courses-item-img-wrap"
+                      style={{ aspectRatio: course.aspectRatio }}
+                    >
+                      <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
                     </div>
-                    <span className="courses-item-arrow" aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <div className="courses-column">
-              {rightColumnCourses.map((course) => (
-                <Link
-                  key={course.id || course._id}
-                  to={`/courses/${course._id || course.slug || course.id}`}
-                  className="courses-item"
-                >
-                  <div
-                    className="courses-item-img-wrap"
-                    style={{ aspectRatio: course.aspectRatio }}
-                  >
-                    <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
-                  </div>
-                  <div className="courses-item-caption">
-                    <div className="courses-item-copy">
-                      <span className="courses-item-category">{course.category}</span>
-                      <h2 className="courses-item-title">{course.title}</h2>
-                      <p className="courses-item-description">{course.description}</p>
-                      <div className="courses-item-meta">
-                        <span className="courses-item-price">{course.price}</span>
-                        <span className="courses-item-duration">{course.duration}</span>
-                        <span className="courses-item-audience">{course.level}</span>
+                    <div className="courses-item-caption">
+                      <div className="courses-item-copy">
+                        <span className="courses-item-category">{course.category}</span>
+                        <h2 className="courses-item-title">{course.title}</h2>
+                        <p className="courses-item-description">{course.description}</p>
+                        <div className="courses-item-meta">
+                          <span className="courses-item-price">
+                            <span className="courses-item-price-amount">{course.priceDisplay}</span>
+                            {course.priceShowMonth ? (
+                              <span className="courses-item-price-period">Monthly</span>
+                            ) : null}
+                          </span>
+                          <span className="courses-item-duration">{course.duration}</span>
+                          <span className="courses-item-audience">{course.level}</span>
+                        </div>
                       </div>
+                      <span className="courses-item-arrow" aria-hidden="true">→</span>
                     </div>
-                    <span className="courses-item-arrow" aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            ))}
           </div>
           )}
         </div>

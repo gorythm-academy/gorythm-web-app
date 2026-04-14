@@ -41,11 +41,11 @@ const AboutSection = () => {
   }, []);
 
   const sectionData = {
-    sectionNumber: '01',
+    sectionNumber: '02',
     label: 'About Gorythm',
     title: 'Building character, leading the next generation',
     paragraph:
-    "At Go Rythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith through knowledge. Our programs go beyond textbooks — helping learners think critically, act ethically, & grow with purpose",
+      'GoRythm is a project of Al Farhan Academy, created to provide meaningful and engaging Islamic education for learners of all ages. Our mission is to make learning accessible, relevant, and deeply rooted in faith.',
 
   };
 
@@ -66,7 +66,7 @@ const AboutSection = () => {
     >
       <div className="front_page_section_inner front_page_section_about_inner">
         <div className="about_content_wrap">
-          {/* Large "01" behind heading – gradient, decorative */}
+          {/* Large "02" behind heading – gradient, decorative */}
           <span className="about_big_number about_anim" aria-hidden="true">
             {sectionData.sectionNumber}
           </span>

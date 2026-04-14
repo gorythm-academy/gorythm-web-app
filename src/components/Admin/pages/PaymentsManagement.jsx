@@ -60,7 +60,7 @@ const PaymentsManagement = () => {
                     amount: 39.00,
                     currency: 'USD',
                     status: 'completed',
-                    paymentMethod: 'paypal',
+                    paymentMethod: 'bank',
                     createdAt: '2024-12-28T14:45:00Z'
                 },
                 {
@@ -646,7 +646,7 @@ const PaymentsManagement = () => {
                                 </td>
                                 <td>
                                     <span className="amount-badge">
-                                        <strong>${payment.amount.toFixed(2)}</strong>
+                                        <strong>${Number(payment.amount || 0).toFixed(2)}</strong>
                                         <small>{payment.currency}</small>
                                     </span>
                                 </td>
@@ -660,8 +660,8 @@ const PaymentsManagement = () => {
                                     </span>
                                 </td>
                                 <td>
-                                    <span className={`method-badge ${payment.paymentMethod}`}>
-                                        <i className={`fab fa-${payment.paymentMethod}`}></i>
+                                    <span className={`method-badge ${methodBadgeClass(payment.paymentMethod)}`}>
+                                        <i className={methodIconClass(payment.paymentMethod)}></i>
                                         {payment.paymentMethod}
                                     </span>
                                 </td>
@@ -722,6 +722,19 @@ const PaymentsManagement = () => {
             </div>
         </div>
     );
+};
+
+const methodBadgeClass = (method) => {
+    const m = String(method || '').toLowerCase();
+    if (m === 'card' || m === 'link') return 'stripe';
+    return m.replace(/[^a-z0-9-]/g, '') || 'other';
+};
+
+const methodIconClass = (method) => {
+    const m = String(method || '').toLowerCase();
+    if (m === 'stripe' || m === 'card' || m === 'link') return 'fas fa-credit-card';
+    if (m === 'bank') return 'fas fa-university';
+    return 'fas fa-money-bill-wave';
 };
 
 // Helper function for status icons

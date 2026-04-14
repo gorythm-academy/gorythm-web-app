@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Course = require('../models/Course');
 
@@ -74,11 +75,17 @@ router.get('/public', async (req, res) => {
     }
 });
 
-// Get single course by id (public) – for SingleCourse page
+// Get single course by Mongo id or by slug (public) – for SingleCourse page
 router.get('/:id', async (req, res) => {
     try {
-        const { id } = req.params;
-        const course = await Course.findById(id).populate('instructor', 'name email');
+        const param = req.params.id;
+        let course = null;
+        if (mongoose.isValidObjectId(param)) {
+            course = await Course.findById(param).populate('instructor', 'name email');
+        }
+        if (!course && param) {
+            course = await Course.findOne({ slug: param, isPublished: true }).populate('instructor', 'name email');
+        }
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
