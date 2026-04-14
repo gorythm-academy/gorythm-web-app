@@ -48,6 +48,9 @@ const getCategorySortIndex = (category) => {
 // Get published courses only (public, no auth) – for homepage & All Courses
 router.get('/public', async (req, res) => {
     try {
+        // Short CDN/browser cache for public catalog to improve page load on Vercel.
+        res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+
         const raw = await Course.find({ isPublished: true })
             .select('title description category price duration level homepageImage slug _id');
         const courses = raw
@@ -88,6 +91,11 @@ router.get('/:id', async (req, res) => {
         }
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
+        }
+        if (course.isPublished) {
+            res.set('Cache-Control', 'public, max-age=60, s-maxage=180, stale-while-revalidate=300');
+        } else {
+            res.set('Cache-Control', 'no-store');
         }
         res.json({
             success: true,

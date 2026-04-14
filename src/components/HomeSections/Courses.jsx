@@ -97,10 +97,7 @@ const CoursesSection = () => {
     setFetchError(false);
     try {
       const url = `${API_BASE_URL}/api/courses/public`;
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: { Pragma: 'no-cache' },
-      });
+      const res = await fetch(url);
       if (!res.ok) {
         setFetchError(true);
         setCourses([]);
@@ -124,15 +121,6 @@ const CoursesSection = () => {
 
   useEffect(() => {
     fetchCourses();
-  }, [fetchCourses]);
-
-  // Refetch when user returns to this tab so edits in admin show on homepage
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') fetchCourses();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [fetchCourses]);
 
   const apiCourses = courses

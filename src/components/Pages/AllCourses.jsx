@@ -287,8 +287,7 @@ const AllCourses = () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/courses/public`, {
-        cache: 'no-store',
-        headers: { Pragma: 'no-cache' },
+        cache: 'default',
       });
       if (!res.ok) {
         setApiCourses([]);
@@ -309,14 +308,6 @@ const AllCourses = () => {
 
   useEffect(() => {
     fetchCourses();
-  }, [fetchCourses]);
-
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') fetchCourses();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [fetchCourses]);
 
   const displayCourses = apiCourses

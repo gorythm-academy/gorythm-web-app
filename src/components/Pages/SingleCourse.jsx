@@ -59,21 +59,15 @@ export function SingleCourse() {
     if (!slug) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      fetch(`${API_BASE_URL}/api/courses/${slug}`).then((r) => r.json()),
-      fetch(`${API_BASE_URL}/api/courses/public`).then((r) => r.json()),
-    ])
-      .then(([one, list]) => {
+    // Load primary course first for faster perceived page render.
+    fetch(`${API_BASE_URL}/api/courses/${slug}`)
+      .then((r) => r.json())
+      .then((one) => {
         if (cancelled) return;
         if (one.success && one.course) {
           setApiCourse(one.course);
         } else {
           setApiCourse(null);
-        }
-        if (list.success && Array.isArray(list.courses)) {
-          setApiList(list.courses);
-        } else {
-          setApiList([]);
         }
       })
       .catch(() => {
@@ -81,6 +75,21 @@ export function SingleCourse() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+
+    // Fetch list in background for next/prev links and image index.
+    fetch(`${API_BASE_URL}/api/courses/public`)
+      .then((r) => r.json())
+      .then((list) => {
+        if (cancelled) return;
+        if (list.success && Array.isArray(list.courses)) {
+          setApiList(list.courses);
+        } else {
+          setApiList([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setApiList([]);
       });
     return () => { cancelled = true; };
   }, [slug]);
@@ -249,22 +258,7 @@ export function SingleCourse() {
   return (
     <section className="course-item-page scheme_dark">
       <div className="cip-page-header">
-        <div className="cip-page-title-row">
-          <h1 className="cip-page-title">{course.title}</h1>
-          <button
-            type="button"
-            className="cip-share-btn"
-            onClick={handleShareCourse}
-            aria-label="Share link to this course"
-          >
-            <i className="fa-solid fa-share-nodes" aria-hidden="true" />
-          </button>
-        </div>
-        {shareFeedback ? (
-          <p className="cip-share-feedback" role="status">
-            {shareFeedback}
-          </p>
-        ) : null}
+        <h1 className="cip-page-title">{course.title}</h1>
         <span className="cip-page-arrow" aria-hidden="true" />
       </div>
 
@@ -301,6 +295,20 @@ export function SingleCourse() {
                   </div>
                 </div>
                 <div className="cip-actions">
+                  <button
+                    type="button"
+                    className="cip-share-btn cip-share-btn--sidebar"
+                    onClick={handleShareCourse}
+                    aria-label="Share link to this course"
+                  >
+                    <i className="fa-solid fa-share-nodes" aria-hidden="true" />
+                    <span>Share Course</span>
+                  </button>
+                  {shareFeedback ? (
+                    <p className="cip-share-feedback" role="status">
+                      {shareFeedback}
+                    </p>
+                  ) : null}
                   <Link
                     to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount}&displayCurrency=${encodeURIComponent(currency)}`}
                     className="cip-cta"
@@ -372,6 +380,20 @@ export function SingleCourse() {
               </div>
             </div>
             <div className="cip-actions">
+              <button
+                type="button"
+                className="cip-share-btn cip-share-btn--sidebar"
+                onClick={handleShareCourse}
+                aria-label="Share link to this course"
+              >
+                <i className="fa-solid fa-share-nodes" aria-hidden="true" />
+                <span>Share Course</span>
+              </button>
+              {shareFeedback ? (
+                <p className="cip-share-feedback" role="status">
+                  {shareFeedback}
+                </p>
+              ) : null}
               <Link
                 to={`/payment?courseName=${encodeURIComponent(course.title)}&amount=${course.priceAmount}&displayCurrency=${encodeURIComponent(currency)}`}
                 className="cip-cta"
