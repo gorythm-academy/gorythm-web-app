@@ -18,6 +18,10 @@ const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'jo
 const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 130, 180, 150];
 const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 100, 120, 120];
 const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 220, 320, 260];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythm\.com$/i;
+const PERSONAL_EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+const USER_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const UsersManagement = ({ variant = 'staff' }) => {
@@ -170,7 +174,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         confirmPassword: '',
         role: 'teacher',
         phone: '',
-        isActive: true,
+        status: 'active',
         mustChangePassword: true
     });
 
@@ -231,7 +235,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             confirmPassword: '',
             role: defaultRole,
             phone: '',
-            isActive: true,
+            status: 'active',
             mustChangePassword: true
         });
         setShowUserModal(true);
@@ -249,7 +253,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             confirmPassword: '',
             role: user.role || (variant === 'people' ? 'student' : 'admin'),
             phone: user.phone || '',
-            isActive: user.isActive !== false,
+            status: USER_STATUS_OPTIONS.includes(user.status) ? user.status : (user.isActive !== false ? 'active' : 'inactive'),
             mustChangePassword: !!user.mustChangePassword
         });
         setShowUserModal(true);
@@ -286,24 +290,35 @@ const UsersManagement = ({ variant = 'staff' }) => {
     };
 
     const validateForm = () => {
+        const email = formData.email.trim();
+        const personalEmail = formData.personalEmail?.trim();
+
         if (!formData.name.trim()) {
             alert('Name is required');
             return false;
         }
         
-        if (!formData.email.trim()) {
+        if (!email) {
             alert('Email is required');
             return false;
         }
-        
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
+
+        if (!EMAIL_REGEX.test(email)) {
             alert('Please enter a valid email address');
             return false;
         }
 
-        if (formData.role === 'student' && formData.personalEmail?.trim()) {
-            if (!emailRegex.test(formData.personalEmail.trim())) {
+        if (variant === 'people' && !GORYTHM_EMAIL_REGEX.test(email)) {
+            alert('Portal email must be in this format: id@gorythm.com');
+            return false;
+        }
+
+        if (formData.role === 'student' && personalEmail) {
+            if (personalEmail !== personalEmail.toLowerCase()) {
+                alert('Personal email must be in lowercase letters');
+                return false;
+            }
+            if (!PERSONAL_EMAIL_REGEX.test(personalEmail)) {
                 alert('Please enter a valid personal email, or leave it blank');
                 return false;
             }
@@ -343,7 +358,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 email: formData.email.trim(),
                 role: formData.role,
                 phone: formData.phone.trim(),
-                isActive: formData.isActive
+                status: formData.status,
+                isActive: formData.status === 'active'
             };
             if (formData.role === 'student') {
                 payload.personalEmail = (formData.personalEmail || '').trim();
@@ -683,13 +699,20 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 name="email"
                                                 value={formData.email}
                                                 onChange={handleFormChange}
-                                                placeholder="user@example.com"
+                                                placeholder={variant === 'people' ? 'id@gorythm.com' : 'user@example.com'}
+                                                pattern={variant === 'people' ? '[^\\s@]+@gorythm\\.com' : undefined}
+                                                title={variant === 'people' ? 'Use email format: id@gorythm.com' : undefined}
                                                 required
                                                 disabled={isSubmitting || editingUser}
                                             />
                                             {editingUser && (
                                                 <small className="form-hint">
                                                     Email cannot be changed for existing users
+                                                </small>
+                                            )}
+                                            {!editingUser && variant === 'people' && (
+                                                <small className="form-hint">
+                                                    Portal email must use the <strong>@gorythm.com</strong> domain.
                                                 </small>
                                             )}
                                         </div>
@@ -703,6 +726,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     value={formData.personalEmail}
                                                     onChange={handleFormChange}
                                                     placeholder="Gmail, Hotmail, etc. (not portal login)"
+                                                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
+                                                    title="Use a valid lowercase email format, e.g. name@gmail.com"
                                                     disabled={isSubmitting}
                                                 />
                                                 <small className="form-hint">
@@ -751,19 +776,20 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         </div>
 
                                         <div className="form-group">
-                                            <label className="checkbox-label">
-                                                <input
-                                                    type="checkbox"
-                                                    name="isActive"
-                                                    checked={formData.isActive}
-                                                    onChange={handleFormChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <span className="checkmark"></span>
-                                                Active User Account
-                                            </label>
+                                            <label>Status</label>
+                                            <select
+                                                name="status"
+                                                value={formData.status}
+                                                onChange={handleFormChange}
+                                                disabled={isSubmitting}
+                                            >
+                                                <option value="active">Active</option>
+                                                <option value="pending">Pending</option>
+                                                <option value="inactive">Inactive</option>
+                                                <option value="completed">Completed</option>
+                                            </select>
                                             <small className="form-hint">
-                                                Inactive users cannot log into the system
+                                                Only <strong>active</strong> accounts can log in. Pending, inactive, and completed are login-disabled.
                                             </small>
                                         </div>
                                         {!editingUser && (
@@ -1077,7 +1103,17 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 </td>
                                 <td>
                                     <span className={`status-badge ${user.status}`}>
-                                        <i className={`fas fa-${user.status === 'active' ? 'check-circle' : 'times-circle'}`}></i>
+                                        <i
+                                            className={`fas fa-${
+                                                user.status === 'active'
+                                                    ? 'check-circle'
+                                                    : user.status === 'pending'
+                                                      ? 'clock'
+                                                      : user.status === 'completed'
+                                                        ? 'flag-checkered'
+                                                        : 'times-circle'
+                                            }`}
+                                        ></i>
                                         {user.status}
                                     </span>
                                 </td>

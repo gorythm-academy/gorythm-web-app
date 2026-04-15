@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -35,6 +35,23 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
         { value: 'completed', label: 'Completed',  color: 'var(--color-accent)' },
         { value: 'inactive',  label: 'Inactive',   color: '#64748b' }
     ];
+
+    const sortedCourses = useMemo(() => {
+        const list = Array.isArray(courses)
+            ? courses.filter((course) => course?.status === 'published' || course?.isPublished === true)
+            : [];
+        const getDisplayOrder = (course) => {
+            const order = Number(course?.displayOrder);
+            return Number.isFinite(order) ? order : 9999;
+        };
+
+        return list.sort((a, b) => {
+            const orderA = getDisplayOrder(a);
+            const orderB = getDisplayOrder(b);
+            if (orderA !== orderB) return orderA - orderB;
+            return String(a?.title || '').localeCompare(String(b?.title || ''));
+        });
+    }, [courses]);
 
     // Lock body scroll
     useEffect(() => {
@@ -225,7 +242,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
         onClose();
     };
 
-    const getSelectedCourse = () => courses.find((c) => c._id === formData.courseId);
+    const getSelectedCourse = () => sortedCourses.find((c) => c._id === formData.courseId);
 
     if (!isOpen) return null;
 
@@ -399,18 +416,18 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                         onChange={handleChange}
                                         required
                                         className="form-select"
-                                        disabled={loading || success || courses.length === 0}
+                                        disabled={loading || success || sortedCourses.length === 0}
                                     >
                                         <option value="">
-                                            {courses.length === 0 ? 'No courses available' : 'Choose a course...'}
+                                            {sortedCourses.length === 0 ? 'No courses available' : 'Choose a course...'}
                                         </option>
-                                        {courses.map(course => (
+                                        {sortedCourses.map(course => (
                                             <option key={course._id} value={course._id}>
                                                 {course.title} ({course.category})
                                             </option>
                                         ))}
                                     </select>
-                                    {courses.length === 0 && (
+                                    {sortedCourses.length === 0 && (
                                         <small className="form-error">Create courses first in Courses Management</small>
                                     )}
                                 </div>
@@ -482,7 +499,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                         <button
                             type="submit"
                             className="btn-primary"
-                            disabled={loading || success || courses.length === 0 || (!preselectedStudent && students.length === 0)}
+                            disabled={loading || success || sortedCourses.length === 0 || (!preselectedStudent && students.length === 0)}
                         >
                             {loading ? (
                                 <><i className="fas fa-spinner fa-spin"></i> Saving...</>

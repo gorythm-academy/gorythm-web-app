@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
     personalEmail: { type: String, default: '', trim: true, lowercase: false },
     phone: { type: String, default: '' },
     avatar: { type: String, default: '' },
+    status: {
+        type: String,
+        enum: ['active', 'pending', 'inactive', 'completed'],
+        default: 'active'
+    },
     isActive: { type: Boolean, default: true },
     canLogin: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: false },

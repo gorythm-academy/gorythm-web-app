@@ -2,12 +2,12 @@ import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { getAuthToken, getAuthUserJson } from '../../utils/authStorage';
 
-const ProtectedRoute = ({ allowedRoles }) => {
+const ProtectedRoute = ({ allowedRoles, loginPath = '/login' }) => {
   const token = getAuthToken();
   const rawUser = getAuthUserJson();
 
   if (!token || !rawUser) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   try {
@@ -23,7 +23,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
       return <Navigate to="/" replace />;
     }
   } catch (error) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   return <Outlet />;

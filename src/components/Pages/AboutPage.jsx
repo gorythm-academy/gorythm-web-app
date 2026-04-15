@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { courses } from './AllCourses';
 import VideoSection from '../HomeSections/Video';
 import aboutImage1 from '../../assets/images/About-Sect-01.jpg';
 import aboutImage2 from '../../assets/images/About-Sect-02.jpg';
@@ -8,11 +7,17 @@ import aboutUsMainImg from '../../assets/images/aboutUs-main-img.jpg';
 import testimonialImg1 from '../../assets/images/milestone-img01.jpg';
 import testimonialImg2 from '../../assets/images/milestone-img02.jpg';
 import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
+import academyMissionImage from '../../assets/images/academy-mission.jpg';
+import academyVisionImage from '../../assets/images/academy-vision.jpg';
 import './AboutPage.scss';
 
 // Student testimonial section is intentionally commented out for now.
 
 const values = [
+  {
+    title: 'Integrity',
+    description: 'Upholding honesty, trust, and Islamic ethics in all we do. Our actions are guided by transparency and a deep sense of responsibility. We build lasting trust with our learners, families, and partners through consistency and moral clarity.',
+  },
   {
     title: 'Solidarity',
     description: 'Standing together as an ummah, supporting and uplifting one another. We believe in the strength of community and the power of collective action to create positive change. Every voice matters, and every hand extended builds a stronger future.',
@@ -21,29 +26,10 @@ const values = [
     title: 'Excellence',
     description: 'Striving for the highest standards in education, character, and service. We hold ourselves accountable to deliver quality in everything we do, from curriculum design to student support. Excellence is not a destination but a continuous journey we walk together.',
   },
-  {
-    title: 'Integrity',
-    description: 'Upholding honesty, trust, and Islamic ethics in all we do. Our actions are guided by transparency and a deep sense of responsibility. We build lasting trust with our learners, families, and partners through consistency and moral clarity.',
-  },
 ];
 
 // Typewriter words (change these; keep longest word in spacer below for layout)
 const statementWords = ['spiritually', ' emotionally', ' practically.'];
-
-const approach = [
-  {
-    title: 'Quran-centered Curriculum',
-    description: 'Every lesson is rooted in the teachings and wisdom of the Quran.',
-  },
-  {
-    title: 'Character-building',
-    description: 'Focusing on personal growth through Prophetic stories and values.',
-  },
-  {
-    title: 'STEM & Islamic Integration',
-    description: 'Blending modern STEM principles with timeless Islamic insights.',
-  },
-];
 
 const teamMembers = [
   { name: 'Tina Jones', role: 'Scientist', image: aboutImage1 },
@@ -54,10 +40,32 @@ const teamMembers = [
   { name: 'Christina Newman', role: 'Scientist', image: testimonialImg3 },
 ];
 
+const academyHighlights = [
+  {
+    title: 'Our Mission',
+    description:
+      'To provide accessible, engaging, and faith-centered education that connects learners with the Qur’an, Arabic, and Islamic values. We aim to nurture knowledge, character, and confidence, helping individuals grow spiritually while navigating the modern world with purpose.',
+    image: academyMissionImage,
+  },
+  {
+    title: 'Our Vision',
+    description:
+      'To become a global platform for transformative Islamic learning, empowering a generation that lives with strong faith, ethical values, and a deep connection to the Qur’an, contributing positively to society.',
+    image: academyVisionImage,
+  },
+];
+
 const AboutPage = () => {
   const [statementWordIndex, setStatementWordIndex] = useState(0);
   const [statementCharIndex, setStatementCharIndex] = useState(0);
   const [statementErasing, setStatementErasing] = useState(false);
+  const [activeAcademySlide, setActiveAcademySlide] = useState(0);
+  const [isAcademyDragging, setIsAcademyDragging] = useState(false);
+  const [isAcademyFlipping, setIsAcademyFlipping] = useState(false);
+  const academySliderRef = useRef(null);
+  const academyPointerIdRef = useRef(null);
+  const academyDragStartXRef = useRef(0);
+  const academyDragDeltaXRef = useRef(0);
 
   useEffect(() => {
     const word = statementWords[statementWordIndex];
@@ -80,70 +88,65 @@ const AboutPage = () => {
     return () => clearTimeout(t);
   }, [statementWordIndex, statementCharIndex, statementErasing]);
 
-  const showcaseItems = [
-    {
-      title: approach[0].title,
-      description: approach[0].description,
-      image: courses[0]?.image ?? aboutImage1,
-    },
-    {
-      title: approach[1].title,
-      description: approach[1].description,
-      image: courses[1]?.image ?? aboutImage2,
-    },
-    {
-      title: approach[2].title,
-      description: approach[2].description,
-      image: courses[2]?.image ?? aboutImage1,
-    },
-  ];
+  useEffect(() => {
+    if (isAcademyDragging) return undefined;
+    const intervalId = setInterval(() => {
+      setIsAcademyFlipping(true);
+      setActiveAcademySlide((prevIndex) => (prevIndex + 1) % academyHighlights.length);
+    }, 4500);
+    return () => clearInterval(intervalId);
+  }, [isAcademyDragging]);
 
-  const exploreAcademyItems = [
-    {
-      title: 'Our Mission',
-      description:
-        'To provide accessible, engaging, and faith-centered education that connects learners with the Qur’an, Arabic, and Islamic values. We aim to nurture knowledge, character, and confidence, helping individuals grow spiritually while navigating the modern world with purpose.',
-      image: showcaseItems[0]?.image ?? aboutImage2,
-    },
-    {
-      title: 'Our Vision',
-      description:
-        'To become a global platform for transformative Islamic learning, empowering a generation that lives with strong faith, ethical values, and a deep connection to the Qur’an, contributing positively to society.',
-      image: showcaseItems[1]?.image ?? aboutImage1,
-    },
-    {
-      title: 'Our Projects',
-      description:
-        'At GoRythm, our projects focus on meaningful research and exploration of classical and contemporary Islamic knowledge. We study authentic books and scholarly works to better understand the Qur’an, Sunnah, and various aspects of Islamic norms and practices. Through this, we aim to present knowledge in a way that is relevant, structured, and beneficial for modern learners, helping them connect deeply with their faith while applying it in everyday life.',
-      image: showcaseItems[2]?.image ?? aboutImage2,
-    },
-    {
-      title: 'Our Commitment',
-      description:
-      'We are committed to providing a learning experience that is both high in quality and deeply rooted in faith. Our teachers are dedicated to guiding each student with care, ensuring progress at every step. At GoRythm, we don’t just teach,  we aim to inspire a lifelong connection with knowledge, faith, and personal development.',
-      image: showcaseItems[2]?.image ?? aboutImage2,
-    },
+  useEffect(() => {
+    setActiveAcademySlide((prevIndex) => {
+      if (academyHighlights.length === 0) return 0;
+      return prevIndex % academyHighlights.length;
+    });
+  }, []);
 
+  useEffect(() => {
+    if (!isAcademyFlipping) return undefined;
+    const timer = setTimeout(() => setIsAcademyFlipping(false), 650);
+    return () => clearTimeout(timer);
+  }, [isAcademyFlipping]);
 
-    {
-      title: 'Educational Programs',
-      description:
-        'At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically, and grow with purpose.',
-      image: showcaseItems[0]?.image ?? aboutImage1,
-    },
-    {
-      title: 'STEM Education with an Islamic Perspective',
-      description:
-        'Our STEM Education program integrates Science, Technology, Engineering, and Mathematics with Islamic principles, helping students explore innovation through faith. Learners develop problem-solving, creativity, and curiosity while understanding how modern knowledge aligns with the wisdom of the Qur’an.',
-      image: showcaseItems[1]?.image ?? aboutImage2,
-    },
-    {
-      title: 'Life Skills & Character Development',
-      description:
-        'This program focuses on emotional growth, communication, leadership, and empathy, all grounded in Islamic teachings. Through interactive lessons and real-life scenarios, students learn to navigate challenges and build strong moral character.',
-      image: showcaseItems[2]?.image ?? aboutImage1,
-    },
-  ];
+  const handleAcademyPointerDown = (event) => {
+    if (!academySliderRef.current) return;
+    academyPointerIdRef.current = event.pointerId;
+    academyDragStartXRef.current = event.clientX;
+    academyDragDeltaXRef.current = 0;
+    setIsAcademyDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleAcademyPointerMove = (event) => {
+    if (!isAcademyDragging || event.pointerId !== academyPointerIdRef.current) return;
+    const dragDelta = event.clientX - academyDragStartXRef.current;
+    academyDragDeltaXRef.current = dragDelta;
+  };
+
+  const handleAcademyPointerUp = (event) => {
+    if (event.pointerId !== academyPointerIdRef.current) return;
+    const sliderWidth = academySliderRef.current?.offsetWidth ?? 0;
+    const threshold = Math.max(56, sliderWidth * 0.12);
+    const dragDelta = academyDragDeltaXRef.current;
+
+    if (dragDelta <= -threshold) {
+      setIsAcademyFlipping(true);
+      setActiveAcademySlide((prevIndex) => (prevIndex + 1) % academyHighlights.length);
+    } else if (dragDelta >= threshold) {
+      setIsAcademyFlipping(true);
+      setActiveAcademySlide(
+        (prevIndex) => (prevIndex - 1 + academyHighlights.length) % academyHighlights.length
+      );
+    }
+
+    setIsAcademyDragging(false);
+    academyPointerIdRef.current = null;
+    academyDragDeltaXRef.current = 0;
+  };
+
+  const activeAcademyItem = academyHighlights[activeAcademySlide] ?? academyHighlights[0];
 
   return (
     <>
@@ -302,33 +305,55 @@ const AboutPage = () => {
           <div className="about-page-dark__showcase-strip">
             <div className="about-page-dark__container about-page-dark__showcase-inner">
               <section className="about-page-dark__showcase">
-                <span className="about-page-dark__eyebrow">Explore the Academy</span>
-                <div className="about-page-dark__explore-list" aria-label="Explore the Academy list">
-                  {exploreAcademyItems.map((item) => (
-                    <article key={item.title} className="about-page-dark__explore-item">
-                      <div className="about-page-dark__explore-media">
-                        <img
-                          src={item.image}
-                          alt=""
-                          loading="lazy"
-                          width={900}
-                          height={520}
-                          sizes="(min-width: 900px) 520px, 100vw"
-                        />
-                      </div>
-                      <div className="about-page-dark__explore-copy">
-                        <h3 className="about-page-dark__explore-title">{item.title}</h3>
-                        <p className="about-page-dark__explore-desc">{item.description}</p>
-                      </div>
-                    </article>
-                  ))}
+                <div
+                  className={`about-page-dark__academy-slider${isAcademyDragging ? ' about-page-dark__academy-slider--dragging' : ''}`}
+                  aria-label="Explore the Academy slider"
+                  ref={academySliderRef}
+                  onPointerDown={handleAcademyPointerDown}
+                  onPointerMove={handleAcademyPointerMove}
+                  onPointerUp={handleAcademyPointerUp}
+                  onPointerCancel={handleAcademyPointerUp}
+                  onPointerLeave={handleAcademyPointerUp}
+                >
+                  <article
+                    key={activeAcademySlide}
+                    className={`about-page-dark__academy-slide${isAcademyFlipping ? ' about-page-dark__academy-slide--flip' : ''}`}
+                  >
+                    <div className="about-page-dark__academy-media">
+                      <h3 className="about-page-dark__academy-media-title">{activeAcademyItem.title}</h3>
+                      <img
+                        src={activeAcademyItem.image}
+                        alt={activeAcademyItem.title}
+                        loading="lazy"
+                        width={1024}
+                        height={403}
+                        sizes="(min-width: 1200px) 1024px, (min-width: 700px) calc(100vw - 80px), 100vw"
+                      />
+                    </div>
+                    <div className="about-page-dark__academy-copy">
+                      <p className="about-page-dark__explore-desc">{activeAcademyItem.description}</p>
+                    </div>
+                  </article>
+                  <div className="about-page-dark__academy-dots" role="tablist" aria-label="Slide selector">
+                    {academyHighlights.map((item, index) => (
+                      <button
+                        key={item.title}
+                        type="button"
+                        role="tab"
+                        aria-selected={index === activeAcademySlide}
+                        aria-label={`Show ${item.title}`}
+                        className={`about-page-dark__academy-dot${index === activeAcademySlide ? ' about-page-dark__academy-dot--active' : ''}`}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={() => {
+                          setIsAcademyFlipping(true);
+                          setActiveAcademySlide(index);
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </section>
             </div>
-          </div>
-
-          <div className="about-page-dark__section-rule-wrap" aria-hidden="true">
-            <hr className="about-page-dark__section-rule" />
           </div>
 
           {/* <div className="about-page-dark__testimonials-strip">

@@ -1,6 +1,21 @@
 @import '../../styles/breakpoints';
 @import './admin-dashboard-layout';
 
+// Keep admin form fields consistently readable across all tabs.
+.admin-dashboard {
+    input:not([type='checkbox']):not([type='radio']):not([type='color']),
+    select,
+    textarea {
+        background-color: #fff;
+        color: #1e293b;
+    }
+
+    input:not([type='checkbox']):not([type='radio']):not([type='color'])::placeholder,
+    textarea::placeholder {
+        color: #94a3b8;
+    }
+}
+
 // Clean Analytics Styles
 .analytics-page {
     padding: 1rem;

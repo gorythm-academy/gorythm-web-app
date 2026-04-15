@@ -21,12 +21,20 @@ const AdminLogin = () => {
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const routeByRole = (role) => {
+        if (role === 'teacher') return '/teacher';
+        if (role === 'parent') return '/parent';
+        if (role === 'accountant') return '/accountant';
+        if (role === 'admin' || role === 'super-admin') return '/admin';
+        return '/student';
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
         try {
             setIsSubmitting(true);
-            const response = await axios.post(`${API_BASE_URL}/api/auth/admin-login`, {
+            const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
                 email,
                 password,
                 rememberMe,
@@ -35,10 +43,13 @@ const AdminLogin = () => {
             setAuthSession(response.data.token, response.data.user, rememberMe);
 
             if (response.data.user?.mustChangePassword) {
-                navigate('/admin/login?reset=1', { replace: true });
+                const resetPath = ['admin', 'super-admin'].includes(response.data.user.role)
+                    ? '/admin/login?reset=1'
+                    : '/login?reset=1';
+                navigate(resetPath, { replace: true });
                 return;
             }
-            navigate('/admin', { replace: true });
+            navigate(routeByRole(response.data.user.role), { replace: true });
         } catch (err) {
             const msg = err.response?.data?.error;
             setError(msg || 'Invalid credentials.');
@@ -75,7 +86,7 @@ const AdminLogin = () => {
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
             setAuthUserJson(JSON.stringify(updatedUser));
-            navigate('/admin', { replace: true });
+            navigate(routeByRole(updatedUser.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
         } finally {
@@ -125,7 +136,7 @@ const AdminLogin = () => {
             <div className="login-container">
                 <div className="login-header">
                     <h1>Gorythm Academy</h1>
-                    <p>Admin Portal Login</p>
+                    <p>Portal Login</p>
                 </div>
 
                 <form onSubmit={handleLogin}>

@@ -13,6 +13,12 @@ router.use(allowRoles('super-admin', 'admin'));
 
 /** Treat missing isActive as true (legacy documents). */
 const isUserActive = (u) => u.isActive !== false;
+const USER_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
+const normalizeUserStatus = (status, fallbackIsActive = true) => {
+    if (USER_STATUS_OPTIONS.includes(status)) return status;
+    return fallbackIsActive ? 'active' : 'inactive';
+};
+const isLoginAllowedFromStatus = (status) => status === 'active';
 
 const ensureStudentPlaceholderEnrollment = async (userId) => {
     const existingEnrollment = await Enrollment.findOne({ student: userId });
@@ -104,7 +110,7 @@ router.get('/', async (req, res) => {
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: isUserActive(user) ? 'active' : 'inactive',
+                status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null,
@@ -144,7 +150,7 @@ router.get('/:id', async (req, res) => {
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: isUserActive(user) ? 'active' : 'inactive',
+                status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null
@@ -158,7 +164,7 @@ router.get('/:id', async (req, res) => {
 // Create new user (super-admin: any role; admin: student / teacher / parent only)
 router.post('/', async (req, res) => {
     try {
-        const { name, email, password, role, phone, mustChangePassword, personalEmail, studentId } = req.body;
+        const { name, email, password, role, phone, mustChangePassword, personalEmail, studentId, status } = req.body;
 
         const actorRole = req.user?.role;
         const isSuper = actorRole === 'super-admin';
@@ -187,13 +193,15 @@ router.post('/', async (req, res) => {
             });
         }
 
+        const normalizedStatus = normalizeUserStatus(status, true);
         const userFields = {
             name,
             email: email.toLowerCase(),
             password,
             role: nextRole,
             phone: phone || '',
-            isActive: true,
+            status: normalizedStatus,
+            isActive: isLoginAllowedFromStatus(normalizedStatus),
             mustChangePassword: mustChangePassword !== false,
             isSystemAccount: role === 'super-admin'
         };
@@ -253,7 +261,7 @@ router.post('/', async (req, res) => {
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: isUserActive(user) ? 'active' : 'inactive',
+                status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: 0,
                 joinDate: user.createdAt,
                 lastLogin: null
@@ -268,7 +276,7 @@ router.post('/', async (req, res) => {
 // Update user
 router.put('/:id', async (req, res) => {
     try {
-        const { name, email, role, phone, isActive, personalEmail, studentId } = req.body;
+        const { name, email, role, phone, isActive, personalEmail, studentId, status } = req.body;
         const actorRole = req.user?.role;
 
         const user = await User.findById(req.params.id);
@@ -310,7 +318,14 @@ router.put('/:id', async (req, res) => {
         if (name) user.name = name;
         if (role) user.role = role;
         if (phone !== undefined) user.phone = phone;
-        if (isActive !== undefined) user.isActive = isActive;
+        if (status !== undefined) {
+            const normalizedStatus = normalizeUserStatus(status, isUserActive(user));
+            user.status = normalizedStatus;
+            user.isActive = isLoginAllowedFromStatus(normalizedStatus);
+        } else if (isActive !== undefined) {
+            user.isActive = isActive;
+            user.status = isActive ? 'active' : 'inactive';
+        }
 
         if (personalEmail !== undefined && user.role === 'student') {
             const pe = String(personalEmail).trim();
@@ -368,7 +383,7 @@ router.put('/:id', async (req, res) => {
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
-                status: isUserActive(user) ? 'active' : 'inactive',
+                status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null
@@ -428,7 +443,9 @@ router.patch('/:id/status', async (req, res) => {
             return res.status(403).json({ success: false, error: 'You cannot change super-admin account status' });
         }
 
-        user.isActive = status === 'active';
+        const normalizedStatus = normalizeUserStatus(status, isUserActive(user));
+        user.status = normalizedStatus;
+        user.isActive = isLoginAllowedFromStatus(normalizedStatus);
         user.updatedAt = Date.now();
         await user.save();
         await logAudit({
@@ -441,7 +458,7 @@ router.patch('/:id/status', async (req, res) => {
 
         res.json({
             success: true,
-            message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`
+            message: `User status updated to ${user.status}`
         });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to update user status' });
@@ -535,7 +552,7 @@ router.patch('/bulk-status', async (req, res) => {
             return res.status(400).json({ success: false, error: 'No user IDs provided' });
         }
 
-        if (!['active', 'inactive'].includes(status)) {
+        if (!USER_STATUS_OPTIONS.includes(status)) {
             return res.status(400).json({ success: false, error: 'Invalid status' });
         }
 
@@ -559,7 +576,8 @@ router.patch('/bulk-status', async (req, res) => {
         await User.updateMany(
             { _id: { $in: ids } },
             { 
-                isActive: status === 'active',
+                status,
+                isActive: isLoginAllowedFromStatus(status),
                 updatedAt: Date.now()
             }
         );

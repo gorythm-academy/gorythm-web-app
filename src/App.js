@@ -139,7 +139,7 @@ function AppLayout() {
               <Route path="/admin/login" element={<AdminLogin />} />
               
               {/* Protected Admin Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['super-admin', 'admin']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['super-admin', 'admin']} loginPath="/admin/login" />}>
                 <Route path="/admin/*" element={<DashboardLayout />}>
                   <Route index element={<DashboardHome />} />
                   <Route path="dashboard" element={<DashboardHome />} />
@@ -156,7 +156,7 @@ function AppLayout() {
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['student']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['student']} loginPath="/login" />}>
                 <Route path="/student/*" element={<PortalLayout role="student" title="Student Portal" />}>
                   <Route index element={<StudentPortal />} />
                   <Route path="courses" element={<StudentPortal />} />
@@ -165,7 +165,7 @@ function AppLayout() {
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['teacher']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['teacher']} loginPath="/login" />}>
                 <Route path="/teacher/*" element={<PortalLayout role="teacher" title="Teacher Portal" />}>
                   <Route index element={<TeacherPortal />} />
                   <Route path="classes" element={<TeacherPortal />} />
@@ -174,7 +174,7 @@ function AppLayout() {
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['parent']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['parent']} loginPath="/login" />}>
                 <Route path="/parent/*" element={<PortalLayout role="parent" title="Parent Portal" />}>
                   <Route index element={<ParentPortal />} />
                   <Route path="children" element={<ParentPortal />} />
@@ -182,7 +182,7 @@ function AppLayout() {
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['accountant']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['accountant']} loginPath="/login" />}>
                 <Route path="/accountant/*" element={<PortalLayout role="accountant" title="Accountant Portal" />}>
                   <Route index element={<AccountantPortal />} />
                   <Route path="payments" element={<AccountantPortal />} />
