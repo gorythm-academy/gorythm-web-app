@@ -8,7 +8,6 @@ const missionCards = [
   {
     id: 1,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-1.svg',
-    subtitle: 'How We Support Growth',
     title: "Qur'an-Centered Learning",
     description: "Every course is designed to help learners build a stronger relationship with the Qur'an through recitation, understanding, reflection, and consistent practice in daily life.",
     path: '/mission/satellite-maintenance',
@@ -16,7 +15,6 @@ const missionCards = [
   {
     id: 2,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-2.svg',
-    subtitle: 'How We Support Growth',
     title: 'Character That Grows With Knowledge',
     description: 'We believe meaningful education should shape both the mind and the heart. Our learning approach encourages discipline, sincerity, confidence, respect, and strong Islamic character.',
     path: '/mission/exploration-missions',
@@ -24,7 +22,6 @@ const missionCards = [
   {
     id: 3,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-3.svg',
-    subtitle: 'How We Support Growth',
     title: 'Flexible Learning for Modern Families',
     description: 'With interactive online classes, supportive teachers, and structured guidance, GoRythm makes it easier for kids, teens, and adults to learn from anywhere without losing quality or connection.',
     path: '/mission/research-and-observation',
@@ -75,7 +72,6 @@ const MissionSection = () => {
 
               {/* Text info */}
               <div className="mission-card-info">
-                <span className="mission-card-subtitle">{card.subtitle}</span>
                 <h4 className="mission-card-title">{card.title}</h4>
                 <p className="mission-card-description">{card.description}</p>
                 <div className="mission-card-arrow">

@@ -1,0 +1,139 @@
+.newsletter-idle-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.52);
+}
+
+.newsletter-idle-popup-card {
+  width: min(980px, 100%);
+  min-height: 520px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #fff;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+}
+
+.newsletter-idle-popup-visual {
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.95) contrast(1.05);
+}
+
+.newsletter-idle-popup-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 52px 56px;
+  background: #fff;
+}
+
+.newsletter-idle-popup-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  border: none;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.newsletter-idle-popup-form {
+  width: 100%;
+
+  h2 {
+    margin: 0 0 28px;
+    font-size: clamp(2rem, 2.8vw, 3rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: #181818;
+    font-weight: 600;
+  }
+}
+
+.newsletter-idle-popup-input {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-bottom: 1px solid #bfbfbf;
+  outline: none;
+  padding: 0;
+  font-size: 1rem;
+  color: #222;
+  background: transparent;
+  margin-bottom: 18px;
+}
+
+.newsletter-idle-popup-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  color: #6f6f6f;
+  font-size: 0.92rem;
+
+  a {
+    color: #4f4f4f;
+    text-underline-offset: 2px;
+  }
+}
+
+.newsletter-idle-popup-error {
+  margin: 0 0 16px;
+  color: #bb2e2e;
+  font-size: 0.9rem;
+}
+
+.newsletter-idle-popup-submit {
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 999px;
+  background: #9f8f7f;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: #8e7e6f;
+  }
+}
+
+.newsletter-idle-popup-success {
+  h3 {
+    margin: 0;
+    color: #171717;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 820px) {
+  .newsletter-idle-popup-card {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .newsletter-idle-popup-visual {
+    min-height: 180px;
+  }
+
+  .newsletter-idle-popup-content {
+    padding: 40px 24px 30px;
+  }
+
+  .newsletter-idle-popup-form h2 {
+    font-size: clamp(1.7rem, 6vw, 2.15rem);
+    margin-bottom: 20px;
+  }
+}

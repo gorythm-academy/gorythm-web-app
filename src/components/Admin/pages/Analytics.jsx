@@ -24,6 +24,8 @@ const Analytics = () => {
     const navigate = useNavigate();
     const [stats, setStats] = useState({
         totalStudents: 0,
+        totalTeachers: 0,
+        totalParents: 0,
         totalCourses: 0,
         totalRevenue: 0,
         activeUsers: 0,
@@ -86,16 +88,18 @@ const Analytics = () => {
                 const summary = analyticsRes.data.data.summary || {};
                 setStats({
                     totalStudents: summary.totalStudents || 0,
+                    totalTeachers: summary.totalTeachers || 0,
+                    totalParents: summary.totalParents || 0,
                     totalCourses: summary.totalCourses || 0,
                     totalRevenue: summary.totalRevenue || 0,
-                    activeUsers: summary.activeEnrollments || 0,
+                    activeUsers: summary.activeUsers || 0,
                     totalEnrollments: summary.totalEnrollments || 0,
                     completionRate: Number(summary.completionRate) || 0
                 });
 
                 const days = Number(timeFilter) || 30;
                 const totalEnrollments = summary.totalEnrollments || 0;
-                const activeUsers = summary.activeEnrollments || 0;
+                const activeUsers = summary.activeUsers || 0;
                 const completionRate = Number(summary.completionRate) || 0;
                 const revenueGrowthNumeric = Number(String(metrics.revenueGrowth || '0').replace('%', '')) || 0;
                 const enrollmentRateNumeric = Number(String(metrics.enrollmentRate || '0').replace('%', '')) || 0;
@@ -142,7 +146,7 @@ const Analytics = () => {
                     {
                         icon: 'fas fa-user-check insight-active',
                         title: 'Active Users',
-                        text: `${activeUsers.toLocaleString()} active enrollments are currently in progress.`
+                        text: `${activeUsers.toLocaleString()} active users are currently in staff accounts.`
                     }
                 ]);
             }
@@ -220,6 +224,24 @@ const Analytics = () => {
         change: cardTrends.activeUsers.value,
         direction: cardTrends.activeUsers.direction,
         link: '/admin/users'
+    },
+    {
+        title: 'Teachers',
+        value: loading ? '...' : stats?.totalTeachers || 0,
+        icon: 'fas fa-chalkboard-teacher',
+        color: '#06b6d4',
+        change: '+0',
+        direction: 'neutral',
+        link: '/admin/people'
+    },
+    {
+        title: 'Parents',
+        value: loading ? '...' : stats?.totalParents || 0,
+        icon: 'fas fa-people-roof',
+        color: '#f97316',
+        change: '+0',
+        direction: 'neutral',
+        link: '/admin/people'
     },
 ];
 

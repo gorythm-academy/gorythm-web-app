@@ -150,6 +150,14 @@ router.get('/overview', async (req, res) => {
             }
         ]);
 
+        const totalStudents = await User.countDocuments({ role: 'student' });
+        const totalTeachers = await User.countDocuments({ role: 'teacher' });
+        const totalParents = await User.countDocuments({ role: 'parent' });
+        const activeUsers = await User.countDocuments({
+            isActive: true,
+            role: { $in: ['admin', 'super-admin', 'accountant'] }
+        });
+
         res.json({
             success: true,
             timeframe: `${days} days`,
@@ -166,10 +174,13 @@ router.get('/overview', async (req, res) => {
                 userActivity,
                 paymentMethods,
                 summary: {
-                    totalStudents: await User.countDocuments({ role: 'student' }),
+                    totalStudents,
+                    totalTeachers,
+                    totalParents,
                     totalCourses: await Course.countDocuments(),
                     totalEnrollments: totalEnrollments,
                     totalRevenue: revenueData.reduce((sum, item) => sum + item.totalRevenue, 0),
+                    activeUsers,
                     activeEnrollments: await Enrollment.countDocuments({ status: 'active' }),
                     completionRate: completionRate
                 }

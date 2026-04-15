@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
+const Course = require('../models/Course');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
@@ -27,6 +28,21 @@ const ensureStudentPlaceholderEnrollment = async (userId) => {
         lastAccessed: new Date(),
         paymentStatus: 'pending',
     });
+};
+
+const cleanupStudentDataForUserIds = async (userIds = []) => {
+    if (!Array.isArray(userIds) || userIds.length === 0) return;
+
+    const normalizedIds = userIds.map((id) => String(id));
+
+    // Remove enrollments that belong to deleted people records.
+    await Enrollment.deleteMany({ student: { $in: normalizedIds } });
+
+    // Remove deleted student references from all course rosters.
+    await Course.updateMany(
+        { students: { $in: normalizedIds } },
+        { $pull: { students: { $in: normalizedIds } } }
+    );
 };
 
 const PEOPLE_ROLES = ['student', 'teacher', 'parent'];
@@ -458,6 +474,8 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
+        await cleanupStudentDataForUserIds([req.params.id]);
+
         res.json({
             success: true,
             message: 'User deleted successfully'
@@ -493,7 +511,11 @@ router.post('/bulk-delete', async (req, res) => {
             }
         }
 
+        const usersToDelete = await User.find({ _id: { $in: ids } }).select('_id');
+        const userIdsToDelete = usersToDelete.map((u) => String(u._id));
+
         const result = await User.deleteMany({ _id: { $in: ids } });
+        await cleanupStudentDataForUserIds(userIdsToDelete);
 
         res.json({
             success: true,

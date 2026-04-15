@@ -48,9 +48,10 @@
 
 .courses-left {
   position: sticky;
-  top: 100px;
+  top: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  height: 100vh;
   min-height: 0;
 }
 
@@ -58,7 +59,7 @@
   position: relative;
   width: 100%;
   min-height: 100%;
-  padding: 80px 48px 80px 44px;
+  padding: 60px 48px 80px 44px;
   background: #141414;
 }
 
@@ -66,25 +67,25 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: 0;
+  height: 100%;
   z-index: 1;
 }
 
 .courses-inner {
   width: 100%;
   display: grid;
-  grid-template-columns: 7fr 13fr;
+  grid-template-columns: 9fr 11fr;
   gap: 0 32px;
-  align-items: stretch;
-  margin-top: -64px;
-  padding-top: 64px;
+  align-items: start;
 }
 
 .courses-title {
   position: relative;
   z-index: 1;
   margin: 0 0 5px;
-  max-width: 80%;
-  font-size: clamp(1.9rem, 4.2vw, 3.5rem);
+  max-width: 92%;
+  font-size: clamp(1.55rem, 3.5vw, 2.85rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.02em;
@@ -94,7 +95,7 @@
 .courses-title-line {
   display: block;
   width: 100%;
-  max-width: 40%;
+  max-width: 55%;
   height: auto;
   margin: 0 0 32px;
   object-fit: contain;
@@ -102,14 +103,16 @@
 }
 
 .courses-left-footer {
+  margin-top: auto;
   margin-left: auto;
   max-width: 350px;
+  padding-top: 24px;
 }
 
 .courses-description {
   margin: 0 0 28px;
   color: rgba(255, 255, 255, 0.62);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   line-height: 1.7;
 }
 
@@ -192,12 +195,12 @@
     align-items: stretch;
   }
   .courses-left {
-    height: 170vh;
-    min-height: 170vh;
+    height: 135vh;
+    min-height: 135vh;
   }
   .courses-right {
-    height: 170vh;
-    max-height: 170vh;
+    height: 135vh;
+    max-height: 135vh;
   }
 }
 
@@ -287,7 +290,12 @@
   margin: 0;
   color: rgba(255, 255, 255, 0.66);
   font-size: 0.98rem;
-  line-height: 1.7;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .courses-item-meta {
@@ -337,6 +345,97 @@
 .courses-item:hover .courses-item-arrow {
   transform: translateX(4px);
   color: #fff;
+}
+
+.courses-faq {
+  width: min(920px, calc(100% - 40px));
+  margin: 72px auto 0;
+  text-align: center;
+}
+
+.courses-faq-title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+}
+
+.courses-faq-title {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.courses-faq-list {
+  margin-top: 28px;
+  text-align: left;
+}
+
+.courses-faq-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.courses-faq-trigger {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.courses-faq-question {
+  font-size: clamp(1.08rem, 2.1vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.courses-faq-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.courses-faq-trigger:focus-visible {
+  outline: 2px solid #b19364;
+  outline-offset: 6px;
+}
+
+.courses-faq-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.28s ease;
+}
+
+.courses-faq-panel--open {
+  max-height: 320px;
+}
+
+.courses-faq-answer {
+  padding: 0 0 24px;
+  max-width: 740px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.85;
+  font-size: 1.02rem;
+}
+
+.courses-faq-item:last-child .courses-faq-answer {
+  padding-bottom: 0;
 }
 
 @media (max-width: $bp-section-lg) {
@@ -447,6 +546,10 @@
     padding: 24px 20px 44px;
   }
 
+  .courses-faq-title-wrap {
+    gap: 20px;
+  }
+
   .courses-inner {
     gap: 16px 0;
   }
@@ -471,6 +574,24 @@
 
   .courses-right {
     padding: 0 20px 60px;
+  }
+
+  .courses-faq {
+    width: calc(100% - 40px);
+    margin-top: 52px;
+  }
+
+  .courses-faq-title {
+    font-size: clamp(1.9rem, 9vw, 2.4rem);
+  }
+
+  .courses-faq-question {
+    font-size: 1rem;
+  }
+
+  .courses-faq-answer {
+    font-size: 0.95rem;
+    line-height: 1.7;
   }
 
   .courses-column {

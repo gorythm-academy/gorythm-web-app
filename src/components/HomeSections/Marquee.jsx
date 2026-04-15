@@ -6,7 +6,7 @@ import './Marquee.scss';
 
 // Text is duplicated inside the track so the loop is seamless
 // Change the string below to update the marquee text
-const MARQUEE_TEXT = 'Learn Islam Online, Anytime, Anywhere';
+const MARQUEE_TEXT = 'Learn, Grow and Connect with Islam from Anywhere';
 // Number of repetitions per track half (more = smoother at larger screens)
 const REPEAT = 6;
 
