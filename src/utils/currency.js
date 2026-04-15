@@ -254,57 +254,16 @@ const inferCurrencyFromLocale = (locale) => {
   return LOCALE_REGION_TO_CURRENCY[region] || USD;
 };
 
-const detectFromIpApi = async () => {
-  const res = await fetch('https://ipapi.co/json/');
-  if (!res.ok) return null;
-  const data = await res.json();
-  const currency = data?.currency;
-  const country = data?.country_code;
-  if (!currency || typeof currency !== 'string') return null;
-  return {
-    currency: currency.toUpperCase(),
-    countryCode: typeof country === 'string' ? country.toUpperCase() : '',
-    source: 'geo',
-  };
-};
-
-const detectFromIpWho = async () => {
-  const res = await fetch('https://ipwho.is/');
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (data?.success === false) return null;
-  const currency = data?.currency?.code;
-  const country = data?.country_code;
-  if (!currency || typeof currency !== 'string') return null;
-  return {
-    currency: currency.toUpperCase(),
-    countryCode: typeof country === 'string' ? country.toUpperCase() : '',
-    source: 'geo',
-  };
-};
-
 export const detectUserCurrency = async () => {
-  // Only use geo-confirmed cache (never serve stale locale/USD fallback from cache).
+  // Use cached result for all detection sources (timezone/locale).
   const cached = readCache(CURRENCY_CACHE_KEY, CURRENCY_GEO_CACHE_TTL_MS);
-  if (cached?.currency && cached?.source === 'geo') return cached;
+  if (cached?.currency) return cached;
 
   const intlOptions = Intl.DateTimeFormat().resolvedOptions();
   const locale = intlOptions.locale || 'en-US';
   const timezone = intlOptions.timeZone || '';
 
-  // 1. Try geo IP detection (most accurate, but fails on localhost/rate-limit).
-  try {
-    const geo = (await detectFromIpApi()) || (await detectFromIpWho());
-    if (geo?.currency) {
-      const result = { ...geo, locale };
-      writeCache(CURRENCY_CACHE_KEY, result);
-      return result;
-    }
-  } catch {
-    // Fall through to timezone detection.
-  }
-
-  // 2. Timezone-based detection (always works, no API needed, very accurate).
+  // 1. Timezone-based detection (always works, no API needed, very accurate).
   const tzCurrency = inferCurrencyFromTimezone(timezone);
   if (tzCurrency) {
     const result = {
@@ -317,7 +276,7 @@ export const detectUserCurrency = async () => {
     return result;
   }
 
-  // 3. Locale-based detection (least reliable — Windows often returns just "en").
+  // 2. Locale-based detection (least reliable — Windows often returns just "en").
   const localeCurrency = inferCurrencyFromLocale(locale);
   const result = {
     currency: localeCurrency,
