@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -9,6 +9,7 @@ const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'cours
 const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 220, 130, 140, 120];
 const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 120, 100, 100, 90];
 const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 400, 220, 260, 180];
+const ENROLLMENT_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const StudentsData = () => {
@@ -45,15 +46,37 @@ const StudentsData = () => {
     const [sortOrder, setSortOrder] = useState('desc');
 
     const calculateStats = useCallback((data = []) => {
-        const total = data.length;
-        const active = data.filter(e => e.student?.isActive !== false).length;
-        const inactive = data.filter(e => e.student?.isActive === false).length;
+        const uniqueStudents = new Map();
+        const statusPriority = ['active', 'pending', 'inactive', 'completed'];
+        data.forEach((enrollment) => {
+            const student = enrollment?.student || {};
+            const key = student._id || student.email || `${student.name || ''}-${student.studentId || ''}`;
+            if (!key) return;
+            const normalizedEnrollmentStatus = ENROLLMENT_STATUS_OPTIONS.includes(enrollment?.status)
+                ? enrollment.status
+                : 'pending';
+            if (!uniqueStudents.has(key)) {
+                uniqueStudents.set(key, { statuses: new Set([normalizedEnrollmentStatus]) });
+                return;
+            }
+            uniqueStudents.get(key).statuses.add(normalizedEnrollmentStatus);
+        });
+
+        const resolvedStatuses = [...uniqueStudents.values()].map((entry) => {
+            const statuses = [...entry.statuses];
+            return statusPriority.find((status) => statuses.includes(status)) || 'pending';
+        });
+        const total = resolvedStatuses.length;
+        const active = resolvedStatuses.filter((status) => status === 'active').length;
+        const pending = resolvedStatuses.filter((status) => status === 'pending').length;
+        const inactive = resolvedStatuses.filter((status) => status === 'inactive').length;
+        const completed = resolvedStatuses.filter((status) => status === 'completed').length;
             
         setStats({
             totalEnrollments: total,
             activeEnrollments: active,
-            completedEnrollments: 0,
-            pendingEnrollments: 0,
+            completedEnrollments: completed,
+            pendingEnrollments: pending,
             inactiveEnrollments: inactive
         });
     }, []);
@@ -115,7 +138,7 @@ const StudentsData = () => {
                 personalEmail: s.personalEmail || '',
                 course: c.title || '',
                 enrollmentDate: enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10) : '',
-                status: s.isActive === false ? 'inactive' : 'active',
+                status: enrollment.status || 'pending',
             };
         });
 
@@ -290,35 +313,24 @@ const StudentsData = () => {
         if (window.confirm(`Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`)) {
             try {
                 const token = getAuthToken();
-                const targetActive = newStatus === 'active';
-                const selectedRows = enrollments.filter((e) => selectedEnrollments.includes(e._id));
-                const uniqueStudentIds = [...new Set(selectedRows.map((e) => e.student?._id).filter(Boolean))];
-
-                await Promise.all(
-                    uniqueStudentIds.map((studentId) =>
-                        axios.put(
-                            `${API_BASE_URL}/api/users/${studentId}`,
-                            { isActive: targetActive },
-                            { headers: { Authorization: `Bearer ${token}` } }
-                        )
-                    )
+                await axios.post(
+                    `${API_BASE_URL}/api/enrollments/bulk-update`,
+                    { enrollmentIds: selectedEnrollments, status: newStatus },
+                    { headers: { Authorization: `Bearer ${token}` } }
                 );
 
                 const updated = enrollments.map((enrollment) => {
                     if (!selectedEnrollments.includes(enrollment._id)) return enrollment;
                     return {
                         ...enrollment,
-                        student: {
-                            ...enrollment.student,
-                            isActive: targetActive,
-                        },
+                        status: newStatus,
                     };
                 });
                 setEnrollments(updated);
                 calculateStats(updated);
                 setSelectedEnrollments([]);
 
-                setSuccessMessage(`Account status updated for ${uniqueStudentIds.length} student(s)`);
+                setSuccessMessage(`Status updated to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)`);
                 setTimeout(() => setSuccessMessage(''), 3000);
             } catch (error) {
                 setErrorMessage(error.response?.data?.message || 'Failed to update status');
@@ -329,12 +341,8 @@ const StudentsData = () => {
     const updateEnrollmentStatus = async (enrollment, newStatus) => {
         try {
             const token = getAuthToken();
-            const targetActive = newStatus === 'active';
-            const studentId = enrollment?.student?._id;
-            if (!studentId) return;
-
-            await axios.put(`${API_BASE_URL}/api/users/${studentId}`, {
-                isActive: targetActive
+            await axios.put(`${API_BASE_URL}/api/enrollments/${enrollment._id}`, {
+                status: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -343,17 +351,14 @@ const StudentsData = () => {
                 row._id === enrollment._id
                     ? {
                           ...row,
-                          student: {
-                              ...row.student,
-                              isActive: targetActive,
-                          },
+                          status: newStatus,
                       }
                     : row
             );
             setEnrollments(updated);
             calculateStats(updated);
 
-            setSuccessMessage('Account status updated successfully');
+            setSuccessMessage('Enrollment status updated successfully');
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (error) {
             setErrorMessage(error.response?.data?.message || 'Failed to update status');
@@ -404,8 +409,10 @@ const handleEditEnrollment = (enrollment) => {
             (student.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.title?.toLowerCase().includes(searchTerm.toLowerCase());
         
-        const accountStatus = enrollment.student?.isActive === false ? 'inactive' : 'active';
-        const matchesStatus = filterStatus === 'all' || accountStatus === filterStatus;
+        const enrollmentStatus = ENROLLMENT_STATUS_OPTIONS.includes(enrollment.status)
+            ? enrollment.status
+            : 'pending';
+        const matchesStatus = filterStatus === 'all' || enrollmentStatus === filterStatus;
         
         return matchesSearch && matchesStatus;
     });
@@ -417,7 +424,7 @@ const handleEditEnrollment = (enrollment) => {
             if (key === 'personalEmail') return (enrollment.student?.personalEmail || '').toLowerCase();
             if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
             if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
-            if (key === 'status') return (enrollment.student?.isActive === false ? 'inactive' : 'active');
+            if (key === 'status') return (enrollment.status || 'pending');
             return 0;
         };
         const va = getVal(a, sortBy);
@@ -446,6 +453,8 @@ const handleEditEnrollment = (enrollment) => {
 const getEnrollmentStatusIcon = (status) => {
     switch(status) {
         case 'active': return 'play-circle';
+        case 'pending': return 'clock';
+        case 'completed': return 'flag-checkered';
         case 'inactive': return 'pause-circle';
         default: return 'question-circle';
     }
@@ -460,7 +469,7 @@ const EditEnrollmentModal = () => {
         studentId: editingEnrollment?.student?.studentId || '',
         personalEmail: editingEnrollment?.student?.personalEmail || '',
         courseId: editingEnrollment?.course?._id || '',
-        status: editingEnrollment?.student?.isActive === false ? 'inactive' : 'active',
+        status: editingEnrollment?.status || 'pending',
         enrollmentDate: editingEnrollment?.enrollmentDate
             ? new Date(editingEnrollment.enrollmentDate).toISOString().split('T')[0]
             : new Date().toISOString().split('T')[0]
@@ -494,6 +503,23 @@ const EditEnrollmentModal = () => {
         fetchCourses();
     }, []);
 
+    const sortedActiveCourses = useMemo(() => {
+        const list = Array.isArray(availableCourses)
+            ? availableCourses.filter((course) => course?.status === 'published' || course?.isPublished === true)
+            : [];
+        const getDisplayOrder = (course) => {
+            const order = Number(course?.displayOrder);
+            return Number.isFinite(order) ? order : 9999;
+        };
+
+        return list.sort((a, b) => {
+            const orderA = getDisplayOrder(a);
+            const orderB = getDisplayOrder(b);
+            if (orderA !== orderB) return orderA - orderB;
+            return String(a?.title || '').localeCompare(String(b?.title || ''));
+        });
+    }, [availableCourses]);
+
     const handleSave = async () => {
     try {
         setLoading(true);
@@ -525,15 +551,12 @@ const EditEnrollmentModal = () => {
             const shouldUpdateName = editingEnrollment.student?.name !== formData.studentName;
             const shouldUpdatePersonalEmail =
                 String(editingEnrollment.student?.personalEmail || '').trim() !== personalTrim;
-            const currentAccountStatus = editingEnrollment.student?.isActive === false ? 'inactive' : 'active';
-            const shouldUpdateIsActive = formData.status !== currentAccountStatus;
 
             const userUpdatePayload = {};
             if (shouldUpdateName) userUpdatePayload.name = formData.studentName;
             if (shouldUpdatePersonalEmail) userUpdatePayload.personalEmail = personalTrim;
             // Only set studentId when admin explicitly enters it
             if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
-            if (shouldUpdateIsActive) userUpdatePayload.isActive = formData.status === 'active';
 
             if (Object.keys(userUpdatePayload).length) {
                 await axios.put(
@@ -548,6 +571,7 @@ const EditEnrollmentModal = () => {
         const updateData = {
             enrollmentDate: formData.enrollmentDate,
             courseId: formData.courseId || undefined,
+            status: formData.status,
         };
 
         const response = await axios.put(
@@ -558,7 +582,7 @@ const EditEnrollmentModal = () => {
 
         if (response.data.success) {
             // Find the new course data
-            const newCourse = availableCourses.find(c => c._id === formData.courseId) || 
+            const newCourse = sortedActiveCourses.find(c => c._id === formData.courseId) || 
                             editingEnrollment.course;
             
             const updated = enrollments.map(enrollment =>
@@ -571,8 +595,8 @@ const EditEnrollmentModal = () => {
                             name: formData.studentName,
                             studentId: studentIdTrim || enrollment.student?.studentId,
                             personalEmail: personalTrim,
-                            isActive: formData.status === 'active',
                         },
+                        status: formData.status,
                         course: newCourse
                     }
                     : enrollment
@@ -605,8 +629,8 @@ const EditEnrollmentModal = () => {
                 <div className="modal-header">
                     <h2><i className="fas fa-edit"></i> Edit Enrollment</h2>
                     <div className="header-subtitle">
-                        <span className={`status-badge ${editingEnrollment?.student?.isActive === false ? 'inactive' : 'active'}`}>
-                            {editingEnrollment?.student?.isActive === false ? 'inactive' : 'active'}
+                        <span className={`status-badge ${formData.status || editingEnrollment?.status || 'pending'}`}>
+                            {formData.status || editingEnrollment?.status || 'pending'}
                         </span>
                     </div>
                     <button className="close-btn" onClick={handleClose}>
@@ -684,7 +708,7 @@ const EditEnrollmentModal = () => {
             className="form-select"
         >
             <option value="">Select a course...</option>
-            {availableCourses.map(course => (
+            {sortedActiveCourses.map(course => (
                 <option key={course._id} value={course._id}>
                     {course.title} ({course.category})
                 </option>
@@ -697,7 +721,7 @@ const EditEnrollmentModal = () => {
             <div className="current-course-info">
                 <strong>{editingEnrollment.course?.title}</strong>
                 <small>Will be changed to: {
-                    availableCourses.find(c => c._id === formData.courseId)?.title || 'New course'
+                    sortedActiveCourses.find(c => c._id === formData.courseId)?.title || 'New course'
                 }</small>
             </div>
         </div>
@@ -724,7 +748,9 @@ const EditEnrollmentModal = () => {
                                         className="form-select"
                                     >
                                         <option value="active">Active</option>
+                                        <option value="pending">Pending</option>
                                         <option value="inactive">Inactive</option>
+                                        <option value="completed">Completed</option>
                                     </select>
                                 </div>
                             </div>
@@ -755,7 +781,7 @@ const EditEnrollmentModal = () => {
                                 <div className="preview-row">
                                     <span className="preview-label">Course:</span>
                                     <span className="preview-value">
-                                        {availableCourses.find(c => c._id === formData.courseId)?.title || editingEnrollment.course?.title}
+                                        {sortedActiveCourses.find(c => c._id === formData.courseId)?.title || editingEnrollment.course?.title}
                                     </span>
                                 </div>
                                 <div className="preview-row">
@@ -845,8 +871,14 @@ const EditEnrollmentModal = () => {
                         <button className="bulk-btn" onClick={() => updateSelectedStatus('active')}>
                             <i className="fas fa-play"></i> Set Active
                         </button>
+                        <button className="bulk-btn" onClick={() => updateSelectedStatus('pending')}>
+                            <i className="fas fa-clock"></i> Set Pending
+                        </button>
                         <button className="bulk-btn" onClick={() => updateSelectedStatus('inactive')}>
                             <i className="fas fa-pause"></i> Set Inactive
+                        </button>
+                        <button className="bulk-btn" onClick={() => updateSelectedStatus('completed')}>
+                            <i className="fas fa-flag-checkered"></i> Set Completed
                         </button>
 {/* 👇 ADD THIS LINE AFTER INACTIVE BUTTON 👇 */}
 <button 
@@ -877,7 +909,7 @@ const EditEnrollmentModal = () => {
                     </div>
                     <div className="stat-info">
                         <h3>{stats.totalEnrollments}</h3>
-                        <p>Total records</p>
+                        <p>Total students</p>
                     </div>
                 </div>
                 <div className="stat-card active">
@@ -889,6 +921,15 @@ const EditEnrollmentModal = () => {
                         <p>Active Students</p>
                     </div>
                 </div>
+                <div className="stat-card pending">
+                    <div className="stat-icon">
+                        <i className="fas fa-clock"></i>
+                    </div>
+                    <div className="stat-info">
+                        <h3>{stats.pendingEnrollments}</h3>
+                        <p>Pending</p>
+                    </div>
+                </div>
                 <div className="stat-card inactive">
                     <div className="stat-icon">
                         <i className="fas fa-pause-circle"></i>
@@ -896,6 +937,15 @@ const EditEnrollmentModal = () => {
                     <div className="stat-info">
                         <h3>{stats.inactiveEnrollments}</h3>
                         <p>Inactive</p>
+                    </div>
+                </div>
+                <div className="stat-card completed">
+                    <div className="stat-icon">
+                        <i className="fas fa-flag-checkered"></i>
+                    </div>
+                    <div className="stat-info">
+                        <h3>{stats.completedEnrollments}</h3>
+                        <p>Completed</p>
                     </div>
                 </div>
             </div>
@@ -920,7 +970,9 @@ const EditEnrollmentModal = () => {
                     >
                         <option value="all">All Status</option>
                         <option value="active">Active</option>
+                        <option value="pending">Pending</option>
                         <option value="inactive">Inactive</option>
+                        <option value="completed">Completed</option>
                     </select>
                     
                     <button className="refresh-btn" onClick={fetchEnrollments}>
@@ -1062,18 +1114,20 @@ const EditEnrollmentModal = () => {
                                         </td>
                                         <td>
                                             <div className="status-cell">
-                                                <span className={`status-badge ${enrollment.student?.isActive === false ? 'inactive' : 'active'}`}>
-                                                    <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.student?.isActive === false ? 'inactive' : 'active')}`}></i>
-                                                    {(enrollment.student?.isActive === false ? 'inactive' : 'active').charAt(0).toUpperCase() + (enrollment.student?.isActive === false ? 'inactive' : 'active').slice(1)}
+                                                <span className={`status-badge ${enrollment.status || 'pending'}`}>
+                                                    <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.status || 'pending')}`}></i>
+                                                    {(enrollment.status || 'pending').charAt(0).toUpperCase() + (enrollment.status || 'pending').slice(1)}
                                                 </span>
                                                 <select
                                                     className="status-select-inline"
-                                                    value={enrollment.student?.isActive === false ? 'inactive' : 'active'}
+                                                    value={enrollment.status || 'pending'}
                                                     onChange={(e) => updateEnrollmentStatus(enrollment, e.target.value)}
                                                     title="Change status"
                                                 >
                                                     <option value="active">Active</option>
+                                                    <option value="pending">Pending</option>
                                                     <option value="inactive">Inactive</option>
+                                                    <option value="completed">Completed</option>
                                                 </select>
                                             </div>
                                         </td>
