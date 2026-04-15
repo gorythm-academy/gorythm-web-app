@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const Course = require('../models/Course');
+const Enrollment = require('../models/Enrollment');
 
 // Get all courses (admin)
 router.get('/', async (req, res) => {
@@ -9,10 +10,43 @@ router.get('/', async (req, res) => {
         const courses = await Course.find()
             .populate('instructor', 'name email')
             .sort({ createdAt: -1 });
-        
-        res.json({
-            success: true,
-            courses: courses.map(course => ({
+
+        // Source of truth for membership: enrollments linked to People students.
+        const enrollmentStats = await Enrollment.aggregate([
+            {
+                $match: {
+                    course: { $ne: null },
+                    student: { $ne: null },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'student',
+                    foreignField: '_id',
+                    as: 'studentDoc',
+                },
+            },
+            { $unwind: '$studentDoc' },
+            { $match: { 'studentDoc.role': 'student' } },
+            {
+                $group: {
+                    _id: '$course',
+                    studentIds: { $addToSet: '$student' },
+                },
+            },
+        ]);
+
+        const byCourseStudentCount = new Map();
+        const uniqueStudentIdSet = new Set();
+        enrollmentStats.forEach((row) => {
+            const ids = row.studentIds || [];
+            byCourseStudentCount.set(String(row._id), ids.length);
+            ids.forEach((id) => uniqueStudentIdSet.add(String(id)));
+        });
+
+        const mappedCourses = courses.map((course) => {
+            return {
                 _id: course._id,
                 title: course.title,
                 description: course.description,
@@ -20,14 +54,22 @@ router.get('/', async (req, res) => {
                 price: course.price,
                 duration: course.duration,
                 level: course.level,
-                students: course.students.length,
+                students: byCourseStudentCount.get(String(course._id)) || 0,
                 status: course.isPublished ? 'published' : 'draft',
                 instructor: course.instructor,
                 instructorName: course.instructorName || '',
                 homepageImage: course.homepageImage || '',
+                displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
+                masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
                 slug: course.slug || '',
                 createdAt: course.createdAt
-            }))
+            };
+        });
+
+        res.json({
+            success: true,
+            courses: mappedCourses,
+            totalUniqueStudents: uniqueStudentIdSet.size
         });
     } catch (error) {
         console.error('Error fetching courses:', error);
@@ -52,7 +94,7 @@ router.get('/public', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
 
         const raw = await Course.find({ isPublished: true })
-            .select('title description category price duration level homepageImage slug _id');
+            .select('title description category price duration level homepageImage displayOrder masonryColumn slug _id');
         const courses = raw
             .map(course => ({
                 _id: course._id,
@@ -63,9 +105,14 @@ router.get('/public', async (req, res) => {
                 duration: course.duration,
                 level: course.level,
                 homepageImage: course.homepageImage || '',
+                displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
+                masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
                 slug: course.slug || ''
             }))
             .sort((a, b) => {
+                const orderA = Number.isFinite(Number(a.displayOrder)) ? Number(a.displayOrder) : 9999;
+                const orderB = Number.isFinite(Number(b.displayOrder)) ? Number(b.displayOrder) : 9999;
+                if (orderA !== orderB) return orderA - orderB;
                 const catA = getCategorySortIndex(a.category);
                 const catB = getCategorySortIndex(b.category);
                 if (catA !== catB) return catA - catB;
@@ -110,6 +157,8 @@ router.get('/:id', async (req, res) => {
                 instructorName: course.instructorName || (course.instructor && course.instructor.name) || '',
                 homepageImage: course.homepageImage || '',
                 imageUrl: course.imageUrl || '',
+                displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
+                masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
                 slug: course.slug || '',
                 modules: course.modules || [],
                 students: course.students?.length ?? 0,
@@ -165,6 +214,8 @@ router.post('/', async (req, res) => {
             modules: [],
             students: [],
             homepageImage: (req.body.homepageImage && String(req.body.homepageImage).trim()) || '',
+            displayOrder: Number.isFinite(Number(req.body.displayOrder)) ? Number(req.body.displayOrder) : 9999,
+            masonryColumn: [1, 2, 3].includes(Number(req.body.masonryColumn)) ? Number(req.body.masonryColumn) : null,
             slug: uniqueSlug,
             isPublished: req.body.status === 'published'
         });
@@ -210,6 +261,12 @@ router.put('/:id', async (req, res) => {
         if (req.body.instructorId) course.instructor = req.body.instructorId;
         if (req.body.instructorName !== undefined) course.instructorName = req.body.instructorName || '';
         if (req.body.homepageImage !== undefined) course.homepageImage = String(req.body.homepageImage || '').trim();
+        if (req.body.displayOrder !== undefined) {
+            course.displayOrder = Number.isFinite(Number(req.body.displayOrder)) ? Number(req.body.displayOrder) : 9999;
+        }
+        if (req.body.masonryColumn !== undefined) {
+            course.masonryColumn = [1, 2, 3].includes(Number(req.body.masonryColumn)) ? Number(req.body.masonryColumn) : null;
+        }
         if (hasExplicitSlug) {
             const requestedSlug = String(req.body.slug || '').trim() || slugFromTitle(course.title);
             course.slug = await buildUniqueSlug(requestedSlug, course._id);

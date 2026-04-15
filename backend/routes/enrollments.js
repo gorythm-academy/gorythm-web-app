@@ -40,9 +40,21 @@ const ensureStudentEnrollmentBackfill = async () => {
     );
 };
 
+const removeOrphanEnrollmentRows = async () => {
+    const validStudentIds = await User.find({ role: 'student' }).distinct('_id');
+    await Enrollment.deleteMany({
+        $or: [
+            { student: null },
+            { student: { $exists: false } },
+            { student: { $nin: validStudentIds } }
+        ]
+    });
+};
+
 // Get all enrollments (admin only)
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        await removeOrphanEnrollmentRows();
         await ensureStudentEnrollmentBackfill();
         const enrollments = await Enrollment.find()
             .populate('student', STUDENT_POPULATE)

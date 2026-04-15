@@ -40,7 +40,7 @@ const CoursesManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [selectedCourses, setSelectedCourses] = useState([]);
-    const [showBulkActions, setShowBulkActions] = useState(false);
+    const [totalUniqueStudents, setTotalUniqueStudents] = useState(0);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,6 +54,8 @@ const CoursesManagement = () => {
         level: 'beginner',
         instructorName: '',
         homepageImage: '',
+        displayOrder: '',
+        masonryColumn: '',
     });
     const [sortBy, setSortBy] = useState('');
     const [sortOrder, setSortOrder] = useState('asc');
@@ -207,11 +209,13 @@ const CoursesManagement = () => {
                 });
             }
             setCourses(coursesFromDb);
+            setTotalUniqueStudents(Number(response.data?.totalUniqueStudents) || 0);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching courses:', error);
             console.error('Error details:', error.response?.data);
             setCourses([]);
+            setTotalUniqueStudents(0);
             setLoading(false);
         }
     };
@@ -228,6 +232,8 @@ const CoursesManagement = () => {
             level: 'beginner',
             instructorName: '',
             homepageImage: '',
+            displayOrder: '',
+            masonryColumn: '',
         });
         setIsFormOpen(true);
         
@@ -266,6 +272,8 @@ const CoursesManagement = () => {
             level: course.level || 'beginner',
             instructorName: course.instructorName || course.instructor?.name || '',
             homepageImage: course.homepageImage || '',
+            displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
+            masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
         });
         
         console.log('Form data set to:', formData);
@@ -344,6 +352,8 @@ const CoursesManagement = () => {
             level: formData.level,
             instructorName: (formData.instructorName || '').trim(),
             homepageImage: (formData.homepageImage || '').trim(),
+            displayOrder: formData.displayOrder === '' ? 9999 : Number(formData.displayOrder),
+            masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
         };
 
         try {
@@ -417,6 +427,8 @@ setFormData({
             level: 'beginner',
             instructorName: '',
             homepageImage: '',
+            displayOrder: '',
+            masonryColumn: '',
         });
         
             await fetchCourses();
@@ -457,20 +469,14 @@ setFormData({
                 ? prev.filter(id => id !== courseId)
                 : [...prev, courseId]
         );
-        
-        if (selectedCourses.length >= 0) {
-            setShowBulkActions(true);
-        }
     };
 
     const toggleAllCourses = () => {
         if (selectedCourses.length === sortedCourses.length && sortedCourses.length > 0) {
             setSelectedCourses([]);
-            setShowBulkActions(false);
         } else {
             const allCourseIds = sortedCourses.map(course => course._id || course.id);
             setSelectedCourses(allCourseIds);
-            setShowBulkActions(true);
         }
     };
 
@@ -514,7 +520,6 @@ setFormData({
             
             await fetchCourses();
             setSelectedCourses([]);
-            setShowBulkActions(false);
             showConfirmation(response.data.message || `${selectedCourses.length} course(s) deleted successfully!`);
         } catch (error) {
             console.error('Error deleting selected courses:', error);
@@ -579,6 +584,9 @@ setFormData({
 
     const sortedCourses = [...filteredCourses].sort((a, b) => {
         if (!sortBy) {
+            const orderA = Number.isFinite(Number(a.displayOrder)) ? Number(a.displayOrder) : 9999;
+            const orderB = Number.isFinite(Number(b.displayOrder)) ? Number(b.displayOrder) : 9999;
+            if (orderA !== orderB) return orderA - orderB;
             const catA = getCategorySortIndex(a.category);
             const catB = getCategorySortIndex(b.category);
             if (catA !== catB) return catA - catB;
@@ -628,32 +636,6 @@ setFormData({
                 </div>
             </div>
 
-            {showBulkActions && selectedCourses.length > 0 && (
-                <div className="bulk-actions-bar">
-                    <div className="selected-count">
-                        <i className="fas fa-check-circle"></i>
-                        {selectedCourses.length} course(s) selected
-                    </div>
-                    <div className="bulk-buttons">
-                        <button className="bulk-btn" onClick={openBulkEditForm}>
-                            <i className="fas fa-edit"></i> Edit Selected
-                        </button>
-                        <button className="bulk-btn" onClick={toggleSelectedStatus}>
-                            <i className="fas fa-eye"></i> Set Status
-                        </button>
-                        <button className="bulk-btn delete" onClick={deleteSelectedCourses}>
-                            <i className="fas fa-trash"></i> Delete Selected
-                        </button>
-                        <button className="bulk-btn cancel" onClick={() => {
-                            setSelectedCourses([]);
-                            setShowBulkActions(false);
-                        }}>
-                            <i className="fas fa-times"></i> Clear Selection
-                        </button>
-                    </div>
-                </div>
-            )}
-
             <div className="page-stats">
                 <div className="stat-card">
                     <div className="stat-icon total">
@@ -678,7 +660,7 @@ setFormData({
                         <i className="fas fa-users"></i>
                     </div>
                     <div className="stat-info">
-                        <h3>{courses.reduce((sum, course) => sum + (course.students || 0), 0)}</h3>
+                        <h3>{totalUniqueStudents}</h3>
                         <p>Total Students</p>
                     </div>
                 </div>
@@ -863,6 +845,33 @@ setFormData({
                             </div>
                         </div>
                         <div className="form-row">
+                            <div className="form-group">
+                                <label>Display order</label>
+                                <input
+                                    type="number"
+                                    name="displayOrder"
+                                    value={formData.displayOrder}
+                                    onChange={handleFormChange}
+                                    min="0"
+                                    step="1"
+                                    placeholder="0 = first (blank = last)"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Masonry column</label>
+                                <select
+                                    name="masonryColumn"
+                                    value={formData.masonryColumn}
+                                    onChange={handleFormChange}
+                                >
+                                    <option value="">Auto</option>
+                                    <option value="1">Left</option>
+                                    <option value="2">Middle</option>
+                                    <option value="3">Right</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="form-row">
                             <div className="form-group form-group-full">
                                 <label>Homepage card image (URL or path)</label>
                                 <input
@@ -909,6 +918,8 @@ setFormData({
                                         level: 'beginner',
                                         instructorName: '',
                                         homepageImage: '',
+                                        displayOrder: '',
+                                        masonryColumn: '',
                                     });
                                 }}
                                 disabled={isSubmitting}
@@ -920,6 +931,34 @@ setFormData({
                 </div>
     </div>
   </div>
+            )}
+
+            {selectedCourses.length > 0 && (
+                <div className="bulk-actions-bar">
+                    <div className="selected-count">
+                        <i className="fas fa-check-circle"></i>
+                        {selectedCourses.length} course(s) selected
+                    </div>
+                    <div className="bulk-buttons">
+                        <button className="bulk-btn" onClick={openBulkEditForm}>
+                            <i className="fas fa-edit"></i> Edit Selected
+                        </button>
+                        <button className="bulk-btn" onClick={toggleSelectedStatus}>
+                            <i className="fas fa-eye"></i> Set Status
+                        </button>
+                        <button className="bulk-btn delete" onClick={deleteSelectedCourses}>
+                            <i className="fas fa-trash"></i> Delete Selected
+                        </button>
+                        <button
+                            className="bulk-btn cancel"
+                            onClick={() => {
+                                setSelectedCourses([]);
+                            }}
+                        >
+                            <i className="fas fa-times"></i> Clear Selection
+                        </button>
+                    </div>
+                </div>
             )}
 
             <div
@@ -1166,6 +1205,11 @@ setFormData({
                                     <td>
                                         <div className="course-title-cell">
                                             <strong>{course.title}</strong>
+                                            <small style={{ display: 'block', opacity: 0.8 }}>
+                                                #{Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999}
+                                                {' '}•{' '}
+                                                {course.masonryColumn ? `Column ${course.masonryColumn}` : 'Column auto'}
+                                            </small>
                                         </div>
                                     </td>
                                     <td>

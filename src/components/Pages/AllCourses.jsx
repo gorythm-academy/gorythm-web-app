@@ -38,6 +38,28 @@ const getCategorySortIndex = (category) => {
   const i = CATEGORY_ORDER.indexOf(category || '');
   return i === -1 ? CATEGORY_ORDER.length : i;
 };
+const getDisplayOrder = (course) => {
+  const order = Number(course?.displayOrder);
+  return Number.isFinite(order) ? order : 9999;
+};
+const getMasonryColumn = (course) => {
+  const col = Number(course?.masonryColumn);
+  return [1, 2, 3].includes(col) ? col : null;
+};
+const buildMasonryColumns = (items) => {
+  const columns = [[], [], []];
+  let autoIndex = 0;
+  items.forEach((course) => {
+    const forcedCol = getMasonryColumn(course);
+    if (forcedCol) {
+      columns[forcedCol - 1].push(course);
+      return;
+    }
+    columns[autoIndex % 3].push(course);
+    autoIndex += 1;
+  });
+  return columns;
+};
 
 // Return only the first "line" of a paragraph-like string:
 // - Prefer splitting on explicit line breaks
@@ -61,6 +83,34 @@ const formatLevel = (level) => {
   const s = String(level);
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
+
+const faqs = [
+  {
+    question: 'Who can enroll in GoRythm courses?',
+    answer:
+      'Our courses are designed for kids, teens, and adults of all levels. Whether you are a beginner or looking to improve your existing knowledge, we have structured programs to suit your needs.',
+  },
+  {
+    question: 'Are the classes conducted online or in-person?',
+    answer:
+      'All our classes are conducted online, allowing learners to study from anywhere in the world with flexible scheduling and convenience.',
+  },
+  {
+    question: 'Do I need prior knowledge to join a course?',
+    answer:
+      'No prior knowledge is required for most of our courses. We offer beginner-friendly options as well as advanced levels to ensure every learner can start comfortably.',
+  },
+  {
+    question: 'How are the classes structured?',
+    answer:
+      'Classes are interactive and guided by qualified teachers. We focus on step-by-step learning, regular practice, and personalized feedback to ensure steady progress.',
+  },
+  {
+    question: 'How can I enroll in a course?',
+    answer:
+      'You can enroll by contacting our team through Whatsapp or filling out the registration form. Our team will guide you through course selection, scheduling, and the onboarding process.',
+  },
+];
 
 export const courses = [
   {
@@ -277,6 +327,7 @@ const AllCourses = () => {
   const { formatFromUsdWhole } = useCurrency();
   const [apiCourses, setApiCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [isDesktopScrollZone, setIsDesktopScrollZone] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -326,13 +377,17 @@ const AllCourses = () => {
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
       aspectRatio: MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length],
+      displayOrder: c.displayOrder,
+      masonryColumn: c.masonryColumn,
     };
     })
-    .sort((a, b) => getCategorySortIndex(a.category) - getCategorySortIndex(b.category) || (a.title || '').localeCompare(b.title || ''));
+    .sort((a, b) =>
+      getDisplayOrder(a) - getDisplayOrder(b) ||
+      getCategorySortIndex(a.category) - getCategorySortIndex(b.category) ||
+      (a.title || '').localeCompare(b.title || '')
+    );
 
-  const masonryColumns = [0, 1, 2].map((mod) =>
-    displayCourses.filter((_, index) => index % 3 === mod)
-  );
+  const masonryColumns = buildMasonryColumns(displayCourses);
 
   useEffect(() => {
     document.body.classList.add('courses-cursor-visible');
@@ -361,7 +416,7 @@ const AllCourses = () => {
           <div className="courses-left-panel">
             <div className="courses-left-content">
               <h1 className="courses-title">
-                Educational program
+                Learn Quran, Arabic, STEM, and Islamic studies in one place
               </h1>
               <img
                 src={titleLineSvg}
@@ -371,9 +426,8 @@ const AllCourses = () => {
               />
               <div className="courses-left-footer">
                 <p className="courses-description">
-                  At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith
-                  through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically,
-                  and grow with purpose.
+                  Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic
+                  knowledge, and develop essential life skills.
                 </p>
                 <Link to="/contact" className="courses-cta">
                   <span className="courses-cta-text">Contact Us</span>
@@ -415,9 +469,7 @@ const AllCourses = () => {
                     </div>
                     <div className="courses-item-caption">
                       <div className="courses-item-copy">
-                        <span className="courses-item-category">{course.category}</span>
                         <h2 className="courses-item-title">{course.title}</h2>
-                        <p className="courses-item-description">{course.description}</p>
                         <div className="courses-item-meta">
                           <span className="courses-item-price">
                             <span className="courses-item-price-amount">{course.priceDisplay}</span>
@@ -439,6 +491,47 @@ const AllCourses = () => {
           )}
         </div>
       </div>
+
+      <section className="courses-faq" aria-label="Frequently asked questions">
+        <div className="courses-faq-title-wrap">
+          <h2 className="courses-faq-title">FAQs</h2>
+          <span className="courses-page-arrow courses-faq-arrow" aria-hidden="true" />
+        </div>
+
+        <div className="courses-faq-list" role="list">
+          {faqs.map((item, idx) => {
+            const isOpen = openFaqIndex === idx;
+            const panelId = `courses-faq-panel-${idx}`;
+            const buttonId = `courses-faq-button-${idx}`;
+            return (
+              <div key={item.question} className="courses-faq-item" role="listitem">
+                <button
+                  type="button"
+                  id={buttonId}
+                  className="courses-faq-trigger"
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  onClick={() => setOpenFaqIndex((prev) => (prev === idx ? -1 : idx))}
+                >
+                  <span className="courses-faq-question">{item.question}</span>
+                  <span className="courses-faq-icon" aria-hidden="true">
+                    {isOpen ? '−' : '+'}
+                  </span>
+                </button>
+
+                <div
+                  id={panelId}
+                  role="region"
+                  aria-labelledby={buttonId}
+                  className={`courses-faq-panel${isOpen ? ' courses-faq-panel--open' : ''}`}
+                >
+                  <div className="courses-faq-answer">{item.answer}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </section>
   );
 };

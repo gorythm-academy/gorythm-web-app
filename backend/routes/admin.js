@@ -12,13 +12,18 @@ router.get('/dashboard', async (req, res) => {
         
         // Get real data from MongoDB
         const totalStudents = await User.countDocuments({ role: 'student' });
+        const totalTeachers = await User.countDocuments({ role: 'teacher' });
+        const totalParents = await User.countDocuments({ role: 'parent' });
         const totalCourses = await Course.countDocuments({ isPublished: true });
         
         // Calculate total revenue
         const payments = await Payment.find({ status: 'completed' });
         const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
         
-        const activeUsers = await User.countDocuments({ isActive: true });
+        const activeUsers = await User.countDocuments({
+            isActive: true,
+            role: { $in: ['admin', 'super-admin', 'accountant'] }
+        });
 
         // Get recent activities from payments
         const recentPayments = await Payment.find({ status: 'completed' })
@@ -38,6 +43,8 @@ router.get('/dashboard', async (req, res) => {
             success: true,
             stats: {
                 totalStudents,
+                totalTeachers,
+                totalParents,
                 totalCourses,
                 totalRevenue,
                 activeUsers

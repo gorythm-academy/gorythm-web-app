@@ -66,6 +66,28 @@ const getCategorySortIndex = (category) => {
   const i = CATEGORY_ORDER.indexOf(category || '');
   return i === -1 ? CATEGORY_ORDER.length : i;
 };
+const getDisplayOrder = (course) => {
+  const order = Number(course?.displayOrder);
+  return Number.isFinite(order) ? order : 9999;
+};
+const getMasonryColumn = (course) => {
+  const col = Number(course?.masonryColumn);
+  return [1, 2, 3].includes(col) ? col : null;
+};
+const buildMasonryColumns = (items) => {
+  const columns = [[], [], []];
+  let autoIndex = 0;
+  items.forEach((course) => {
+    const forcedCol = getMasonryColumn(course);
+    if (forcedCol) {
+      columns[forcedCol - 1].push(course);
+      return;
+    }
+    columns[autoIndex % 3].push(course);
+    autoIndex += 1;
+  });
+  return columns;
+};
 
 // Used by /portfolio and /portfolio/:slug pages (PortfolioPages.jsx)
 export const portfolioItems = [
@@ -139,16 +161,20 @@ const CoursesSection = () => {
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
       aspectRatio: MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length],
+      displayOrder: c.displayOrder,
+      masonryColumn: c.masonryColumn,
     };
     })
-    .sort((a, b) => getCategorySortIndex(a.category) - getCategorySortIndex(b.category) || (a.title || '').localeCompare(b.title || ''));
+    .sort((a, b) =>
+      getDisplayOrder(a) - getDisplayOrder(b) ||
+      getCategorySortIndex(a.category) - getCategorySortIndex(b.category) ||
+      (a.title || '').localeCompare(b.title || '')
+    );
 
   // API-only display (no static fallback)
   const displayCourses = apiCourses;
 
-  const masonryColumns = [0, 1, 2].map((mod) =>
-    displayCourses.filter((_, index) => index % 3 === mod)
-  );
+  const masonryColumns = buildMasonryColumns(displayCourses);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -173,15 +199,14 @@ const CoursesSection = () => {
             <div className="courses-section-left-content">
               <span className="courses-section-big-number" aria-hidden="true">01</span>
               <h2 className="courses-section-title courses-section_anim">
-                Educational program
+                Learn Quran, Arabic, STEM, and Islamic studies in one place
               </h2>
               <img src={titleLineSvg} alt="" className="courses-section-title-line courses-section_anim" aria-hidden="true" />
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                  At GoRythm, we blend Islamic values with modern learning to nurture young minds and strengthen faith
-                  through knowledge. Our programs go beyond textbooks, helping learners think critically, act ethically,
-                  and grow with purpose.
+                  Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic
+                  knowledge, and develop essential life skills.
                 </p>
                 <Link to="/courses" className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">Explore Courses</span>
@@ -229,9 +254,7 @@ const CoursesSection = () => {
                     </div>
                     <div className="courses-section-item-caption">
                       <div className="courses-section-item-copy">
-                        <span className="courses-section-item-category">{course.category}</span>
                         <h2 className="courses-section-item-title">{course.title}</h2>
-                        <p className="courses-section-item-description">{course.description}</p>
                         <div className="courses-section-item-meta">
                           <span className="courses-section-item-price">
                             <span className="courses-section-item-price-amount">{course.priceDisplay}</span>

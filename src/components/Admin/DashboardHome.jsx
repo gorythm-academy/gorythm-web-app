@@ -9,6 +9,8 @@ const DashboardHome = () => {
     const navigate = useNavigate();
     const [stats, setStats] = useState({
         totalStudents: 0,
+        totalTeachers: 0,
+        totalParents: 0,
         totalCourses: 0,
         totalRevenue: 0,
         activeUsers: 0
@@ -62,6 +64,8 @@ const DashboardHome = () => {
             // Set empty data on error
             setStats({
                 totalStudents: 0,
+                totalTeachers: 0,
+                totalParents: 0,
                 totalCourses: 0,
                 totalRevenue: 0,
                 activeUsers: 0
@@ -114,6 +118,22 @@ const DashboardHome = () => {
             color: '#8b5cf6', 
             change: '+0%',
             onClick: () => navigate('/admin/users')
+        },
+        {
+            title: 'Teachers',
+            value: loading ? '...' : stats.totalTeachers,
+            icon: 'fas fa-chalkboard-teacher',
+            color: '#06b6d4',
+            change: '+0',
+            onClick: () => navigate('/admin/people')
+        },
+        {
+            title: 'Parents',
+            value: loading ? '...' : stats.totalParents,
+            icon: 'fas fa-people-roof',
+            color: '#f97316',
+            change: '+0',
+            onClick: () => navigate('/admin/people')
         },
     ];
 

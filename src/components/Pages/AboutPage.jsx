@@ -10,62 +10,7 @@ import testimonialImg2 from '../../assets/images/milestone-img02.jpg';
 import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
 import './AboutPage.scss';
 
-const studentTestimonials = [
-  {
-    name: 'Aisha Rahman',
-    role: 'Student',
-    image: testimonialImg1,
-    quote: [
-      'The teachers here meet you where you are — patient, clear, and deeply rooted in the Quran. I finally feel confident reciting with tajweed instead of rushing through words I did not understand.',
-      'The live sessions and structured practice between classes made a real difference. I would recommend this academy to anyone who wants serious learning with a warm community.',
-    ],
-  },
-  {
-    name: 'Yusuf Khan',
-    role: 'Student',
-    image: testimonialImg2,
-    quote: [
-      'I joined for Islamic studies and stayed for how everything connects back to character and daily life. The lessons are engaging and never feel like a lecture you forget the next day.',
-      'My parents noticed a positive change in how I approach salah and reflection. That is the kind of growth I was hoping for.',
-    ],
-  },
-  {
-    name: 'Maryam Siddiqui',
-    role: 'Student',
-    image: testimonialImg3,
-    quote: [
-      'As a busy student, I needed flexibility without losing quality. The platform is easy to follow and the support team actually responds when you need help.',
-      'Being able to revisit recordings and notes helped me keep pace. I am grateful for instructors who care about progress, not just attendance.',
-    ],
-  },
-  {
-    name: 'Ibrahim Hassan',
-    role: 'Student',
-    image: aboutImage1,
-    quote: [
-      'STEM with Islamic integration sounded ambitious, but the course design makes it practical. We solve real problems while keeping ethics and adab at the center.',
-      'Group projects taught me teamwork and how to disagree respectfully — skills I will use long after the term ends.',
-    ],
-  },
-  {
-    name: 'Fatima Noor',
-    role: 'Student',
-    image: aboutImage2,
-    quote: [
-      'I was nervous speaking up in class at first. The small group sizes and encouraging feedback helped me find my voice.',
-      'Today I lead a short reflection for my family after Maghrib sometimes. That confidence started in these sessions.',
-    ],
-  },
-  {
-    name: 'Omar Malik',
-    role: 'Student',
-    image: aboutUsMainImg,
-    quote: [
-      'From enrollment to coursework, everything felt organized and professional. You can tell the team has thought through the learner journey.',
-      'I have studied online before; this is the first place where I felt accountable in a good way — challenged but never overwhelmed.',
-    ],
-  },
-];
+// Student testimonial section is intentionally commented out for now.
 
 const values = [
   {
@@ -100,34 +45,6 @@ const approach = [
   },
 ];
 
-const faqs = [
-  {
-    question: 'Who can enroll in GoRythm courses?',
-    answer:
-      'Our courses are designed for kids, teens, and adults of all levels. Whether you are a beginner or looking to improve your existing knowledge, we have structured programs to suit your needs.',
-  },
-  {
-    question: 'Are the classes conducted online or in-person?',
-    answer:
-      'All our classes are conducted online, allowing learners to study from anywhere in the world with flexible scheduling and convenience.',
-  },
-  {
-    question: 'Do I need prior knowledge to join a course?',
-    answer:
-      'No prior knowledge is required for most of our courses. We offer beginner-friendly options as well as advanced levels to ensure every learner can start comfortably.',
-  },
-  {
-    question: 'How are the classes structured?',
-    answer:
-      'Classes are interactive and guided by qualified teachers. We focus on step-by-step learning, regular practice, and personalized feedback to ensure steady progress.',
-  },
-  {
-    question: 'How can I enroll in a course?',
-    answer:
-      'You can enroll by contacting our team through Whatsapp or filling out the registration form. Our team will guide you through course selection, scheduling, and the onboarding process.',
-  },
-];
-
 const teamMembers = [
   { name: 'Tina Jones', role: 'Scientist', image: aboutImage1 },
   { name: 'Natalie Coleman', role: 'Astrophysicist', image: testimonialImg1 },
@@ -141,74 +58,6 @@ const AboutPage = () => {
   const [statementWordIndex, setStatementWordIndex] = useState(0);
   const [statementCharIndex, setStatementCharIndex] = useState(0);
   const [statementErasing, setStatementErasing] = useState(false);
-  const [testimonialStart, setTestimonialStart] = useState(0);
-  const [testimonialSlideDir, setTestimonialSlideDir] = useState(null);
-  const [isTestimonialDragging, setIsTestimonialDragging] = useState(false);
-  const [testimonialCursorDot, setTestimonialCursorDot] = useState({ x: 0, y: 0, visible: false });
-  const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const dragActiveRef = React.useRef(false);
-  const dragStartXRef = React.useRef(0);
-  const dragThreshold = 56;
-  const testimonialsRef = React.useRef(null);
-
-  const testimonialCount = studentTestimonials.length;
-  const testimonialIndex = (offset) =>
-    ((testimonialStart + offset) % testimonialCount + testimonialCount) % testimonialCount;
-  const visibleTestimonialIndices = [0, 1, 2].map(testimonialIndex);
-  const activeTestimonial = studentTestimonials[testimonialStart];
-
-  const goPrevTestimonial = () => {
-    setTestimonialSlideDir('prev');
-    setTestimonialStart((s) => (s - 1 + testimonialCount) % testimonialCount);
-  };
-
-  const goNextTestimonial = () => {
-    setTestimonialSlideDir('next');
-    setTestimonialStart((s) => (s + 1) % testimonialCount);
-  };
-
-  const onTestimonialPointerDown = (e) => {
-    // Only primary button for mouse; allow touch/pen.
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    dragActiveRef.current = true;
-    dragStartXRef.current = e.clientX;
-    setIsTestimonialDragging(true);
-  };
-
-  const onTestimonialPointerMove = (e) => {
-    if (!dragActiveRef.current) return;
-    const delta = e.clientX - dragStartXRef.current;
-    if (Math.abs(delta) < dragThreshold) return;
-    if (delta > 0) goPrevTestimonial();
-    else goNextTestimonial();
-    dragStartXRef.current = e.clientX;
-  };
-
-  const stopTestimonialDrag = () => {
-    if (!dragActiveRef.current) return;
-    dragActiveRef.current = false;
-    setIsTestimonialDragging(false);
-  };
-
-  const onTestimonialsMouseMove = (e) => {
-    if (typeof window !== 'undefined' && !window.matchMedia('(pointer: fine)').matches) return;
-    const el = testimonialsRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setTestimonialCursorDot({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      visible: true,
-    });
-  };
-
-  const onTestimonialsMouseEnter = (e) => {
-    onTestimonialsMouseMove(e);
-  };
-
-  const onTestimonialsMouseLeave = () => {
-    setTestimonialCursorDot((prev) => ({ ...prev, visible: false }));
-  };
 
   useEffect(() => {
     const word = statementWords[statementWordIndex];
@@ -230,12 +79,6 @@ const AboutPage = () => {
     }, 200);
     return () => clearTimeout(t);
   }, [statementWordIndex, statementCharIndex, statementErasing]);
-
-  useEffect(() => {
-    if (!testimonialSlideDir) return undefined;
-    const t = setTimeout(() => setTestimonialSlideDir(null), 520);
-    return () => clearTimeout(t);
-  }, [testimonialSlideDir]);
 
   const showcaseItems = [
     {
@@ -488,152 +331,12 @@ const AboutPage = () => {
             <hr className="about-page-dark__section-rule" />
           </div>
 
-          <div className="about-page-dark__testimonials-strip">
+          {/* <div className="about-page-dark__testimonials-strip">
             <div className="about-page-dark__container about-page-dark__testimonials-inner">
-              <section
-                ref={testimonialsRef}
-                className={`about-page-dark__quote${isTestimonialDragging ? ' about-page-dark__quote--dragging' : ''}`}
-                aria-label="Student testimonials"
-                aria-roledescription="carousel"
-                onPointerDown={onTestimonialPointerDown}
-                onPointerMove={onTestimonialPointerMove}
-                onPointerUp={stopTestimonialDrag}
-                onPointerCancel={stopTestimonialDrag}
-                onPointerLeave={stopTestimonialDrag}
-                onMouseMove={onTestimonialsMouseMove}
-                onMouseEnter={onTestimonialsMouseEnter}
-                onMouseLeave={onTestimonialsMouseLeave}
-              >
-                {testimonialCursorDot.visible ? (
-                  <span
-                    className="about-page-dark__testimonials-cursor-dot"
-                    style={{ left: `${testimonialCursorDot.x}px`, top: `${testimonialCursorDot.y}px` }}
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span className="about-page-dark__eyebrow about-page-dark__eyebrow--on-dark">
-                  Student Testimonials
-                </span>
-                <div className="about-page-dark__quote-row">
-                  <div className="about-page-dark__avatars" role="group" aria-label="Students featured">
-                    {visibleTestimonialIndices.map((studentIndex, slot) => {
-                      const t = studentTestimonials[studentIndex];
-                      const isActive = slot === 0;
-                      return (
-                        <div
-                          key={`${studentIndex}-${testimonialStart}-${slot}`}
-                          className={
-                            isActive
-                              ? 'about-page-dark__avatar-slot about-page-dark__avatar-slot--active'
-                              : 'about-page-dark__avatar-slot'
-                          }
-                        >
-                          <div className="about-page-dark__avatar-ring">
-                            <span className="about-page-dark__avatar-photo">
-                              <img src={t.image} alt="" width={96} height={96} loading="lazy" />
-                              {!isActive ? (
-                                <span className="about-page-dark__avatar-fade" aria-hidden="true" />
-                              ) : null}
-                            </span>
-                            {isActive ? (
-                              <span className="about-page-dark__avatar-quote-icon" aria-hidden="true">
-                                “
-                              </span>
-                            ) : null}
-                          </div>
-                          {isActive ? (
-                            <>
-                              <div className="about-page-dark__avatar-name">{t.name}</div>
-                              <div className="about-page-dark__avatar-role">{t.role}</div>
-                            </>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="about-page-dark__quote-copy">
-                    <div
-                      className={`about-page-dark__quote-text${testimonialSlideDir === 'next' ? ' about-page-dark__quote-text--slide-next' : ''}${testimonialSlideDir === 'prev' ? ' about-page-dark__quote-text--slide-prev' : ''}`}
-                      aria-live="polite"
-                      id="about-testimonial-quote"
-                    >
-                      {activeTestimonial.quote.map((paragraph, i) => (
-                        <p key={i}>{paragraph}</p>
-                      ))}
-                    </div>
-                    <div className="about-page-dark__quote-nav">
-                      <button
-                        type="button"
-                        className="about-page-dark__quote-nav-btn"
-                        onClick={goPrevTestimonial}
-                        aria-label="Previous testimonial"
-                        aria-controls="about-testimonial-quote"
-                      >
-                        <span aria-hidden="true">←</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="about-page-dark__quote-nav-btn"
-                        onClick={goNextTestimonial}
-                        aria-label="Next testimonial"
-                        aria-controls="about-testimonial-quote"
-                      >
-                        <span aria-hidden="true">→</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <section className="about-page-dark__quote" aria-label="Student testimonials" />
             </div>
-          </div>
+          </div> */}
 
-          <div className="about-page-dark__faq-strip">
-            <div className="about-page-dark__container about-page-dark__faq-inner">
-              <section className="about-page-dark__faq" aria-label="Frequently asked questions">
-                <div className="about-page-dark__title-with-arrow">
-                  <h2 className="about-page-dark__faq-title">FAQs</h2>
-                  <span className="about-page-dark__page-arrow about-page-dark__faq-arrow" aria-hidden="true" />
-                </div>
-
-                <div className="about-page-dark__faq-list" role="list">
-                  {faqs.map((item, idx) => {
-                    const isOpen = openFaqIndex === idx;
-                    const panelId = `about-faq-panel-${idx}`;
-                    const buttonId = `about-faq-button-${idx}`;
-                    return (
-                      <div key={item.question} className="about-page-dark__faq-item" role="listitem">
-                        <button
-                          type="button"
-                          id={buttonId}
-                          className="about-page-dark__faq-trigger"
-                          aria-expanded={isOpen}
-                          aria-controls={panelId}
-                          onClick={() => setOpenFaqIndex((prev) => (prev === idx ? -1 : idx))}
-                        >
-                          <span className="about-page-dark__faq-question">{item.question}</span>
-                          <span
-                            className="about-page-dark__faq-icon"
-                            aria-hidden="true"
-                          >
-                            {isOpen ? '−' : '+'}
-                          </span>
-                        </button>
-
-                        <div
-                          id={panelId}
-                          role="region"
-                          aria-labelledby={buttonId}
-                          className={`about-page-dark__faq-panel${isOpen ? ' about-page-dark__faq-panel--open' : ''}`}
-                        >
-                          <div className="about-page-dark__faq-answer">{item.answer}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-          </div>
         </div>
       </section>
     </>

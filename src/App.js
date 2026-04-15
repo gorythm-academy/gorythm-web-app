@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import HeroSection from './components/HomeSections/Hero';
+import NewsletterIdlePopup from './components/HomeSections/NewsletterIdlePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
@@ -65,6 +66,7 @@ import { CurrencyProvider } from './context/CurrencyContext';
 const Home = () => {
   return (
     <div className="front_page">
+      <NewsletterIdlePopup />
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
       
@@ -74,9 +76,9 @@ const Home = () => {
       <VideoSection />
       <MarqueeSection />
       <AboutSection />
-      <SubscribeSection />
-      <WhyGorythmSection />
       <StudentTestimonialsSection />
+      <WhyGorythmSection />
+      <SubscribeSection />
       <BlogSection />
     </div>
   );

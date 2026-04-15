@@ -49,6 +49,8 @@ const courseSchema = new mongoose.Schema({
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     imageUrl: { type: String, default: '' },
     homepageImage: { type: String, default: '' },
+    displayOrder: { type: Number, default: 9999 },
+    masonryColumn: { type: Number, enum: [1, 2, 3], default: null },
     slug: { type: String },
     isPublished: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
