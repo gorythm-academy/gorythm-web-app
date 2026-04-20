@@ -7,7 +7,7 @@ import NewsletterIdlePopup from './components/HomeSections/NewsletterIdlePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
-import MarqueeSection from './components/HomeSections/Marquee';
+// import MarqueeSection from './components/HomeSections/Marquee';
 import CoursesSection from './components/HomeSections/Courses';
 import { PortfolioPage, PortfolioItemPage } from './components/Pages/PortfolioPages';
 import BlogMainPage from './components/Pages/BlogMainPage';
@@ -74,7 +74,7 @@ const Home = () => {
       <CoursesSection />
       <MissionSection />
       <VideoSection />
-      <MarqueeSection />
+      {/* <MarqueeSection /> */}
       <AboutSection />
       <StudentTestimonialsSection />
       <WhyGorythmSection />

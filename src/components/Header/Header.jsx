@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { SiTiktok } from 'react-icons/si';
 import './Header.scss';
+import headerLogo from '../../assets/Images-New/logo.png';
 import {
   INFO_EMAIL,
   CONTACT_PHONE,
@@ -316,10 +317,7 @@ const Header = () => {
               {/* Logo */}
               <div className="header-logo">
                 <Link to="/" className="logo-link" onClick={closeMobileMenu}>
-                  <div className="logo-text">
-                    <span className="logo-primary">Gory</span>
-                    <span className="logo-secondary">thm</span>
-                  </div>
+                  <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
 
                 </Link>
               </div>
@@ -434,8 +432,7 @@ const Header = () => {
             <div className="mobile-menu-header mobile-header-anim">
               <div className="mobile-logo">
                 <Link to="/" onClick={closeMobileMenu}>
-                  <span className="logo-primary">Gory</span>
-                  <span className="logo-secondary">thm</span>
+                  <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
                 </Link>
               </div>
               <button
@@ -641,10 +638,7 @@ const Header = () => {
         <div className="menu-grid-container">
           <div className="menu-grid-header">
             <div className="menu-grid-logo">
-              <div className="logo-text">
-                <span className="logo-primary">Gory</span>
-                <span className="logo-secondary">thm</span>
-              </div>
+              <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
 
             </div>
 

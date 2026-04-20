@@ -120,6 +120,10 @@
 }
 
 .menu-grid-logo {
+  .brand-logo-image {
+    height: 68px;
+  }
+
   .logo-text {
     font-family: var(--font-primary);
     font-size: 1.35em;
@@ -406,6 +410,11 @@
   gap: 40px;
 }
 
+.header-nav.desktop-nav {
+  display: flex;
+  align-items: center;
+}
+
 // Desktop navigation
 .header-nav.desktop-nav {
   margin: 0;
@@ -682,10 +691,13 @@
 // Logo
 .header-logo {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 
   .logo-link {
     text-decoration: none;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
   }
 
   .logo-text {
@@ -702,6 +714,13 @@
   }
 
 
+}
+
+.brand-logo-image {
+  display: block;
+  width: auto;
+  height: 120px;
+  object-fit: contain;
 }
 
 // Mobile menu toggle (hamburger)
@@ -996,7 +1015,15 @@
     font-size: 1.5em;
     font-weight: 500;
 
-    a { color: white; }
+    a {
+      color: white;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .brand-logo-image {
+      height: 74px;
+    }
   }
 }
 

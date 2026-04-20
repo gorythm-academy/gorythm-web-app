@@ -6,8 +6,8 @@ import { getPriceDisplayParts } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
 import './AllCourses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
-import assetQuranRecitation from '../../assets/images/Quran Recitation with Tajweed.avif';
-import assetNazrahTajweed from '../../assets/images/Nazrah with Tajweed.avif';
+import assetQuranRecitation from '../../assets/Images-New/quran-recitation-with-tajweed.png';
+import assetNazrahTajweed from '../../assets/Images-New/nazrah-with-tajweed.png';
 import assetIslamicStudiesKids from '../../assets/images/islamic studies for kids.png';
 import assetEmotionalIntelligence from '../../assets/images/emotional intelligence.jpg';
 import assetStemIslamic from '../../assets/images/stem with islamic integration.jpg';
@@ -29,11 +29,17 @@ const ASSETS_BY_COURSE_TITLE = {
 };
 const PLACEHOLDER_IMAGES = [assetPlaceholder1, assetPlaceholder2, assetPlaceholder3, assetPlaceholder4];
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
+const ASPECT_RATIO_BY_COURSE_TITLE = {
+  'quran recitation with tajweed': '16 / 10',
+  'nazrah with tajweed': '4 / 5',
+};
 const CATEGORY_ORDER = ['Quranic Arabic', 'Tajweed', 'Islamic Studies', 'Seerah', 'STEM', 'Memorization (Hifz)', 'Fiqh', 'Hadith', 'Aqeedah', 'Other'];
 
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const getImageFromAssets = (title, index) =>
   ASSETS_BY_COURSE_TITLE[normalizeTitle(title)] || PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
+const getAspectRatioForCourse = (title, index) =>
+  ASPECT_RATIO_BY_COURSE_TITLE[normalizeTitle(title)] || MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length];
 const getCategorySortIndex = (category) => {
   const i = CATEGORY_ORDER.indexOf(category || '');
   return i === -1 ? CATEGORY_ORDER.length : i;
@@ -376,7 +382,7 @@ const AllCourses = () => {
       duration: c.duration || '',
       level: formatLevel(c.level),
       image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
-      aspectRatio: MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length],
+      aspectRatio: getAspectRatioForCourse(c.title, index),
       displayOrder: c.displayOrder,
       masonryColumn: c.masonryColumn,
     };
