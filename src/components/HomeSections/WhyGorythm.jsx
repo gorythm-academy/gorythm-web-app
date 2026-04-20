@@ -105,10 +105,10 @@ const WhyGorythmSection = () => {
               A learning experience designed with purpose and care.
             </h2>
             <p className="key-achievements-description key_anim">
-              At GoRythm, we combine qualified teachers, interactive teaching methods, and a structured
-              curriculum to create a meaningful learning journey. Our focus is not only on knowledge but
-              also on character development, ensuring every learner grows with confidence, discipline, and a
-              deeper connection to their faith.
+              At GoRythm, we bring together qualified teachers, engaging teaching methods, and a
+              well-structured curriculum to create a meaningful learning journey. Our focus goes beyond
+              academic progress, supporting the development of confidence, discipline, and strong personal
+              values in every learner.
             </p>
             <Link to="/contact" className="key-achievements-cta key_anim">
               Contact Us

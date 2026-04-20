@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './Hero.scss';
-import heroBgImage from '../../assets/images/hero-bg.jpg';
+import heroBgImage from '../../assets/Images-New/hero-banner-image.png';
 import centerImage from '../../assets/images/center-logo.png';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -93,7 +93,7 @@ const HeroSection = () => {
     caption2: "that",
     caption3: "builds character",
     description:
-    "GoRythm helps learners of every age build knowledge, confidence, and character through online Qur’an courses, Arabic language courses, and Islamic studies.",
+    "GoRythm supports learners of all ages in building knowledge, confidence, and strong personal values through structured online courses in language, reading, and personal development.",
     bgImage: heroBgImage,
     centerImage: centerImage,
     particles: [
@@ -150,7 +150,8 @@ const HeroSection = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0, ease: [0.22, 1, 0.36, 1] }}
             >
-              Premium Education Platform
+              {/* Premium Education Platform */}
+              A project of Alfarhan
             </motion.div>
 
             <div className="hero-title-line-1">
