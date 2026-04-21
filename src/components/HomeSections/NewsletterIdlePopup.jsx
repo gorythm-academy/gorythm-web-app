@@ -15,10 +15,10 @@ const NewsletterIdlePopup = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    if (window.localStorage.getItem(STORAGE_KEY) === '1') return undefined;
+    if (window.sessionStorage.getItem(STORAGE_KEY) === '1') return undefined;
 
     const showPopup = () => {
-      window.localStorage.setItem(STORAGE_KEY, '1');
+      window.sessionStorage.setItem(STORAGE_KEY, '1');
       setIsVisible(true);
     };
 

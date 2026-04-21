@@ -100,7 +100,7 @@
 
   // Wrapper for all text content
   .hero-content {
-    margin-top: 200px;
+    margin-top: 240px;
     width: 100%;
     text-align: left; // Left-aligned on desktop
     display: flex;
@@ -111,7 +111,7 @@
     justify-content: space-between;
 
     /* Bottom spacing so hero/description is not flush with next section */
-    margin-bottom: 60px;
+    margin-bottom: 10px;
   }
 
 
@@ -190,7 +190,7 @@
         min-width: 70px;
         transform-style: preserve-3d;
         max-width: 150px;
-        margin: 0 15px;
+        margin: 0 2px;
         //aspect-ratio: 1/1; // Force square aspect ratio
         flex-shrink: 0; // Prevent image from shrinking
 
@@ -256,7 +256,7 @@
       .hero-center-image {
         width: 8vw;
         min-width: 60px;
-        margin: 0 10px;
+        margin: 0 2px;
       }
 
       .hero-title-line-1 {
@@ -323,6 +323,8 @@
     .hero-title-wrapper .hero-eyebrow {
       font-size: 14px;
       font-weight: normal;
+      margin-bottom: 2px; // tighter gap to title on portrait phones
+      line-height: 1.1;
     }
     .hero-background { // adjust hero background framing for portrait phones
       background-position: 50% center; // shift focal point to the right for better subject framing
@@ -369,9 +371,16 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image { // center image sizing/margins on phones (portrait)
-      width: 25vw; // scale image with viewport width for consistent responsiveness
-      min-width: 72px; // enforce readability on very small phones
+      width: 20vw; // slightly smaller on portrait phones
+      min-width: 60px; // keep readable on very small phones
       margin: 0; // remove desktop horizontal margin on portrait phones
+      transform: translateZ(0); // reduce subpixel blur on mobile GPUs
+
+      img {
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+      }
     }
 
     .hero-title-wrapper .hero-title-line-2 { // second line container adjustments for phones
@@ -453,7 +462,7 @@
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
       width: clamp(86px, 17vw, 160px); // scaled up to match larger title
       min-width: 86px;
-      margin: 0 6px;
+      margin: 0 2px;
     }
 
     .hero-description-container {
@@ -545,7 +554,7 @@
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
       width: clamp(40px, 8vw, 56px);
       min-width: 40px;
-      margin: 0 4px;
+      margin: 0 1px;
     }
 
     .hero-description-container {
