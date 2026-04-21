@@ -317,7 +317,9 @@ const Header = () => {
               {/* Logo */}
               <div className="header-logo">
                 <Link to="/" className="logo-link" onClick={closeMobileMenu}>
-                  <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
+                  <div className="logo-text">
+                    <img className="logo-image" src={headerLogo} alt="GoRythm" />
+                  </div>
 
                 </Link>
               </div>
@@ -432,7 +434,9 @@ const Header = () => {
             <div className="mobile-menu-header mobile-header-anim">
               <div className="mobile-logo">
                 <Link to="/" onClick={closeMobileMenu}>
-                  <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
+                  <div className="logo-text">
+                    <img className="logo-image" src={headerLogo} alt="GoRythm" />
+                  </div>
                 </Link>
               </div>
               <button
@@ -638,7 +642,9 @@ const Header = () => {
         <div className="menu-grid-container">
           <div className="menu-grid-header">
             <div className="menu-grid-logo">
-              <img className="brand-logo-image" src={headerLogo} alt="GoRythm" />
+              <div className="logo-text">
+                <img className="logo-image" src={headerLogo} alt="GoRythm" />
+              </div>
 
             </div>
 
