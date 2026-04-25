@@ -116,7 +116,7 @@ const ContactPage = () => {
             <p className="contact-page__kicker">Contact us</p>
             <h2 className="contact-page__headline">Have questions? Get in touch!</h2>
             <p className="contact-page__intro">
-              <span className="contact-page__intro-dot" />
+             
               Reach out for course guidance, enrollment questions, or general support. We’ll help you
               take the next step in your Islamic education journey.
             </p>

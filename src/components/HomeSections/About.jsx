@@ -3,8 +3,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './About.scss';
-import aboutImage1 from '../../assets/images/About-Sect-01.jpg';
-import aboutImage2 from '../../assets/images/About-Sect-02.jpg';
+import aboutImage1 from '../../assets/images/home/about-left.png';
+import aboutImage2 from '../../assets/images/home/about-right.png';
 
 const AboutSection = () => {
   const navigate = useNavigate();

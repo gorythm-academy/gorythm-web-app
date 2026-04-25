@@ -5,8 +5,8 @@ import { Link } from 'react-router-dom';
 import './WhyGorythm.scss';
 
 // Section images from src/assets/images
-import milestoneImg01 from '../../assets/images/milestone-img01.jpg';
-import milestoneImg02 from '../../assets/images/milestone-img02.jpg';
+import milestoneImg01 from '../../assets/images/home/why-choose-left.png';
+import milestoneImg02 from '../../assets/images/home/why-choose-right.png';
 
 const achievementsImages = [
   {
