@@ -111,7 +111,6 @@ export function SingleCourse() {
   const course = useMemo(() => {
     if (!apiCourse) return null;
     const idx = apiList.findIndex((c) => c._id === apiCourse._id);
-    const imageIndex = idx >= 0 ? idx : 0;
     const image = getCourseImageSrc(apiCourse);
     const priceParts = getPriceDisplayParts(apiCourse.price, formatFromUsdWhole);
     return {
