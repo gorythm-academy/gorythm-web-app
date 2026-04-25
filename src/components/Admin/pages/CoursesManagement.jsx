@@ -53,7 +53,6 @@ const CoursesManagement = () => {
         status: 'draft',
         level: 'beginner',
         instructorName: '',
-        homepageImage: '',
         displayOrder: '',
         masonryColumn: '',
     });
@@ -231,7 +230,6 @@ const CoursesManagement = () => {
             status: 'draft',
             level: 'beginner',
             instructorName: '',
-            homepageImage: '',
             displayOrder: '',
             masonryColumn: '',
         });
@@ -271,7 +269,6 @@ const CoursesManagement = () => {
             status: course.status || 'draft',
             level: course.level || 'beginner',
             instructorName: course.instructorName || course.instructor?.name || '',
-            homepageImage: course.homepageImage || '',
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
         });
@@ -351,7 +348,6 @@ const CoursesManagement = () => {
             status: formData.status,
             level: formData.level,
             instructorName: (formData.instructorName || '').trim(),
-            homepageImage: (formData.homepageImage || '').trim(),
             displayOrder: formData.displayOrder === '' ? 9999 : Number(formData.displayOrder),
             masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
         };
@@ -426,7 +422,6 @@ setFormData({
             status: 'draft',
             level: 'beginner',
             instructorName: '',
-            homepageImage: '',
             displayOrder: '',
             masonryColumn: '',
         });
@@ -871,19 +866,6 @@ setFormData({
                                 </select>
                             </div>
                         </div>
-                        <div className="form-row">
-                            <div className="form-group form-group-full">
-                                <label>Homepage card image (URL or path)</label>
-                                <input
-                                    type="text"
-                                    name="homepageImage"
-                                    value={formData.homepageImage}
-                                    onChange={handleFormChange}
-                                    placeholder="e.g. https://example.com/image.jpg or /images/course.jpg from public folder"
-                                />
-                                <small className="form-hint">Used only on the homepage course section. Leave empty for placeholder. Use a full URL or a path from your public folder (e.g. /images/photo.jpg).</small>
-                            </div>
-                        </div>
                         <div className="form-actions">
                             <button 
                                 type="submit" 
@@ -917,7 +899,6 @@ setFormData({
                                         status: 'draft',
                                         level: 'beginner',
                                         instructorName: '',
-                                        homepageImage: '',
                                         displayOrder: '',
                                         masonryColumn: '',
                                     });

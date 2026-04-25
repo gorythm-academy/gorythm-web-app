@@ -4,14 +4,9 @@ import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
 import { getPriceDisplayParts } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
+import { getCourseImageSrc, setImageFallbackToPlaceholder } from '../../utils/courseImages';
 import './AllCourses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
-import assetQuranRecitation from '../../assets/Images-New/quran-recitation-with-tajweed.png';
-import assetNazrahTajweed from '../../assets/Images-New/nazrah-with-tajweed.png';
-import assetIslamicStudiesKids from '../../assets/images/islamic studies for kids.png';
-import assetEmotionalIntelligence from '../../assets/images/emotional intelligence.jpg';
-import assetStemIslamic from '../../assets/images/stem with islamic integration.jpg';
-import assetSummerCamps from '../../assets/images/summer camps for kids.jpg';
 import assetPlaceholder1 from '../../assets/images/milestone-img01.jpg';
 import assetPlaceholder2 from '../../assets/images/milestone-img02.jpg';
 import assetPlaceholder3 from '../../assets/images/About-Sect-01.jpg';
@@ -19,14 +14,6 @@ import assetPlaceholder4 from '../../assets/images/About-Sect-02.jpg';
 
 const DESKTOP_SCROLL_ZONE_MQ = '(min-width: 993px)';
 
-const ASSETS_BY_COURSE_TITLE = {
-  'quran recitation with tajweed': assetQuranRecitation,
-  'nazrah with tajweed': assetNazrahTajweed,
-  'islamic studies for kids': assetIslamicStudiesKids,
-  'emotional intelligence': assetEmotionalIntelligence,
-  'stem with islamic integration': assetStemIslamic,
-  'summer camps for kids': assetSummerCamps,
-};
 const PLACEHOLDER_IMAGES = [assetPlaceholder1, assetPlaceholder2, assetPlaceholder3, assetPlaceholder4];
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
 const ASPECT_RATIO_BY_COURSE_TITLE = {
@@ -36,8 +23,7 @@ const ASPECT_RATIO_BY_COURSE_TITLE = {
 const CATEGORY_ORDER = ['Quranic Arabic', 'Tajweed', 'Islamic Studies', 'Seerah', 'STEM', 'Memorization (Hifz)', 'Fiqh', 'Hadith', 'Aqeedah', 'Other'];
 
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
-const getImageFromAssets = (title, index) =>
-  ASSETS_BY_COURSE_TITLE[normalizeTitle(title)] || PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
+const getImageFromAssets = (_title, index) => PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
 const getAspectRatioForCourse = (title, index) =>
   ASPECT_RATIO_BY_COURSE_TITLE[normalizeTitle(title)] || MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length];
 const getCategorySortIndex = (category) => {
@@ -381,7 +367,7 @@ const AllCourses = () => {
       priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
       level: formatLevel(c.level),
-      image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
+      image: getCourseImageSrc(c),
       aspectRatio: getAspectRatioForCourse(c.title, index),
       displayOrder: c.displayOrder,
       masonryColumn: c.masonryColumn,
@@ -422,7 +408,7 @@ const AllCourses = () => {
           <div className="courses-left-panel">
             <div className="courses-left-content">
               <h1 className="courses-title">
-                Learn Quran, Arabic, STEM, and Islamic studies in one place
+              Learn Qur’an, Arabic, STEM, emotional intelligence and critical thinking in one place
               </h1>
               <img
                 src={titleLineSvg}
@@ -432,8 +418,7 @@ const AllCourses = () => {
               />
               <div className="courses-left-footer">
                 <p className="courses-description">
-                  Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic
-                  knowledge, and develop essential life skills.
+                Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic understanding, and develop essential skills like problem-solving, reflection, and independent thinking.
                 </p>
                 <Link to="/contact" className="courses-cta">
                   <span className="courses-cta-text">Contact Us</span>
@@ -471,7 +456,15 @@ const AllCourses = () => {
                       className="courses-item-img-wrap"
                       style={{ aspectRatio: course.aspectRatio }}
                     >
-                      <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
+                      <img
+                        src={course.image}
+                        alt={course.title}
+                        loading="lazy"
+                        width={400}
+                        height={250}
+                        sizes="(min-width: 993px) 50vw, 100vw"
+                        onError={setImageFallbackToPlaceholder}
+                      />
                     </div>
                     <div className="courses-item-caption">
                       <div className="courses-item-copy">

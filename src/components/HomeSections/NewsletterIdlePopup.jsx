@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './NewsletterIdlePopup.scss';
-import popupVisual from '../../assets/images/hero-bg-revert.jpg';
+import popupVisual from '../../assets/images/home/subscribe.png';
 
 const STORAGE_KEY = 'gorythm_newsletter_popup_seen_v1';
 const POPUP_DELAY_MS = 10000;

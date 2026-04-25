@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import VideoSection from '../HomeSections/Video';
-import aboutImage1 from '../../assets/images/About-Sect-01.jpg';
-import aboutImage2 from '../../assets/images/About-Sect-02.jpg';
-import aboutUsMainImg from '../../assets/images/aboutUs-main-img.jpg';
-import testimonialImg1 from '../../assets/images/milestone-img01.jpg';
-import testimonialImg2 from '../../assets/images/milestone-img02.jpg';
-import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
-import academyMissionImage from '../../assets/images/academy-mission.jpg';
-import academyVisionImage from '../../assets/images/academy-vision.jpg';
+import aboutUsMainImg from '../../assets/images/about us/about-main-img.png';
+import academyMissionImage from '../../assets/images/about us/our-mission.png';
+import academyVisionImage from '../../assets/images/about us/our-vision.png';
+import shaziaImg from '../../assets/images/our team/shazia.png';
+import kamranImg from '../../assets/images/our team/kamran.png';
+import sufiyanImg from '../../assets/images/our team/sufiyan.png';
+import ahmedImg from '../../assets/images/our team/ahmed.png';
+import mahamImg from '../../assets/images/our team/maham.png';
+import fatimaImg from '../../assets/images/our team/fatima.png';
+import farhanImg from '../../assets/images/our team/farhan.png';
+import shahmeerImg from '../../assets/images/our team/shahmeer.png';
+import fahadImg from '../../assets/images/our team/fahad.png';
 import './AboutPage.scss';
 
 // Student testimonial section is intentionally commented out for now.
@@ -16,15 +20,15 @@ import './AboutPage.scss';
 const values = [
   {
     title: 'Integrity',
-    description: 'Upholding honesty, trust, and Islamic ethics in all we do. Our actions are guided by transparency and a deep sense of responsibility. We build lasting trust with our learners, families, and partners through consistency and moral clarity.',
+    description: 'We prioritise honesty, trust, and ethical behaviour in everything we do. Our work is guided by transparency, consistency, and a strong sense of responsibility toward our learners and their families.',
   },
   {
-    title: 'Solidarity',
-    description: 'Standing together as an ummah, supporting and uplifting one another. We believe in the strength of community and the power of collective action to create positive change. Every voice matters, and every hand extended builds a stronger future.',
+    title: 'Community',
+    description: 'We believe in the importance of connection, collaboration, and mutual support. By fostering a positive and inclusive environment, we encourage learners to grow together and support one another.',
   },
   {
     title: 'Excellence',
-    description: 'Striving for the highest standards in education, character, and service. We hold ourselves accountable to deliver quality in everything we do, from curriculum design to student support. Excellence is not a destination but a continuous journey we walk together.',
+    description: 'We aim for high standards across all areas of learning and development. From course design to student support, we are committed to delivering quality and continuously improving our approach.',
   },
 ];
 
@@ -32,25 +36,28 @@ const values = [
 const statementWords = ['spiritually', ' emotionally', ' practically.'];
 
 const teamMembers = [
-  { name: 'Tina Jones', role: 'Scientist', image: aboutImage1 },
-  { name: 'Natalie Coleman', role: 'Astrophysicist', image: testimonialImg1 },
-  { name: 'Richard Gilmore', role: 'Engineer', image: testimonialImg2 },
-  { name: 'Nicole Carter', role: 'Astronomer', image: aboutImage2 },
-  { name: 'Michael Lewis', role: 'Engineer', image: aboutUsMainImg },
-  { name: 'Christina Newman', role: 'Scientist', image: testimonialImg3 },
+  { name: 'Shazia', role: 'Scientist', image: shaziaImg },
+  { name: 'Kamran', role: 'Astrophysicist', image: kamranImg },
+  { name: 'Sufiyan', role: 'Engineer', image: sufiyanImg },
+  { name: 'Ahmed', role: 'Scientist', image: ahmedImg },
+  { name: 'Maham', role: 'Engineer', image: mahamImg},
+  { name: 'Fatima', role: 'Scientist', image: fatimaImg },
+  { name: 'Shahmeer', role: 'Scientist', image: shahmeerImg},
+  { name: 'Farhan', role: 'Astronomer', image: farhanImg },
+  { name: 'Fahad', role: 'Scientist', image: fahadImg },
 ];
 
 const academyHighlights = [
   {
     title: 'Our Mission',
     description:
-      'To provide accessible, engaging, and faith-centered education that connects learners with the Qur’an, Arabic, and Islamic values. We aim to nurture knowledge, character, and confidence, helping individuals grow spiritually while navigating the modern world with purpose.',
+      'To provide accessible and engaging education that supports learners in developing knowledge, confidence, and strong personal values. We aim to create meaningful learning experiences that help individuals grow, think independently, and navigate the modern world with purpose.',
     image: academyMissionImage,
   },
   {
     title: 'Our Vision',
     description:
-      'To become a global platform for transformative Islamic learning, empowering a generation that lives with strong faith, ethical values, and a deep connection to the Qur’an, contributing positively to society.',
+      'To become a global platform for impactful learning, empowering a generation to grow with confidence, integrity, and a strong sense of purpose.',
     image: academyVisionImage,
   },
 ];

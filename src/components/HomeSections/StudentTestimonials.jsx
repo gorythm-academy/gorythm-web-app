@@ -7,24 +7,24 @@ import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
 const testimonials = [
   {
     name: 'Andrew Lewis',
-    role: 'Engineer',
+    role: 'Tajweed Class Student',
     image: testimonialImg1,
     quote:
-      'Beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed. Beatae vitae dicta. Adipisciing elit, sed do eiusmod tempor incididunt.',
+      'The Tajweed classes have greatly improved my recitation. The teacher explains each rule clearly and ensures we practice it properly. I feel much more confident reading the Qur’an now.',
   },
   {
     name: 'Sana Noor',
-    role: 'Medical Student',
+    role: 'Tajweed Class Student',
     image: testimonialImg2,
     quote:
-      'Learning here changed how I approach both academics and character. The sessions are practical, calm, and deeply motivating for long-term growth.',
+      'My pronunciation has improved significantly since joining the Tajweed course. The one-on-one attention and regular feedback helped me correct mistakes I didn’t even realize before.',
   },
   {
     name: 'Ibrahim Khan',
-    role: 'Software Student',
+    role: 'Arabic Class Student',
     image: testimonialImg3,
     quote:
-      'The teachers explain difficult topics with patience. I gained confidence, better discipline, and a clear direction in my studies and daily routine.',
+      'Learning Arabic at Al Farhan Academy has been a truly rewarding experience. The lessons are structured in a way that makes understanding the language easy and engaging. I now feel more connected to the Qur’an as I can understand its words more deeply.',
   },
 ];
 

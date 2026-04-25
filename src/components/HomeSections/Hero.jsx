@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './Hero.scss';
-import heroBgImage from '../../assets/Images-New/hero-banner-image.png';
-import centerImage from '../../assets/images/center-logo.png';
+import heroBgImage from '../../assets/images/home/hero-banner-image.png';
+import centerImage from '../../assets/images/home/center-logo.png';
 
 gsap.registerPlugin(ScrollTrigger);
 

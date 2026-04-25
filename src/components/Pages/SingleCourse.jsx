@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { getImageFromAssets } from '../HomeSections/Courses';
 import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
 import { getPriceDisplayParts, parsePriceAmount } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
+import { getCourseImageSrc, setImageFallbackToPlaceholder } from '../../utils/courseImages';
 import './SingleCourse.scss';
 
 const renderGallery = (images) => {
@@ -112,10 +112,7 @@ export function SingleCourse() {
     if (!apiCourse) return null;
     const idx = apiList.findIndex((c) => c._id === apiCourse._id);
     const imageIndex = idx >= 0 ? idx : 0;
-    const image =
-      apiCourse.homepageImage && apiCourse.homepageImage.trim()
-        ? apiCourse.homepageImage.trim()
-        : getImageFromAssets(apiCourse.title, imageIndex);
+    const image = getCourseImageSrc(apiCourse);
     const priceParts = getPriceDisplayParts(apiCourse.price, formatFromUsdWhole);
     return {
       _id: apiCourse._id,
@@ -324,7 +321,15 @@ export function SingleCourse() {
             <div ref={leftRef} className="cip-left">
               {course.image ? (
                 <div className="cip-main-image">
-                  <img src={course.image} alt={course.title} loading="lazy" width={1180} height={664} sizes="(min-width: 1200px) 1180px, 100vw" />
+                  <img
+                    src={course.image}
+                    alt={course.title}
+                    loading="lazy"
+                    width={1180}
+                    height={664}
+                    sizes="(min-width: 1200px) 1180px, 100vw"
+                    onError={setImageFallbackToPlaceholder}
+                  />
                 </div>
               ) : null}
               <div className="cip-copy">
@@ -340,7 +345,15 @@ export function SingleCourse() {
             <div ref={leftRef} className="cip-left">
               {course.image ? (
                 <div className="cip-main-image">
-                  <img src={course.image} alt={course.title} loading="lazy" width={1180} height={664} sizes="(min-width: 1200px) 1180px, 100vw" />
+                  <img
+                    src={course.image}
+                    alt={course.title}
+                    loading="lazy"
+                    width={1180}
+                    height={664}
+                    sizes="(min-width: 1200px) 1180px, 100vw"
+                    onError={setImageFallbackToPlaceholder}
+                  />
                 </div>
               ) : null}
               <div className="cip-copy">

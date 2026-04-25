@@ -3,12 +3,9 @@
 // DATA: From course table via API (GET /api/courses/public). If API returns no courses, we show
 //       the static list from AllCourses.jsx so the masonry is never empty.
 //
-// IMAGES: Fetched from two places only:
-//   1. API courses: each course’s "Homepage card image" field (homepageImage) – set in Admin →
-//      Course Management → Edit course → "Homepage card image (URL or path)". Can be a full URL
-//      or a path from your public folder. If empty, we use an image from assets/images matched by
-//      course title (e.g. "Quran Recitation with Tajweed.avif") or a fallback placeholder from assets.
-//   2. Fallback list (static AllCourses): each item’s `image` property (hardcoded URLs in AllCourses.jsx).
+// IMAGES:
+// - All course cards use the single public path: `/images/courses/<course.slug>.png`
+// - Put images in `public/images/courses/` and name them by slug.
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -16,35 +13,12 @@ import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
 import { getPriceDisplayParts } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
+import { getCourseImageSrc, setImageFallbackToPlaceholder } from '../../utils/courseImages';
 // NOTE: Homepage courses are now API-only (no static fallback).
 import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
-// Course-named images from src/assets/images (matched by course title when no homepageImage is set)
-import assetQuranRecitation from '../../assets/Images-New/quran-recitation-with-tajweed.png';
-import assetNazrahTajweed from '../../assets/Images-New/nazrah-with-tajweed.png';
-import assetIslamicStudiesKids from '../../assets/images/islamic studies for kids.png';
-import assetEmotionalIntelligence from '../../assets/images/emotional intelligence.jpg';
-import assetStemIslamic from '../../assets/images/stem with islamic integration.jpg';
-import assetSummerCamps from '../../assets/images/summer camps for kids.jpg';
-// Fallback placeholders when no title match
-import assetPlaceholder1 from '../../assets/images/milestone-img01.jpg';
-import assetPlaceholder2 from '../../assets/images/milestone-img02.jpg';
-import assetPlaceholder3 from '../../assets/images/About-Sect-01.jpg';
-import assetPlaceholder4 from '../../assets/images/About-Sect-02.jpg';
-
-const ASSETS_BY_COURSE_TITLE = {
-  'quran recitation with tajweed': assetQuranRecitation,
-  'nazrah with tajweed': assetNazrahTajweed,
-  'islamic studies for kids': assetIslamicStudiesKids,
-  'emotional intelligence': assetEmotionalIntelligence,
-  'stem with islamic integration': assetStemIslamic,
-  'summer camps for kids': assetSummerCamps,
-};
-const PLACEHOLDER_IMAGES = [assetPlaceholder1, assetPlaceholder2, assetPlaceholder3, assetPlaceholder4];
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const courseLinkParam = (c) => courseUrlSegment(c);
-export const getImageFromAssets = (title, index) =>
-  ASSETS_BY_COURSE_TITLE[normalizeTitle(title)] || PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
 
 // Aspect ratios for masonry cards (cycled)
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
@@ -165,7 +139,7 @@ const CoursesSection = () => {
       priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
       level: formatLevel(c.level),
-      image: (c.homepageImage && c.homepageImage.trim()) ? c.homepageImage.trim() : getImageFromAssets(c.title, index),
+      image: getCourseImageSrc(c),
       aspectRatio: getAspectRatioForCourse(c.title, index),
       displayOrder: c.displayOrder,
       masonryColumn: c.masonryColumn,
@@ -205,14 +179,13 @@ const CoursesSection = () => {
             <div className="courses-section-left-content">
               <span className="courses-section-big-number" aria-hidden="true">01</span>
               <h2 className="courses-section-title courses-section_anim">
-                Learn Quran, Arabic, STEM, and Islamic studies in one place
+              Learn Qur’an, Arabic, STEM, emotional intelligence and critical thinking in one place
               </h2>
               <img src={titleLineSvg} alt="" className="courses-section-title-line courses-section_anim" aria-hidden="true" />
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                  Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic
-                  knowledge, and develop essential life skills.
+                Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic understanding, and develop essential skills like problem-solving, reflection, and independent thinking.
                 </p>
                 <Link to="/courses" className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">Explore Courses</span>
@@ -256,21 +229,29 @@ const CoursesSection = () => {
                       className="courses-section-item-img-wrap"
                       style={{ aspectRatio: course.aspectRatio }}
                     >
-                      <img src={course.image} alt={course.title} loading="lazy" width={400} height={250} sizes="(min-width: 993px) 50vw, 100vw" />
+                      <img
+                        src={course.image}
+                        alt={course.title}
+                        loading="lazy"
+                        width={400}
+                        height={250}
+                        sizes="(min-width: 993px) 50vw, 100vw"
+                        onError={setImageFallbackToPlaceholder}
+                      />
                     </div>
                     <div className="courses-section-item-caption">
                       <div className="courses-section-item-copy">
                         <h2 className="courses-section-item-title">{course.title}</h2>
-                        <div className="courses-section-item-meta">
-                          <span className="courses-section-item-price">
+                       {/* <div className="courses-section-item-meta">
+                           <span className="courses-section-item-price">
                             <span className="courses-section-item-price-amount">{course.priceDisplay}</span>
                             {course.priceShowMonth ? (
                               <span className="courses-section-item-price-period">Monthly</span>
                             ) : null}
-                          </span>
+                          </span> 
                           <span className="courses-section-item-duration">{course.duration}</span>
                           <span className="courses-section-item-audience">{course.level}</span>
-                        </div>
+                        </div>*/}
                       </div>
                       <span className="courses-section-item-arrow" aria-hidden="true">→</span>
                     </div>
