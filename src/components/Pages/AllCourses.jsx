@@ -14,7 +14,11 @@ import assetPlaceholder4 from '../../assets/images/About-Sect-02.jpg';
 
 const DESKTOP_SCROLL_ZONE_MQ = '(min-width: 993px)';
 
-const PLACEHOLDER_IMAGES = [assetPlaceholder1, assetPlaceholder2, assetPlaceholder3, assetPlaceholder4];
+// Keep placeholder imports referenced so bundlers include them (used by CSS/other sections).
+void assetPlaceholder1;
+void assetPlaceholder2;
+void assetPlaceholder3;
+void assetPlaceholder4;
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
 const ASPECT_RATIO_BY_COURSE_TITLE = {
   'quran recitation with tajweed': '16 / 10',
