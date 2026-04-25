@@ -127,7 +127,7 @@ export function SingleCourse() {
       duration: apiCourse.duration,
       category: apiCourse.category,
     };
-  }, [apiCourse, apiList, formatFromUsdWhole]);
+  }, [apiCourse, formatFromUsdWhole]);
 
   useEffect(() => {
     if (stickyRef.current) {
