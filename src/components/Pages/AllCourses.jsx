@@ -23,7 +23,6 @@ const ASPECT_RATIO_BY_COURSE_TITLE = {
 const CATEGORY_ORDER = ['Quranic Arabic', 'Tajweed', 'Islamic Studies', 'Seerah', 'STEM', 'Memorization (Hifz)', 'Fiqh', 'Hadith', 'Aqeedah', 'Other'];
 
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
-const getImageFromAssets = (_title, index) => PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
 const getAspectRatioForCourse = (title, index) =>
   ASPECT_RATIO_BY_COURSE_TITLE[normalizeTitle(title)] || MASONRY_ASPECT_RATIOS[index % MASONRY_ASPECT_RATIOS.length];
 const getCategorySortIndex = (category) => {
