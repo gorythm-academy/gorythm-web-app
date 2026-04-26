@@ -12,7 +12,8 @@ import mahamImg from '../../assets/images/our team/maham.png';
 import fatimaImg from '../../assets/images/our team/fatima.png';
 import farhanImg from '../../assets/images/our team/farhan.png';
 import shahmeerImg from '../../assets/images/our team/shahmeer.png';
-import fahadImg from '../../assets/images/our team/fahad.png';
+
+import gulsenImg from '../../assets/images/our team/Gülsen Yazici.png';
 import './AboutPage.scss';
 
 // Student testimonial section is intentionally commented out for now.
@@ -36,15 +37,31 @@ const values = [
 const statementWords = ['spiritually', ' emotionally', ' practically.'];
 
 const teamMembers = [
-  { name: 'Shazia', role: 'Scientist', image: shaziaImg },
-  { name: 'Kamran', role: 'Astrophysicist', image: kamranImg },
-  { name: 'Sufiyan', role: 'Engineer', image: sufiyanImg },
-  { name: 'Ahmed', role: 'Scientist', image: ahmedImg },
-  { name: 'Maham', role: 'Engineer', image: mahamImg},
-  { name: 'Fatima', role: 'Scientist', image: fatimaImg },
-  { name: 'Shahmeer', role: 'Scientist', image: shahmeerImg},
-  { name: 'Farhan', role: 'Astronomer', image: farhanImg },
-  { name: 'Fahad', role: 'Scientist', image: fahadImg },
+  { name: 'Shazia Shahab', role: 'CEO, Gorythm', country: 'Netherlands', image: shaziaImg },
+  { name: 'Syed Kamran Ahmad', role: 'Systems Engineering Manager', country: 'Saudi Arabia', image: kamranImg },
+  {
+    name: 'Gülsen Yazici',
+    role: 'Psychosocial Systems and Gestalt Therapist',
+    country: 'Netherlands',
+    image: gulsenImg,
+  },
+  { name: 'Farhan Gondal', role: 'IT Consultant', country: 'Pakistan', image: farhanImg },
+  {
+    name: 'Sufiyan Nadeem',
+    role: 'CEO, Earth movers International',
+    country: 'United Arab Emirates',
+    image: sufiyanImg,
+  },
+  {
+    name: 'Ahmed Bin Rashid',
+    role: 'Graphics Designer and Poet',
+    country: 'Pakistan',
+    image: ahmedImg,
+  },
+  { name: 'Maham Jaffery', role: 'Communications Head, Gorythm', country: 'Pakistan', image: mahamImg },
+  { name: 'Fatima Rashid', role: 'Communications Specialist, Gorythm', country: 'Pakistan', image: fatimaImg },
+  { name: 'Syed Shahmeer Ahmed', role: 'Accounts, Gorythm', country: 'Pakistan', image: shahmeerImg },
+  
 ];
 
 const academyHighlights = [
@@ -301,6 +318,7 @@ const AboutPage = () => {
                 </div>
                 <h3 className="about-page-team__name">{member.name}</h3>
                 <p className="about-page-team__role">{member.role}</p>
+                <p className="about-page-team__country">{member.country}</p>
               </article>
             ))}
           </div>

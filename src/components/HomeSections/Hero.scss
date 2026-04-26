@@ -105,10 +105,11 @@
     text-align: left; // Left-aligned on desktop
     display: flex;
     flex-direction: row; // Display in row on tablet+ by default
-    align-items: stretch;
+    align-items: flex-end;
     min-height: 310px;
     // Space between title and description (base for tablet)
     justify-content: space-between;
+    gap: clamp(20px, 4vw, 72px);
 
     /* Bottom spacing so hero/description is not flush with next section */
     margin-bottom: 10px;
@@ -134,10 +135,12 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    align-self: flex-start;
+    align-self: flex-end;
     margin-left: 0;
     position: static; // Normal document flow by default
     width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
 
     /* small text above main title (Premium Education Platform) – entrance + subtle animation */
     .hero-eyebrow {
@@ -283,7 +286,7 @@
     text-align: right;
     margin: 0;
     align-self: flex-end;
-    flex-shrink: 0;
+    flex: 0 1 min(420px, 36vw);
 
     .hero-description {
       font-size: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem);

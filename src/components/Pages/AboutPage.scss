@@ -932,6 +932,7 @@
 }
 
 .about-page-team__media {
+  width: min(100%, clamp(220px, 24vw, 320px));
   overflow: hidden;
   background: #141414;
 
@@ -955,6 +956,12 @@
   margin: 0;
   color: rgba(255, 255, 255, 0.58);
   font-size: 0.92rem;
+}
+
+.about-page-team__country {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.85rem;
 }
 
 @media (max-width: $bp-section-xl) {
