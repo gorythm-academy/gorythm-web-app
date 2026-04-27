@@ -134,6 +134,14 @@
       color: #cccccc;
     }
   }
+
+  // Keep sidebar logo sizing independent from the main header logo.
+  .logo-image {
+    display: block;
+    width: auto;
+    height: 45px;
+    object-fit: contain;
+  }
 }
 
 .menu-grid-close {
@@ -167,6 +175,7 @@
   flex-direction: column;
   padding: 8px 0;
   justify-content: center;
+  align-items: flex-start;
   min-height: 0;
 }
 
@@ -174,7 +183,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
 }
 
 .social-link-item {
@@ -278,6 +289,7 @@
 // ===============================================================
 
 .header {
+  --desktop-nav-gap: 30px;
   position: fixed;
   top: 0;
   left: 0;
@@ -366,7 +378,7 @@
         .header-right-group {
           display: flex;
           align-items: center;
-          gap: 40px;
+          gap: 30px;
           margin-left: auto;
         }
       }
@@ -403,7 +415,7 @@
 .header-right-group {
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: var(--desktop-nav-gap);
 }
 
 // Desktop navigation
@@ -416,7 +428,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  gap: 30px;
+  gap: var(--desktop-nav-gap);
 }
 
 .nav-item {
@@ -463,6 +475,30 @@
   &.active {
     &::after {
       transform: scaleX(1);
+    }
+  }
+}
+
+// Login is now a nav item, but without the underline treatment.
+.nav-link--login {
+  &::after {
+    display: none;
+  }
+}
+
+// WhatsApp icon is rendered as a list item inside desktop nav.
+.nav-item--whatsapp {
+  .header-whatsapp--nav {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding: 8px 0;
+    background: transparent;
+    color: white;
+
+    &:hover {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.75);
     }
   }
 }
@@ -693,7 +729,7 @@
     font-size: 1.7em;
     font-weight: 500;
     line-height: 1.25em;
-    margin-bottom: 4px;
+    margin-bottom: 0;
 
     .logo-primary,
     .logo-secondary {
@@ -703,14 +739,31 @@
     .logo-image {
       display: block;
       width: auto;
-      height: 1.25em;
+      height: 56px;
+      max-height: 100%;
       object-fit: contain;
-      position: relative;
-      top: 15px;
+      object-position: left center;
+      transform: translateY(12px) scale(3.5);
+      transform-origin: left center;
     }
   }
 
 
+}
+
+// Keep the mobile overlay logo at the same visual size as the header logo.
+.mobile-logo {
+  .logo-text {
+    .logo-image {
+      display: block;
+      width: auto;
+      height: 56px;
+      object-fit: contain;
+      object-position: left center;
+      transform: scale(3.5);
+      transform-origin: left center;
+    }
+  }
 }
 
 // Mobile menu toggle (hamburger)
@@ -1323,15 +1376,19 @@
 /* Desktop Large: Up to 1679px */
 @include respond-to('xxl') {
   .header {
+    --desktop-nav-gap: 25px;
+  }
+
+  .header {
     padding: 20px 0;
   }
 
   .header-right-group {
-    gap: 35px;
+    gap: var(--desktop-nav-gap);
   }
 
   .nav-menu {
-    gap: 25px;
+    gap: var(--desktop-nav-gap);
   }
 
   .header-actions {
@@ -1347,15 +1404,19 @@
 /* Desktop: Up to 1439px */
 @include respond-to('xl') {
   .header {
+    --desktop-nav-gap: 20px;
+  }
+
+  .header {
     padding: 18px 0;
   }
 
   .header-right-group {
-    gap: 30px;
+    gap: var(--desktop-nav-gap);
   }
 
   .nav-menu {
-    gap: 20px;
+    gap: var(--desktop-nav-gap);
   }
 
   .nav-item .nav-link {
@@ -1364,6 +1425,15 @@
 
   .header-logo .logo-text {
     font-size: 1.5em;
+  }
+
+  .header-logo .logo-text .logo-image,
+  .mobile-logo .logo-text .logo-image {
+    height: 50px;
+  }
+
+  .menu-grid-logo .logo-image {
+    height: 40px;
   }
 
   .auth-buttons .btn {
@@ -1465,6 +1535,11 @@
     font-size: 1.3em;
   }
 
+  .header-logo .logo-text .logo-image,
+  .mobile-logo .logo-text .logo-image {
+    height: 44px;
+  }
+
   .mobile-menu-toggle {
     width: 40px;
     height: 40px;
@@ -1515,6 +1590,11 @@
 
   .header-logo .logo-text {
     font-size: 1.2em;
+  }
+
+  .header-logo .logo-text .logo-image,
+  .mobile-logo .logo-text .logo-image {
+    height: 40px;
   }
 
   .mobile-menu-toggle {
@@ -1587,6 +1667,10 @@
     font-size: 1.25em;
   }
 
+  .menu-grid-logo .logo-image {
+    height: 35px;
+  }
+
   .social-links-list {
     gap: 8px;
   }
@@ -1641,6 +1725,10 @@
 
   .menu-grid-logo .logo-text {
     font-size: 1.2em;
+  }
+
+  .menu-grid-logo .logo-image {
+    height: 32px;
   }
 
   .social-icon {
@@ -1720,7 +1808,7 @@ body.no-page-scroll {
   }
 
   .menu-grid-content {
-    justify-content: flex-start;
+    justify-content: center;
     min-height: 0;
   }
 
