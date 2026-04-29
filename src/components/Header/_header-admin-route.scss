@@ -2,6 +2,8 @@
 // ADMIN DASHBOARD: header menu and blur area black (only when on /admin)
 // ===============================================================
 .academy-app.admin-route .header {
+  display: none;
+
   .nav-link,
   .auth-buttons .btn-login {
     color: #000;

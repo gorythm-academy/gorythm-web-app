@@ -136,13 +136,11 @@ const Header = () => {
 
         if (!isMobileMenuOpen) {
           if (currentY <= TOP_REVEAL_Y) {
-            // Always show at page top; start fresh cooldown
             if (showCooldownTimerRef.current) clearTimeout(showCooldownTimerRef.current);
             showCooldownRef.current = false;
             setHeaderVisible(true);
           } else if (Math.abs(delta) >= DELTA_THRESHOLD) {
             if (delta < 0) {
-              // Scrolling up → show and start cooldown so a quick down-tick can't hide it
               setHeaderVisible(true);
               if (showCooldownTimerRef.current) clearTimeout(showCooldownTimerRef.current);
               showCooldownRef.current = true;
@@ -150,7 +148,6 @@ const Header = () => {
                 showCooldownRef.current = false;
               }, SHOW_COOLDOWN_MS);
             } else if (!showCooldownRef.current) {
-              // Scrolling down and cooldown is over → hide
               setHeaderVisible(false);
             }
           }
@@ -295,7 +292,7 @@ const Header = () => {
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
       <header
-        className={`header ${scrolled ? 'scrolled' : ''}${!headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
+        className={`header ${scrolled ? 'scrolled' : ''}${!isMobile && !headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
         ref={headerRef}
         aria-hidden={isMobileMenuOpen}
       >
@@ -356,23 +353,21 @@ const Header = () => {
                         Login
                       </NavLink>
                     </li>
-                    <li className="nav-item nav-item--whatsapp">
-                      <a
-                        href={getWhatsAppDirectUrl()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={onWhatsAppAnchorClick}
-                        className="header-whatsapp header-whatsapp--nav"
-                        aria-label="Chat on WhatsApp"
-                      >
-                        <i className="fab fa-whatsapp" />
-                      </a>
-                    </li>
                   </ul>
                 </nav>
 
                 {/* Header actions: WhatsApp, cart, grid, hamburger */}
                 <div className="header-actions">
+                  <a
+                    href={getWhatsAppDirectUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onWhatsAppAnchorClick}
+                    className="header-whatsapp header-whatsapp--header"
+                    aria-label="Chat on WhatsApp"
+                  >
+                    <i className="fab fa-whatsapp" />
+                  </a>
                   {/* Cart icon – always visible on mobile/tablet/desktop
                   <button className="cart-trigger" aria-label="Cart">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

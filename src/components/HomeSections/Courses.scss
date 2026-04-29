@@ -48,7 +48,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: 33% 67%;
+  grid-template-columns: 35% 65%;
   gap: 0 32px;
   align-items: start;
 }
@@ -113,7 +113,7 @@
 }
 
 .courses-section-title {
-  font-size: clamp(1.55rem, 3.5vw, 2.85rem);
+  font-size: clamp(1.35rem, 3vw, 2.35rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.02em;
@@ -140,7 +140,7 @@
 }
 
 .courses-section-description {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   color: rgba(255, 255, 255, 0.62);
   line-height: 1.7;
   margin: 0 0 28px;
@@ -222,9 +222,15 @@
 
 .courses-section-masonry {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 16px;
   align-items: start;
+}
+
+@media (min-width: $bp-desktop-min) {
+  .courses-section-masonry {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .courses-section-column {
@@ -449,7 +455,7 @@
   }
 
   .courses-section-inner {
-    grid-template-columns: 33% 67%;
+    grid-template-columns: 35% 65%;
     gap: 0 32px;
     align-items: stretch;
   }
@@ -478,7 +484,7 @@
     }
   }
   .courses-section-masonry {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 16px;
   }
   .courses-section-column {
@@ -569,7 +575,7 @@
     padding: 0 24px 64px 0;
   }
   .courses-section-masonry {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 12px;
   }
 }

@@ -63,13 +63,10 @@ const DashboardLayout = () => {
         }
     }, [navigate]);
 
-    // Logout function
     const handleLogout = () => {
         clearAuthSession();
         navigate('/admin/login');
     };
-
-
 
     // Get current user from localStorage
     const user = JSON.parse(getAuthUserJson() || '{}');
@@ -140,23 +137,14 @@ const DashboardLayout = () => {
                             </div>
                         )}
                     </div>
+                    <button className="logout-btn" onClick={handleLogout}>
+                        <i className="fas fa-sign-out-alt"></i> Logout
+                    </button>
                 </div>
             </aside>
 
             {/* Main Content */}
             <main className="admin-main">
-                <header className="admin-header">
-                    <div className="header-left">
-                        <h1>Admin Dashboard</h1>
-                        <p>Welcome back, {user.name?.split(' ')[0] || 'Admin'}! Manage your academy efficiently</p>
-                    </div>
-                    <div className="header-right">
-                        <button className="logout-btn" onClick={handleLogout}>
-                            <i className="fas fa-sign-out-alt"></i> Logout
-                        </button>
-                    </div>
-                </header>
-
                 <div className="admin-content">
                     <Outlet />
                 </div>

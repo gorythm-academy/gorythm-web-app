@@ -493,23 +493,6 @@
   }
 }
 
-// WhatsApp icon is rendered as a list item inside desktop nav.
-.nav-item--whatsapp {
-  .header-whatsapp--nav {
-    width: auto;
-    height: auto;
-    border-radius: 0;
-    padding: 8px 0;
-    background: transparent;
-    color: white;
-
-    &:hover {
-      background: transparent;
-      color: rgba(255, 255, 255, 0.75);
-    }
-  }
-}
-
 // Touch tablet portrait: increase nav link and icon sizes for finger-friendly tapping
 // Applies to: iPad, iPad Mini, iPad Air, Surface Pro in portrait with coarse pointer
 // Range: 768px–1368px with pointer:coarse + orientation:portrait
@@ -695,6 +678,10 @@
   .fab.fa-whatsapp {
     font-size: 22px;
   }
+}
+
+.header-whatsapp--header {
+  display: flex;
 }
 
 // Cart icon (new)
@@ -1448,6 +1435,10 @@
 /* Tablet Landscape: Up to 1279px */
 @include respond-to('lg') {
   .header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     padding: 15px 0;
 
     &.scrolled {
