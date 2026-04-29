@@ -62,8 +62,8 @@
 .courses-left-panel {
   position: relative;
   width: 100%;
-  min-height: 100%;
-  padding: 60px 48px 80px 44px;
+  height: 100%;
+  padding: 80px 48px 80px 44px;
   background: #141414;
 }
 
@@ -72,14 +72,13 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  height: 100%;
   z-index: 1;
 }
 
 .courses-inner {
   width: 100%;
   display: grid;
-  grid-template-columns: 9fr 11fr;
+  grid-template-columns: 35% 65%;
   gap: 0 32px;
   align-items: start;
 }
@@ -88,8 +87,8 @@
   position: relative;
   z-index: 1;
   margin: 0 0 5px;
-  max-width: 92%;
-  font-size: clamp(1.55rem, 3.5vw, 2.85rem);
+  max-width: 100%;
+  font-size: clamp(1.35rem, 3vw, 2.35rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.02em;
@@ -108,7 +107,7 @@
 
 .courses-left-footer {
   margin-top: auto;
-  margin-left: auto;
+  margin-left: 0;
   max-width: 350px;
   padding-top: 24px;
 }
@@ -116,7 +115,7 @@
 .courses-description {
   margin: 0 0 28px;
   color: rgba(255, 255, 255, 0.62);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   line-height: 1.7;
 }
 
@@ -143,8 +142,7 @@
 
 // Desktop: full viewport height for masonry so it isn't shortened. Scroll chaining when gallery hits top/bottom.
 .courses-right {
-  height: 100vh;
-  //max-height: 100vh;
+  max-height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: auto;
@@ -210,9 +208,15 @@
 
 .courses-masonry {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 16px;
   align-items: start;
+}
+
+@media (min-width: $bp-desktop-min) {
+  .courses-masonry {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .courses-column {
@@ -502,19 +506,29 @@
 // Mobile landscape (≤ 768px landscape): restore split layout — equal-height panels,
 // masonry panel scrolls independently while left panel stays sticky
 @media (max-width: $bp-section-sm) and (orientation: landscape) {
+  .courses-title {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .courses-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
   .courses-inner {
-    grid-template-columns: 7fr 13fr;
+    --panel-h: 165dvh;
+    grid-template-columns: 35% 65%;
     gap: 0 24px;
     align-items: stretch;
   }
 
   .courses-left {
     position: sticky;
-    top: 100px;
-    height: 150vh;
-    height: 150dvh;
-    min-height: 150vh;
-    min-height: 150dvh;
+    top: 0;
+    height: var(--panel-h);
+    min-height: var(--panel-h);
+    max-height: var(--panel-h);
   }
 
   .courses-left-panel {
@@ -522,10 +536,9 @@
   }
 
   .courses-right {
-    height: 150vh;
-    height: 150dvh;
-    max-height: 150vh;
-    max-height: 150dvh;
+    height: var(--panel-h);
+    min-height: var(--panel-h);
+    max-height: var(--panel-h);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: auto;
@@ -539,12 +552,77 @@
   }
 
   .courses-masonry {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 12px;
   }
 
   .courses-column + .courses-column {
     margin-top: 0;
+  }
+}
+
+// Very short landscape viewports (e.g., foldables/small-height phones):
+// keep both panels equally tall so left content remains inside the card.
+@media (max-height: 430px) and (orientation: landscape) {
+  .courses-inner {
+    align-items: stretch;
+  }
+
+  .courses-left {
+    height: 165vh;
+    height: 165dvh;
+    min-height: 165vh;
+    min-height: 165dvh;
+  }
+
+  .courses-right {
+    height: 165vh;
+    height: 165dvh;
+    max-height: 165vh;
+    max-height: 165dvh;
+    overflow-y: auto;
+  }
+
+  .courses-left-panel {
+    padding-top: 48px;
+    padding-bottom: 48px;
+  }
+
+  .courses-title {
+    margin-top: 52px;
+    font-size: clamp(0.92rem, 2.1vw, 1.25rem);
+    line-height: 1.08;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .courses-description {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+}
+
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .courses-inner {
+    padding: 0;
+  }
+
+  .courses-left-panel {
+    padding-top: 40px;
+    padding-bottom: 32px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .courses-right {
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 36px;
+  }
+
+  .courses-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
   }
 }
 
@@ -573,7 +651,7 @@
 
   .courses-title {
     max-width: 100%;
-    font-size: clamp(1.6rem, 5vw, 2.5rem);
+    font-size: clamp(1.3rem, 4.2vw, 2rem);
   }
 
   .courses-title-line {
@@ -609,6 +687,78 @@
 
   .courses-column {
     gap: 20px;
+  }
+}
+
+// Re-assert landscape overrides after generic mobile block so landscape never
+// falls back to portrait-style padding/flow.
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
+  .courses-inner {
+    gap: 0 24px;
+    padding: 0 16px;
+  }
+
+  .courses-left-panel {
+    padding: 40px 20px 32px;
+  }
+
+  .courses-right {
+    padding: 0 24px 64px 0;
+  }
+
+  .courses-title {
+    font-size: clamp(1rem, 2.7vw, 1.5rem);
+    line-height: 1.12;
+  }
+
+  .courses-description {
+    font-size: 0.9rem;
+    line-height: 1.55;
+  }
+
+  .courses-masonry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 12px;
+  }
+}
+
+// Tablet/laptop landscape band (iPad Air/Pro, Surface Pro 7):
+// keep left copy compact so it stays inside the card.
+@media (min-width: $bp-section-md) and (max-width: $bp-section-xl) and (orientation: landscape) {
+  .courses-left-panel {
+    padding: 64px 36px 64px 32px;
+  }
+
+  .courses-title {
+    font-size: clamp(1.05rem, 1.85vw, 1.75rem);
+    line-height: 1.12;
+  }
+
+  .courses-description {
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+}
+
+// Landscape tablets/displays where panels were too tall (iPad Pro/Air, Surface Pro 7,
+// Surface Duo, Nest Hub Max class): keep both cards at viewport height.
+@media (min-width: $bp-section-sm) and (max-width: $bp-section-xl) and (orientation: landscape) and (max-height: 1100px) {
+  .courses-left {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+
+  .courses-right {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
   }
 }
 

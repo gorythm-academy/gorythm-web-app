@@ -19,6 +19,7 @@ import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const courseLinkParam = (c) => courseUrlSegment(c);
+const DESKTOP_MASONRY_MQ = '(min-width: 1280px)';
 
 // Aspect ratios for masonry cards (cycled)
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
@@ -54,16 +55,16 @@ const getMasonryColumn = (course) => {
   const col = Number(course?.masonryColumn);
   return [1, 2, 3].includes(col) ? col : null;
 };
-const buildMasonryColumns = (items) => {
-  const columns = [[], [], []];
+const buildMasonryColumns = (items, columnCount = 3) => {
+  const columns = Array.from({ length: columnCount }, () => []);
   let autoIndex = 0;
   items.forEach((course) => {
     const forcedCol = getMasonryColumn(course);
-    if (forcedCol) {
+    if (forcedCol && forcedCol <= columnCount) {
       columns[forcedCol - 1].push(course);
       return;
     }
-    columns[autoIndex % 3].push(course);
+    columns[autoIndex % columnCount].push(course);
     autoIndex += 1;
   });
   return columns;
@@ -92,6 +93,9 @@ const CoursesSection = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [masonryColumnCount, setMasonryColumnCount] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(DESKTOP_MASONRY_MQ).matches ? 3 : 2
+  );
   const { formatFromUsdWhole } = useCurrency();
 
   const fetchCourses = React.useCallback(async () => {
@@ -154,7 +158,7 @@ const CoursesSection = () => {
   // API-only display (no static fallback)
   const displayCourses = apiCourses;
 
-  const masonryColumns = buildMasonryColumns(displayCourses);
+  const masonryColumns = buildMasonryColumns(displayCourses, masonryColumnCount);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -165,6 +169,15 @@ const CoursesSection = () => {
     );
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(DESKTOP_MASONRY_MQ);
+    const sync = () => setMasonryColumnCount(mq.matches ? 3 : 2);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   return (

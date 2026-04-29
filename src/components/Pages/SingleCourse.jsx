@@ -333,7 +333,6 @@ export function SingleCourse() {
               <div className="cip-copy">
                 <h2 className="cip-subtitle">Course overview</h2>
                 {course.overview ? <p className="cip-text">{course.overview}</p> : null}
-                <p className="cip-text">{course.description}</p>
               </div>
               {renderGallery(course.galleryImages)}
             </div>
@@ -357,7 +356,6 @@ export function SingleCourse() {
               <div className="cip-copy">
                 <h2 className="cip-subtitle">Course overview</h2>
                 {course.overview ? <p className="cip-text">{course.overview}</p> : null}
-                <p className="cip-text">{course.description}</p>
               </div>
               {renderGallery(course.galleryImages)}
             </div>

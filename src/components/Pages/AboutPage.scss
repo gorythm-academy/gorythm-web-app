@@ -1134,6 +1134,23 @@
   .about-page-dark__avatars {
     justify-content: center;
   }
+
+  .about-page-team__container {
+    width: 100%;
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .about-page-team__grid {
+    gap: 28px 0;
+  }
+
+  .about-page-team__card,
+  .about-page-team__media {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 @media (max-width: $bp-section-sm) {
@@ -1212,5 +1229,28 @@
 
   .about-page-team__header {
     margin-bottom: 38px;
+  }
+}
+
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .about-page-dark + .video-section {
+    margin-bottom: 0;
+  }
+
+  .video-section + .about-page-team {
+    margin-top: 0;
+  }
+
+  .about-page-team__container {
+    width: 100%;
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .about-page-team__media {
+    padding-left: 12px;
+    padding-right: 12px;
+    box-sizing: border-box;
   }
 }

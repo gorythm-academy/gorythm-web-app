@@ -9,6 +9,7 @@ import './AllCourses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
 
 const DESKTOP_SCROLL_ZONE_MQ = '(min-width: 993px)';
+const DESKTOP_MASONRY_MQ = '(min-width: 1280px)';
 
 // Keep placeholder imports referenced so bundlers include them (used by CSS/other sections).
 const MASONRY_ASPECT_RATIOS = ['16 / 10', '4 / 5', '5 / 6', '1 / 1', '3 / 4', '5 / 6', '16 / 10', '16 / 10', '5 / 6', '3 / 4'];
@@ -33,16 +34,16 @@ const getMasonryColumn = (course) => {
   const col = Number(course?.masonryColumn);
   return [1, 2, 3].includes(col) ? col : null;
 };
-const buildMasonryColumns = (items) => {
-  const columns = [[], [], []];
+const buildMasonryColumns = (items, columnCount = 3) => {
+  const columns = Array.from({ length: columnCount }, () => []);
   let autoIndex = 0;
   items.forEach((course) => {
     const forcedCol = getMasonryColumn(course);
-    if (forcedCol) {
+    if (forcedCol && forcedCol <= columnCount) {
       columns[forcedCol - 1].push(course);
       return;
     }
-    columns[autoIndex % 3].push(course);
+    columns[autoIndex % columnCount].push(course);
     autoIndex += 1;
   });
   return columns;
@@ -320,6 +321,13 @@ const AllCourses = () => {
       typeof window !== 'undefined' &&
       window.matchMedia(DESKTOP_SCROLL_ZONE_MQ).matches
   );
+  const [masonryColumnCount, setMasonryColumnCount] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia(DESKTOP_MASONRY_MQ).matches
+        ? 3
+        : 2
+  );
 
   const fetchCourses = useCallback(async () => {
     setLoading(true);
@@ -374,13 +382,22 @@ const AllCourses = () => {
       (a.title || '').localeCompare(b.title || '')
     );
 
-  const masonryColumns = buildMasonryColumns(displayCourses);
+  const masonryColumns = buildMasonryColumns(displayCourses, masonryColumnCount);
 
   useEffect(() => {
     document.body.classList.add('courses-cursor-visible');
     return () => {
       document.body.classList.remove('courses-cursor-visible');
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia(DESKTOP_MASONRY_MQ);
+    const handleChange = () => setMasonryColumnCount(mq.matches ? 3 : 2);
+    handleChange();
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
   }, []);
 
   useEffect(() => {
