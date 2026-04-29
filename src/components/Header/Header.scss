@@ -354,6 +354,21 @@
   }
 }
 
+// Disable sticky/slide-down header on non-desktop devices.
+@media (max-width: $bp-laptop-max) {
+  .header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+  }
+
+  .header.header--hidden {
+    transform: none;
+  }
+}
+
 .header-container {
   @include responsive-container();
   position: relative;
