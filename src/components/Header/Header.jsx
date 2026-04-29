@@ -292,7 +292,7 @@ const Header = () => {
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
       <header
-        className={`header ${scrolled ? 'scrolled' : ''}${!isMobile && !headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
+        className={`header ${scrolled ? 'scrolled' : ''}${!headerVisible ? ' header--hidden' : ''}${isMobileMenuOpen ? ' header--mobile-menu-open' : ''}`}
         ref={headerRef}
         aria-hidden={isMobileMenuOpen}
       >
