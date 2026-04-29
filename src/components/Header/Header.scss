@@ -1435,10 +1435,6 @@
 /* Tablet Landscape: Up to 1279px */
 @include respond-to('lg') {
   .header {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
     padding: 15px 0;
 
     &.scrolled {
