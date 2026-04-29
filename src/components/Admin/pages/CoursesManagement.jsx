@@ -187,7 +187,6 @@ const CoursesManagement = () => {
             setLoading(true);
             const token = getAuthToken();
             
-            console.log('Fetching courses...');
             const response = await axios.get(`${API_BASE_URL}/api/courses`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -199,14 +198,6 @@ const CoursesManagement = () => {
                     ? c.status
                     : (c.isPublished === true ? 'published' : 'draft'),
             }));
-            console.log('Fetched courses from DB:', coursesFromDb.length, 'courses');
-            if (coursesFromDb.length > 0) {
-                console.log('First course sample:', {
-                    id: coursesFromDb[0]._id,
-                    title: coursesFromDb[0].title,
-                    status: coursesFromDb[0].status
-                });
-            }
             setCourses(coursesFromDb);
             setTotalUniqueStudents(Number(response.data?.totalUniqueStudents) || 0);
             setLoading(false);
@@ -256,9 +247,6 @@ const CoursesManagement = () => {
             return;
         }
         
-        console.log('Opening edit form for course:', course);
-        console.log('Course duration from DB:', course.duration);
-        
         setEditingCourse(course);
         setFormData({
             title: course.title || '',
@@ -272,9 +260,6 @@ const CoursesManagement = () => {
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
         });
-        
-        console.log('Form data set to:', formData);
-        
         setIsFormOpen(true);
         
         setTimeout(() => {
@@ -362,11 +347,7 @@ const CoursesManagement = () => {
                     return;
                 }
                 
-                console.log('Updating course - ID:', courseId);
-                console.log('Payload:', payload);
-                console.log('URL:', `${API_BASE_URL}/api/courses/${courseId}`);
-                
-                const response = await axios.put(
+                await axios.put(
                     `${API_BASE_URL}/api/courses/${courseId}`,
                     payload,
                     { 
@@ -376,8 +357,6 @@ const CoursesManagement = () => {
                         } 
                     }
                 );
-                
-                console.log('Course updated successfully:', response.data);
                 
                 if (selectedCourses.length > 1) {
                     showConfirmation(`Course updated! Changes will be applied to ${selectedCourses.length - 1} other selected courses.`);
@@ -400,13 +379,11 @@ const CoursesManagement = () => {
                     showConfirmation('Course updated successfully!');
                 }
             } else {
-                console.log('Creating new course:', payload);
-                const response = await axios.post(
+                await axios.post(
                     `${API_BASE_URL}/api/courses`,
                     payload,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
-                console.log('Course created successfully:', response.data);
                 showConfirmation('Course created successfully!');
             }
 
@@ -502,8 +479,6 @@ setFormData({
 
         try {
             const token = getAuthToken();
-            console.log('Deleting courses:', selectedCourses);
-            
             // FIXED: Use correct endpoint and payload format
             const response = await axios.post(
                 `${API_BASE_URL}/api/courses/bulk-delete`, 
@@ -511,8 +486,6 @@ setFormData({
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            console.log('Bulk delete response:', response.data);
-            
             await fetchCourses();
             setSelectedCourses([]);
             showConfirmation(response.data.message || `${selectedCourses.length} course(s) deleted successfully!`);

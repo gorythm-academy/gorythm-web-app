@@ -1,5 +1,7 @@
 // About Section – Stargaze-style: dark bg, big gradient 01, two staggered images
+// Breakpoint tokens from _breakpoints.scss; use $bp-section-* for HomeSections layout.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // Scroll-triggered animation (Stargaze-style: fade + slide up)
 // Change translateY(28px) below to adjust how far elements move up
@@ -185,12 +187,25 @@
 }
 
 // =============================================================================
-// BREAKPOINTS – aligned with HeroSection & _variables (768, 992, 1280, etc.)
-// Desktop: content starts below digit (padding-top), images overlap.
-// Mobile/Tablet: label & title over digit (no padding-top), images stacked.
+// BREAKPOINTS – About Section
+// Approach: Desktop-first. Base = two-column desktop layout.
+// Narrow with max-width, use portrait/landscape orientation where needed.
+//
+// Tier summary:
+//   ≥ 993px  (desktop)        : images overlap, large heights
+//   ≤ 1280px (laptop)         : reduce gap and padding
+//   touch tablet portrait     : wider images via coarse pointer heuristic
+//   touch tablet landscape    : taller images via coarse pointer heuristic
+//   ≤ 742px portrait          : single column, stacked images
+//   ≤ 742px landscape         : two-column restored, compact heights
+//   ≤ 768px portrait/landscape: section padding and typography adjustments
+//   ≤ 480px landscape         : small phone, further reductions
+//   ≤ 375px landscape         : very small phone
+//   ≤ 360px portrait          : Galaxy S8 big-number tweak
+//   ≤ 375px portrait + tall   : iPhone SE 2/3 big-number tweak
 // =============================================================================
 
-// Desktop only (min 993px): content starts a little lower; right image contained and larger
+// ≥ 993px (desktop only): content starts a little lower; right image contained and larger
 @media (min-width: #{$bp-section-md + 1}) {
   .about_content_wrap {
     padding-top: 60px;
@@ -211,8 +226,9 @@
   }
 }
 
-// Any landscape viewport with limited vertical space:
-// override the desktop fixed heights so images scale down and the paragraph aligns.
+// Any landscape viewport with limited vertical space (height ≤ 600px):
+// Override the desktop fixed heights so images scale down proportionally.
+// Covers: most phones in landscape where the viewport height is constrained.
 @media (orientation: landscape) and (max-height: 600px) {
   .front_page_section_about .about_image_left,
   .front_page_section_about .about_image_right {
@@ -226,7 +242,7 @@
   }
 }
 
-// Tablet / small laptop (max 1280px) – match HeroSection
+// ≤ 1280px (tablet / small laptop): reduce gap and padding — matches HeroSection
 @media (max-width: $bp-section-lg) {
   .front_page_section_about_inner {
     padding: 0 30px;
@@ -237,10 +253,9 @@
   }
 }
 
-// Tablet behavior should match desktop (no iPad-mini-only portrait tweaks)
-
-// Tablet (touch) - keep desktop-like layout proportions (portrait/landscape tuned separately)
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// Touch tablet portrait: widen images for finger-friendly proportions
+// Applies to: iPad, iPad Mini, iPad Air in portrait with coarse pointer
+@include touch-tablet-portrait {
   // Tablet portrait: increase left image height
   // Widen images by giving the grid columns more space (smaller gap).
   .about_layout {
@@ -270,8 +285,9 @@
   }
 }
 
-@media (pointer: coarse) and (hover: none) and (orientation: landscape) and (min-width: 768px) and (max-width: 1368px) {
-  // Tablet landscape: increase right image height
+// Touch tablet landscape: taller images for wider viewport proportions
+// Applies to: iPad, iPad Mini, iPad Air in landscape with coarse pointer
+@include touch-tablet-landscape {
   .front_page_section_about .about_image_right {
     // Tablet landscape: widen vs desktop defaults
     width: 100%;
@@ -295,7 +311,8 @@
   }
 }
 
-// Phone (<=767px): single column, no overlap, label/title over digit
+// ≤ 742px (phones): single column, no image overlap, label/title over big number
+// Excludes iPad Mini (744px) which keeps the desktop two-column layout
 @media (max-width: ($bp-section-sm - 1)) {
   .about_content_wrap {
     padding-top: 0;
@@ -326,7 +343,8 @@
   }
 }
 
-// Phone landscape: keep desktop-like two-column layout but scale images down to fit height
+// Phone landscape (≤ 742px landscape): restore two-column layout like desktop
+// but scale images down to fit the short viewport height of landscape phones
 @media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
   .front_page_section_about {
     padding: 80px 0 80px;
@@ -382,7 +400,7 @@
   }
 }
 
-// Portrait at phone/mobile (<=767px): ensure paragraph (and text) are larger
+// Phone portrait (≤ 742px portrait): larger paragraph text for readability on narrow screens
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .about_paragraph {
     font-size: 1.18rem;
@@ -390,7 +408,7 @@
   }
 }
 
-// Mobile (max 768px)
+// ≤ 743px (mobile, any orientation): section padding + label/image sizing reductions
 @media (max-width: $bp-section-sm) {
   .front_page_section_about {
     padding: 60px 0 80px;
@@ -427,9 +445,8 @@
   }
 }
 
-// Mobile portrait: right image in front of left (slightly lower), larger typography,
-// and more space for the label so "About Gorythm" is not cut off.
-// (xs/xxs breakpoints below apply only in landscape, so portrait keeps these sizes.)
+// ≤ 743px portrait: right image overlaps the left (z-index stacking), larger typography.
+// Note: xs/xxs breakpoints below are landscape-only — portrait keeps these larger sizes.
 @media (max-width: $bp-section-sm) and (orientation: portrait) {
   .about_left {
     position: relative;
@@ -464,7 +481,7 @@
   }
 }
 
-// Mobile landscape (max 768px, landscape)
+// ≤ 743px landscape: compact section padding, ensure image heights stay proportional
 @media (max-width: $bp-section-sm) and (orientation: landscape) {
   .front_page_section_about {
     padding: 50px 0 60px;
@@ -497,7 +514,8 @@
   }
 }
 
-// Small mobile (max 480px) – landscape only, so portrait keeps larger sm/portrait fonts
+// ≤ 480px landscape only: small phone, further reduce section padding and font sizes
+// Portrait keeps the larger sm/portrait sizes defined above — only landscape gets these reductions
 @media (max-width: $bp-section-xs) and (orientation: landscape) {
   .front_page_section_about {
     padding: 40px 0 60px;
@@ -522,7 +540,7 @@
   }
 }
 
-// Extra small (max 375px) – landscape only
+// ≤ 375px landscape only (very small phones): iPhone SE 2/3 and similar narrow widths
 @media (max-width: $bp-section-xxs) and (orientation: landscape) {
   .front_page_section_about {
     padding: 32px 0 48px;
@@ -537,8 +555,9 @@
   }
 }
 
-// S8+ portrait (360×740) — width is 360px in portrait.
-// Higher-specificity selector beats the tablet .about_big_number rule (max-width: 992px).
+// ≤ 360px portrait (Galaxy S8 / S8+ width in portrait):
+// Move the big "01" higher and increase its size to fill the narrow 360px width.
+// High specificity via .front_page_section_about parent beats the tablet rule.
 @media (max-width: $bp-section-xxxs) and (orientation: portrait) {
   .front_page_section_about .about_big_number {
     top: -1.5rem;                           // moved more higher so "01" sits above eyebrow & title
@@ -546,8 +565,9 @@
   }
 }
 
-// iPhone SE 2nd/3rd gen portrait (375×667) — width is 375px, tall viewport (min-height catches tallness).
-// Higher-specificity selector beats the tablet .about_big_number rule.
+// ≤ 375px portrait + tall viewport (min-height: 600px) → iPhone SE 2/3 (375×667):
+// Increase the big "01" to fill the narrow 375px portrait width.
+// The min-height prevents this from firing in landscape where height < 600px.
 @media (max-width: $bp-section-xxs) and (min-height: 600px) and (orientation: portrait) {
   .front_page_section_about .about_big_number {
     top: -1.5rem;                           // moved more higher behind the heading
@@ -555,7 +575,7 @@
   }
 }
 
-// Portrait phones only: remove extra space below About
+// ≤ 743px portrait: remove bottom padding — the next section provides its own top spacing
 @media (max-width: $bp-section-sm) and (orientation: portrait) {
   .front_page_section_about {
     padding-bottom: 0;

@@ -1,4 +1,7 @@
+// Admin Dashboard Home – stats cards, recent activity, charts.
+// Desktop-first; breakpoint tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // Dashboard Home Styles
 .dashboard-home {
@@ -467,8 +470,9 @@
     }
   }
 
-  // Responsive adjustments
-  @media (max-width: $bp-legacy-768) {
+  // ≤ 768px (tablet / mobile): compact stats grid and welcome banner
+  // Using $bp-admin-table-max (768px) — the point where admin tables go compact
+  @media (max-width: $bp-admin-table-max) {
     .welcome-banner {
       padding: 1.2rem;
       
@@ -505,6 +509,7 @@
     }
   }
 
+  // ≤ 480px (small phone): single-column stats, centered welcome banner
   @media (max-width: $bp-legacy-480) {
     .stats-grid {
       grid-template-columns: 1fr;

@@ -1,6 +1,9 @@
 // BlogMainPage (listing) + SingleBlogPost (article)
-// ============================================================================
+// =============================================================================
+// Desktop-first: base = desktop grid. Narrow with max-width breakpoints.
+// All tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // =============================================================================
 // SINGLE BLOG POST (/blog/:slug)

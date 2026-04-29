@@ -1,4 +1,6 @@
-@import '../../../styles/_breakpoints.scss';
+// Admin Login page — desktop-first. Breakpoint tokens from _breakpoints.scss.
+@import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 .admin-login {
     min-height: 100vh;
@@ -105,7 +107,12 @@
     }
 }
 
-@media (max-width: $bp-legacy-768) {
+// =============================================================================
+// RESPONSIVE – Admin Login page
+// =============================================================================
+
+// ≤ 768px ($bp-admin-table-max): shrink the login card to fill the screen
+@media (max-width: $bp-admin-table-max) {
     .admin-login {
         padding: 16px;
 
@@ -121,6 +128,7 @@
     }
 }
 
+// ≤ 480px (small phone): even tighter padding and smaller font
 @media (max-width: $bp-legacy-480) {
     .admin-login {
         padding: 12px;
@@ -149,7 +157,9 @@
     }
 }
 
-@media (max-height: $bp-home-landscape-short-max) and (orientation: landscape) {
+// Short landscape height (≤ 500px + landscape): pin login card to top, allow scroll
+// Covers phones in landscape where the viewport height is limited
+@media (max-height: $bp-landscape-short-max) and (orientation: landscape) {
     .admin-login {
         align-items: flex-start;
         padding-top: 12px;

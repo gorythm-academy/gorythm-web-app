@@ -4,12 +4,17 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
+const authMiddleware = require('../middleware/auth');
+const { allowRoles } = require('../middleware/authorize');
+
+router.use(authMiddleware);
+router.use(allowRoles('admin', 'super-admin'));
 
 // Dashboard stats endpoint
 router.get('/dashboard', async (req, res) => {
     try {
-        console.log('📊 Fetching dashboard stats...');
-        
+        req.log.info('Fetching dashboard stats');
+
         // Get real data from MongoDB
         const totalStudents = await User.countDocuments({ role: 'student' });
         const totalTeachers = await User.countDocuments({ role: 'teacher' });
@@ -51,11 +56,11 @@ router.get('/dashboard', async (req, res) => {
             },
             recentActivities
         });
-        
-        console.log('✅ Dashboard stats sent successfully');
-        
+
+        req.log.debug('Dashboard stats sent');
+
     } catch (error) {
-        console.error('❌ Dashboard error:', error);
+        req.log.error('Dashboard error', { err: error });
         res.status(500).json({ 
             success: false,
             error: 'Failed to fetch dashboard data'
@@ -161,7 +166,7 @@ router.get('/metrics', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Metrics error:', error);
+        req.log.error('Admin metrics error', { err: error });
         res.status(500).json({
             success: false,
             metrics: {

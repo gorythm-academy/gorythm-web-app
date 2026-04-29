@@ -377,8 +377,6 @@ const handleEditEnrollment = (enrollment) => {
 
     // Handle modal success
     const handleEnrollSuccess = (newEnrollment) => {
-        console.log('New enrollment added:', newEnrollment);
-        
         // Add to beginning of the list
         const updatedEnrollments = enrollments.some((enrollment) => enrollment._id === newEnrollment._id)
             ? enrollments.map((enrollment) =>

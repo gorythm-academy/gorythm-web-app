@@ -1,6 +1,7 @@
-// Mission detail page styles
-// ============================================================================
+// Mission detail page — desktop-first responsive.
+// All breakpoint tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 .mission-page {
   min-height: 80vh;

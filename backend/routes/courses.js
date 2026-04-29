@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
+const { validate, rules } = require('../middleware/validate');
 
 // Get all courses (admin)
 router.get('/', async (req, res) => {
@@ -72,7 +73,7 @@ router.get('/', async (req, res) => {
             totalUniqueStudents: uniqueStudentIdSet.size
         });
     } catch (error) {
-        console.error('Error fetching courses:', error);
+        req.log.error('Error fetching courses', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch courses' });
     }
 });
@@ -120,7 +121,7 @@ router.get('/public', async (req, res) => {
             });
         res.json({ success: true, courses });
     } catch (error) {
-        console.error('Error fetching public courses:', error);
+        req.log.error('Error fetching public courses', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch courses' });
     }
 });
@@ -167,7 +168,7 @@ router.get('/:id', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching course:', error);
+        req.log.error('Error fetching course', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch course' });
     }
 });
@@ -196,9 +197,20 @@ async function buildUniqueSlug(raw, excludeId = null) {
 }
 
 // Create new course
-router.post('/', async (req, res) => {
+router.post(
+    '/',
+    validate([
+        rules.requiredString('title', 'Title'),
+        rules.requiredString('description', 'Description'),
+        rules.requiredString('category', 'Category'),
+    ]),
+    async (req, res) => {
     try {
-        console.log('Creating course with data:', req.body);
+        req.log.info('Creating course', {
+            title: req.body?.title,
+            category: req.body?.category,
+            status: req.body?.status,
+        });
         const requestedSlug = (req.body.slug && String(req.body.slug).trim()) || slugFromTitle(req.body.title);
         const uniqueSlug = await buildUniqueSlug(requestedSlug);
         
@@ -221,29 +233,38 @@ router.post('/', async (req, res) => {
         });
 
         await course.save();
-        
-        console.log('Course created successfully:', course._id);
-        
+
+        req.log.info('Course created', { courseId: String(course._id) });
+
         res.json({
             success: true,
             message: 'Course created successfully',
             course: course
         });
     } catch (error) {
-        console.error('Error creating course:', error);
+        req.log.error('Error creating course', { err: error });
         res.status(500).json({ success: false, error: 'Failed to create course: ' + error.message });
     }
 });
 
 // Update entire course
-router.put('/:id', async (req, res) => {
+router.put(
+    '/:id',
+    validate([
+        rules.requiredString('title', 'Title'),
+        rules.requiredString('description', 'Description'),
+        rules.requiredString('category', 'Category'),
+    ]),
+    async (req, res) => {
     try {
-        console.log('Updating course ID:', req.params.id);
-        console.log('Update data:', req.body);
-        
+        req.log.info('Updating course', {
+            courseId: req.params.id,
+            fields: Object.keys(req.body || {}),
+        });
+
         const course = await Course.findById(req.params.id);
         if (!course) {
-            console.log('Course not found with ID:', req.params.id);
+            req.log.warn('Course not found for update', { courseId: req.params.id });
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
 
@@ -276,21 +297,24 @@ router.put('/:id', async (req, res) => {
 
         await course.save();
 
-        console.log('Course updated successfully:', course._id);
-        
+        req.log.info('Course updated', { courseId: String(course._id) });
+
         res.json({
             success: true,
             message: 'Course updated successfully',
             course: course
         });
     } catch (error) {
-        console.error('Error updating course:', error);
+        req.log.error('Error updating course', { err: error });
         res.status(500).json({ success: false, error: 'Failed to update course: ' + error.message });
     }
 });
 
 // Update course status only
-router.patch('/:id/status', async (req, res) => {
+router.patch(
+    '/:id/status',
+    validate([rules.enum('status', 'Status', ['published', 'draft'])]),
+    async (req, res) => {
     try {
         const course = await Course.findById(req.params.id);
         if (!course) {
@@ -312,8 +336,8 @@ router.patch('/:id/status', async (req, res) => {
 // Delete course
 router.delete('/:id', async (req, res) => {
     try {
-        console.log('Deleting course ID:', req.params.id);
-        
+        req.log.info('Deleting course', { courseId: req.params.id });
+
         const course = await Course.findByIdAndDelete(req.params.id);
         
         if (!course) {
@@ -325,16 +349,19 @@ router.delete('/:id', async (req, res) => {
             message: 'Course deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting course:', error);
+        req.log.error('Error deleting course', { err: error });
         res.status(500).json({ success: false, error: 'Failed to delete course' });
     }
 });
 
 // FIXED: Bulk delete courses - ADD THIS ROUTE
-router.post('/bulk-delete', async (req, res) => {
+router.post(
+    '/bulk-delete',
+    validate([rules.arrayNonEmpty('ids', 'Course IDs')]),
+    async (req, res) => {
     try {
-        console.log('Bulk delete request:', req.body);
         const { ids } = req.body;
+        req.log.info('Bulk delete courses', { count: Array.isArray(ids) ? ids.length : 0 });
         
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({ success: false, error: 'No course IDs provided' });
@@ -342,20 +369,26 @@ router.post('/bulk-delete', async (req, res) => {
 
         const result = await Course.deleteMany({ _id: { $in: ids } });
 
-        console.log(`Bulk deleted ${result.deletedCount} courses`);
-        
+        req.log.info('Bulk delete courses completed', { deletedCount: result.deletedCount });
+
         res.json({
             success: true,
             message: `${result.deletedCount} course(s) deleted successfully`
         });
     } catch (error) {
-        console.error('Error bulk deleting courses:', error);
+        req.log.error('Error bulk deleting courses', { err: error });
         res.status(500).json({ success: false, error: 'Failed to delete courses' });
     }
 });
 
 // Bulk update status
-router.patch('/bulk-status', async (req, res) => {
+router.patch(
+    '/bulk-status',
+    validate([
+        rules.arrayNonEmpty('courseIds', 'Course IDs'),
+        rules.enum('status', 'Status', ['published', 'draft']),
+    ]),
+    async (req, res) => {
     try {
         const { courseIds, status } = req.body;
         

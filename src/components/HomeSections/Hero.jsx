@@ -38,8 +38,8 @@ const HeroSection = () => {
         bgRef.current,
         { scale: 1 },
         {
-          scale: 1.5,
-          duration: 40,
+          scale: 1,
+          duration: 80,
           ease: "none"
         }
       );
@@ -89,9 +89,9 @@ const HeroSection = () => {
   };
 
   const heroData = {
-    caption: "Knowledge",
-    caption2: "that",
-    caption3: "builds character",
+    caption: "You are built with",
+    caption2: "Signs",
+    caption3: "Discover yourself",
     description:
     "GoRythm supports learners of all ages in building knowledge, confidence, and strong personal values through structured online courses in language, reading, and personal development.",
     bgImage: heroBgImage,
@@ -154,49 +154,51 @@ const HeroSection = () => {
               A project of Alfarhan
             </motion.div>
 
-            <div className="hero-title-line-1">
+            <div className="hero-title-block">
+              <div className="hero-title-line-1">
 
-              <motion.span
-                className="hero-title-word"
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-              >
-                {heroData.caption}
-              </motion.span>
+                <motion.span
+                  className="hero-title-word"
+                  initial={{ opacity: 0, x: -30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                >
+                  {heroData.caption}
+                </motion.span>
 
-              {/* ===== CENTER IMAGE ===== */}
+                {/* ===== CENTER IMAGE ===== */}
+                <motion.div
+                  ref={centerImageRef}
+                  className="hero-center-image"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8, delay: 0.4 }}
+                >
+                  <img src={heroData.centerImage} alt="" width={800} height={500} />
+                </motion.div>
+
+                <motion.span
+                  className="hero-title-word"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.6 }}
+                >
+                  {heroData.caption2}
+                </motion.span>
+
+              </div>
+
               <motion.div
-                ref={centerImageRef}
-                className="hero-center-image"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
+                className="hero-title-line-2"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
               >
-                <img src={heroData.centerImage} alt="" width={800} height={500} />
+                <h2 className="hero-subtitle">
+                  {heroData.caption3}
+                </h2>
               </motion.div>
-
-              <motion.span
-                className="hero-title-word"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
-              >
-                {heroData.caption2}
-              </motion.span>
-
             </div>
-
-            <motion.div
-              className="hero-title-line-2"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-            >
-              <h2 className="hero-subtitle">
-                {heroData.caption3}
-              </h2>
-            </motion.div>
 
           </div>
 

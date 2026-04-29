@@ -1,4 +1,7 @@
+// UsersManagement admin page — desktop-first responsive layout.
+// Breakpoint tokens from _breakpoints.scss.
 @import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 .users-management {
     padding: 0;

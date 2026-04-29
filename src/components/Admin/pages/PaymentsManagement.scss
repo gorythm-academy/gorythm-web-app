@@ -1,4 +1,6 @@
+// PaymentsManagement admin page — desktop-first. Breakpoint tokens from _breakpoints.scss.
 @import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 .payments-management {
     padding: 0;
@@ -555,7 +557,8 @@
         }
     }
     
-    @media (max-width: $bp-legacy-768) {
+    // ≤ 768px ($bp-admin-table-max): stack header and controls bar
+    @media (max-width: $bp-admin-table-max) {
         .page-header {
             flex-direction: column;
             gap: 1rem;
@@ -582,6 +585,7 @@
         }
     }
     
+    // ≤ 480px (small phone): single-column stats, table scrolls horizontally
     @media (max-width: $bp-legacy-480) {
         .stats-grid {
             grid-template-columns: 1fr;
@@ -589,7 +593,7 @@
         
         .payments-table {
             display: block;
-            overflow-x: auto;
+            overflow-x: auto; // allow horizontal scroll for wide payment tables on small phones
         }
     }
 }

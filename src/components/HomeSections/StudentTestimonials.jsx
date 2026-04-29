@@ -1,30 +1,60 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './StudentTestimonials.scss';
-import testimonialImg1 from '../../assets/images/milestone-img01.jpg';
-import testimonialImg2 from '../../assets/images/milestone-img02.jpg';
-import testimonialImg3 from '../../assets/images/emotional intelligence.jpg';
 
 const testimonials = [
   {
-    name: 'Andrew Lewis',
+    name: 'Ibrahim',
     role: 'Tajweed Class Student',
-    image: testimonialImg1,
     quote:
-      'The Tajweed classes have greatly improved my recitation. The teacher explains each rule clearly and ensures we practice it properly. I feel much more confident reading the Qur’an now.',
+      'The Tajweed classes have truly helped me improve my recitation. My teacher takes the time to explain each rule in a way that’s easy to understand and makes sure I practice it until I get it right. I can honestly say I feel much more confident and comfortable reading the Qur’an now.',
   },
   {
-    name: 'Sana Noor',
+    name: 'Bianca',
+    role: 'Arabic Language Student',
+    quote:
+      'Learning Arabic at Al Farhan Academy has been a truly rewarding experience. The lessons are structured in a way that makes understanding the language easy and engaging. I now feel more connected to the Qur’an as I can understand its words more deeply.',
+  },
+  {
+    name: 'Yasin',
     role: 'Tajweed Class Student',
-    image: testimonialImg2,
     quote:
       'My pronunciation has improved significantly since joining the Tajweed course. The one-on-one attention and regular feedback helped me correct mistakes I didn’t even realize before.',
   },
   {
-    name: 'Ibrahim Khan',
-    role: 'Arabic Class Student',
-    image: testimonialImg3,
+    name: 'Tareena - Yacoub’ mother',
+    role: 'Islamic Studies Student',
     quote:
-      'Learning Arabic at Al Farhan Academy has been a truly rewarding experience. The lessons are structured in a way that makes understanding the language easy and engaging. I now feel more connected to the Qur’an as I can understand its words more deeply.',
+      'I enrolled my child in this course hoping they would learn the basics, but it has been much more than that. The way concepts are explained has helped build strong values, and I can see a positive difference in their behavior and understanding.',
+  },
+  {
+    name: 'Sarwar Wasi',
+    role: 'Quran Recitation Student',
+    quote:
+      'At 37, I finally took the step to learn proper Qur’an recitation. The teacher’s patience and understanding made it easy to overcome my initial hesitation. Each lesson felt personalized and suited to my pace as an adult learner.',
+  },
+  {
+    name: 'Uswa',
+    role: 'Quran Recitation Student',
+    quote:
+      'This course helped me build consistency in my recitation. The supportive environment and structured lessons made it easier to improve step by step. I now recite with more confidence and connection.',
+  },
+  {
+    name: 'Mishel',
+    role: 'Islamic Studies Student',
+    quote:
+      'The Islamic Studies classes have been really meaningful for me. It’s not just about learning information, the way it’s taught makes me reflect and apply it in my daily life. I’ve started becoming more mindful of my actions, and it feels like I’m slowly growing in my understanding and character.',
+  },
+  {
+    name: 'Maria',
+    role: 'Islamic Studies Student',
+    quote:
+      'The Islamic Studies classes have helped me understand my religion beyond just basics. I now know how to apply what I learn in my daily life, and it has made me more mindful in my actions.',
+  },
+  {
+    name: 'Shazia - Javeria’s mother',
+    role: 'Islamic Studies Student',
+    quote:
+      'My child looks forward to every class now. The lessons are simple, engaging, and easy to understand, and I can see a positive change in both learning and behavior. It’s not just knowledge, it’s building character too.',
   },
 ];
 
@@ -275,7 +305,7 @@ const StudentTestimonialsSection = () => {
                 disabled={isActive}
                 aria-label={isActive ? `${item.name} current` : item.name}
               >
-                <img src={item.image} alt="" width={72} height={72} loading="lazy" />
+                <span aria-hidden="true">{item.name.trim().charAt(0).toUpperCase()}</span>
               </button>
             );
           })}

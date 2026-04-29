@@ -1,6 +1,7 @@
+// Contact Us – two-column layout (info left, form right), matches site dark theme.
+// Breakpoint tokens from _breakpoints.scss. Desktop-first: base = full desktop.
 @import '../../styles/breakpoints';
-
-// Contact Us – two-column layout (info left, form right), matches site dark theme
+@import '../../styles/mixins';
 .contact-page {
   min-height: 100vh;
   padding: 132px 0 96px;
@@ -318,23 +319,30 @@
   border-radius: 4px;
 }
 
-@media (max-width: $bp-legacy-900) {
+// =============================================================================
+// BREAKPOINTS – ContactPage
+// =============================================================================
+
+// ≤ 900px (tablet landscape / large tablet portrait): stack info + form into single column
+// Using $bp-tablet-landscape-min (900px) — same breakpoint where the tablet landscape range starts
+@media (max-width: $bp-tablet-landscape-min) {
   .contact-page__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; // switch from side-by-side to stacked
   }
 
   .contact-page__info {
-    padding-right: 0;
+    padding-right: 0; // no longer needs right gap when stacked
   }
 }
 
+// ≤ 600px (small phone): tighter section padding, form rows stack vertically
 @media (max-width: $bp-legacy-600) {
   .contact-page {
     padding: 112px 0 72px;
   }
 
   .contact-page__form-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; // first-name / last-name stack on small phones
   }
 
   .contact-page__form-actions {

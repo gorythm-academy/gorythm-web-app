@@ -1,28 +1,35 @@
 
 /*
  * ============================================================================
- * HERO SECTION - RESPONSIVE TYPOGRAPHY APPROACH
+ * HERO SECTION – RESPONSIVE APPROACH
  * ============================================================================
- * This file uses CSS clamp() for smooth, fluid responsive typography instead
- * of multiple @media queries with breakpoint-specific font sizes.
- * 
- * Benefits:
- * - Smoother scaling across all viewport sizes (not just at breakpoints)
- * - Eliminates ~12+ redundant media queries for font-size
- * - Easier maintenance (change one clamp() instead of many breakpoints)
- * - Better UX with continuous scaling vs. abrupt jumps
- * 
- * Key clamp() implementations:
- * - .hero-title-word & .hero-subtitle: clamp(1.5rem, 0.65rem + 4vw, 5rem)
- * - .hero-description: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem)
- * 
- * Responsive strategy:
- * - Base styles = desktop + tablet (same structure; scale/fit via max-width only).
- * - Mobile (phones only, width <= 767px) = two queries: portrait and landscape.
- * - No other hero media; dead code (buttons, scroll-indicator, title helpers) removed.
+ * Strategy: Desktop-first. Base styles define the full desktop layout.
+ * Media queries only NARROW down the design for smaller viewports.
+ *
+ * Typography: CSS clamp() for smooth, fluid scaling — no per-breakpoint
+ * font-size rules needed. A single clamp() scales continuously from phone to
+ * 4K. This replaces what used to be 12+ explicit breakpoint overrides.
+ *
+ * Layout tiers (from widest to narrowest):
+ *  1. Extended desktop  ≥ 2000px : larger hero image
+ *  2. Desktop           ≥ 1280px : base styles (no @media needed)
+ *  3. Large desktop     ≤ 1600px / ≤ 1400px / ≤ 1200px: image size steps
+ *  4. Tablet (any)      ≥ 744px  : desktop layout preserved; keep in flow
+ *  5. Touch tablet      coarse+≥768px+≤1368px: flex overflow prevention
+ *  6. Tablet portrait   744px–992px portrait: hide description
+ *  7. Tablet landscape  744px–992px landscape: desktop-like side-by-side
+ *  8. Mobile portrait   ≤ 743px portrait: stacked single column
+ *  9. Mobile landscape  ≤ 1100px landscape: row with right description
+ *  10. Short landscape  ≤ 500px height: compact sizes
+ *  11. Ultra-short      ≤ 325px height: iPhone SE 1st-gen only
+ *
+ * Breakpoint tokens: all come from src/styles/_breakpoints.scss
  * ============================================================================
  */
+// Hero section breakpoints and mixins.
+// _mixins.scss re-exports breakpoint variables, so both imports here for clarity.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // Main hero section component
 // Positioned relative to contain absolutely positioned elements
@@ -135,7 +142,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    align-self: flex-end;
+    align-self: flex-end; // restore original desktop vertical alignment
     margin-left: 0;
     position: static; // Normal document flow by default
     width: auto;
@@ -149,6 +156,7 @@
       font-weight: bold;
       text-transform: uppercase;
       color: white;
+      margin-bottom: 1px;
       // Subtle post-entrance animation (runs once after Framer Motion reveals)
       animation: heroEyebrowReveal 0.8s ease-out 0.4s both;
     }
@@ -164,6 +172,12 @@
       }
     }
 
+    .hero-title-block {
+      display: grid;
+      width: 100%;
+      row-gap: 0; // single source of truth for line-1/line-2 spacing
+    }
+
     /* First line: "Knowledge [image] that" */
     .hero-title-line-1 {
       display: flex;
@@ -176,11 +190,11 @@
         /* UPDATED: Using clamp() for smooth responsive scaling - replaces 12+ media queries */
         /* Formula: clamp(min-size-mobile, base + viewport-scale, max-size-desktop) */
         /* Scales from 1.5rem (small phones) up to 5rem on large screens */
-        font-size: clamp(1.5rem, 0.65rem + 4vw, 5rem);
+        font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
         font-family: var(--font-primary);
-        font-weight: 650;
+        font-weight: 550;
         color: white;
-        line-height: normal;
+        line-height: 1;
         text-transform: uppercase;
         letter-spacing: 0px;
         text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
@@ -188,12 +202,12 @@
 
       /* Center image container - between first-line words */
       .hero-center-image {
-        width: 15vw; // Responsive based on viewport width
+        width: 9vw; // reduced center logo for all screens
         height: auto; // Maintain aspect ratio
-        min-width: 70px;
+        min-width: 44px;
         transform-style: preserve-3d;
-        max-width: 150px;
-        margin: 0 2px;
+        max-width: 96px;
+        margin: 0 4px; // slightly more side breathing room
         //aspect-ratio: 1/1; // Force square aspect ratio
         flex-shrink: 0; // Prevent image from shrinking
 
@@ -209,15 +223,15 @@
     /* Second line: "builds character" */
     .hero-title-line-2 {
       width: 100%;
-      margin-top: 4px;
 
       .hero-subtitle {
         /* UPDATED: Using clamp() for smooth responsive scaling - matches hero-title-word */
         /* Matches .hero-title-word fluid scale */
-        font-size: clamp(1.5rem, 0.65rem + 4vw, 5rem);
+        font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
         font-weight: 550;
         color: white;
         margin: 0;
+        line-height: 1;
         text-transform: uppercase;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
         white-space: nowrap; // Single line on desktop/tablet; mobile overrides in mobile blocks
@@ -227,52 +241,58 @@
     /* === RESPONSIVE IMAGE SIZING === */
     /* NOTE: Title font-size now uses clamp() above - no media queries needed for text scaling */
 
-    // Image size adjustments for different breakpoints (desktop + tablet base)
+    // -------------------------------------------------------------------------
+    // HERO CENTER-IMAGE RESPONSIVE STEPS
+    // Title font scales via clamp() — no per-breakpoint font rules needed here.
+    // Only the inline center image needs explicit vw steps as the title width
+    // changes faster than clamp() can track at the extremes.
+    // -------------------------------------------------------------------------
+
+    // ≤ 1600px: large laptop / high-res display — gentle size reduction
     @media (max-width: $bp-hero-1600) {
-      .hero-center-image {
-        width: 14vw;
-      }
+      .hero-center-image { width: 8.5vw; }
     }
 
+    // ≤ 1400px: standard 1440p laptop
     @media (max-width: $bp-hero-1400) {
-      .hero-center-image {
-        width: 13vw;
-      }
+      .hero-center-image { width: 8vw; }
     }
 
+    // ≤ 1200px: small laptop / 1080p screen
     @media (max-width: $bp-hero-1200) {
       .hero-center-image {
-        width: 12vw;
-        min-width: 80px;
+        width: 7.5vw;
+        min-width: 42px; // prevent icon becoming too tiny at this width
       }
     }
 
+    // ≤ 742px (phone-only): image re-grows slightly — phones are narrower so vw is smaller
     @media (max-width: ($bp-section-sm - 1)) {
       .hero-center-image {
-        width: 11vw;
-        min-width: 70px;
+        width: 9.5vw;
+        min-width: 40px;
       }
     }
 
-    /* ===== TABLET LANDSCAPE (768–992px wide; not tied to $bp-section-md so iPad can use desktop md cutoff) ===== */
+    // Tablet landscape (744px–992px + landscape):
+    // Desktop-like layout, but image shrinks to keep the title row from overflowing
     @media (min-width: $bp-section-sm) and (max-width: $bp-home-tablet-max) and (orientation: landscape) {
       .hero-center-image {
-        width: 8vw;
-        min-width: 60px;
-        margin: 0 2px;
+        width: 6vw;
+        min-width: 44px;
+        margin: 0 4px;
       }
 
       .hero-title-line-1 {
-        gap: 0px;
+        gap: 0px; // remove gap — margin on the image handles spacing
       }
-
     }
 
-    // Ultra-wide screens - allow larger image
+    // ≥ 2000px ultra-wide: allow image to grow back proportionally
     @media (min-width: $bp-hero-2000) {
       .hero-center-image {
-        width: 16vw;
-        max-width: 250px;
+        width: 10vw;
+        max-width: 130px; // cap so it doesn't dominate on 4K/5K screens
       }
     }
   }
@@ -300,8 +320,12 @@
     }
   }
 
-  /* ===== TABLETS (touch) - keep desktop structure, prevent overflow ===== */
-  @media (pointer: coarse) and (hover: none) and (min-width: 768px) and (max-width: 1368px) {
+  // ===========================================================================
+  // TOUCH TABLETS (coarse pointer, 768px–1368px, any orientation)
+  // Keep the desktop side-by-side layout but prevent flex overflow / clipping.
+  // Applies to: iPad, iPad Mini, iPad Air, Surface tablets.
+  // ===========================================================================
+  @include touch-tablet {
     // The desktop layout uses fixed top margin + flex space-between; on tablets it can overflow.
     .hero-content {
       margin-top: clamp(120px, 12vh, 200px);
@@ -320,8 +344,13 @@
     }
   }
 
-  /* ===== MOBILE ONLY: PORTRAIT (width <= 767px) ===== */
-  @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) { // phones only (exclude iPad Mini 744+)
+  // ===========================================================================
+  // MOBILE PORTRAIT (≤ 743px + portrait)
+  // Phones only — iPad Mini (744px) is intentionally excluded.
+  // Layout switches from the desktop side-by-side row to a stacked single-column.
+  // Description is hidden to keep the hero readable on narrow screens.
+  // ===========================================================================
+  @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
    
     .hero-title-wrapper .hero-eyebrow {
       font-size: 14px;
@@ -336,6 +365,7 @@
 
     .hero-container { // tighten container spacing + keep content anchored low
       padding: 0 20px; // reduce left/right padding for small screens
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); // tiny safe bottom inset
       align-items: flex-start; // keep content aligned to the left edge
       justify-content: flex-end; // push content toward the bottom of the hero
       text-align: left; // ensure text alignment stays left
@@ -347,7 +377,9 @@
       justify-content: flex-end; // keep the stacked block near the bottom
       max-width: 100%; // prevent any width constraints that can cause overflow
       text-align: center; // center the overall block (per existing mobile design)
-      margin-bottom: 50px; // add breathing room at the bottom
+      margin-top: 0; // ensure title block remains bottom-anchored
+      margin-bottom: 0; // remove inherited lift from base spacing
+      min-height: 0; // cancel desktop min-height so title can drop to bottom
     }
 
     .hero-description-container { // hide right-side description on phones
@@ -365,18 +397,19 @@
       align-items: center; // vertically center words and image
       //gap: 4px; // tighten spacing between word/image elements
       justify-content: flex-start; // align the row to the left
-      flex-wrap: wrap; // allow wrapping when the line doesn't fit
+      flex-wrap: nowrap; // keep first title line in one row on phones
     }
 
     .hero-title-wrapper .hero-title-word, // target the words in the first line
     .hero-title-wrapper .hero-subtitle { // target the second line subtitle text
+      font-size: clamp(0.95rem, 4.2vw, 1.55rem); // stronger reduction for portrait phones
       text-align: left; // ensure words/subtitle stay left-aligned
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image { // center image sizing/margins on phones (portrait)
-      width: 20vw; // slightly smaller on portrait phones
-      min-width: 60px; // keep readable on very small phones
-      margin: 0; // remove desktop horizontal margin on portrait phones
+      width: 13vw; // reduced logo size on portrait phones
+      min-width: 40px; // keep readable on very small phones
+      margin: 0 2px; // keep a small left/right gap from title words
       transform: translateZ(0); // reduce subpixel blur on mobile GPUs
 
       img {
@@ -391,21 +424,53 @@
       text-align: left; // align subtitle line to the left
 
       .hero-subtitle { // subtitle typography tweaks for phones
-        white-space: normal; // allow subtitle to wrap on small widths
+        white-space: nowrap; // force second title line to stay one line on phones
         line-height: 1.1; // tighten line height for wrapped subtitle
         text-align: left; // keep subtitle text left-aligned
       }
     }
   }
 
-  /* ===== MOBILE LANDSCAPE BASE (all phones + foldables in landscape) ===== */
-  /*
-   * max-width raised to 1100px to include Galaxy Z Fold 5 inner screen (~1080px wide).
-   * Title: bottom-left. Description: position:absolute bottom-right corner.
-   * Tier thresholds:
-   *   short   ≤ 500px  — iPhone 12-16, XR, Galaxy S, Pixel, Z Fold outer (~344px), S8+ (~360px)
-   *   very-short ≤ 325px — only iPhone SE 1st-gen (320px); all else show description
-   */
+  // ===========================================================================
+  // TABLET PORTRAIT (744px–992px + portrait)
+  // Covers: iPad Mini, iPad 10, smaller iPads in portrait mode.
+  // Hides the description to reduce clutter on portrait tablets —
+  // the full-width title is more impactful without text competing on the right.
+  // ===========================================================================
+  @media (min-width: $bp-section-sm) and (max-width: $bp-home-tablet-max) and (orientation: portrait) {
+    .hero-container {
+      justify-content: flex-end;
+      align-items: flex-start;
+    }
+
+    .hero-title-wrapper {
+      align-self: flex-start; // keep eyebrow/title pinned to the left on tablet portrait
+    }
+
+    .hero-content {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-end;
+      margin-top: 0;
+      min-height: 0;
+      margin-bottom: 26px;
+    }
+
+    .hero-description-container {
+      display: none;
+    }
+  }
+
+  // ===========================================================================
+  // MOBILE LANDSCAPE (≤ 1100px + landscape)
+  // max-width = 1100px to include Galaxy Z Fold 5 inner screen (~1080px wide).
+  //
+  // Layout: title sits bottom-left, description sits bottom-right in a flex row.
+  // Sub-tiers based on viewport HEIGHT:
+  //   ≤ 500px: short phones    — iPhone 12–16, Galaxy S, Pixel, Z Fold outer
+  //   ≤ 430px: very short      — iPhone SE 2/3
+  //   ≤ 325px: ultra-short     — iPhone SE 1st-gen only (320px height)
+  // ===========================================================================
   @media (orientation: landscape) and (max-width: $bp-home-landscape-max) {
     height: 100svh; // lock section to viewport — no page scroll
     overflow: hidden; // clip anything outside
@@ -426,13 +491,14 @@
     }
 
     .hero-content {
-      flex-direction: column;
-      align-items: flex-start;
+      flex-direction: row;
+      align-items: flex-end;
       justify-content: flex-end;
       margin-top: 0;
       min-height: 0;
       margin-bottom: 26px; // landscape breathing room from bottom edge
       width: 100%;
+      gap: clamp(12px, 2.8vw, 34px);
     }
 
     .hero-title-wrapper .hero-eyebrow {
@@ -448,34 +514,29 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-title-word {
-      font-size: clamp(3.1rem, 6vw, 4.85rem);
+      font-size: clamp(1.7rem, 3.5vw, 2.8rem);
       line-height: 1.1;
     }
 
-    .hero-title-wrapper .hero-title-line-2 {
-      margin-top: 2px;
-    }
-
     .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
-      font-size: clamp(3.1rem, 6vw, 4.85rem);
+      font-size: clamp(1.7rem, 3.5vw, 2.8rem);
       line-height: 1.1;
       white-space: nowrap;
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
-      width: clamp(86px, 17vw, 160px); // scaled up to match larger title
-      min-width: 86px;
-      margin: 0 2px;
+      width: clamp(52px, 8.5vw, 82px); // reduced center logo in landscape
+      min-width: 52px;
+      margin: 0 4px;
     }
 
     .hero-description-container {
-      position: absolute; // always anchored to bottom-right of container regardless of title
-      bottom: 16px; // add breathing room from bottom edge in landscape
-      right: 0; // container padding-right (20px) provides edge gap
+      position: static; // keep in normal flow so it stays parallel to title
       display: block;
       max-width: 42%;
+      align-self: flex-end;
       text-align: right;
-      padding-right: 14px; // extra breathing room from right edge
+      padding-right: 0;
       overflow: hidden;
 
       .hero-description {
@@ -488,12 +549,12 @@
     }
   }
 
-  /* ===== MOBILE LANDSCAPE SHORT HEIGHT (max ~500px) ===== */
-  /*
-   * Covers: Z Fold 5 outer (~344px), Galaxy S8+ (~360px), iPhone SE 2/3 (~375px),
-   *         iPhone 12–16 (~390px), Galaxy S series (~411px), Pixel (~412px), XR (~414px).
-   * Description stays visible; only sizes scaled back to fit short viewport.
-   */
+  // ===========================================================================
+  // MOBILE LANDSCAPE – SHORT HEIGHT (landscape + height ≤ 500px)
+  // Covers: Z Fold outer (~344px), Galaxy S8+ (~360px), iPhone SE 2/3 (~375px),
+  //         iPhone 12–16 (~390px), Galaxy S (~411px), Pixel (~412px), XR (~414px).
+  // Description remains visible; font/image sizes scale back to fit the short viewport.
+  // ===========================================================================
   @media (orientation: landscape) and (max-width: $bp-home-landscape-max) and (max-height: $bp-home-landscape-short-max) {
     .hero-container {
       padding-top: 6px;
@@ -505,16 +566,16 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-title-word {
-      font-size: clamp(2.5rem, 4.85vw, 4rem); // match subtitle scale for short heights
+      font-size: clamp(1.45rem, 3vw, 2.3rem); // match subtitle scale for short heights
     }
 
     .hero-title-wrapper .hero-title-line-2 .hero-subtitle {
-      font-size: clamp(2.5rem, 4.85vw, 4rem);
+      font-size: clamp(1.45rem, 3vw, 2.3rem);
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
-      width: clamp(68px, 13.5vw, 118px);
-      min-width: 68px;
+      width: clamp(44px, 7.5vw, 68px);
+      min-width: 44px;
     }
 
     .hero-description-container {
@@ -526,12 +587,12 @@
     }
   }
 
-  /* ===== MOBILE LANDSCAPE VERY SHORT HEIGHT (max ~325px) ===== */
-  /*
-   * Threshold 325px: catches ONLY iPhone SE 1st-gen (320px landscape height).
-   * Every other device (Z Fold outer 344px, S8+ 360px, SE 2/3 375px…) is above this.
-   * Description hidden — there is genuinely no room at 320px height.
-   */
+  // ===========================================================================
+  // MOBILE LANDSCAPE – ULTRA SHORT HEIGHT (landscape + height ≤ 325px)
+  // Only catches iPhone SE 1st-gen (320px landscape height).
+  // All other devices (Z Fold outer 344px, SE 2/3 375px, etc.) are above 325px.
+  // Description is kept at max-width:38% — even at 320px there is just enough room.
+  // ===========================================================================
   @media (orientation: landscape) and (max-width: $bp-home-landscape-max) and (max-height: $bp-home-landscape-ultra-short-max) {
     .hero-container {
       padding-top: 4px;
@@ -555,25 +616,64 @@
     }
 
     .hero-title-wrapper .hero-title-line-1 .hero-center-image {
-      width: clamp(40px, 8vw, 56px);
-      min-width: 40px;
-      margin: 0 1px;
+      width: clamp(30px, 6vw, 40px);
+      min-width: 30px;
+      margin: 0 2px;
     }
 
     .hero-description-container {
-      display: none; // 320px height is genuinely too short for any description
+      display: block;
+      max-width: 38%;
     }
   }
 
-  /* ===== GLOBAL POSITIONING FIXES (tablet + desktop only; mobile uses its own blocks above) ===== */
+  // ===========================================================================
+  // TABLET + DESKTOP (≥ 744px): padding and eyebrow adjustments
+  // Only applies to viewports where the desktop/tablet layout is used.
+  // Mobile portrait/landscape have their own blocks above that override these.
+  // ===========================================================================
   @media (min-width: $bp-section-sm) {
     .hero-container {
       padding-top: 40px;
     }
 
+    .hero-title-wrapper {
+      .hero-eyebrow {
+        margin-bottom: 0; // desktop/tablet: tighter eyebrow-to-title spacing
+      }
+    }
+
     .hero-background {
       height: 100%;
       width: 100%;
+    }
+  }
+
+  // ===========================================================================
+  // TABLET LANDSCAPE (744px–992px + landscape)
+  // Mirrors the desktop side-by-side composition: title on the left,
+  // description on the right — both aligned to the bottom of the hero.
+  // Font sizes are slightly larger than mobile-landscape due to wider viewport.
+  // ===========================================================================
+  @media (min-width: $bp-section-sm) and (max-width: $bp-home-tablet-max) and (orientation: landscape) {
+    .hero-content {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between; // desktop-like parallel title + description
+      margin-bottom: 10px; // align with desktop bottom rhythm
+      min-height: 0;
+    }
+
+    .hero-description-container {
+      display: block;
+      max-width: min(440px, 42%);
+      align-self: flex-end;
+      text-align: right;
+
+      .hero-description {
+        font-size: clamp(1rem, 1.1vw, 1.28rem); // larger than mobile-landscape sizing
+        line-height: 1.55;
+      }
     }
   }
 }

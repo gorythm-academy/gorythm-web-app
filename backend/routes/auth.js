@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../middleware/auth');
+const { validate, rules } = require('../middleware/validate');
 
 const createToken = (user, rememberMe = false) => {
     const expiresIn = rememberMe
@@ -24,7 +25,14 @@ const touchLastLogin = async (userId) => {
 };
 
 // Login route
-router.post('/login', async (req, res) => {
+router.post(
+    '/login',
+    validate([
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+        rules.requiredString('password', 'Password', 6),
+    ]),
+    async (req, res) => {
     try {
         const { email, password, rememberMe } = req.body;
         const emailNorm = normalizeEmail(email);
@@ -67,13 +75,20 @@ router.post('/login', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('POST /login error:', error);
+        req.log.error('POST /login error', { err: error });
         res.status(500).json({ error: 'Server error' });
     }
 });
 
 // Admin-only login route for admin dashboard
-router.post('/admin-login', async (req, res) => {
+router.post(
+    '/admin-login',
+    validate([
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+        rules.requiredString('password', 'Password', 6),
+    ]),
+    async (req, res) => {
     try {
         const { email, password, rememberMe } = req.body;
         const emailNorm = normalizeEmail(email);
@@ -112,7 +127,7 @@ router.post('/admin-login', async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('POST /admin-login error:', error);
+        req.log.error('POST /admin-login error', { err: error });
         res.status(500).json({ error: 'Server error' });
     }
 });

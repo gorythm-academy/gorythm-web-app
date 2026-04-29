@@ -1,4 +1,7 @@
-@import '../../../styles/_breakpoints.scss';
+// Admin Settings page — desktop-first responsive layout.
+// Breakpoint tokens from _breakpoints.scss.
+@import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 // Settings Page Styles
 .settings-page {

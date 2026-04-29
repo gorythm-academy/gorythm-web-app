@@ -24,12 +24,10 @@ const DashboardHome = () => {
 
     const checkBackendHealth = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/health`);
+            await axios.get(`${API_BASE_URL}/health`);
             setBackendStatus('connected');
-            console.log('✅ Backend health:', response.data);
         } catch (err) {
             setBackendStatus('disconnected');
-            console.log('⚠️ Backend not responding');
         }
     }, []);
 
@@ -59,8 +57,6 @@ const DashboardHome = () => {
             }
             
         } catch (error) {
-            console.error('❌ Error fetching dashboard:', error);
-            
             // Set empty data on error
             setStats({
                 totalStudents: 0,

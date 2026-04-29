@@ -1,4 +1,7 @@
+// SingleCourse page — full course detail view.
+// Desktop-first breakpoints; tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 .course-item-page {
   min-height: 100vh;
@@ -257,7 +260,7 @@
   color: rgba(255, 255, 255, 0.92);
   font-weight: 600;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: normal;
 }
 
 .cip-meta-price-period {

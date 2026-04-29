@@ -1,50 +1,63 @@
-// ===============================================================
-// LANDSCAPE: Header and mobile menu (moved from Header.scss)
-// ===============================================================
+// =============================================================================
+// HEADER – Landscape-mode overrides
+// =============================================================================
+// All landscape media queries for the header and mobile menu live here.
+// Breakpoint tokens come from _breakpoints.scss via _mixins.scss (imported in Header.scss).
+// =============================================================================
 
-// Landscape: show hamburger and hide desktop nav when below 1280px wide; wider header (less padding)
+// Any landscape viewport with height ≤ 800px: compact header padding
+// Covers: most phones and mid-range tablets in landscape
 @media (orientation: landscape) and (max-height: 800px) {
   .header {
-    padding: 0.4rem 0;
+    padding: 0.4rem 0; // very tight vertical padding — landscape viewport height is precious
 
-    .desktop-nav { display: none; }
-    .mobile-menu-toggle { display: flex; }
-    .menu-grid-trigger { display: flex; }
-    .logo-slogan { display: none; }
+    .desktop-nav     { display: none; }   // hide desktop nav when height is too short
+    .mobile-menu-toggle { display: flex; } // show hamburger instead
+    .menu-grid-trigger  { display: flex; } // keep 9-dot grid trigger visible
+    .logo-slogan     { display: none; }   // hide tagline to save vertical space
   }
 
+  // Tighter side padding so logo and hamburger don't crowd each other
   .header .header-container {
     padding-left: 16px;
     padding-right: 16px;
   }
 }
 
+// Small landscape width + short height (e.g. Galaxy Z Fold outer, small landscape phones)
+// width ≤ 1000px AND height ≤ 700px
 @media (orientation: landscape) and (max-width: 1000px) and (max-height: 700px) {
   .header .mobile-menu-toggle {
     .toggle-line {
       width: 22px;
       height: 2px;
-      margin: 2px 0;
+      margin: 2px 0; // tighter hamburger lines for compact viewports
     }
   }
 }
 
+// Very short landscape (height ≤ 450px): extremely compact header
+// Only applies when width ≥ 800px (prevents overlap with narrow phones)
 @media (orientation: landscape) and (min-width: 800px) and (max-height: 450px) {
   .header .header-container { padding: 0 18px; }
+
+  // Smaller logo to preserve space when viewport height is extremely limited
   .header .header-logo .logo-text { font-size: 1.2rem; }
+
   .header .mobile-menu-toggle {
     .toggle-line { width: 22px; height: 2px; margin: 2px 0; }
   }
 }
 
-// Limit auth button width in landscape so they don't stretch full width
+// Any landscape (regardless of size): limit auth button width so they don't stretch
 @media (orientation: landscape) {
   .mobile-menu-overlay .mobile-auth-buttons .btn {
     max-width: 260px;
   }
 }
 
-// Landscape: ensure 9-dot grid sidebar visible on right side (responsive landscape)
+// 9-dot grid sidebar in landscape with short height (≤ 600px)
+// Ensures the panel renders correctly on short landscape viewports
 @media (orientation: landscape) and (max-height: 600px) {
   .menu-grid-panel {
     z-index: 99999;
@@ -60,58 +73,48 @@
   }
 
   .menu-grid-overlay {
-    z-index: 99998;
+    z-index: 99998; // just below the panel
   }
 }
 
-@media (orientation: landscape) and (max-width: $bp-legacy-1279) and (max-height: $bp-legacy-768) {
+// Landscape + ≤ laptop width ($bp-laptop-max = 1279px) + height ≤ 768px:
+// Force mobile chrome even though width > phone threshold
+// Example: iPad in landscape (1024px wide, ~768px tall)
+@media (orientation: landscape) and (max-width: $bp-laptop-max) and (max-height: $bp-legacy-768) {
   .header {
-    .desktop-nav {
-      display: none;
-    }
-    .mobile-menu-toggle {
-      display: flex;
-    }
-    .menu-grid-trigger {
-      display: flex;
-    }
-    .logo-slogan {
-      display: none;
-    }
+    .desktop-nav        { display: none; }   // use mobile nav
+    .mobile-menu-toggle { display: flex; }   // show hamburger
+    .menu-grid-trigger  { display: flex; }   // keep 9-dot visible
+    .logo-slogan        { display: none; }   // hide tagline
   }
 }
 
-@media (orientation: landscape) and (min-width: $bp-legacy-1280) {
+// ≥ desktop width in landscape ($bp-desktop-min = 1280px):
+// Restore the full desktop nav layout when the screen is wide enough
+@media (orientation: landscape) and (min-width: $bp-desktop-min) {
   .header {
-    .desktop-nav {
-      display: flex;
-    }
-    .mobile-menu-toggle {
-      display: none;
-    }
-    .menu-grid-trigger {
-      display: flex;
-    }
-    .logo-slogan {
-      display: block;
-    }
+    .desktop-nav        { display: flex; }   // show full nav links
+    .mobile-menu-toggle { display: none; }   // hide hamburger
+    .menu-grid-trigger  { display: flex; }   // 9-dot always visible
+    .logo-slogan        { display: block; }  // tagline visible at desktop width
   }
 }
 
-/* Any responsive landscape: keep 9-dot trigger visible when hamburger is shown */
-@media (orientation: landscape) and (max-width: $bp-legacy-1279) {
+// Any landscape ≤ laptop width: keep 9-dot trigger visible alongside hamburger
+@media (orientation: landscape) and (max-width: $bp-laptop-max) {
   .header .menu-grid-trigger {
     display: flex;
   }
 }
 
-/* Portrait: hide 9-dot trigger */
+// Portrait (any size): hide 9-dot trigger (it lives in the sidebar, not the header bar)
+// Also ensure the panel is never visible if a rotation happened while it was open
 @media (orientation: portrait) {
   .header .menu-grid-trigger {
     display: none;
   }
 
-  // Ensure panel is never visible in portrait even if state was open before rotate.
+  // Safety: prevent grid panel flash on orientation change from landscape→portrait
   .menu-grid-panel {
     display: none;
   }

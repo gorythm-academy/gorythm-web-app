@@ -1,4 +1,8 @@
+// AllCourses page — sticky left panel + independently-scrolling masonry right.
+// Responsive strategy: desktop-first, same as HomeSections/Courses.scss.
+// Breakpoint tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 .courses-page {
   background: #000;
@@ -315,7 +319,7 @@
   font-weight: 700;
   max-width: 100%;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: normal;
 }
 
 .courses-item-price-amount {
@@ -438,14 +442,21 @@
   padding-bottom: 0;
 }
 
+// =============================================================================
+// BREAKPOINTS – AllCourses page
+// All breakpoints use tokens from _breakpoints.scss (imported above).
+// =============================================================================
+
+// ≤ 1280px: reduce column gap for laptop/tablet landscape
 @media (max-width: $bp-section-lg) {
   .courses-inner {
     gap: 0 24px;
   }
 }
 
-// Mobile portrait: single column, no separate scroll — gallery in normal flow, finger scrolls page
-@media (max-width: $bp-section-md) {
+// ≤ 768px (mobile/tablet portrait): single column, normal-flow gallery
+// The left panel unsticks and the right panel scrolls with the page
+@media (max-width: $bp-section-sm) {
   .courses-inner {
     grid-template-columns: 1fr;
     gap: 20px 0;
@@ -488,8 +499,9 @@
   }
 }
 
-// Mobile landscape: desktop-like split layout – equal-height panels, masonry scrolls independently
-@media (max-width: $bp-section-md) and (orientation: landscape) {
+// Mobile landscape (≤ 768px landscape): restore split layout — equal-height panels,
+// masonry panel scrolls independently while left panel stays sticky
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
   .courses-inner {
     grid-template-columns: 7fr 13fr;
     gap: 0 24px;
@@ -536,6 +548,7 @@
   }
 }
 
+// ≤ 768px (mobile base): typography, padding, and FAQ adjustments
 @media (max-width: $bp-section-sm) {
   .courses-page {
     padding-top: 88px;
@@ -599,6 +612,7 @@
   }
 }
 
+// ≤ 480px (small phone): tighter padding and smaller typography
 @media (max-width: $bp-section-xs) {
   .courses-page-header {
     gap: 20px;

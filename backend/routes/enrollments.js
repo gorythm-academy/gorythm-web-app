@@ -161,7 +161,7 @@ router.post('/', authMiddleware, async (req, res) => {
             enrollment: populatedEnrollment
         });
     } catch (error) {
-        console.error('Enrollment error:', error);
+        req.log.error('Enrollment error', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error creating enrollment',

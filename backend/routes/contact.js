@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const ContactMessage = require('../models/ContactMessage');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
+const { validate, rules } = require('../middleware/validate');
 
 const activeMessageFilter = () => ({
   $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
@@ -48,7 +49,15 @@ async function createTransporter() {
 }
 
 // POST /api/contact  - receive contact form, save, and email admin
-router.post('/', async (req, res) => {
+router.post(
+  '/',
+  validate([
+    rules.requiredString('name', 'Name'),
+    rules.requiredString('email', 'Email'),
+    rules.email('email', 'Email'),
+    rules.requiredString('message', 'Message'),
+  ]),
+  async (req, res) => {
   try {
     const { name, email, phone, subject, message, consent } = req.body || {};
 
@@ -123,7 +132,7 @@ router.post('/', async (req, res) => {
         html: htmlBody,
       });
     } catch (err) {
-      console.error('Error sending contact email:', err.message);
+      req.log.error('Error sending contact email', { err });
       emailError = err.message;
     }
 
@@ -135,7 +144,7 @@ router.post('/', async (req, res) => {
       emailError: emailError || undefined,
     });
   } catch (error) {
-    console.error('Contact form error:', error);
+    req.log.error('Contact form error', { err: error });
     return res.status(500).json({
       success: false,
       error: 'Failed to submit contact form',

@@ -203,28 +203,32 @@
   width: 64px;
   height: 64px;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(177, 147, 100, 0.82);
   background: #111;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.18s ease, border-color 0.22s ease;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
 
-  img {
+  span {
     display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: brightness(0.56);
-    transition: filter 0.2s ease;
+    transition: color 0.2s ease;
   }
 
   &:hover {
     transform: translateY(-2px);
     border-color: rgba(255, 255, 255, 0.38);
 
-    img {
-      filter: brightness(0.78);
+    span {
+      color: rgba(255, 255, 255, 0.86);
     }
   }
 
@@ -238,8 +242,8 @@
     cursor: default;
     transform: scale(1.02);
 
-    img {
-      filter: brightness(1);
+    span {
+      color: #fff;
     }
   }
 }

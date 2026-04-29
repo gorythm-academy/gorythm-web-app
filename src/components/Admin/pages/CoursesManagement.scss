@@ -1,5 +1,7 @@
 // CoursesManagement.scss - UPDATED WITH MODAL
+// CoursesManagement admin page — desktop-first. Breakpoint tokens from _breakpoints.scss.
 @import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 @import './courses-management-modal';
 
 // Bulk Actions Bar
@@ -289,7 +291,11 @@ tr.selected {
     }
 }
 
-// Responsive adjustments
+// =============================================================================
+// RESPONSIVE – CoursesManagement admin page
+// =============================================================================
+
+// ≤ 767px ($bp-sm / global "sm"): stack controls and bulk action bar
 @media (max-width: $bp-sm) {
     .controls-bar {
         flex-direction: column;
@@ -316,6 +322,7 @@ tr.selected {
     }
 }
 
+// ≤ 479px ($bp-xs): single-column stats grid on very small phones
 @media (max-width: $bp-xs) {
     .page-stats {
         grid-template-columns: 1fr;

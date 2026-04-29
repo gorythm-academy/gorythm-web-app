@@ -1,6 +1,6 @@
-@import '../../../styles/_variables.scss';
-@import '../../../styles/_mixins.scss';
-@import '../../../styles/_breakpoints.scss';
+// StudentsData admin page — desktop-first. Breakpoint tokens from _breakpoints.scss.
+@import '../../../styles/variables';
+@import '../../../styles/mixins';
 @import './students-data-modal';
 
 .students-data-page {
@@ -1097,7 +1097,12 @@
     }
 }
 
-@media (max-width: $bp-legacy-1024) {
+// =============================================================================
+// RESPONSIVE – StudentsData admin page
+// =============================================================================
+
+// ≤ 1024px ($bp-admin-sidebar-max): header actions stack vertically — sidebar may be collapsed
+@media (max-width: $bp-admin-sidebar-max) {
     .page-header {
         flex-direction: column;
         gap: 12px;
@@ -1110,7 +1115,8 @@
     }
 }
 
-@media (max-width: $bp-legacy-768) {
+// ≤ 768px ($bp-admin-table-max): compact layout — bulk action bar + controls bar stack
+@media (max-width: $bp-admin-table-max) {
     .students-data-page {
         padding: 16px;
     }
@@ -1148,6 +1154,7 @@
     }
 }
 
+// ≤ 480px (small phone): single-column stats, smaller h1
 @media (max-width: $bp-legacy-480) {
     .page-header .header-left h1 {
         font-size: 22px;
@@ -1163,7 +1170,9 @@
     }
 }
 
-@media (min-width: $bp-legacy-769) and (max-width: $bp-legacy-1024) and (orientation: landscape) {
+// 769px–1024px landscape: ensure the data table has enough horizontal room
+// (admin sidebar takes ~250px; combined they need min 1000px of table width)
+@media (min-width: $bp-legacy-769) and (max-width: $bp-admin-sidebar-max) and (orientation: landscape) {
     .students-data-table {
         min-width: 1000px;
     }

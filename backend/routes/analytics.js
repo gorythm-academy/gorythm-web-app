@@ -9,8 +9,8 @@ const Enrollment = require('../models/Enrollment');
 // Get comprehensive analytics data
 router.get('/overview', async (req, res) => {
     try {
-        console.log('📈 Fetching analytics overview...');
-        
+        req.log.info('Fetching analytics overview');
+
         // Get timeframe (default: last 30 days)
         const days = parseInt(req.query.days) || 30;
         const startDate = new Date();
@@ -188,7 +188,7 @@ router.get('/overview', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Analytics error:', error);
+        req.log.error('Analytics overview error', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch analytics data'
@@ -245,7 +245,7 @@ router.get('/student-progress', async (req, res) => {
             data: studentProgress
         });
     } catch (error) {
-        console.error('❌ Student progress error:', error);
+        req.log.error('Student progress analytics error', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch student progress',
@@ -298,7 +298,7 @@ router.get('/revenue', async (req, res) => {
             data: revenueAnalytics
         });
     } catch (error) {
-        console.error('❌ Revenue analytics error:', error);
+        req.log.error('Revenue analytics error', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch revenue analytics',
@@ -311,7 +311,7 @@ router.get('/revenue', async (req, res) => {
 router.get('/metrics', async (req, res) => {
     try {
         const days = Math.max(1, parseInt(req.query.days, 10) || 30);
-        console.log(`📊 Fetching performance metrics (${days} days)...`);
+        req.log.info('Fetching performance metrics', { days });
 
         const now = new Date();
         const periodStart = new Date(now);
@@ -393,7 +393,7 @@ router.get('/metrics', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Performance metrics error:', error);
+        req.log.error('Performance metrics error', { err: error });
         res.status(500).json({
             success: false,
             metrics: {
