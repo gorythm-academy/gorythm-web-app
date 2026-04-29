@@ -86,7 +86,12 @@ const formatLevel = (level) => {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
-const CoursesSection = () => {
+const CoursesSection = ({
+  ctaTo = '/courses',
+  ctaLabel = 'Explore Courses',
+  showMeta = false,
+  emptyStateMode = 'home',
+}) => {
   const sectionRef = useRef(null);
   const galleryRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
@@ -200,8 +205,8 @@ const CoursesSection = () => {
                 <p className="courses-section-description courses-section_anim">
                 Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic understanding, and develop essential skills like problem-solving, reflection, and independent thinking.
                 </p>
-                <Link to="/courses" className="courses-section-cta courses-section_anim">
-                  <span className="courses-section-cta-text">Explore Courses</span>
+                <Link to={ctaTo} className="courses-section-cta courses-section_anim">
+                  <span className="courses-section-cta-text">{ctaLabel}</span>
                   <span className="courses-section-cta-arrow" aria-hidden="true">→</span>
                 </Link>
               </div>
@@ -222,7 +227,9 @@ const CoursesSection = () => {
               <p className="courses-section-empty-desc">
                 {fetchError
                   ? `Backend may be off or unreachable at ${API_BASE_URL}. Start the backend (e.g. node server), then click Refresh.`
-                  : 'The homepage only shows published courses. In Admin → Course Management, set each course’s status to “Published” (eye icon) to see them here.'}
+                  : emptyStateMode === 'all-courses'
+                    ? 'Published courses from the course table will appear here.'
+                    : 'The homepage only shows published courses. In Admin → Course Management, set each course’s status to “Published” (eye icon) to see them here.'}
               </p>
               <button type="button" className="courses-section-empty-btn" onClick={fetchCourses}>
                 Refresh
@@ -255,16 +262,18 @@ const CoursesSection = () => {
                     <div className="courses-section-item-caption">
                       <div className="courses-section-item-copy">
                         <h2 className="courses-section-item-title">{course.title}</h2>
-                       {/* <div className="courses-section-item-meta">
-                           <span className="courses-section-item-price">
-                            <span className="courses-section-item-price-amount">{course.priceDisplay}</span>
-                            {course.priceShowMonth ? (
-                              <span className="courses-section-item-price-period">Monthly</span>
-                            ) : null}
-                          </span> 
-                          <span className="courses-section-item-duration">{course.duration}</span>
-                          <span className="courses-section-item-audience">{course.level}</span>
-                        </div>*/}
+                        {showMeta ? (
+                          <div className="courses-section-item-meta">
+                            <span className="courses-section-item-price">
+                              <span className="courses-section-item-price-amount">{course.priceDisplay}</span>
+                              {course.priceShowMonth ? (
+                                <span className="courses-section-item-price-period">Monthly</span>
+                              ) : null}
+                            </span>
+                            <span className="courses-section-item-duration">{course.duration}</span>
+                            <span className="courses-section-item-audience">{course.level}</span>
+                          </div>
+                        ) : null}
                       </div>
                       <span className="courses-section-item-arrow" aria-hidden="true">→</span>
                     </div>
