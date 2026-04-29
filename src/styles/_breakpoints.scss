@@ -1,79 +1,148 @@
-// =========== RESPONSIVE BREAKPOINTS (Single source of truth) ===========
-// Desktop-first: base styles target desktop; overrides apply at max-width below.
-// Use these SCSS variables in @media and mixins (CSS custom properties cannot be used in @media).
+// =============================================================================
+// BREAKPOINTS – Single Source of Truth
+// =============================================================================
+// Approach: Desktop-first. Base (no media query) = full desktop. Narrow down
+// with max-width overrides. Use min-width ONLY for extended/ultra-wide additions.
 //
-// Global/Header/Footer (_responsive.scss, _mixins respond-to):
-// ---------------------------------------------------------------------------
-$bp-xxl: 1679px;
-$bp-xl: 1439px;
-$bp-lg: 1279px;
-$bp-md: 1023px;
-$bp-sm: 767px;
-$bp-xs: 479px;
-$bp-xxxl-min: 1680px;
+// RULE: Never hardcode pixel values in component SCSS. Import this file and use
+// the named variables below. The "legacy" aliases exist for backward-compat;
+// prefer the "semantic" aliases for new code.
+// =============================================================================
 
-// Section breakpoints (HomeSections – same visual layout, use these in section SCSS):
-// ---------------------------------------------------------------------------
-$bp-section-xxl: 1920px;
-$bp-section-xl: 1440px;
-$bp-section-lg: 1280px;
-// Phone-only upper bound (CSS px). Must be the same for md + sm or iPad Mini portrait breaks:
-// iPad Mini is ~744px wide — rules with max-width: 768px were still applying and hiding desktop layout.
-// Viewports ≤743px: mobile/stacked HomeSections + pages using these tokens. ≥744px: desktop structure (all iPads).
-$bp-section-phone-max: 743px;
-$bp-section-md: $bp-section-phone-max;
-$bp-section-sm: $bp-section-phone-max;
-$bp-section-xs: 480px;
-$bp-section-xxs: 375px;
-$bp-section-xxxs: 360px;   // S8 / S8+ portrait
-$bp-section-3xs: 320px;    // iPhone SE (1st gen) portrait
-$bp-section-landscape-se: 568px; // iPhone SE 1st gen landscape width
+// -----------------------------------------------------------------------------
+// GLOBAL / CHROME BREAKPOINTS
+// Used by: Header, Footer, SocialSidebar, WhatsAppFloat, ScrollToTop
+// Naming: $bp-{size} — map to the shared "respond-to()" mixin keys
+// -----------------------------------------------------------------------------
 
-// “Small iPad” portrait tweaks (Mini 6 = 744px, Mini 4/5 & many simulators = 768px).
-// Max 768 stays below iPad Air / iPad 10 (820px) so larger iPads are unchanged.
-$bp-ipad-mini-min: 744px;
-$bp-ipad-mini-max: 768px;
+$bp-2xl: 1680px;  // Extended desktop
+$bp-xl:  1440px;  // Large desktop
+$bp-lg:  1280px;  // Desktop baseline
+$bp-md:  1024px;  // Tablet landscape / small laptop
+$bp-sm:   768px;  // Tablet portrait
+$bp-xs:   480px;  // Phones
 
-// Homepage legacy thresholds (tokenized to preserve current behavior while
-// removing hardcoded media-query values across HomeSections).
-$bp-home-mobile-max: 768px;
-$bp-home-phone-sm-max: 576px;
-$bp-home-tablet-max: 992px;
-$bp-home-landscape-max: 1100px;
-$bp-home-landscape-short-max: 500px;
-$bp-home-landscape-very-short-max: 430px;
-$bp-home-landscape-ultra-short-max: 325px;
-$bp-home-landscape-tight-min: 640px;
-$bp-home-landscape-tight-max: 740px;
+// Backward-compatible aliases used by existing mixins/components.
+$bp-xxxl-min: $bp-2xl;       // min-width helpers
+$bp-xxl:      $bp-2xl;       // max-width helpers
+
+// -----------------------------------------------------------------------------
+// SEMANTIC ALIASES  (preferred over legacy aliases for new code)
+// -----------------------------------------------------------------------------
+
+// Extended desktops
+$bp-extended-desktop-min: $bp-xxxl-min;   // ≥ 1680px  — enhanced spacing/font
+$bp-ultra-wide-min:       $bp-2xl;         // Alias kept; canon tops at 1680px
+
+// Desktop default range: 1280px and above (no media query needed — it's the default)
+$bp-desktop-min: $bp-lg;                  // Minimum width treated as "desktop"
+
+// Laptop / small-desktop band
+$bp-laptop-max:  $bp-lg;                   // ≤ 1280px  — nav may need tighter gaps
+
+// Tablet portrait — canonical band
+$bp-tablet-portrait-min: $bp-sm;           // 768px
+$bp-tablet-portrait-max: $bp-md;           // 1024px
+$bp-ipad-mini-min:        $bp-sm;          // compatibility alias
+$bp-ipad-mini-max:        $bp-sm;          // compatibility alias
+
+// Tablet landscape — rotated iPads, large landscape phones
+$bp-tablet-landscape-min: $bp-md;          // 1024px
+$bp-tablet-landscape-max: $bp-lg;          // 1280px
+
+// Touch-tablet heuristic (pointer: coarse) used by several sections
+// Covers: iPad, iPad Mini, iPad Air, some Surface devices
+$bp-touch-tablet-min:  $bp-sm;             // Minimum width for coarse-pointer tablet rules
+$bp-touch-tablet-max: $bp-lg;              // Maximum width for coarse-pointer tablet rules
+$bp-touch-tablet-landscape-min: $bp-md;    // Landscape touch-tablet minimum
+
+// Mobile portrait
+$bp-mobile-portrait-max: $bp-sm;           // ≤ 768px   = phone/compact tablet portrait
+
+// Mobile landscape — phones + small foldables in landscape
+$bp-mobile-landscape-max: $bp-md;          // ≤ 1024px
+
+// Mobile generic (all phones regardless of orientation)
+$bp-mobile-max: $bp-sm;                    // Same as phone-max; use for non-orientation rules
+
+// Chrome-specific mobile maximum (header/footer/float switches to mobile layout)
+$bp-chrome-mobile-max: $bp-lg;             // ≤ 1280px = mobile/tablet chrome mode
+
+// Short landscape viewport heights
+$bp-landscape-short-max:      500px;       // Short height: iPhone 12–16, Pixel, Galaxy S
+$bp-landscape-very-short-max: 430px;       // Very short: iPhone SE 2/3 (375px h)
+$bp-landscape-ultra-short-max: 325px;      // Ultra short: iPhone SE 1st-gen only (320px h)
+$bp-landscape-tall-max:       720px;       // Tall landscape: some large phones
+
+// Admin dashboard breakpoints
+$bp-admin-sidebar-max: 1024px;             // ≤ 1024px  = admin sidebar collapses
+$bp-admin-table-max:    768px;             // ≤ 768px   = admin tables become card layout
+$bp-admin-modal-max:    $bp-xs;            // ≤ 480px   = admin modals go fullscreen
+
+// -----------------------------------------------------------------------------
+// SECTION BREAKPOINTS  (HomeSections & public Pages)
+// These alias the global canonical scale.
+// -----------------------------------------------------------------------------
+
+$bp-section-xxl:       $bp-2xl;
+$bp-section-xl:        $bp-xl;
+$bp-section-lg:        $bp-lg;
+
+// Canonical section aliases
+$bp-section-phone-max: $bp-sm;
+$bp-section-md:        $bp-md;
+$bp-section-sm:        $bp-sm;
+
+$bp-section-xs:   $bp-xs;  // Small phone
+$bp-section-xxs:  $bp-xs;
+$bp-section-xxxs: $bp-xs;
+$bp-section-3xs:  $bp-xs;
+
+$bp-section-landscape-se: $bp-sm;
+
+// Homepage-specific aliases (all mapped to canonical widths)
+$bp-home-mobile-max:           $bp-sm;   // Legacy; some HomeSections use this for phone-check
+$bp-home-phone-sm-max:         $bp-xs;
+$bp-home-tablet-max:           $bp-md;
+$bp-home-landscape-max:        $bp-md;
+$bp-home-landscape-short-max:          $bp-landscape-short-max;      // 500px height cap
+$bp-home-landscape-very-short-max:     $bp-landscape-very-short-max; // 430px height cap
+$bp-home-landscape-ultra-short-max:    $bp-landscape-ultra-short-max;// 325px height cap
+$bp-home-landscape-tight-min:  $bp-sm;
+$bp-home-landscape-tight-max:  $bp-md;
 $bp-home-landscape-tallish-max: 720px;
 $bp-home-landscape-tight-height-max: 375px;
 
-// Legacy pixel aliases (project-wide migration safety)
-$bp-legacy-480: 480px;
-$bp-legacy-500: 500px;
-$bp-legacy-520: 520px;
-$bp-legacy-560: 560px;
-$bp-legacy-600: 600px;
-$bp-legacy-640: 640px;
-$bp-legacy-768: 768px;
-$bp-legacy-769: 769px;
-$bp-legacy-900: 900px;
-$bp-legacy-960: 960px;
-$bp-legacy-992: 992px;
-$bp-legacy-1024: 1024px;
-$bp-legacy-1100: 1100px;
-$bp-legacy-1200: 1200px;
-$bp-legacy-1279: 1279px;
-$bp-legacy-1280: 1280px;
-$bp-legacy-1400: 1400px;
-$bp-legacy-1439: 1439px;
-$bp-legacy-1680: 1680px;
+// Hero-section-specific (fine-grained image sizing)
+$bp-hero-1200: $bp-lg;
+$bp-hero-1400: $bp-xl;
+$bp-hero-1600: $bp-2xl;
+$bp-hero-2000: $bp-2xl;
 
-// Optional second branch for @media lists: fold / dual-pane (OR with max-width). Used by Video.scss.
+// -----------------------------------------------------------------------------
+// LEGACY PIXEL ALIASES  (for backward compatibility — do NOT use in new code)
+// Wherever you see $bp-legacy-*, prefer the semantic alias above if one exists.
+// -----------------------------------------------------------------------------
+
+$bp-legacy-480:  $bp-xs;
+$bp-legacy-500:  500px;
+$bp-legacy-520:  $bp-xs;
+$bp-legacy-560:  $bp-sm;
+$bp-legacy-600:  $bp-sm;
+$bp-legacy-640:  $bp-sm;
+$bp-legacy-768:  $bp-sm;
+$bp-legacy-769:  $bp-sm;
+$bp-legacy-900:  $bp-md;
+$bp-legacy-960:  $bp-md;
+$bp-legacy-992:  $bp-md;
+$bp-legacy-1024: $bp-md;                    // 1024px ← semantic alias preferred
+$bp-legacy-1100: $bp-md;
+$bp-legacy-1200: $bp-lg;
+$bp-legacy-1279: $bp-lg;                    // compatibility alias
+$bp-legacy-1280: $bp-lg;                    // compatibility alias
+$bp-legacy-1400: $bp-xl;
+$bp-legacy-1439: $bp-xl;
+$bp-legacy-1680: $bp-xxxl-min;             // 1680px ← semantic alias preferred ($bp-extended-desktop-min)
+
+// Fold / dual-pane screens (Galaxy Z Fold, Surface Duo)
 $media-dual-screen-span: '(horizontal-viewport-segments: 2), (vertical-viewport-segments: 2)';
-
-// HeroSection-specific (preserve exact layout)
-$bp-hero-1200: 1200px;
-$bp-hero-1400: 1400px;
-$bp-hero-1600: 1600px;
-$bp-hero-2000: 2000px;

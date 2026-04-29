@@ -1,6 +1,9 @@
 // Courses Section (landing) – sticky left + independently-scrolling right masonry
-// ============================================================================
+// =============================================================================
+// Breakpoint tokens and mixins from _breakpoints.scss / _mixins.scss.
+// _mixins.scss re-exports all breakpoint variables, so only one import is needed.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // Scroll-triggered animation (same pattern as About, WhyGorythm, Blog)
 @keyframes coursesSectionFadeUp {
@@ -45,7 +48,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: 9fr 11fr;
+  grid-template-columns: 33% 67%;
   gap: 0 32px;
   align-items: start;
 }
@@ -322,7 +325,7 @@
   font-weight: 700;
   max-width: 100%;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: normal;
 }
 
 .courses-section-item-price-amount {
@@ -377,7 +380,7 @@
   .courses-section-title-line { margin-bottom: 28px; }
 }
 
-@media (max-width: ($bp-section-sm - 1)) {
+@media (max-width: $bp-section-sm) {
   .courses-section-inner {
     grid-template-columns: 1fr;
     gap: 20px 0;
@@ -407,7 +410,7 @@
 }
 
 // Portrait: let the left section span full screen width (no inner padding)
-@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
   .courses-section-inner {
     padding: 0;
   }
@@ -429,7 +432,7 @@
 }
 
 // Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
-@media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
+@media (max-width: $bp-section-sm) and (orientation: landscape) {
   .courses-section-big-number {
     top: 0;
     transform: translateY(-18%); // stable across landscape phone heights (iOS/Samsung URL bar changes)
@@ -446,7 +449,7 @@
   }
 
   .courses-section-inner {
-    grid-template-columns: 9fr 11fr;
+    grid-template-columns: 33% 67%;
     gap: 0 32px;
     align-items: stretch;
   }
@@ -572,7 +575,7 @@
 }
 
 // Mobile portrait: increase Courses typography for readability
-@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
   .courses-section-inner {
     padding-left: 0;
     padding-right: 0;
@@ -619,14 +622,16 @@
 }
 
 // Phone portrait only: space after Marquee before Courses
-@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+@media (max-width: $bp-section-sm) and (orientation: portrait) {
   .courses-section {
     padding-top: clamp(28px, 7vw, 44px);
   }
 }
 
-/* ===== TABLETS (touch) LANDSCAPE - match left/right heights ===== */
-@media (pointer: coarse) and (hover: none) and (orientation: landscape) and (min-width: 1024px) and (max-width: 1368px) {
+// Touch tablet landscape: match left/right heights to the viewport
+// Applies to: iPad, iPad Air, Surface in landscape with coarse pointer
+// Width range: 1024px–1368px (excludes phones even in landscape)
+@include touch-tablet-landscape {
   .courses-section-left {
     height: 100dvh;
     min-height: 100dvh; // desktop rule may set min-height; override so left can't remain taller
@@ -659,8 +664,10 @@
   }
 }
 
-/* ===== TABLETS (touch) PORTRAIT - shrink height + full-width text ===== */
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// Touch tablet portrait: shorter section height + full-width title/description
+// Applies to: iPad, iPad Mini, iPad Air in portrait with coarse pointer
+// Slightly below full viewport height so the section doesn't feel too tall in portrait
+@include touch-tablet-portrait {
   // Slightly shorter than full viewport so it doesn't feel overly tall in portrait tablets.
   .courses-section-left {
     height: min(86dvh, 760px);

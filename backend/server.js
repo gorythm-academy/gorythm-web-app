@@ -22,6 +22,9 @@ const userRoutes = require('./routes/users');
 const portalRoutes = require('./routes/portal');
 const payrollRoutes = require('./routes/payroll');
 const { authRateLimiter } = require('./middleware/security');
+const requestContext = require('./middleware/requestContext');
+const { notFound, errorHandler } = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
 const User = require('./models/User');
 
 const app = express();
@@ -30,7 +33,7 @@ const ensureDefaultAdmin = async () => {
     try {
         const rawEmail = process.env.DEFAULT_ADMIN_EMAIL;
         if (!rawEmail || !String(rawEmail).trim()) {
-            console.log('ℹ️ DEFAULT_ADMIN_EMAIL not set; skipping default admin seed');
+            logger.info('DEFAULT_ADMIN_EMAIL not set; skipping default admin seed');
             return;
         }
         const adminEmail = String(rawEmail).toLowerCase().trim();
@@ -48,9 +51,9 @@ const ensureDefaultAdmin = async () => {
             mustChangePassword: false,
             isSystemAccount: true,
         });
-        console.log(`✅ Default admin created: ${adminEmail}`);
+        logger.info('Default admin created', { adminEmail });
     } catch (error) {
-        console.log('⚠️ Failed to ensure default admin:', error.message);
+        logger.warn('Failed to ensure default admin', { err: error });
     }
 };
 
@@ -71,6 +74,7 @@ app.use(cors({
     credentials: true
 }));
 app.use(helmet());
+app.use(requestContext);
 
 // MongoDB Connection — cached for Vercel serverless warm reuse
 const mongoUri = process.env.MONGODB_URI;
@@ -89,7 +93,7 @@ const connectDB = async () => {
     }
 
     if (!mongoUri) {
-        console.log('❌ MONGODB_URI is not set');
+        logger.error('MONGODB_URI is not set');
         return;
     }
 
@@ -103,12 +107,12 @@ const connectDB = async () => {
             socketTimeoutMS: 45000,
             maxPoolSize: 10,
         });
-        console.log('✅ MongoDB Connected');
+        logger.info('MongoDB connected');
         isConnecting = false;
         ensureDefaultAdmin();
     } catch (err) {
         isConnecting = false;
-        console.log('❌ MongoDB Connection Error:', err.message);
+        logger.error('MongoDB connection error', { err });
     }
 };
 
@@ -145,6 +149,8 @@ app.use('/api/blog', blogCommentRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use(notFound);
+app.use(errorHandler);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -185,16 +191,14 @@ app.get('/', (req, res) => {
 
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app';
     app.listen(PORT, () => {
-        console.log('\n' + '='.repeat(50));
-        console.log('🚀 GORYTHM ACADEMY BACKEND STARTED');
-        console.log('='.repeat(50));
-        console.log(`📍 Port: ${PORT}`);
-        console.log(`📁 Database: ${process.env.MONGODB_URI}`);
-        console.log(`🌐 Frontend: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}`);
-        console.log(`🔐 Admin Login: ${process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app'}/admin/login`);
-        console.log(`📊 API Health: http://localhost:5000/health`);
-        console.log('='.repeat(50) + '\n');
+        logger.info('Gorythm Academy backend started', {
+            port: PORT,
+            hasMongoUri: Boolean(process.env.MONGODB_URI),
+            frontendUrl,
+            healthUrl: `http://localhost:${PORT}/health`,
+        });
     });
 }
 

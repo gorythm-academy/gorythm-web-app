@@ -1,7 +1,13 @@
+// PortalLayout – shared shell used by Student, Teacher, Parent, and Accountant portals.
+// Desktop-first: sidebar + content side-by-side on desktop, stacked on tablet/mobile.
+// Breakpoint tokens from _breakpoints.scss.
+@import '../../styles/breakpoints';
+@import '../../styles/mixins';
+
 .portal-layout {
   min-height: calc(100vh - 80px);
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px 1fr; // desktop: fixed sidebar + fluid content
   background: #f8fafc;
 }
 
@@ -109,13 +115,20 @@
   }
 }
 
-@media (max-width: 900px) {
+// =============================================================================
+// RESPONSIVE – PortalLayout
+// =============================================================================
+
+// ≤ 900px (tablet landscape and below): collapse sidebar above content.
+// Uses $bp-tablet-landscape-min (900px) — the point where the sidebar + content
+// side-by-side layout becomes too cramped on tablets.
+@media (max-width: $bp-tablet-landscape-min) {
   .portal-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; // stack sidebar on top of content
   }
 
   .portal-content {
-    padding: 0.75rem;
+    padding: 0.75rem; // tighter padding on smaller screens
   }
 
   .portal-page {

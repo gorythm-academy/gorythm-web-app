@@ -1,4 +1,6 @@
+// EnrollStudentModal admin modal — desktop-first. Breakpoint tokens from _breakpoints.scss.
 @import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 .modal-overlay.enroll-modal-overlay {
     position: fixed;
@@ -221,7 +223,6 @@
             margin-bottom: 1.5rem;
 
             label {
-                display: block;
                 color: #475569;
                 font-weight: 500;
                 margin-bottom: 0.5rem;

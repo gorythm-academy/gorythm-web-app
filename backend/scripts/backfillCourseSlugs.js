@@ -3,6 +3,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const Course = require('../models/Course');
+const logger = require('../utils/logger');
 
 function slugFromTitle(title) {
     if (!title || typeof title !== 'string') return '';
@@ -35,13 +36,13 @@ async function backfillCourseSlugs() {
             throw new Error('MONGODB_URI is not defined in backend/.env');
         }
 
-        console.log('Connecting to MongoDB...');
+        logger.info('Connecting to MongoDB');
         await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             dbName: 'gorythm_academy',
         });
-        console.log('MongoDB connected');
+        logger.info('MongoDB connected');
 
         const courses = await Course.find().select('_id title slug').sort({ createdAt: 1 }).lean();
         let updated = 0;
@@ -61,21 +62,21 @@ async function backfillCourseSlugs() {
 
             await Course.updateOne({ _id: course._id }, { $set: { slug: nextSlug } });
             updated += 1;
-            console.log(`Updated: ${course.title} -> ${nextSlug}`);
+            logger.info('Course slug updated', { title: course.title, slug: nextSlug });
         }
 
         // Ensure DB has the latest indexes from the model (including unique slug index).
         await Course.syncIndexes();
 
-        console.log(`Done. Updated ${updated} courses, skipped ${skipped}.`);
+        logger.info('Backfill course slugs done', { updated, skipped });
         process.exitCode = 0;
     } catch (error) {
-        console.error('Failed to backfill course slugs:', error.message);
+        logger.error('Failed to backfill course slugs', { err: error });
         process.exitCode = 1;
     } finally {
         if (mongoose.connection.readyState === 1) {
             await mongoose.connection.close();
-            console.log('MongoDB connection closed');
+            logger.info('MongoDB connection closed');
         }
     }
 }

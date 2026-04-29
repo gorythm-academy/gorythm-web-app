@@ -1,6 +1,19 @@
 // Why GoRythm Section (formerly Key Achievements)
-// ============================================================================
+// =============================================================================
+// Responsive tier summary (desktop-first):
+//   ≤ 1280px (laptop)         : reduce gap + padding
+//   ≤ 742px (phone)           : single column layout
+//   ≤ 743px (mobile base)     : compact section + image changes
+//   ≤ 480px                   : small phone sizes
+//   ≤ 375px                   : very small phone
+//   ≥ 1440px                  : larger gaps on wide screens
+//   ≥ 1920px                  : ultra-wide enhancements
+//   landscape + short height  : two-column restored, compact clamp sizing
+//   touch tablet portrait     : larger typography for finger-friendly tapping
+//   phone portrait            : even larger text for single-column portrait
+// =============================================================================
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // ── Scroll-in animation (unchanged) ──────────────────────────────────────────
 @keyframes keyFadeUp {
@@ -542,7 +555,9 @@
   }
 }
 
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// Touch tablet portrait: increase typography for finger-friendly tapping
+// Applies to: iPad, iPad Mini, iPad Air in portrait with coarse pointer
+@include touch-tablet-portrait {
   .key-achievements-img-1 {
     margin-top: 28px;
   }

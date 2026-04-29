@@ -13,7 +13,7 @@ router.get('/counts', async (req, res) => {
     counts.forEach(({ postSlug, count }) => { map[postSlug] = count; });
     res.json({ success: true, counts: map });
   } catch (error) {
-    console.error('Error fetching comment counts:', error);
+    req.log.error('Error fetching comment counts', { err: error });
     res.status(500).json({ success: false, error: 'Failed to fetch comment counts' });
   }
 });
@@ -35,7 +35,7 @@ router.get('/:postSlug/comments', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching comments:', error);
+    req.log.error('Error fetching comments', { err: error });
     res.status(500).json({ success: false, error: 'Failed to fetch comments' });
   }
 });
@@ -76,7 +76,7 @@ router.post('/:postSlug/comments', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error posting comment:', error);
+    req.log.error('Error posting comment', { err: error });
     res.status(500).json({ success: false, error: 'Failed to post comment' });
   }
 });

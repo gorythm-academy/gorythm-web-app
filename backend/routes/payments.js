@@ -8,6 +8,9 @@ const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { allowPermission } = require('../middleware/authorize');
+const logger = require('../utils/logger');
+const { validate, rules } = require('../middleware/validate');
 
 const requireStripe = (res) => {
     if (stripe) return true;
@@ -48,7 +51,7 @@ const createCheckoutSessionWithFallback = async (baseParams, types) => {
             err?.rawType === 'invalid_request_error';
         const hasOtherTypes = types.length > 1 || (types.length === 1 && types[0] !== 'card');
         if (isStripeInvalid && hasOtherTypes) {
-            console.warn('Stripe checkout retry with card only:', err.message);
+            logger.warn('Stripe checkout retry with card only', { errorMessage: err.message });
             return createCheckoutSession({ ...baseParams, payment_method_types: ['card'] });
         }
         throw err;
@@ -56,7 +59,16 @@ const createCheckoutSessionWithFallback = async (baseParams, types) => {
 };
 
 // --- Public: bank transfer registration (manual verification) ---
-router.post('/register-online', async (req, res) => {
+router.post(
+    '/register-online',
+    validate([
+        rules.requiredString('studentName', 'Student name'),
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+        rules.requiredString('courseName', 'Course name'),
+        rules.number('amount', 'Amount', { min: 0 }),
+    ]),
+    async (req, res) => {
     try {
         const { studentName, email, courseName, amount, paymentMethod } = req.body || {};
 
@@ -108,13 +120,21 @@ router.post('/register-online', async (req, res) => {
             payment,
         });
     } catch (error) {
-        console.error('Error storing bank registration:', error);
+        req.log.error('Error storing bank registration', { err: error });
         res.status(500).json({ success: false, error: 'Failed to save registration' });
     }
 });
 
 // --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
-router.post('/create-checkout', async (req, res) => {
+router.post(
+    '/create-checkout',
+    validate([
+        rules.objectId('courseId', 'Course ID'),
+        rules.requiredString('studentName', 'Student name'),
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+    ]),
+    async (req, res) => {
     if (!requireStripe(res)) return;
     try {
         const { courseId, studentName, email, userId } = req.body || {};
@@ -205,7 +225,7 @@ router.post('/create-checkout', async (req, res) => {
             url: session.url,
         });
     } catch (error) {
-        console.error('Stripe error:', error);
+        req.log.error('Stripe checkout error', { err: error });
         const msg =
             (error?.type === 'StripeInvalidRequestError' || error?.rawType === 'invalid_request_error') &&
             error?.message
@@ -234,14 +254,14 @@ router.get('/verify-session', async (req, res) => {
             courseTitle: payment?.course?.title || payment?.courseName || null,
         });
     } catch (error) {
-        console.error('verify-session:', error.message);
+        req.log.error('verify-session failed', { err: error });
         res.status(400).json({ success: false, error: 'Could not verify session' });
     }
 });
 
 router.use(authMiddleware);
 
-router.get('/', async (req, res) => {
+router.get('/', allowPermission('payments.read'), async (req, res) => {
     try {
         const payments = await Payment.find()
             .populate('user', 'name email')
@@ -253,12 +273,12 @@ router.get('/', async (req, res) => {
             payments,
         });
     } catch (error) {
-        console.error('Error fetching payments:', error);
+        req.log.error('Error fetching payments', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch payments' });
     }
 });
 
-router.post('/:id/refund', async (req, res) => {
+router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) => {
     if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
@@ -299,12 +319,12 @@ router.post('/:id/refund', async (req, res) => {
             refundId: refund.id,
         });
     } catch (error) {
-        console.error('Refund error:', error);
+        req.log.error('Refund error', { err: error });
         res.status(500).json({ success: false, error: 'Refund failed' });
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', allowPermission('payments.write'), async (req, res) => {
     if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
@@ -322,7 +342,7 @@ router.delete('/:id', async (req, res) => {
             paymentId: req.params.id,
         });
     } catch (error) {
-        console.error('Delete payment error:', error);
+        req.log.error('Delete payment error', { err: error });
         res.status(500).json({ success: false, error: 'Failed to delete payment' });
     }
 });

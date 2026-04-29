@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { SiTiktok } from 'react-icons/si';
 import './Header.scss';
-import headerLogo from '../../assets/Images-New/logo.png';
+import headerLogo from '../../assets/images/home/logo.png';
 import {
   INFO_EMAIL,
   CONTACT_PHONE,
@@ -53,25 +52,13 @@ const Header = () => {
   ];
 
   const socialLinks = [
-    { id: 1, iconClass: 'fab fa-facebook-f', label: 'Facebook', url: FACEBOOK_URL, color: '#1877F2' },
-    { id: 2, iconClass: 'fab fa-instagram', label: 'Instagram', url: INSTAGRAM_URL, color: '#E4405F' },
-    { id: 3, iconClass: 'fab fa-youtube', label: 'YouTube', url: YOUTUBE_URL, color: '#FF0000' },
-    {
-      id: 4,
-      label: 'TikTok',
-      url: TIKTOK_URL,
-      color: '#ffffff',
-      useSiTiktok: true,
-    },
+    { id: 1, iconClass: 'fab fa-facebook-f', label: 'Facebook', url: FACEBOOK_URL },
+    { id: 2, iconClass: 'fab fa-instagram', label: 'Instagram', url: INSTAGRAM_URL },
+    { id: 3, iconClass: 'fab fa-youtube', label: 'YouTube', url: YOUTUBE_URL },
+    { id: 4, iconClass: 'fab fa-tiktok', label: 'TikTok', url: TIKTOK_URL },
   ];
 
-  const renderSocialGlyph = (link, variant) => {
-    if (link.useSiTiktok) {
-      const size = variant === 'mobile' ? 22 : 24;
-      return <SiTiktok size={size} color="#ffffff" aria-hidden focusable={false} className="header-social-tiktok" />;
-    }
-    return <i className={link.iconClass} />;
-  };
+  const renderSocialGlyph = (link) => <i className={link.iconClass} />;
 
   // Detect mobile viewport
   useEffect(() => {
@@ -364,28 +351,28 @@ const Header = () => {
                         )}
                       </li>
                     ))}
+                    <li className="nav-item nav-item--login">
+                      <NavLink to="/login" className="nav-link nav-link--login">
+                        Login
+                      </NavLink>
+                    </li>
+                    <li className="nav-item nav-item--whatsapp">
+                      <a
+                        href={getWhatsAppDirectUrl()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onWhatsAppAnchorClick}
+                        className="header-whatsapp header-whatsapp--nav"
+                        aria-label="Chat on WhatsApp"
+                      >
+                        <i className="fab fa-whatsapp" />
+                      </a>
+                    </li>
                   </ul>
                 </nav>
 
-                {/* Header actions: auth, cart, grid, hamburger */}
+                {/* Header actions: WhatsApp, cart, grid, hamburger */}
                 <div className="header-actions">
-                  {/* Auth buttons – hidden on mobile via CSS */}
-                  <div className="auth-buttons">
-                    <Link to="/login" className="btn btn-login">Login</Link>
-                  </div>
-
-                  {/* WhatsApp – direct app (mobile) or WhatsApp Web (desktop); avoids wa.me chooser */}
-                  <a
-                    href={getWhatsAppDirectUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={onWhatsAppAnchorClick}
-                    className="header-whatsapp"
-                    aria-label="Chat on WhatsApp"
-                  >
-                    <i className="fab fa-whatsapp" />
-                  </a>
-
                   {/* Cart icon – always visible on mobile/tablet/desktop
                   <button className="cart-trigger" aria-label="Cart">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -517,13 +504,12 @@ const Header = () => {
                       key={link.id}
                       href={link.url}
                       className="mobile-social-link"
-                      style={{ color: link.color }}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`Follow us on ${link.label}`}
                       title={link.label}
                     >
-                      {renderSocialGlyph(link, 'mobile')}
+                      {renderSocialGlyph(link)}
                     </a>
                   ))}
                 </div>
@@ -595,13 +581,12 @@ const Header = () => {
                         key={link.id}
                         href={link.url}
                         className="mobile-social-link"
-                        style={{ color: link.color }}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Follow us on ${link.label}`}
                         title={link.label}
                       >
-                        {renderSocialGlyph(link, 'mobile')}
+                        {renderSocialGlyph(link)}
                       </a>
                     ))}
                   </div>
@@ -666,13 +651,13 @@ const Header = () => {
                   key={social.id}
                   href={social.url}
                   className="social-link-item"
-                  style={{ '--social-color': social.color }}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label={`Follow us on ${social.label}`}
                   title={`Follow us on ${social.label}`}
                 >
-                  <span className="social-icon" style={{ color: social.color }}>
-                    {renderSocialGlyph(social, 'grid')}
+                  <span className="social-icon">
+                    {renderSocialGlyph(social)}
                   </span>
                   <span className="social-link-name">{social.label}</span>
                 </a>

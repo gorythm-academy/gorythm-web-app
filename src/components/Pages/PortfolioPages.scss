@@ -1,6 +1,7 @@
-// Portfolio pages – item detail + index listing
-// ============================================================================
+// Portfolio pages – item detail + index listing.
+// Desktop-first; breakpoint tokens from _breakpoints.scss.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 // =============================================================================
 // SHARED

@@ -1,3 +1,4 @@
+// FooterSimple (milky-style footer) – breakpoint tokens from _breakpoints.scss via _mixins.scss
 @import '../../styles/_mixins';
 
 .footer-milky {
@@ -151,8 +152,13 @@
   line-height: 1.5;
 }
 
-// Tablet portrait (touch): larger copyright text
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// =============================================================================
+// RESPONSIVE – FooterSimple
+// =============================================================================
+
+// Touch tablet portrait: increase nav link sizes for finger-friendly tapping
+// Applies to: iPad, iPad Mini, iPad Air, etc. in portrait with coarse pointer
+@include touch-tablet-portrait {
   .footer-milky-copy {
     max-width: 760px; // wider nav area so links can stay on a single row
   }
@@ -183,7 +189,7 @@
   }
 }
 
-// Mobile portrait: increase footer nav link size
+// Phone portrait (≤ 743px portrait): increase footer nav link size for readability
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .footer-milky-nav {
     a {
@@ -192,7 +198,9 @@
   }
 }
 
-@media (max-width: $bp-legacy-900) {
+// ≤ 900px: stack the footer top section vertically (title + social become a column)
+// Uses $bp-tablet-landscape-min (900px) — same breakpoint where tablet landscape layout starts
+@media (max-width: $bp-tablet-landscape-min) {
   .footer-milky-inner {
     width: min(100% - 32px, 100%);
     padding-top: 64px;
@@ -218,6 +226,7 @@
   }
 }
 
+// ≤ 560px: smaller font sizes and tighter spacing for compact phone portrait viewports
 @media (max-width: $bp-legacy-560) {
   .footer-milky-inner {
     padding-top: 52px;

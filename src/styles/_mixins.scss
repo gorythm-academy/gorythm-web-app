@@ -1,43 +1,259 @@
-// =========== RESPONSIVE MIXINS ===========
-// Desktop-first: base styles = desktop; respond-to = max-width overrides for smaller viewports.
+// =============================================================================
+// RESPONSIVE MIXINS – Desktop-first
+// =============================================================================
+// Usage:
+//   @include respond-to('lg')  → narrows from desktop down
+//   @include tablet-portrait   → targets portrait tablets only
+//   @include mobile-portrait   → targets portrait phones only
+//   @include touch-tablet      → targets coarse-pointer tablets (all orient.)
+//
+// Always import _breakpoints.scss first (or use @import 'breakpoints').
+// =============================================================================
 @import 'breakpoints';
 
-// Media query mixins (use global breakpoint variables)
+
+// -----------------------------------------------------------------------------
+// respond-to() — Global chrome scale (Header, Footer, scrollbar, etc.)
+// Maps to the global $bp-* set.
+// -----------------------------------------------------------------------------
+
 @mixin respond-to($breakpoint) {
-  @if $breakpoint == 'xs' {
-    @media (max-width: $bp-xs) { @content; }
+  // Extended desktop: min-width enhancement
+  @if $breakpoint == 'xxxl' {
+    @media (min-width: $bp-xxxl-min) { @content; }
+
+  // Large desktop to laptop
+  } @else if $breakpoint == 'xxl' {
+    @media (max-width: $bp-xxl) { @content; }
+  } @else if $breakpoint == 'xl' {
+    @media (max-width: $bp-xl) { @content; }
+
+  // Laptop / small desktop: nav collapses here
+  } @else if $breakpoint == 'lg' {
+    @media (max-width: $bp-lg) { @content; }
+
+  // Small laptop / large tablet landscape
+  } @else if $breakpoint == 'md' {
+    @media (max-width: $bp-md) { @content; }
+
+  // Mobile (phones): global chrome collapses here
   } @else if $breakpoint == 'sm' {
     @media (max-width: $bp-sm) { @content; }
+
+  // Small phone
+  } @else if $breakpoint == 'xs' {
+    @media (max-width: $bp-xs) { @content; }
+
+  // HomeSections: tablet upper bound (keep for backward-compat)
+  } @else if $breakpoint == 'home-tablet' {
+    @media (max-width: $bp-home-tablet-max) { @content; }
   } @else if $breakpoint == 'home-mobile' {
     @media (max-width: $bp-home-mobile-max) { @content; }
   } @else if $breakpoint == 'home-phone-sm' {
     @media (max-width: $bp-home-phone-sm-max) { @content; }
-  } @else if $breakpoint == 'home-tablet' {
-    @media (max-width: $bp-home-tablet-max) { @content; }
-  } @else if $breakpoint == 'md' {
-    @media (max-width: $bp-md) { @content; }
-  } @else if $breakpoint == 'lg' {
-    @media (max-width: $bp-lg) { @content; }
-  } @else if $breakpoint == 'xl' {
-    @media (max-width: $bp-xl) { @content; }
-  } @else if $breakpoint == 'xxl' {
-    @media (max-width: $bp-xxl) { @content; }
-  } @else if $breakpoint == 'xxxl' {
-    @media (min-width: $bp-xxxl-min) { @content; }
   }
 }
 
-// Homepage orientation-aware helpers (use these in HomeSections to keep a
-// consistent and centralized responsive API).
+
+// -----------------------------------------------------------------------------
+// EXTENDED / ULTRA-WIDE — Enhancements for large monitors
+// -----------------------------------------------------------------------------
+
+// ≥ 1680px: extended desktop enhancements (larger spacing, bigger fonts)
+@mixin extended-desktop {
+  @media (min-width: $bp-extended-desktop-min) { @content; }
+}
+
+// ≥ 1920px: ultra-wide screens (2K/4K monitors)
+@mixin ultra-wide {
+  @media (min-width: $bp-ultra-wide-min) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// DESKTOP — Mostly not needed (default styles = desktop), but useful for
+// desktop-only enhancements sitting inside a mobile-first component.
+// -----------------------------------------------------------------------------
+
+// ≥ 1280px: explicitly desktop-only (useful inside mobile-first code)
+@mixin desktop-only {
+  @media (min-width: $bp-desktop-min) { @content; }
+}
+
+// ≤ 1279px: laptop / small desktop (one step below full desktop)
+@mixin laptop {
+  @media (max-width: $bp-laptop-max) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// TABLET — Section-level tablet rules
+// "Tablet" here = 768px–1024px.
+// -----------------------------------------------------------------------------
+
+// Any tablet: 768px–1024px (portrait or landscape combined)
+@mixin tablet {
+  @media (min-width: $bp-tablet-portrait-min) and (max-width: $bp-tablet-portrait-max) { @content; }
+}
+
+// Tablet portrait only: 768px–1024px + orientation: portrait
+@mixin tablet-portrait {
+  @media (min-width: $bp-tablet-portrait-min) and (max-width: $bp-tablet-portrait-max) and (orientation: portrait) { @content; }
+}
+
+// Tablet landscape only: 900px–1199px + orientation: landscape
+@mixin tablet-landscape {
+  @media (min-width: $bp-tablet-landscape-min) and (max-width: $bp-tablet-landscape-max) and (orientation: landscape) { @content; }
+}
+
+// HomeSections tablet landscape: 768px–992px landscape
+@mixin home-tablet-landscape {
+  @media (min-width: $bp-section-sm) and (max-width: $bp-home-tablet-max) and (orientation: landscape) { @content; }
+}
+
+// HomeSections tablet portrait: same width range but portrait
+@mixin home-tablet-portrait {
+  @media (min-width: $bp-section-sm) and (max-width: $bp-home-tablet-max) and (orientation: portrait) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// TOUCH TABLET — coarse-pointer heuristic
+// Matches iPads / Android tablets (not mouse-driven) in both orientations.
+// Use these when pointer interaction (tap targets) must be larger.
+// -----------------------------------------------------------------------------
+
+// Touch tablet: any orientation
+@mixin touch-tablet {
+  @media (pointer: coarse) and (hover: none) and (min-width: $bp-touch-tablet-min) and (max-width: $bp-touch-tablet-max) { @content; }
+}
+
+// Touch tablet portrait only
+@mixin touch-tablet-portrait {
+  @media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: $bp-touch-tablet-min) and (max-width: $bp-touch-tablet-max) { @content; }
+}
+
+// Touch tablet landscape only (wider range: min 1024px)
+@mixin touch-tablet-landscape {
+  @media (pointer: coarse) and (hover: none) and (orientation: landscape) and (min-width: $bp-touch-tablet-landscape-min) and (max-width: $bp-touch-tablet-max) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// MOBILE — Phones and compact tablets
+// Upper bound: 768px
+// -----------------------------------------------------------------------------
+
+// All mobile, regardless of orientation
+@mixin mobile {
+  @media (max-width: $bp-mobile-max) { @content; }
+}
+
+// Mobile portrait only
+@mixin mobile-portrait {
+  @media (max-width: $bp-mobile-portrait-max) and (orientation: portrait) { @content; }
+}
+
+// Mobile landscape: phones + small foldables in landscape
+// max-width is 1100px to catch Galaxy Z Fold 5 inner screen (~1080px wide)
+@mixin mobile-landscape {
+  @media (max-width: $bp-mobile-landscape-max) and (orientation: landscape) { @content; }
+}
+
+// Mobile landscape with short viewport height (≤ 500px)
+// Covers: iPhone 12–16, Pixel, Galaxy S, Z Fold outer (~344px)
+@mixin mobile-landscape-short {
+  @media (max-width: $bp-mobile-landscape-max) and (orientation: landscape) and (max-height: $bp-landscape-short-max) { @content; }
+}
+
+// Mobile landscape with very short viewport height (≤ 430px)
+// Covers: iPhone SE 2/3 and most mid-range phones in landscape
+@mixin mobile-landscape-very-short {
+  @media (max-width: $bp-mobile-landscape-max) and (orientation: landscape) and (max-height: $bp-landscape-very-short-max) { @content; }
+}
+
+// Mobile landscape ultra-short (≤ 325px height)
+// Only catches iPhone SE 1st-gen (320px landscape height)
+@mixin mobile-landscape-ultra-short {
+  @media (max-width: $bp-mobile-landscape-max) and (orientation: landscape) and (max-height: $bp-landscape-ultra-short-max) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// SMALL PHONE — Sub-480px phones (SE 1st gen, old Android budget phones)
+// -----------------------------------------------------------------------------
+
+// ≤ 480px: small phone any orientation
+@mixin small-phone {
+  @media (max-width: $bp-section-xs) { @content; }
+}
+
+// ≤ 375px: very small phone (iPhone SE 2/3 width)
+@mixin xs-phone {
+  @media (max-width: $bp-section-xxs) { @content; }
+}
+
+// ≤ 360px: Galaxy S8+ and other small Android phones
+@mixin xxs-phone {
+  @media (max-width: $bp-section-xxxs) { @content; }
+}
+
+// ≤ 320px: iPhone SE 1st gen portrait
+@mixin min-phone {
+  @media (max-width: $bp-section-3xs) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// HOMEPAGE orientation helpers  (HomeSections — legacy names kept for compat)
+// -----------------------------------------------------------------------------
+
+// Same as mobile-landscape (max 1100px landscape)
 @mixin home-landscape {
   @media (max-width: $bp-home-landscape-max) and (orientation: landscape) { @content; }
 }
 
+// Same as mobile-landscape-very-short
 @mixin home-landscape-short {
   @media (max-width: $bp-home-landscape-max) and (orientation: landscape) and (max-height: $bp-home-landscape-very-short-max) { @content; }
 }
 
-// Responsive container mixin
+
+// -----------------------------------------------------------------------------
+// ADMIN DASHBOARD helpers
+// -----------------------------------------------------------------------------
+
+// Admin sidebar collapse: ≤ 1024px
+@mixin admin-sidebar-collapse {
+  @media (max-width: $bp-admin-sidebar-max) { @content; }
+}
+
+// Admin table compact: ≤ 768px — tables become scrollable / card layout
+@mixin admin-table-compact {
+  @media (max-width: $bp-admin-table-max) { @content; }
+}
+
+// Admin modal fullscreen: ≤ 640px
+@mixin admin-modal-fullscreen {
+  @media (max-width: $bp-admin-modal-max) { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// FOLD / DUAL-SCREEN (Galaxy Z Fold, Surface Duo)
+// -----------------------------------------------------------------------------
+
+// Fold open or Surface Duo spanning both screens
+@mixin dual-screen-span {
+  @media #{$media-dual-screen-span} { @content; }
+}
+
+
+// -----------------------------------------------------------------------------
+// LAYOUT UTILITIES
+// -----------------------------------------------------------------------------
+
+// Centered boxed container
 @mixin responsive-container($type: 'default') {
   @if $type == 'boxed' {
     max-width: calc(var(--page-width) + (var(--page-boxed-extra) * 2));
@@ -57,70 +273,47 @@
   }
 }
 
-// Grid system mixin
+// CSS Grid helper
 @mixin responsive-grid($columns: 12, $gap: var(--grid-gap)) {
   display: grid;
   grid-template-columns: repeat($columns, 1fr);
   gap: $gap;
 }
 
-// Responsive typography mixin
+// Fluid typography across breakpoints
 @mixin responsive-typography($size-map) {
   font-size: map-get($size-map, 'base');
-  
-  @include respond-to('xxl') {
-    font-size: map-get($size-map, 'xxl');
-  }
-  
-  @include respond-to('xl') {
-    font-size: map-get($size-map, 'xl');
-  }
-  
-  @include respond-to('lg') {
-    font-size: map-get($size-map, 'lg');
-  }
-  
-  @include respond-to('md') {
-    font-size: map-get($size-map, 'md');
-  }
-  
-  @include respond-to('sm') {
-    font-size: map-get($size-map, 'sm');
-  }
-  
-  @include respond-to('xs') {
-    font-size: map-get($size-map, 'xs');
-  }
+
+  @include respond-to('xxl') { font-size: map-get($size-map, 'xxl'); }
+  @include respond-to('xl')  { font-size: map-get($size-map, 'xl');  }
+  @include respond-to('lg')  { font-size: map-get($size-map, 'lg');  }
+  @include respond-to('md')  { font-size: map-get($size-map, 'md');  }
+  @include respond-to('sm')  { font-size: map-get($size-map, 'sm');  }
+  @include respond-to('xs')  { font-size: map-get($size-map, 'xs');  }
 }
 
-// Hide/show mixins
+// Hide at a named breakpoint
 @mixin hide-on($breakpoint) {
-  @include respond-to($breakpoint) {
-    display: none;
-  }
+  @include respond-to($breakpoint) { display: none; }
 }
 
+// Show only at a named breakpoint (hidden by default)
 @mixin show-on($breakpoint) {
   display: none;
-  
-  @include respond-to($breakpoint) {
-    display: block;
-  }
+  @include respond-to($breakpoint) { display: block; }
 }
 
-// Mobile menu animation
+// Mobile off-canvas nav animation helper
 @mixin mobile-menu-animation {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   @include respond-to('lg') {
     transform: translateX(-100%);
-    &.active {
-      transform: translateX(0);
-    }
+    &.active { transform: translateX(0); }
   }
 }
 
-// Sticky header
+// Fixed header with scroll-blur effect
 @mixin sticky-header {
   position: fixed;
   top: 0;
@@ -128,7 +321,7 @@
   right: 0;
   z-index: 1000;
   transition: all 0.3s ease;
-  
+
   &.scrolled {
     backdrop-filter: blur(10px);
     background: rgba(var(--color-bg), 0.95);

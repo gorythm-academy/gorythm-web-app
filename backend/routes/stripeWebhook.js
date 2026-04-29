@@ -4,6 +4,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
+const logger = require('../utils/logger');
 
 module.exports = async (req, res) => {
     if (!stripe) {
@@ -12,7 +13,7 @@ module.exports = async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!endpointSecret) {
-        console.error('STRIPE_WEBHOOK_SECRET is not set');
+        (req.log || logger).error('STRIPE_WEBHOOK_SECRET is not set');
         return res.status(500).send('Webhook not configured');
     }
 
@@ -20,7 +21,7 @@ module.exports = async (req, res) => {
     try {
         event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     } catch (err) {
-        console.error('Webhook signature verification failed:', err.message);
+        (req.log || logger).error('Webhook signature verification failed', { errorMessage: err.message });
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
@@ -83,10 +84,10 @@ module.exports = async (req, res) => {
                 break;
             }
             default:
-                console.log(`Stripe webhook: unhandled event type ${event.type}`);
+                (req.log || logger).info('Stripe webhook unhandled event type', { eventType: event.type });
         }
     } catch (err) {
-        console.error('Stripe webhook handler error:', err);
+        (req.log || logger).error('Stripe webhook handler error', { err });
         return res.status(500).json({ received: false, error: err.message });
     }
 

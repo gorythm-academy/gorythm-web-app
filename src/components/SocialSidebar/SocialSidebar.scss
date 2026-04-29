@@ -303,8 +303,14 @@
   }
 }
 
-/* RESPONSIVE */
-@media (max-width: $bp-legacy-768) {
+// =============================================================================
+// RESPONSIVE – SocialSidebar
+// =============================================================================
+
+// ≤ 768px: hide the sidebar panel on phones and small tablets.
+// At this width the sidebar would overlap content and becomes unusable.
+// The mobile menu provides social links instead.
+@media (max-width: $bp-touch-tablet-min) {
   .social-sidebar-panel {
     display: none;
   }

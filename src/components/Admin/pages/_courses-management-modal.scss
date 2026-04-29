@@ -1,4 +1,4 @@
-@import '../../../styles/_breakpoints.scss';
+@import '../../../styles/breakpoints';
 
 // ==================== COURSE MODAL – single color scheme ====================
 .course-modal-overlay {
@@ -237,7 +237,12 @@
 
 // Modal close button (scoped inside .course-form-card above)
 
-@media (max-width: $bp-legacy-768) {
+// =============================================================================
+// RESPONSIVE – CoursesManagement modal
+// =============================================================================
+
+// ≤ 768px ($bp-admin-table-max): tighter modal padding, full-width action buttons
+@media (max-width: $bp-admin-table-max) {
     .course-modal-overlay {
         padding: 12px;
     }
@@ -271,6 +276,7 @@
     }
 }
 
+// ≤ 480px (small phone): smaller border-radius and font for the modal header
 @media (max-width: $bp-legacy-480) {
     .course-modal {
         border-radius: 12px;
@@ -285,7 +291,9 @@
     }
 }
 
-@media (max-height: $bp-home-landscape-short-max) and (orientation: landscape) {
+// Short landscape viewport (height ≤ 500px): pin modal to top, allow scroll
+// Covers phones in landscape where the viewport height is very limited
+@media (max-height: $bp-landscape-short-max) and (orientation: landscape) {
     .course-modal-overlay {
         align-items: flex-start;
         padding-top: 8px;

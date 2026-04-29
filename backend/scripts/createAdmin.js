@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const logger = require('../utils/logger');
 
 async function createAdmin() {
     try {
@@ -16,18 +17,17 @@ async function createAdmin() {
             throw new Error('DEFAULT_ADMIN_EMAIL is not defined in .env (required for this script)');
         }
 
-        console.log('🔗 Connecting to MongoDB...');
+        logger.info('Connecting to MongoDB');
         await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             dbName: 'gorythm_academy',
         });
-        console.log('✅ MongoDB Connected');
+        logger.info('MongoDB connected');
 
         const existingAdmin = await User.findOne({ email: adminEmail });
         if (existingAdmin) {
-            console.log('ℹ️ Admin user already exists');
-            console.log('Email:', existingAdmin.email);
+            logger.info('Admin user already exists', { email: existingAdmin.email });
             process.exit(0);
         }
 
@@ -43,19 +43,16 @@ async function createAdmin() {
         });
 
         await admin.save();
-        console.log('\n✅ Admin user created successfully!');
-        console.log('📧 Email:', adminEmail);
-        console.log('\n⚠️ Change DEFAULT_ADMIN_PASSWORD after first login if you used a default.');
+        logger.info('Admin user created', { email: adminEmail });
+        logger.warn('Change DEFAULT_ADMIN_PASSWORD after first login if you used a default');
     } catch (error) {
-        console.error('❌ Error creating admin:', error.message);
-        console.log('\n💡 Troubleshooting:');
-        console.log('1. Ensure backend/.env has MONGODB_URI and DEFAULT_ADMIN_EMAIL');
-        console.log('2. Ensure MongoDB is running');
+        logger.error('Error creating admin', { err: error });
+        logger.info('Troubleshooting: ensure backend/.env has MONGODB_URI and DEFAULT_ADMIN_EMAIL; MongoDB must be running');
         process.exitCode = 1;
     } finally {
         if (mongoose.connection.readyState === 1) {
             await mongoose.connection.close();
-            console.log('🔌 MongoDB connection closed');
+            logger.info('MongoDB connection closed');
         }
     }
 }

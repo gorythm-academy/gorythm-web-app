@@ -1,3 +1,9 @@
+// Admin Dashboard Layout – sidebar + main content shell.
+// Desktop-first: sidebar visible by default; collapses on tablet/mobile.
+// Breakpoint tokens from _breakpoints.scss.
+@import '../../styles/breakpoints';
+@import '../../styles/mixins';
+
 .admin-dashboard {
     display: flex;
     min-height: 100vh;

@@ -1,4 +1,10 @@
-/* Responsive Design */
+// Students Data modal and table responsive styles.
+// All breakpoint tokens from _breakpoints.scss (imported via StudentsData.scss @use chain).
+// =============================================================================
+// RESPONSIVE – StudentsData modal / table
+// =============================================================================
+
+// ≤ 1400px: wide table gets horizontal scroll container so columns don't collapse
 @media (max-width: $bp-legacy-1400) {
     .students-data-table-container {
         overflow-x: auto;
@@ -13,7 +19,8 @@
     }
 }
 
-@media (max-width: $bp-legacy-768) {
+// ≤ 768px ($bp-admin-table-max): compact page padding, stacked page header
+@media (max-width: $bp-admin-table-max) {
     .students-data-page {
         padding: 16px;
     }

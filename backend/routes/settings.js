@@ -2,81 +2,51 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { allowPermission } = require('../middleware/authorize');
-
-// In-memory settings storage (replace with MongoDB in production)
-let settings = {
-    general: {
-        academyName: '',
-        contactEmail: '',
-        supportPhone: '',
-        websiteUrl: '',
-        timezone: 'UTC+05:00',
-        language: 'English',
-        dateFormat: 'MM/DD/YYYY'
-    },
-    payment: {
-        currency: 'USD',
-        stripePublicKey: '',
-        stripeSecretKey: '',
-        paypalClientId: '',
-        taxRate: 0,
-        invoicePrefix: 'GORYTHM'
-    },
-    email: {
-        smtpHost: 'smtp.gmail.com',
-        smtpPort: '587',
-        smtpUser: '',
-        smtpPassword: '',
-        fromEmail: 'noreply@gorythm.com',
-        fromName: 'Gorythm Academy'
-    },
-    security: {
-        requireEmailVerification: true,
-        requireAdminApproval: false,
-        maxLoginAttempts: 5,
-        sessionTimeout: 24,
-        twoFactorAuth: false,
-        passwordMinLength: 8
-    }
-};
+const { getOrCreateSettings, applySettingsUpdateForRole } = require('../services/settingsService');
 
 // Get all settings
-router.get('/', authMiddleware, allowPermission('settings.general.read'), (req, res) => {
-    res.json({
-        success: true,
-        ...settings
-    });
+router.get('/', authMiddleware, allowPermission('settings.general.read'), async (req, res) => {
+    try {
+        const settings = await getOrCreateSettings();
+        res.json({
+            success: true,
+            general: settings.general,
+            payment: settings.payment,
+            email: settings.email,
+            security: settings.security,
+            updatedAt: settings.updatedAt,
+        });
+    } catch (error) {
+        req.log.error('Error fetching settings', { err: error });
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch settings',
+        });
+    }
 });
 
 // Save all settings
-router.post('/', authMiddleware, (req, res) => {
+router.post('/', authMiddleware, allowPermission('settings.general.write'), async (req, res) => {
     try {
-        const next = { ...settings };
         const role = req.user.role;
-
-        if (req.body.general && ['super-admin', 'admin'].includes(role)) {
-            next.general = { ...next.general, ...req.body.general };
-        }
-        if (req.body.security && ['super-admin', 'admin'].includes(role)) {
-            next.security = { ...next.security, ...req.body.security };
-        }
-        if (req.body.email && ['super-admin', 'admin'].includes(role)) {
-            next.email = { ...next.email, ...req.body.email };
-        }
-        if (req.body.payment && ['super-admin', 'admin', 'accountant'].includes(role)) {
-            next.payment = { ...next.payment, ...req.body.payment };
-        }
-
-        settings = next;
+        const userId = req.user?.userId || req.user?.id || null;
+        const { updatedSections } = await applySettingsUpdateForRole({
+            body: req.body,
+            role,
+            userId,
+        });
         
-        console.log('Settings saved:', settings);
-        
+        req.log.info('Settings saved', { updatedSections });
+
         res.json({
             success: true,
-            message: 'Settings saved successfully'
+            message: updatedSections.length
+                ? 'Settings saved successfully'
+                : 'No allowed settings changes were provided',
+            updatedSections,
         });
     } catch (error) {
-        console.error('Error saving settings:', error);
+        req.log.error('Error saving settings', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to save settings'

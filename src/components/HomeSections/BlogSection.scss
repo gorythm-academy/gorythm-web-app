@@ -1,6 +1,21 @@
 // Blog Section – dark bg, eyebrow + title, three cards in a row, View All Blogs button
-// ============================================================================
+// =============================================================================
+// Responsive tier summary (desktop-first):
+//   ≤ 1280px (laptop)         : reduce container padding
+//   ≤ 742px (phone)           : single-column cards, shorter aspect ratios
+//   ≤ 742px landscape         : two-column cards, compacted heights
+//   max-height: 430px land.   : ultra-compact for very short landscape phones
+//   ≤ 743px (mobile base)     : typography + padding adjustments
+//   ≤ 743px landscape         : compact card heights
+//   ≤ 742px portrait          : minimal card padding
+//   touch tablet portrait     : larger card titles + spacing
+//   ≤ 480px                   : extra small phone typography
+//   ≤ 375px                   : very small phone
+//   ≥ 1440px                  : larger card images on wide desktops
+//   ≥ 1920px                  : even larger images on ultra-wide
+// =============================================================================
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 @keyframes blogFadeUp {
   from { opacity: 0; transform: translateY(28px); }
@@ -288,27 +303,31 @@
 }
 
 // =============================================================================
-// BREAKPOINTS (all screens: mobile, tablet, desktop, extended, portrait, landscape)
+// BREAKPOINTS – BlogSection
+// All breakpoints use tokens from _breakpoints.scss (imported above).
 // =============================================================================
 
+// ≤ 1280px (laptop / tablet landscape): reduce padding and card gap
 @media (max-width: $bp-section-lg) {
   .blog-inner { padding: 0 30px; }
   .blog-grid { gap: 20px 22px; }
   .blog-card { padding: 32px 24px 36px; }
 }
 
+// ≤ 742px (phones): single-column cards, more compact section padding
 @media (max-width: ($bp-section-sm - 1)) {
   .blog-section { padding: 44px 0 80px; }
   .blog-header { margin-bottom: 40px; }
   .blog-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; // single column — one card per row on phones
     gap: 20px;
     margin-bottom: 40px;
   }
   .blog-card { padding: 32px 24px 36px; }
 }
 
-// On mobile landscape, restore 3-column layout like desktop
+// Phone landscape (≤ 742px + landscape): restore 3-column layout like desktop
+// Phones have enough width in landscape to show three cards side by side
 @media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
   .blog-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -328,8 +347,9 @@
   }
 }
 
-// Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
-// use a height cap to avoid affecting iPads in landscape.
+// Ultra-short landscape height (≤ 430px + landscape):
+// Catches phones like iPhone 12/12 Pro class. The height cap prevents this
+// from affecting iPads in landscape (which have taller viewports).
 @media (max-height: 430px) and (orientation: landscape) {
   .blog-card-meta {
     flex-direction: column;
@@ -342,6 +362,7 @@
   }
 }
 
+// ≤ 743px (mobile base, any orientation): global typography + padding reductions
 @media (max-width: $bp-section-sm) {
   .blog-section { padding: 36px 0 64px; }
   .blog-inner { padding: 0 20px; }
@@ -353,12 +374,14 @@
   .blog-cta { padding: 12px 28px; font-size: 0.82rem; }
 }
 
+// ≤ 743px landscape: slightly more compact vertical padding
 @media (max-width: $bp-section-sm) and (orientation: landscape) {
   .blog-section { padding: 32px 0 56px; }
   .blog-header { margin-bottom: 28px; }
 }
 
-// Mobile portrait: increase all blog text sizes for readability
+// Phone portrait (≤ 742px portrait): increase all blog text sizes for readability
+// Portrait phones benefit from larger text since they're viewed in one hand
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .blog-eyebrow { font-size: 1.1rem; }
   .blog-title { font-size: 2rem; }
@@ -372,8 +395,9 @@
   .blog-cta { font-size: 1.2rem; }
 }
 
-// Tablet portrait (touch): increase blog typography while keeping desktop layout
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// Touch tablet portrait: increase blog typography while keeping the 3-column desktop layout
+// Applies to: iPad, iPad Mini, iPad Air in portrait with coarse pointer
+@include touch-tablet-portrait {
   .blog-eyebrow { font-size: 1.3rem; }
 
   // Stack category + date into two rows (like mobile portrait)
@@ -396,6 +420,7 @@
   .blog-cta { font-size: 1.3rem; }
 }
 
+// ≤ 480px (small phone): further typography reduction
 @media (max-width: $bp-section-xs) {
   .blog-section { padding: 30px 0 56px; }
   .blog-eyebrow { font-size: 0.92rem; }
@@ -405,6 +430,7 @@
   .blog-card-description { font-size: 0.85rem; }
 }
 
+// ≤ 375px (very small phone / iPhone SE 2/3): minimum sizes
 @media (max-width: $bp-section-xxs) {
   .blog-section { padding: 28px 0 48px; }
   .blog-eyebrow { font-size: 0.88rem; }
@@ -412,7 +438,8 @@
   .blog-card { padding: 24px 16px 28px; }
 }
 
-// Re-apply portrait typography after xs/xxs blocks so these values win in cascade.
+// Re-apply portrait typography AFTER xs/xxs blocks so portrait values win the cascade.
+// This is necessary because the xs/xxs blocks above override without orientation guard.
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .blog-eyebrow { font-size: 1.1rem; }
   .blog-title { font-size: 2rem; }
@@ -426,6 +453,7 @@
   .blog-cta { font-size: 1.2rem; }
 }
 
+// ≥ 1440px (large desktop): larger cards and title for extra breathing room
 @media (min-width: $bp-section-xl) {
   .blog-title { font-size: 3rem; }
   .blog-grid { gap: 28px 32px; }
@@ -433,6 +461,7 @@
   .blog-eyebrow { font-size: 1.12rem; }
 }
 
+// ≥ 1920px (ultra-wide / 2K / 4K): even more section breathing room
 @media (min-width: $bp-section-xxl) {
   .blog-section { padding: 80px 0 120px; }
   .blog-header { margin-bottom: 64px; }

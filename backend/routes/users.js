@@ -6,6 +6,7 @@ const Course = require('../models/Course');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
+const { validate, rules } = require('../middleware/validate');
 // NOTE: studentId is now manual-entry only (no auto-generation).
 
 router.use(authMiddleware);
@@ -122,7 +123,7 @@ router.get('/', async (req, res) => {
             pages: Math.ceil(total / limit)
         });
     } catch (error) {
-        console.error('Error fetching users:', error);
+        req.log.error('Error fetching users', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch users' });
     }
 });
@@ -162,7 +163,15 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new user (super-admin: any role; admin: student / teacher / parent only)
-router.post('/', async (req, res) => {
+router.post(
+    '/',
+    validate([
+        rules.requiredString('name', 'Name'),
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+        rules.requiredString('password', 'Password', 6),
+    ]),
+    async (req, res) => {
     try {
         const { name, email, password, role, phone, mustChangePassword, personalEmail, studentId, status } = req.body;
 
@@ -268,13 +277,20 @@ router.post('/', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error creating user:', error);
+        req.log.error('Error creating user', { err: error });
         res.status(500).json({ success: false, error: 'Failed to create user' });
     }
 });
 
 // Update user
-router.put('/:id', async (req, res) => {
+router.put(
+    '/:id',
+    validate([
+        rules.requiredString('name', 'Name'),
+        rules.requiredString('email', 'Email'),
+        rules.email('email', 'Email'),
+    ]),
+    async (req, res) => {
     try {
         const { name, email, role, phone, isActive, personalEmail, studentId, status } = req.body;
         const actorRole = req.user?.role;
@@ -390,13 +406,16 @@ router.put('/:id', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error updating user:', error);
+        req.log.error('Error updating user', { err: error });
         res.status(500).json({ success: false, error: 'Failed to update user' });
     }
 });
 
 // Update user password
-router.patch('/:id/password', async (req, res) => {
+router.patch(
+    '/:id/password',
+    validate([rules.requiredString('password', 'Password', 6)]),
+    async (req, res) => {
     try {
         const { password } = req.body;
         const actorRole = req.user?.role;

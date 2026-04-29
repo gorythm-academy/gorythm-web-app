@@ -1,3 +1,6 @@
+// Import the central responsive foundation.
+// All breakpoint variables ($bp-*) and mixins (@include tablet-portrait, etc.)
+// come from these two files — never hardcode pixel values here.
 @import '../../styles/_mixins';
 
 // ===============================================================
@@ -139,8 +142,11 @@
   .logo-image {
     display: block;
     width: auto;
-    height: 45px;
+    height: 56px;
     object-fit: contain;
+    object-position: left center;
+    transform: scale(2.8);
+    transform-origin: left center;
   }
 }
 
@@ -183,65 +189,62 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   margin: 0;
 }
 
 .social-link-item {
   display: flex;
   align-items: center;
+  gap: 12px;
   text-decoration: none;
   color: white;
-  padding: 6px 10px;
+  padding: 8px 6px;
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   position: relative;
   background: transparent;
   cursor: pointer;
-  border-radius: 12px;
+  border-radius: 10px;
 
   &:hover {
-    transform: translateX(4px);
+    transform: translateX(3px);
 
     .social-icon {
-      transform: scale(1.15);
+      transform: translateY(-1px);
       opacity: 1;
     }
 
     .social-link-name {
-      color: rgba(255, 255, 255, 0.95);
+      color: #ffffff;
     }
   }
 }
 
 .social-icon {
-  margin-right: 14px;
-  font-size: 1.4em;
-  width: 28px;
-  min-width: 28px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  color: #ffffff;
+  transition: all 0.3s ease;
   opacity: 0.92;
 
   .fab, .fas {
-    font-size: 1.15em;
-  }
-
-  .header-social-tiktok {
-    display: block;
-    flex-shrink: 0;
+    font-size: 1.15rem;
   }
 }
 
 .social-link-name {
   font-family: var(--font-secondary);
-  font-size: 0.95em;
-  font-weight: 500;
+  font-size: clamp(1.18rem, 1.02rem + 0.55vw, 1.6rem);
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   transition: color 0.2s ease;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .menu-grid-footer {
@@ -359,7 +362,8 @@
   &.header-container--fullwidth {
     @include responsive-container('default');
 
-    @media (min-width: $bp-legacy-1280) {
+    // ≥ 1280px (desktop): switch to full-width layout so nav extends edge-to-edge
+    @media (min-width: $bp-desktop-min) {
       @include responsive-container('fullwidth');
       max-width: 100%;
 
@@ -385,14 +389,16 @@
     }
   }
 
-  @media (max-width: $bp-legacy-1279) {
+  // ≤ 1279px: revert to default (not full-width) on laptop and smaller
+  @media (max-width: $bp-laptop-max) {
     @include responsive-container('default');
   }
 }
 
 // Portrait: .header .header-container has specificity 0,2,0 vs .container's 0,1,0 — always wins
 .header .header-container {
-  @media (max-width: $bp-legacy-1279) and (orientation: portrait) {
+  // ≤ 1279px portrait: tighter side padding (prevents overflow on narrow tablets)
+  @media (max-width: $bp-laptop-max) and (orientation: portrait) {
     padding-left: 20px;
     padding-right: 15px;
     margin-left: 0;
@@ -407,7 +413,8 @@
   position: relative;
   width: 100%;
 
-  @media (max-width: $bp-legacy-1279) {
+  // ≤ 1279px: same space-between but explicit for clarity
+  @media (max-width: $bp-laptop-max) {
     justify-content: space-between;
   }
 }
@@ -503,8 +510,10 @@
   }
 }
 
-// Tablet portrait (touch): increase nav + header icon sizes (no impact on desktop/phones)
-@media (pointer: coarse) and (hover: none) and (orientation: portrait) and (min-width: 768px) and (max-width: 1368px) {
+// Touch tablet portrait: increase nav link and icon sizes for finger-friendly tapping
+// Applies to: iPad, iPad Mini, iPad Air, Surface Pro in portrait with coarse pointer
+// Range: 768px–1368px with pointer:coarse + orientation:portrait
+@include touch-tablet-portrait {
   .nav-link {
     font-size: 22px;
   }
@@ -1358,11 +1367,6 @@
     font-size: 1.25em;
   }
 
-  .header-social-tiktok {
-    display: block;
-    flex-shrink: 0;
-  }
-
   &:hover {
     transform: scale(1.2);
     opacity: 1;
@@ -1433,7 +1437,7 @@
   }
 
   .menu-grid-logo .logo-image {
-    height: 40px;
+    height: 50px;
   }
 
   .auth-buttons .btn {
@@ -1668,7 +1672,7 @@
   }
 
   .menu-grid-logo .logo-image {
-    height: 35px;
+    height: 44px;
   }
 
   .social-links-list {
@@ -1676,13 +1680,43 @@
   }
 
   .social-icon {
-    font-size: 1.2em;
-    width: 24px;
-    min-width: 24px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+
+    .fab, .fas {
+      font-size: 1.05rem;
+    }
   }
 
   .social-link-name {
-    font-size: 0.9em;
+    font-size: 1.2rem;
+  }
+
+  @media (orientation: landscape) {
+    .social-links-list {
+      gap: 4px;
+    }
+
+    .social-link-item {
+      padding: 2px 4px;
+      gap: 8px;
+    }
+
+    .social-icon {
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+
+      .fab,
+      .fas {
+        font-size: 0.9rem;
+      }
+    }
+
+    .social-link-name {
+      line-height: 1.05;
+    }
   }
 
   .menu-grid-footer {
@@ -1728,17 +1762,21 @@
   }
 
   .menu-grid-logo .logo-image {
-    height: 32px;
+    height: 40px;
   }
 
   .social-icon {
-    font-size: 1.1em;
-    width: 22px;
-    min-width: 22px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+
+    .fab, .fas {
+      font-size: 1rem;
+    }
   }
 
   .social-link-name {
-    font-size: 0.85em;
+    font-size: 1.1rem;
   }
 
   .menu-grid-close {
@@ -1756,8 +1794,9 @@
   }
 }
 
-// Desktop override to keep menu white
-@media (min-width: $bp-legacy-1280) {
+// ≥ 1280px (desktop): force white text/icons on the transparent header
+// This runs AFTER the 'lg' collapse rule so the desktop nav reappears white
+@media (min-width: $bp-desktop-min) {
   .header {
 
     .nav-link,
@@ -1778,6 +1817,12 @@
     .header-logo .logo-text,
     .header-logo {
       color: white;
+    }
+  }
+
+  .menu-grid-content {
+    .social-link-name {
+      font-size: 1.4rem;
     }
   }
 }

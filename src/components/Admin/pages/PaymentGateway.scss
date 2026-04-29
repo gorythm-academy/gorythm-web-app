@@ -1,4 +1,6 @@
+// PaymentGateway admin page — desktop-first. Breakpoint tokens from _breakpoints.scss.
 @import '../../../styles/breakpoints';
+@import '../../../styles/mixins';
 
 .payment-page {
   min-height: 100vh;
@@ -404,7 +406,12 @@
   line-height: 1.6;
 }
 
-@media (max-width: $bp-legacy-768) {
+// =============================================================================
+// RESPONSIVE – PaymentGateway admin page
+// =============================================================================
+
+// ≤ 768px ($bp-admin-table-max): compact padding, single-column form grids
+@media (max-width: $bp-admin-table-max) {
   .payment-page {
     padding: 104px 16px 80px;
   }

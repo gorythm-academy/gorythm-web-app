@@ -1,4 +1,7 @@
+// AboutPage — breakpoint tokens from _breakpoints.scss.
+// Desktop-first: base styles = full desktop. Narrow down with max-width.
 @import '../../styles/breakpoints';
+@import '../../styles/mixins';
 
 .about-page-dark {
   min-height: 100vh;
