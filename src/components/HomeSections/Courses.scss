@@ -363,6 +363,30 @@
   color: #fff;
 }
 
+// Move left card content up on non-desktop screens only.
+// Desktop and extended keep original spacing.
+@media (max-width: #{$bp-desktop-min - 1}) {
+  .courses-section-big-number {
+    top: -0.17em;
+  }
+
+  .courses-section-left-sticky {
+    padding-top: 48px;
+  }
+
+  .courses-section-title {
+    margin-top: 28px;
+  }
+
+  .courses-section-title-line {
+    margin-bottom: 22px;
+  }
+
+  .courses-section-description {
+    margin-bottom: 20px;
+  }
+}
+
 // Desktop (993px–1440px): taller section so Contact Us is visible; both columns same height.
 // Applies to typical desktop/laptop widths. Larger (>1440px) use base 100vh. Tablet/mobile (≤992px) use overrides below.
 @media (min-width: #{$bp-section-md + 1}) and (max-width: $bp-section-xl) {
@@ -421,7 +445,7 @@
     padding: 0;
   }
   .courses-section-left-sticky {
-    padding-top: 40px; // reduce upper whitespace in portrait
+    padding-top: 16px; // move number/title/desc/cta further up on phone portrait
     padding-bottom: 32px;
     padding-left: 20px;
     padding-right: 20px;
@@ -440,8 +464,8 @@
 // Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
 @media (max-width: $bp-section-sm) and (orientation: landscape) {
   .courses-section-big-number {
-    top: 0;
-    transform: translateY(-18%); // stable across landscape phone heights (iOS/Samsung URL bar changes)
+    top: 0.95rem; // move "01" down on mobile landscape only
+    transform: translateY(0);
   }
 
   .courses-section-title {
@@ -569,7 +593,7 @@
     padding: 0 16px;
   }
   .courses-section-left-sticky {
-    padding: 40px 20px 32px;
+    padding: 12px 20px 32px;
   }
   .courses-section-right {
     padding: 0 24px 64px 0;
@@ -644,7 +668,7 @@
   }
 
   .courses-section-left-sticky {
-    padding: 60px 48px 60px 44px;
+    padding: 34px 48px 60px 44px;
   }
 
   // Let the left column headline + description use the full available width
@@ -737,8 +761,9 @@
     font-size: 1.2rem;
   }
 
-  // Move "02" a bit higher on tablet portrait
+  // Keep iPad portrait (e.g., 820x1180, 1024x1366) from inheriting a down-shift.
+  // Mobile landscape uses separate rules above and is not affected by this.
   .courses-section-big-number {
-    top: 1.2rem;
+    top: -0.15rem;
   }
 }
