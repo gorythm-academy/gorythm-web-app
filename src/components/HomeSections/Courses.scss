@@ -230,6 +230,8 @@
 @media (min-width: $bp-desktop-min) {
   .courses-section-masonry {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-right: 16px;
+    box-sizing: border-box;
   }
 }
 
@@ -354,7 +356,7 @@
 
 .courses-section-item-arrow {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 1rem;
+  font-size: 1.15rem;
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
@@ -758,7 +760,7 @@
   }
 
   .courses-section-item-arrow {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
   }
 
   // Keep iPad portrait (e.g., 820x1180, 1024x1366) from inheriting a down-shift.

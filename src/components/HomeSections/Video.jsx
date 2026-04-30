@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Video.scss';
+import videoThumbnail from '../../assets/images/about us/video-thumbnail.png';
 
 const VIDEO_EMBED = 'https://www.instagram.com/reel/DMCsgSoNFVQ/embed';
 
@@ -68,7 +69,7 @@ const VideoSection = () => {
         ref={sectionRef}
         className={`video-section${isInView ? ' video-inview' : ''}${isHovering ? ' video-hovering' : ''}`}
         style={{
-          backgroundImage: `url(https://stargaze.themerex.net/wp-content/uploads/2023/11/ast-bg-image-copyright.jpg)`,
+          backgroundImage: `url(${videoThumbnail})`,
         }}
         onMouseMove={handleMouseMove}
         onMouseEnter={handleMouseEnter}
