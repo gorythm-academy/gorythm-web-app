@@ -117,7 +117,7 @@ const AboutPage = () => {
     const intervalId = setInterval(() => {
       setIsAcademyFlipping(true);
       setActiveAcademySlide((prevIndex) => (prevIndex + 1) % academyHighlights.length);
-    }, 4500);
+    }, 7000);
     return () => clearInterval(intervalId);
   }, [isAcademyDragging]);
 
@@ -130,7 +130,7 @@ const AboutPage = () => {
 
   useEffect(() => {
     if (!isAcademyFlipping) return undefined;
-    const timer = setTimeout(() => setIsAcademyFlipping(false), 650);
+    const timer = setTimeout(() => setIsAcademyFlipping(false), 1000);
     return () => clearTimeout(timer);
   }, [isAcademyFlipping]);
 

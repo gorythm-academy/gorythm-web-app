@@ -16,14 +16,15 @@
   background-size: cover;
   transform: scale(1.02);
 
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(90deg, rgba(0, 0, 0, 0.84) 0%, rgba(0, 0, 0, 0.48) 36%, rgba(0, 0, 0, 0.42) 100%),
-      linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.72) 100%);
-  }
+  // Temporary: disabled dark overlay on footer background image.
+  // &::after {
+  //   content: '';
+  //   position: absolute;
+  //   inset: 0;
+  //   background:
+  //     linear-gradient(90deg, rgba(0, 0, 0, 0.84) 0%, rgba(0, 0, 0, 0.48) 36%, rgba(0, 0, 0, 0.42) 100%),
+  //     linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.72) 100%);
+  // }
 }
 
 .footer-milky-inner {

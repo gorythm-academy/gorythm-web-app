@@ -377,7 +377,7 @@
 }
 
 .about-page-dark__academy-slide--flip {
-  animation: aboutAcademyFlip 0.65s ease both;
+  animation: aboutAcademyFlip 1s ease both;
 }
 
 @keyframes aboutAcademyFlip {
@@ -428,7 +428,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(42%, 420px);
+  width: clamp(230px, 42%, 420px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -451,7 +451,7 @@
   margin: 0;
   max-width: 96%;
   color: rgba(255, 255, 255, 0.7);
-  font-size: clamp(0.9rem, 1.1vw, 1.04rem);
+  font-size: clamp(0.78rem, 1.1vw, 1.04rem);
   line-height: 1.65;
 }
 
@@ -1083,17 +1083,25 @@
   }
 
   .about-page-dark__academy-copy {
-    position: static;
-    width: 100%;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: clamp(172px, 44vw, 260px);
     max-width: none;
-    padding: 22px 18px;
-    background: #000;
+    padding: clamp(14px, 3.2vw, 22px) clamp(12px, 2.8vw, 18px);
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.48) 0%,
+      rgba(0, 0, 0, 0.9) 32%,
+      rgba(0, 0, 0, 1) 100%
+    );
   }
 
   .about-page-dark__academy-media-title {
     top: clamp(14px, 5vw, 20px);
     right: clamp(12px, 4vw, 18px);
-    width: min(80%, 430px);
+    width: min(52%, 430px);
     font-size: clamp(1.55rem, 7.6vw, 2.3rem);
     line-height: 0.98;
   }
@@ -1192,10 +1200,18 @@
   }
 
   .about-page-dark__academy-copy {
-    position: static;
-    width: 100%;
-    padding: 20px 16px;
-    background: #000;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: clamp(170px, 44vw, 250px);
+    padding: clamp(12px, 3.4vw, 20px) clamp(10px, 2.8vw, 16px);
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.48) 0%,
+      rgba(0, 0, 0, 0.9) 32%,
+      rgba(0, 0, 0, 1) 100%
+    );
   }
 
   .about-page-dark__academy-dots {
