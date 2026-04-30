@@ -1,22 +1,107 @@
+import buildingCharacterImage from '../../assets/images/blog/Building character through Islamic education.png';
+import understandingAqeedahImage from '../../assets/images/blog/Understanding Aqeedah the foundation of Islamic belief.png';
+import fiqhBasicsImage from '../../assets/images/blog/Fiqh basics every Muslim student should know.png';
+import propheticMannersImage from '../../assets/images/blog/Prophetic manners and how to teach them online.png';
+import whyQuranicArabicImage from '../../assets/images/blog/Why Quranic Arabic opens doors to understanding.png';
+import frequentQuranicWordsImage from '../../assets/images/blog/The 200 most frequent Quranic words you should learn first.png';
+import keyArabicGrammarImage from '../../assets/images/blog/Key Arabic grammar patterns that unlock the Quran.png';
+import lettersToMeaningImage from '../../assets/images/blog/From letters to meaning a structured Arabic learning path.png';
+import tajweedForEveryoneImage from '../../assets/images/blog/Tajweed for everyone beginners and advanced.png';
+import masteringMakharijImage from '../../assets/images/blog/Mastering Makharij where each Arabic letter comes from.png';
+import rulesOfNoonAndMeemImage from '../../assets/images/blog/The rules of Noon and Meem in Tajweed explained clearly.png';
+import dailyQuranRoutineImage from '../../assets/images/blog/Building a daily Quran recitation routine that sticks.png';
+import stemAndFaithImage from '../../assets/images/blog/STEM and faith learning that integrates both.png';
+import islamicMathImage from '../../assets/images/blog/Mathematics in Islamic architecture and design.png';
+import environmentalStewardshipImage from '../../assets/images/blog/Environmental stewardship what Islam teaches about the natural world.png';
+import programmingWithPurposeImage from '../../assets/images/blog/Programming with purpose coding for the Muslim student.png';
+import applyingSeerahImage from '../../assets/images/blog/Applying Seerah and Prophetic values in modern life.png';
+import honestyInLearningImage from '../../assets/images/blog/Honesty in learning why Sidq is the Muslim student\'s greatest asset.png';
+import patienceAndConsistencyImage from '../../assets/images/blog/Patience and consistency the Islamic approach to deep learning.png';
+import leadershipLessonsImage from '../../assets/images/blog/Leadership lessons from the Seerah for students and educators.png';
+
 export const blogPosts = [
-  // ── Islamic Studies ──────────────────────────────────────────────────────────
   {
-    id: 1,
-    slug: 'astronomy-for-all-educational-insights',
-    image: 'https://images.unsplash.com/photo-1585036156171-384164a8c675?auto=format&fit=crop&w=900&q=80',
-    date: 'March 20, 2026',
+    id: 15,
+    slug: 'math-in-islamic-architecture',
+    image: islamicMathImage,
+    date: 'April 9, 2026',
     author: 'Gorythm Team',
-    category: 'Islamic Studies',
-    comments: 0,
-    title: 'Building character through Islamic education',
+    category: 'STEM',
+    comments: 1,
+    title: 'Mathematics in Islamic architecture and design',
     excerpt:
-      'How Quran and Sunnah-based learning helps shape integrity, clarity, and strength in the next generation.',
-    tags: ['character', 'islamic-studies', 'quran'],
+      'The stunning geometric patterns of Islamic architecture are a masterclass in mathematics. Explore how Muslim scholars pioneered geometry, algebra, and design across centuries.',
+    tags: ['stem', 'education', 'faith'],
+  },
+  {
+    id: 5,
+    slug: 'seerah-and-modern-life',
+    image: applyingSeerahImage,
+    date: 'March 10, 2026',
+    author: 'Gorythm Team',
+    category: 'Character',
+    comments: 0,
+    title: 'Applying Seerah and Prophetic values in modern life',
+    excerpt:
+      'Stories of the Prophets, Seerah, and core values from the Quran and Hadith — and how to apply Islamic principles in daily life today.',
+    tags: ['seerah', 'character', 'faith'],
+  },
+  {
+    id: 20,
+    slug: 'leadership-from-the-seerah',
+    image: leadershipLessonsImage,
+    date: 'April 19, 2026',
+    author: 'Gorythm Team',
+    category: 'Character',
+    comments: 4,
+    title: 'Leadership lessons from the Seerah for students and educators',
+    excerpt:
+      'The Prophet\'s leadership style (peace be upon him) — compassionate, principled, and courageous — offers a timeless framework for Muslim students stepping into leadership roles.',
+    tags: ['seerah', 'character', 'faith'],
+  },
+  {
+    id: 14,
+    slug: 'building-a-quran-recitation-routine',
+    image: dailyQuranRoutineImage,
+    date: 'April 7, 2026',
+    author: 'Gorythm Team',
+    category: 'Recitation',
+    comments: 3,
+    title: 'Building a daily Quran recitation routine that sticks',
+    excerpt:
+      'Consistency in recitation is more valuable than occasional long sessions. Discover how to build a daily routine that strengthens your Tajweed and deepens your relationship with the Quran.',
+    tags: ['tajweed', 'quran', 'character'],
+  },
+  {
+    id: 13,
+    slug: 'rules-of-noon-and-meem-in-tajweed',
+    image: rulesOfNoonAndMeemImage,
+    date: 'April 5, 2026',
+    author: 'Gorythm Team',
+    category: 'Recitation',
+    comments: 2,
+    title: 'The rules of Noon and Meem in Tajweed explained clearly',
+    excerpt:
+      'Ghunnah, Idgham, Ikhfa, Iqlab — the Noon and Meem rules are essential for accurate recitation. This guide breaks them down with clear examples from the Quran.',
+    tags: ['tajweed', 'quran'],
+  },
+  {
+    id: 12,
+    slug: 'mastering-makharij-letter-articulation',
+    image: masteringMakharijImage,
+    date: 'April 3, 2026',
+    author: 'Gorythm Team',
+    category: 'Recitation',
+    comments: 0,
+    title: 'Mastering Makharij: where each Arabic letter comes from',
+    excerpt:
+      'Correct articulation of Arabic letters (Makharij) is the first pillar of beautiful Quran recitation. Learn the practical techniques that transform pronunciation.',
+    tags: ['tajweed', 'quran', 'education'],
   },
   {
     id: 6,
     slug: 'understanding-aqeedah-for-students',
-    image: 'https://images.unsplash.com/photo-1564596823821-79b0b4a2a7e5?auto=format&fit=crop&w=900&q=80',
+    image: understandingAqeedahImage,
     date: 'March 22, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -29,7 +114,7 @@ export const blogPosts = [
   {
     id: 7,
     slug: 'fiqh-basics-for-daily-life',
-    image: 'https://images.unsplash.com/photo-1610034499386-e70758847b99?auto=format&fit=crop&w=900&q=80',
+    image: fiqhBasicsImage,
     date: 'March 24, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -40,9 +125,22 @@ export const blogPosts = [
     tags: ['islamic-studies', 'education', 'character'],
   },
   {
+    id: 1,
+    slug: 'astronomy-for-all-educational-insights',
+    image: buildingCharacterImage,
+    date: 'March 20, 2026',
+    author: 'Gorythm Team',
+    category: 'Islamic Studies',
+    comments: 0,
+    title: 'Building character through Islamic education',
+    excerpt:
+      'How Quran and Sunnah-based learning helps shape integrity, clarity, and strength in the next generation.',
+    tags: ['character', 'islamic-studies', 'quran'],
+  },
+  {
     id: 8,
     slug: 'prophetic-manners-for-modern-learners',
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=900&q=80',
+    image: propheticMannersImage,
     date: 'March 26, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -52,146 +150,10 @@ export const blogPosts = [
       'The Prophet\'s character (peace be upon him) is the most complete model of human conduct. Discover how online educators can bring Prophetic manners into digital classrooms.',
     tags: ['islamic-studies', 'character', 'education'],
   },
-
-  // ── Quranic Arabic ───────────────────────────────────────────────────────────
-  {
-    id: 2,
-    slug: 'cosmic-challenges-help-us-prepare',
-    image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=900&q=80',
-    date: 'March 18, 2026',
-    author: 'Gorythm Team',
-    category: 'Quranic Arabic',
-    comments: 2,
-    title: 'Why Quranic Arabic opens doors to understanding',
-    excerpt:
-      'Enhance your connection to the Quran with structured Arabic learning. Understanding meaning begins sooner than you think.',
-    tags: ['arabic', 'quran', 'education'],
-  },
-  {
-    id: 9,
-    slug: 'arabic-vocabulary-for-quran-reading',
-    image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=900&q=80',
-    date: 'March 28, 2026',
-    author: 'Gorythm Team',
-    category: 'Quranic Arabic',
-    comments: 4,
-    title: 'The 200 most frequent Quranic words you should learn first',
-    excerpt:
-      'Did you know that learning just 200 Arabic words gives you access to over 70% of the Quran? Here\'s how to start your vocabulary journey the smart way.',
-    tags: ['arabic', 'quran', 'education'],
-  },
-  {
-    id: 10,
-    slug: 'understanding-quran-grammar-patterns',
-    image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=900&q=80',
-    date: 'March 30, 2026',
-    author: 'Gorythm Team',
-    category: 'Quranic Arabic',
-    comments: 0,
-    title: 'Key Arabic grammar patterns that unlock the Quran',
-    excerpt:
-      'You do not need to master all of Arabic grammar to understand the Quran. A focused study of key patterns gives you remarkable comprehension quickly.',
-    tags: ['arabic', 'education', 'quran'],
-  },
-  {
-    id: 11,
-    slug: 'from-letters-to-meaning-arabic-path',
-    image: 'https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&w=900&q=80',
-    date: 'April 1, 2026',
-    author: 'Gorythm Team',
-    category: 'Quranic Arabic',
-    comments: 1,
-    title: 'From letters to meaning: a structured Arabic learning path',
-    excerpt:
-      'A step-by-step roadmap from Arabic alphabet recognition all the way to reading and understanding ayahs directly from the Quran with confidence.',
-    tags: ['arabic', 'education', 'quran'],
-  },
-
-  // ── Recitation ───────────────────────────────────────────────────────────────
-  {
-    id: 4,
-    slug: 'tajweed-for-everyone',
-    image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=900&q=80',
-    date: 'March 12, 2026',
-    author: 'Gorythm Team',
-    category: 'Recitation',
-    comments: 1,
-    title: 'Tajweed for everyone: beginners and advanced',
-    excerpt:
-      'Enhance your Quranic recitation with our comprehensive Tajweed program. Perfect for beginners and advanced learners seeking clarity and confidence.',
-    tags: ['tajweed', 'quran', 'education'],
-  },
-  {
-    id: 12,
-    slug: 'mastering-makharij-letter-articulation',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80',
-    date: 'April 3, 2026',
-    author: 'Gorythm Team',
-    category: 'Recitation',
-    comments: 0,
-    title: 'Mastering Makharij: where each Arabic letter comes from',
-    excerpt:
-      'Correct articulation of Arabic letters (Makharij) is the first pillar of beautiful Quran recitation. Learn the practical techniques that transform pronunciation.',
-    tags: ['tajweed', 'quran', 'education'],
-  },
-  {
-    id: 13,
-    slug: 'rules-of-noon-and-meem-in-tajweed',
-    image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80',
-    date: 'April 5, 2026',
-    author: 'Gorythm Team',
-    category: 'Recitation',
-    comments: 2,
-    title: 'The rules of Noon and Meem in Tajweed explained clearly',
-    excerpt:
-      'Ghunnah, Idgham, Ikhfa, Iqlab — the Noon and Meem rules are essential for accurate recitation. This guide breaks them down with clear examples from the Quran.',
-    tags: ['tajweed', 'quran'],
-  },
-  {
-    id: 14,
-    slug: 'building-a-quran-recitation-routine',
-    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b6f63?auto=format&fit=crop&w=900&q=80',
-    date: 'April 7, 2026',
-    author: 'Gorythm Team',
-    category: 'Recitation',
-    comments: 3,
-    title: 'Building a daily Quran recitation routine that sticks',
-    excerpt:
-      'Consistency in recitation is more valuable than occasional long sessions. Discover how to build a daily routine that strengthens your Tajweed and deepens your relationship with the Quran.',
-    tags: ['tajweed', 'quran', 'character'],
-  },
-
-  // ── STEM ─────────────────────────────────────────────────────────────────────
-  {
-    id: 3,
-    slug: 'zero-gravity-thrills-a-life-of-an-astronaut',
-    image: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=900&q=80',
-    date: 'March 15, 2026',
-    author: 'Gorythm Team',
-    category: 'STEM',
-    comments: 0,
-    title: 'STEM and faith: learning that integrates both',
-    excerpt:
-      'Our STEM courses integrate Islamic teachings, helping students innovate while staying grounded in faith. Faith-integrated learning in action.',
-    tags: ['stem', 'faith', 'education'],
-  },
-  {
-    id: 15,
-    slug: 'math-in-islamic-architecture',
-    image: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=900&q=80',
-    date: 'April 9, 2026',
-    author: 'Gorythm Team',
-    category: 'STEM',
-    comments: 1,
-    title: 'Mathematics in Islamic architecture and design',
-    excerpt:
-      'The stunning geometric patterns of Islamic architecture are a masterclass in mathematics. Explore how Muslim scholars pioneered geometry, algebra, and design across centuries.',
-    tags: ['stem', 'education', 'faith'],
-  },
   {
     id: 16,
     slug: 'environmental-stewardship-in-islam',
-    image: 'https://images.unsplash.com/photo-1470115636492-6d2b56f9146d?auto=format&fit=crop&w=900&q=80',
+    image: environmentalStewardshipImage,
     date: 'April 11, 2026',
     author: 'Gorythm Team',
     category: 'STEM',
@@ -202,37 +164,22 @@ export const blogPosts = [
     tags: ['stem', 'faith', 'education'],
   },
   {
-    id: 17,
-    slug: 'programming-with-purpose',
-    image: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=900&q=80',
-    date: 'April 13, 2026',
+    id: 10,
+    slug: 'understanding-quran-grammar-patterns',
+    image: keyArabicGrammarImage,
+    date: 'March 30, 2026',
     author: 'Gorythm Team',
-    category: 'STEM',
-    comments: 2,
-    title: 'Programming with purpose: coding for the Muslim student',
-    excerpt:
-      'Technology built with integrity serves communities. Learn how Muslim students can approach coding and software development as an act of meaningful contribution.',
-    tags: ['stem', 'education', 'character'],
-  },
-
-  // ── Character ─────────────────────────────────────────────────────────────────
-  {
-    id: 5,
-    slug: 'seerah-and-modern-life',
-    image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=900&q=80',
-    date: 'March 10, 2026',
-    author: 'Gorythm Team',
-    category: 'Character',
+    category: 'Quranic Arabic',
     comments: 0,
-    title: 'Applying Seerah and Prophetic values in modern life',
+    title: 'Key Arabic grammar patterns that unlock the Quran',
     excerpt:
-      'Stories of the Prophets, Seerah, and core values from the Quran and Hadith — and how to apply Islamic principles in daily life today.',
-    tags: ['seerah', 'character', 'faith'],
+      'You do not need to master all of Arabic grammar to understand the Quran. A focused study of key patterns gives you remarkable comprehension quickly.',
+    tags: ['arabic', 'education', 'quran'],
   },
   {
     id: 18,
     slug: 'honesty-as-a-learning-value',
-    image: 'https://images.unsplash.com/photo-1521737852567-6949f3f9f2b5?auto=format&fit=crop&w=900&q=80',
+    image: honestyInLearningImage,
     date: 'April 15, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -243,9 +190,48 @@ export const blogPosts = [
     tags: ['character', 'islamic-studies', 'education'],
   },
   {
+    id: 4,
+    slug: 'tajweed-for-everyone',
+    image: tajweedForEveryoneImage,
+    date: 'March 12, 2026',
+    author: 'Gorythm Team',
+    category: 'Recitation',
+    comments: 1,
+    title: 'Tajweed for everyone: beginners and advanced',
+    excerpt:
+      'Enhance your Quranic recitation with our comprehensive Tajweed program. Perfect for beginners and advanced learners seeking clarity and confidence.',
+    tags: ['tajweed', 'quran', 'education'],
+  },
+  {
+    id: 9,
+    slug: 'arabic-vocabulary-for-quran-reading',
+    image: frequentQuranicWordsImage,
+    date: 'March 28, 2026',
+    author: 'Gorythm Team',
+    category: 'Quranic Arabic',
+    comments: 4,
+    title: 'The 200 most frequent Quranic words you should learn first',
+    excerpt:
+      'Did you know that learning just 200 Arabic words gives you access to over 70% of the Quran? Here\'s how to start your vocabulary journey the smart way.',
+    tags: ['arabic', 'quran', 'education'],
+  },
+  {
+    id: 3,
+    slug: 'zero-gravity-thrills-a-life-of-an-astronaut',
+    image: stemAndFaithImage,
+    date: 'March 15, 2026',
+    author: 'Gorythm Team',
+    category: 'STEM',
+    comments: 0,
+    title: 'STEM and faith: learning that integrates both',
+    excerpt:
+      'Our STEM courses integrate Islamic teachings, helping students innovate while staying grounded in faith. Faith-integrated learning in action.',
+    tags: ['stem', 'faith', 'education'],
+  },
+  {
     id: 19,
     slug: 'patience-and-consistency-in-study',
-    image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=900&q=80',
+    image: patienceAndConsistencyImage,
     date: 'April 17, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -256,17 +242,43 @@ export const blogPosts = [
     tags: ['character', 'faith', 'education'],
   },
   {
-    id: 20,
-    slug: 'leadership-from-the-seerah',
-    image: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=900&q=80',
-    date: 'April 19, 2026',
+    id: 17,
+    slug: 'programming-with-purpose',
+    image: programmingWithPurposeImage,
+    date: 'April 13, 2026',
     author: 'Gorythm Team',
-    category: 'Character',
-    comments: 4,
-    title: 'Leadership lessons from the Seerah for students and educators',
+    category: 'STEM',
+    comments: 2,
+    title: 'Programming with purpose: coding for the Muslim student',
     excerpt:
-      'The Prophet\'s leadership style (peace be upon him) — compassionate, principled, and courageous — offers a timeless framework for Muslim students stepping into leadership roles.',
-    tags: ['seerah', 'character', 'faith'],
+      'Technology built with integrity serves communities. Learn how Muslim students can approach coding and software development as an act of meaningful contribution.',
+    tags: ['stem', 'education', 'character'],
+  },
+  {
+    id: 11,
+    slug: 'from-letters-to-meaning-arabic-path',
+    image: lettersToMeaningImage,
+    date: 'April 1, 2026',
+    author: 'Gorythm Team',
+    category: 'Quranic Arabic',
+    comments: 1,
+    title: 'From letters to meaning: a structured Arabic learning path',
+    excerpt:
+      'A step-by-step roadmap from Arabic alphabet recognition all the way to reading and understanding ayahs directly from the Quran with confidence.',
+    tags: ['arabic', 'education', 'quran'],
+  },
+  {
+    id: 2,
+    slug: 'cosmic-challenges-help-us-prepare',
+    image: whyQuranicArabicImage,
+    date: 'March 18, 2026',
+    author: 'Gorythm Team',
+    category: 'Quranic Arabic',
+    comments: 2,
+    title: 'Why Quranic Arabic opens doors to understanding',
+    excerpt:
+      'Enhance your connection to the Quran with structured Arabic learning. Understanding meaning begins sooner than you think.',
+    tags: ['arabic', 'quran', 'education'],
   },
 ];
 
