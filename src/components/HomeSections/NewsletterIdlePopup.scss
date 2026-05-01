@@ -19,8 +19,9 @@
 }
 
 .newsletter-idle-popup-card {
-  width: min(980px, 100%);
+  width: min(980px, calc(100vw - 40px));
   min-height: 520px;
+  max-height: calc(100dvh - 40px);
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: #fff;
@@ -147,6 +148,7 @@
   .newsletter-idle-popup-card {
     grid-template-columns: 1fr; // collapse from side-by-side to single column
     min-height: auto;
+    max-height: calc(100dvh - 32px);
   }
 
   .newsletter-idle-popup-visual {
@@ -155,10 +157,69 @@
 
   .newsletter-idle-popup-content {
     padding: 40px 24px 30px; // tighter padding on narrow screens
+    overflow-y: auto;
   }
 
   .newsletter-idle-popup-form h2 {
     font-size: clamp(1.7rem, 6vw, 2.15rem);
     margin-bottom: 20px;
+  }
+}
+
+// Landscape screens often have much shorter heights. Keep popup fully visible.
+@media (orientation: landscape) and (max-height: 620px) {
+  .newsletter-idle-popup-overlay {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .newsletter-idle-popup-card {
+    width: min(980px, calc(100vw - 24px));
+    min-height: 0;
+    max-height: calc(100dvh - 24px);
+    grid-template-columns: minmax(180px, 38%) 1fr;
+  }
+
+  .newsletter-idle-popup-content {
+    padding: 24px 24px 20px;
+    overflow-y: auto;
+  }
+
+  .newsletter-idle-popup-form h2 {
+    margin-bottom: 14px;
+    font-size: clamp(1.3rem, 3vw, 2rem);
+  }
+
+  .newsletter-idle-popup-input {
+    height: 42px;
+    margin-bottom: 12px;
+  }
+
+  .newsletter-idle-popup-privacy {
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+
+    span {
+      white-space: normal;
+    }
+  }
+
+  .newsletter-idle-popup-submit {
+    height: 46px;
+  }
+}
+
+// Very short + narrow landscape phones: hide visual pane to prioritize form usability.
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .newsletter-idle-popup-card {
+    grid-template-columns: 1fr;
+  }
+
+  .newsletter-idle-popup-visual {
+    display: none;
+  }
+
+  .newsletter-idle-popup-content {
+    padding: 22px 18px 18px;
   }
 }
