@@ -92,6 +92,23 @@
   touch-action: pan-y;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .blog-slider {
+    cursor: grab;
+    user-select: none;
+  }
+
+  .blog-slider:active {
+    cursor: grabbing;
+  }
+
+  .blog-slider .blog-card,
+  .blog-slider img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
+
 .blog-slider-track {
   display: flex;
   transition: transform 0.5s ease-out;

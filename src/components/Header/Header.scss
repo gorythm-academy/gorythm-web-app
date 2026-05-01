@@ -1197,12 +1197,17 @@
   color: rgba(255, 255, 255, 0.55);
   padding: 4px 0;
   margin-left: 0;
-  pointer-events: none;
   transition: color 0.3s ease;
   -webkit-text-stroke: 0.5px currentColor;
   flex-shrink: 0;
 
   .mobile-nav-item:hover & { color: var(--color-primary); }
+}
+
+.mobile-nav-arrow-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
 }
 
 // → for dropdown items (Courses, Pages) – bold, next to label

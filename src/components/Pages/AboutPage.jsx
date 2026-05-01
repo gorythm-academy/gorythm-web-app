@@ -135,7 +135,9 @@ const AboutPage = () => {
   }, [isAcademyFlipping]);
 
   const handleAcademyPointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!academySliderRef.current) return;
+    if (event.pointerType === 'mouse') event.preventDefault();
     academyPointerIdRef.current = event.pointerId;
     academyDragStartXRef.current = event.clientX;
     academyDragDeltaXRef.current = 0;
@@ -152,7 +154,7 @@ const AboutPage = () => {
   const handleAcademyPointerUp = (event) => {
     if (event.pointerId !== academyPointerIdRef.current) return;
     const sliderWidth = academySliderRef.current?.offsetWidth ?? 0;
-    const threshold = Math.max(56, sliderWidth * 0.12);
+    const threshold = event.pointerType === 'mouse' ? 24 : Math.max(56, sliderWidth * 0.12);
     const dragDelta = academyDragDeltaXRef.current;
 
     if (dragDelta <= -threshold) {
@@ -171,6 +173,9 @@ const AboutPage = () => {
   };
 
   const activeAcademyItem = academyHighlights[activeAcademySlide] ?? academyHighlights[0];
+  const academyTitleParts = activeAcademyItem.title.match(/^(\S+)\s+(.+)$/);
+  const academyTitlePrefix = academyTitleParts ? academyTitleParts[1] : activeAcademyItem.title;
+  const academyTitleFocus = academyTitleParts ? academyTitleParts[2] : '';
 
   return (
     <>
@@ -338,14 +343,18 @@ const AboutPage = () => {
                   onPointerMove={handleAcademyPointerMove}
                   onPointerUp={handleAcademyPointerUp}
                   onPointerCancel={handleAcademyPointerUp}
-                  onPointerLeave={handleAcademyPointerUp}
                 >
                   <article
                     key={activeAcademySlide}
                     className={`about-page-dark__academy-slide${isAcademyFlipping ? ' about-page-dark__academy-slide--flip' : ''}`}
                   >
                     <div className="about-page-dark__academy-media">
-                      <h3 className="about-page-dark__academy-media-title">{activeAcademyItem.title}</h3>
+                      <h3 className="about-page-dark__academy-media-title">
+                        <span className="about-page-dark__academy-media-title-prefix">{academyTitlePrefix}</span>
+                        {academyTitleFocus ? (
+                          <span className="about-page-dark__academy-media-title-focus">{academyTitleFocus}</span>
+                        ) : null}
+                      </h3>
                       <img
                         src={activeAcademyItem.image}
                         alt={activeAcademyItem.title}
