@@ -481,8 +481,8 @@
   }
 
   .courses-section-inner {
-    --courses-panel-h: 120vh;
-    --courses-panel-h: 120lvh;
+    --courses-panel-h: 130vh;
+    --courses-panel-h: 130lvh;
     grid-template-columns: 45% 55%;
     gap: 0 32px;
     align-items: stretch;
@@ -526,8 +526,8 @@
   // Very short landscape viewports (e.g., Galaxy Fold 882×344):
   // make both panels taller so left content stays inside the background card.
   .courses-section-inner {
-    --courses-panel-h: 120vh;
-    --courses-panel-h: 120lvh;
+    --courses-panel-h: 130vh;
+    --courses-panel-h: 130lvh;
     align-items: stretch;
   }
 
