@@ -1574,3 +1574,13 @@
         }
     }
 }
+
+.subscribers-page {
+    .subscribers-table {
+        min-width: 760px;
+
+        td:first-child {
+            word-break: break-word;
+        }
+    }
+}

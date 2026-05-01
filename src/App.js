@@ -54,6 +54,7 @@ import { PaymentSuccess } from './components/Pages/PaymentSuccess';
 import { PaymentCancel } from './components/Pages/PaymentCancel';
 import PeopleManagement from './components/Admin/pages/PeopleManagement';
 import ContactMessages from './components/Admin/pages/ContactMessages';
+import Subscribers from './components/Admin/pages/Subscribers';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import PortalLayout from './components/Portals/PortalLayout';
 import StudentPortal from './components/Portals/StudentPortal';
@@ -71,8 +72,8 @@ const Home = () => {
       <HeroSection />
       
       {/* Other sections */}
-      <CoursesSection />
       <MissionSection />
+      <CoursesSection />
       <VideoSection />
       {/* <MarqueeSection /> */}
       <AboutSection />
@@ -153,6 +154,7 @@ function AppLayout() {
                   <Route path="students-data" element={<StudentsData />} />
                   <Route path="enrollments" element={<Navigate to="/admin/students-data" replace />} />
                   <Route path="contact-messages" element={<ContactMessages />} />
+                  <Route path="subscribers" element={<Subscribers />} />
                 </Route>
               </Route>
 

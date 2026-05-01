@@ -195,7 +195,7 @@
         font-weight: 550;
         color: white;
         line-height: 1;
-        text-transform: uppercase;
+        transform: translateY(4px); // lower first-line title words slightly
         letter-spacing: 0px;
         text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
       }
@@ -232,7 +232,7 @@
         color: white;
         margin: 0;
         line-height: 1;
-        text-transform: uppercase;
+        transform: translateY(4px); // lower second-line title words slightly
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
         white-space: nowrap; // Single line on desktop/tablet; mobile overrides in mobile blocks
       }

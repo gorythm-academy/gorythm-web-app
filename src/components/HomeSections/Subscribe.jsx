@@ -3,6 +3,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import './Subscribe.scss';
+import { API_BASE_URL } from '../../config/constants';
 
 const SubscribeSection = () => {
   const sectionRef = useRef(null);
@@ -11,6 +12,7 @@ const SubscribeSection = () => {
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -23,21 +25,38 @@ const SubscribeSection = () => {
     return () => observer.disconnect();
   }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
     if (!agreePrivacy) {
       alert('Please agree to the Privacy Policy.');
       return;
     }
+    setErrorMessage('');
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subscribers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          source: 'subscribe_section',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Subscription failed');
+      }
+
       setIsSubmitting(false);
       setIsSubmitted(true);
       setEmail('');
       setAgreePrivacy(false);
       setTimeout(() => setIsSubmitted(false), 5000);
-    }, 800);
+    } catch (error) {
+      setIsSubmitting(false);
+      setErrorMessage('Could not subscribe right now. Please try again.');
+    }
   };
 
   return (
@@ -81,6 +100,9 @@ const SubscribeSection = () => {
                   <a href="/privacy" className="subscribe-privacy-link">Privacy Policy</a>
                 </span>
               </label>
+              {errorMessage ? (
+                <p className="subscribe-error-message">{errorMessage}</p>
+              ) : null}
             </div>
 
             {/* 3. Subscribe button – right (circle icon + text) */}
