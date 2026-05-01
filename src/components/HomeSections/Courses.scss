@@ -481,6 +481,7 @@
   }
 
   .courses-section-inner {
+    --courses-panel-h: 100svh;
     grid-template-columns: 45% 55%;
     gap: 0 32px;
     align-items: stretch;
@@ -488,17 +489,14 @@
   .courses-section-left {
     position: sticky;
     top: 0;
-    height: 165vh;
-    height: 165dvh;
-    min-height: 165vh;
-    min-height: 165dvh;
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
     align-items: center;
   }
   .courses-section-right {
-    height: 165vh;
-    height: 165dvh;
-    max-height: 165vh;
-    max-height: 165dvh;
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
+    max-height: var(--courses-panel-h);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: auto;
@@ -523,25 +521,23 @@
 
 // Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
 // use height cap so iPad landscape isn't affected.
-@media (max-height: 430px) and (orientation: landscape) {
+@media (max-width: $bp-section-sm) and (max-height: 430px) and (orientation: landscape) {
   // Very short landscape viewports (e.g., Galaxy Fold 882×344):
   // make both panels taller so left content stays inside the background card.
   .courses-section-inner {
+    --courses-panel-h: 100svh;
     align-items: stretch;
   }
 
   .courses-section-left {
-    height: 165vh;
-    height: 165dvh;
-    min-height: 165vh;
-    min-height: 165dvh;
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
   }
 
   .courses-section-right {
-    height: 165vh;
-    height: 165dvh;
-    max-height: 165vh;
-    max-height: 165dvh;
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
+    max-height: var(--courses-panel-h);
     overflow-y: auto;
   }
 
