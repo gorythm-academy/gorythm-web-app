@@ -192,10 +192,65 @@
 
 // Phone portrait (≤ 743px portrait): increase footer nav link size for readability
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  .footer-milky-bg {
+    transform: none;
+    background-size: contain;
+    background-position: center bottom;
+  }
+
+  .footer-milky-inner {
+    width: min(100% - 24px, 100%);
+    padding-top: 44px;
+    padding-bottom: 20px;
+  }
+
+  .footer-milky-top {
+    min-height: 0;
+    gap: 18px;
+  }
+
+  .footer-milky-copy {
+    max-width: 100%;
+  }
+
+  .footer-milky-title {
+    white-space: normal;
+    font-size: clamp(1.5rem, 8.5vw, 2.1rem);
+    line-height: 1.14;
+  }
+
+  .footer-milky-subtitle {
+    margin: 6px 0 18px;
+    font-size: clamp(1.4rem, 8vw, 1.95rem);
+    line-height: 1.14;
+  }
+
   .footer-milky-nav {
+    gap: 10px 14px;
+
     a {
-      font-size: 1.05rem;
+      font-size: 0.95rem;
+      line-height: 1.35;
     }
+  }
+
+  .footer-milky-social {
+    gap: 10px;
+  }
+
+  .footer-milky-social-link {
+    width: 32px;
+    height: 32px;
+  }
+
+  .footer-milky-bottom {
+    margin-top: 24px;
+    padding-top: 14px;
+  }
+
+  .footer-milky-copyright {
+    font-size: 0.72rem;
+    line-height: 1.45;
   }
 }
 
@@ -229,6 +284,12 @@
 
 // ≤ 560px: smaller font sizes and tighter spacing for compact phone portrait viewports
 @media (max-width: $bp-legacy-560) {
+  .footer-milky-bg {
+    transform: none;
+    background-size: contain;
+    background-position: center bottom;
+  }
+
   .footer-milky-inner {
     padding-top: 52px;
     padding-bottom: 24px;
