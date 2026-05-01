@@ -464,7 +464,7 @@
 }
 
 // Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
-@media (max-width: $bp-section-sm) and (orientation: landscape) {
+@media (max-width: $bp-home-landscape-max) and (orientation: landscape) {
   .courses-section-big-number {
     top: 0.95rem; // move "01" down on mobile landscape only
     transform: translateY(0);
@@ -481,7 +481,8 @@
   }
 
   .courses-section-inner {
-    --courses-panel-h: 175svh;
+    --courses-panel-h: 120vh;
+    --courses-panel-h: 120lvh;
     grid-template-columns: 45% 55%;
     gap: 0 32px;
     align-items: stretch;
@@ -521,11 +522,12 @@
 
 // Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
 // use height cap so iPad landscape isn't affected.
-@media (max-width: $bp-section-sm) and (max-height: 430px) and (orientation: landscape) {
+@media (max-width: $bp-home-landscape-max) and (max-height: 430px) and (orientation: landscape) {
   // Very short landscape viewports (e.g., Galaxy Fold 882×344):
   // make both panels taller so left content stays inside the background card.
   .courses-section-inner {
-    --courses-panel-h: 175svh;
+    --courses-panel-h: 120vh;
+    --courses-panel-h: 120lvh;
     align-items: stretch;
   }
 
@@ -585,7 +587,7 @@
 
 // Small phone landscape (≤768px): tighten padding; re-assert three-column masonry so it wins
 // over any same-specificity rules and matches wider mobile landscape behavior.
-@media (max-width: $bp-section-sm) and (orientation: landscape) {
+@media (max-width: $bp-home-landscape-max) and (orientation: landscape) {
   .courses-section-inner {
     gap: 0 24px;
     padding: 0 16px;
