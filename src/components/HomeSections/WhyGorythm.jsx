@@ -5,20 +5,20 @@ import { Link } from 'react-router-dom';
 import './WhyGorythm.scss';
 
 // Section images from src/assets/images
-import milestoneImg01 from '../../assets/images/home/why-choose-left.png';
-import milestoneImg02 from '../../assets/images/home/why-choose-right.png';
+import whyGorythmImg01 from '../../assets/images/home/why-choose-left.png';
+import whyGorythmImg02 from '../../assets/images/home/why-choose-right.png';
 
-const achievementsImages = [
+const whyGorythmImages = [
   {
     id: 1,
-    image: milestoneImg01,
+    image: whyGorythmImg01,
     title: 'Guided by Qualified Teachers',
     description:
       'Learn with caring instructors who combine authentic Islamic knowledge with clear, student-friendly teaching.',
   },
   {
     id: 2,
-    image: milestoneImg02,
+    image: whyGorythmImg02,
     title: 'Built for Real Growth',
     description:
       'Our lessons support progress in recitation, understanding, character, and daily practice, not just class attendance.',
@@ -46,18 +46,18 @@ const WhyGorythmSection = () => {
   return (
     <section
       ref={sectionRef}
-      className={`key-achievements-section scheme_dark${isInView ? ' key-achievements-inview' : ''}`}
+      className={`why-gorythm-section scheme_dark${isInView ? ' why-gorythm-inview' : ''}`}
     >
-      <div className="key-achievements-inner">
+      <div className="why-gorythm-inner">
         {/* Left – two staggered images with + and hover popup */}
-        <div className="key-achievements-left">
-          <div className="key-achievements-images">
-            {achievementsImages.map((item, idx) => (
+        <div className="why-gorythm-left">
+          <div className="why-gorythm-images">
+            {whyGorythmImages.map((item, idx) => (
               <div
                 key={item.id}
-                className={`key-achievements-img-wrap key-achievements-img-${idx + 1}${popupId === item.id ? ' img-wrap--popup-open' : ''}`}
+                className={`why-gorythm-img-wrap why-gorythm-img-${idx + 1}${popupId === item.id ? ' why-gorythm-img-wrap--popup-open' : ''}`}
               >
-                <div className="key-achievements-img-inner">
+                <div className="why-gorythm-img-inner">
                   <img
                     src={item.image}
                     alt={item.title}
@@ -69,19 +69,19 @@ const WhyGorythmSection = () => {
                 </div>
                 <button
                   type="button"
-                  className="key-achievements-plus"
+                  className="why-gorythm-plus"
                   aria-label={`Learn more about ${item.title}`}
                   onMouseEnter={() => setPopupId(item.id)}
                   onMouseLeave={() => setPopupId(null)}
                   onClick={() => setPopupId(popupId === item.id ? null : item.id)}
                 >
-                  <span className="key-achievements-plus-icon" aria-hidden="true">
+                  <span className="why-gorythm-plus-icon" aria-hidden="true">
                     +
                   </span>
                 </button>
                 {popupId === item.id && (
                   <div
-                    className="key-achievements-popup"
+                    className="why-gorythm-popup"
                     onMouseEnter={() => setPopupId(item.id)}
                     onMouseLeave={() => setPopupId(null)}
                   >
@@ -95,22 +95,22 @@ const WhyGorythmSection = () => {
         </div>
 
         {/* Right – 03, eyebrow, title, description, button */}
-        <div className="key-achievements-right">
-          <span className="key-achievements-big-number key_anim" aria-hidden="true">
+        <div className="why-gorythm-right">
+          <span className="why-gorythm-big-number why-gorythm_anim" aria-hidden="true">
             03
           </span>
-          <div className="key-achievements-content">
-            <p className="key-achievements-eyebrow key_anim">Why Choose GoRythm</p>
-            <h2 className="key-achievements-title key_anim">
+          <div className="why-gorythm-content">
+            <p className="why-gorythm-eyebrow why-gorythm_anim">Why Choose GoRythm</p>
+            <h2 className="why-gorythm-title why-gorythm_anim">
               A learning experience designed with purpose and care.
             </h2>
-            <p className="key-achievements-description key_anim">
+            <p className="why-gorythm-description why-gorythm_anim">
               At GoRythm, we bring together qualified teachers, engaging teaching methods, and a
               well-structured curriculum to create a meaningful learning journey. Our focus goes beyond
               academic progress, supporting the development of confidence, discipline, and strong personal
               values in every learner.
             </p>
-            <Link to="/contact" className="key-achievements-cta key_anim">
+            <Link to="/contact" className="why-gorythm-cta why-gorythm_anim">
               Contact Us
             </Link>
           </div>

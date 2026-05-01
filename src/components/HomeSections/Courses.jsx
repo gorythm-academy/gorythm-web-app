@@ -185,6 +185,98 @@ const CoursesSection = ({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
+  useEffect(() => {
+    const galleryEl = galleryRef.current;
+    if (!galleryEl || typeof window === 'undefined') return undefined;
+    let lastTouchY = null;
+    const SCROLL_EPSILON = 1;
+
+    const getMaxScrollTop = () => galleryEl.scrollHeight - galleryEl.clientHeight;
+    const isInnerScrollActive = () => {
+      const overflowY = window.getComputedStyle(galleryEl).overflowY;
+      const canScrollByStyle = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+      return canScrollByStyle && getMaxScrollTop() > 0;
+    };
+
+    const handleWheel = (event) => {
+      // Only intervene when this element is actually acting as an inner scroller.
+      // This avoids overriding native page scroll behavior on layouts where masonry
+      // is not independently scrollable.
+      if (!isInnerScrollActive()) return;
+      if (event.deltaY === 0) return;
+
+      const maxScrollTop = getMaxScrollTop();
+
+      const scrollTop = galleryEl.scrollTop;
+      const scrollingDown = event.deltaY > 0;
+      const scrollingUp = event.deltaY < 0;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop >= maxScrollTop - SCROLL_EPSILON;
+
+      // When the masonry is already at a boundary, hand wheel delta to the page
+      // immediately so users don't need to move the cursor to resume page scroll.
+      if ((scrollingDown && atBottom) || (scrollingUp && atTop)) {
+        event.preventDefault();
+        window.scrollBy({ top: event.deltaY, behavior: 'auto' });
+      }
+    };
+
+    const handleTouchStart = (event) => {
+      if (!event.touches || event.touches.length !== 1) {
+        lastTouchY = null;
+        return;
+      }
+      lastTouchY = event.touches[0].clientY;
+    };
+
+    const handleTouchMove = (event) => {
+      if (!event.touches || event.touches.length !== 1 || lastTouchY == null) return;
+      if (!isInnerScrollActive()) return;
+
+      const currentY = event.touches[0].clientY;
+      const deltaY = lastTouchY - currentY;
+      if (deltaY === 0) return;
+
+      const maxScrollTop = getMaxScrollTop();
+      if (maxScrollTop <= 0) {
+        lastTouchY = currentY;
+        return;
+      }
+
+      const scrollTop = galleryEl.scrollTop;
+      const swipingUp = deltaY > 0;
+      const swipingDown = deltaY < 0;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop >= maxScrollTop - SCROLL_EPSILON;
+
+      // Match wheel behavior for touch: if inner masonry is at a boundary,
+      // route the swipe delta to the page so handoff feels immediate.
+      if ((swipingUp && atBottom) || (swipingDown && atTop)) {
+        event.preventDefault();
+        window.scrollBy({ top: deltaY, behavior: 'auto' });
+      }
+
+      lastTouchY = currentY;
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchY = null;
+    };
+
+    galleryEl.addEventListener('wheel', handleWheel, { passive: false });
+    galleryEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+    galleryEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+    galleryEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+    galleryEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    return () => {
+      galleryEl.removeEventListener('wheel', handleWheel);
+      galleryEl.removeEventListener('touchstart', handleTouchStart);
+      galleryEl.removeEventListener('touchmove', handleTouchMove);
+      galleryEl.removeEventListener('touchend', handleTouchEnd);
+      galleryEl.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, []);
+
   return (
     <section
       ref={sectionRef}
