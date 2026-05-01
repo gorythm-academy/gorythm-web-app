@@ -525,7 +525,7 @@
   // Very short landscape viewports (e.g., Galaxy Fold 882×344):
   // make both panels taller so left content stays inside the background card.
   .courses-section-inner {
-    --courses-panel-h: 100svh;
+    --courses-panel-h: 175svh;
     align-items: stretch;
   }
 
