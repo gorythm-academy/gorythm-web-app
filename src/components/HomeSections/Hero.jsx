@@ -90,8 +90,8 @@ const HeroSection = () => {
 
   const heroData = {
     caption: "You are built with",
-    caption2: "Signs",
-    caption3: "Discover yourself",
+    caption2: "signs",
+    caption3: "discover Yourself",
     description:
     "GoRythm supports learners of all ages in building knowledge, confidence, and strong personal values through structured online courses in language, reading, and personal development.",
     bgImage: heroBgImage,

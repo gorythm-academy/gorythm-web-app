@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './NewsletterIdlePopup.scss';
 import popupVisual from '../../assets/images/home/subscribe.png';
+import { API_BASE_URL } from '../../config/constants';
 
 const STORAGE_KEY = 'gorythm_newsletter_popup_seen_v1';
 const POPUP_DELAY_MS = 10000;
@@ -33,7 +34,7 @@ const NewsletterIdlePopup = () => {
     setIsVisible(false);
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!email.trim()) {
@@ -47,11 +48,27 @@ const NewsletterIdlePopup = () => {
     }
 
     setErrorMessage('');
-    setIsSubmitted(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subscribers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          source: 'idle_popup',
+        }),
+      });
 
-    window.setTimeout(() => {
-      setIsVisible(false);
-    }, 1200);
+      if (!response.ok) {
+        throw new Error('Subscription failed');
+      }
+
+      setIsSubmitted(true);
+      window.setTimeout(() => {
+        setIsVisible(false);
+      }, 1200);
+    } catch (error) {
+      setErrorMessage('Could not subscribe right now. Please try again.');
+    }
   };
 
   if (!isVisible) return null;

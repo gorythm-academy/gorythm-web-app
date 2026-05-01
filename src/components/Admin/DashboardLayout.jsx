@@ -81,6 +81,7 @@ const DashboardLayout = () => {
         { path: '/admin/assignments', icon: 'fas fa-tasks', label: 'Assignments' },
         { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
         { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
+        { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
         { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
     ];
 

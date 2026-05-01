@@ -441,85 +441,6 @@
   }
 }
 
-// Portrait: let the left section span full screen width (no inner padding)
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
-  .courses-section-inner {
-    padding: 0;
-  }
-  .courses-section-left-sticky {
-    padding-top: 16px; // move number/title/desc/cta further up on phone portrait
-    padding-bottom: 32px;
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-  .courses-section-right {
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-bottom: 36px; // reduce end-of-section whitespace before Subscribe in portrait
-  }
-  .courses-section-left-footer {
-    align-self: flex-start;
-    margin-left: 0;
-  }
-}
-
-// Mobile landscape: same structure as desktop – equal-height panels, masonry scrolls independently
-@media (max-width: $bp-home-landscape-max) and (orientation: landscape) {
-  .courses-section-big-number {
-    top: 0.95rem; // move "01" down on mobile landscape only
-    transform: translateY(0);
-  }
-
-  .courses-section-title {
-    max-width: 100%; // wider title area in landscape
-    width: 100%;
-  }
-
-  .courses-section-left-footer {
-    align-self: flex-start;
-    margin-left: 0;
-  }
-
-  .courses-section-inner {
-    --courses-panel-h: 130vh;
-    --courses-panel-h: 130lvh;
-    grid-template-columns: 45% 55%;
-    gap: 0 32px;
-    align-items: stretch;
-  }
-  .courses-section-left {
-    position: sticky;
-    top: 0;
-    height: var(--courses-panel-h);
-    min-height: var(--courses-panel-h);
-    align-items: center;
-  }
-  .courses-section-right {
-    height: var(--courses-panel-h);
-    min-height: var(--courses-panel-h);
-    max-height: var(--courses-panel-h);
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 32px 80px 0;
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
-  .courses-section-masonry {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 16px;
-  }
-  .courses-section-column {
-    gap: 16px;
-  }
-  .courses-section-column + .courses-section-column {
-    margin-top: 0;
-  }
-}
-
 // Phone landscape (incl. iPhone 12/12 Pro class widths like 844px):
 // use height cap so iPad landscape isn't affected.
 @media (max-width: $bp-home-landscape-max) and (max-height: 430px) and (orientation: landscape) {
@@ -574,20 +495,63 @@
   .courses-section-description { max-width: 100%; }
 }
 
-// Portrait only: stacked masonry (single grid track); landscape uses three columns above.
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
-  .courses-section-masonry {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .courses-section-column + .courses-section-column {
-    margin-top: 20px;
-  }
-}
-
 // Small phone landscape (≤768px): tighten padding; re-assert three-column masonry so it wins
 // over any same-specificity rules and matches wider mobile landscape behavior.
 @media (max-width: $bp-home-landscape-max) and (orientation: landscape) {
+  .courses-section-big-number {
+    top: 0.95rem; // move "01" down on mobile landscape only
+    transform: translateY(0);
+  }
+
+  .courses-section-title {
+    max-width: 100%; // wider title area in landscape
+    width: 100%;
+  }
+
+  .courses-section-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
+  .courses-section-inner {
+    --courses-panel-h: 130vh;
+    --courses-panel-h: 130lvh;
+    grid-template-columns: 45% 55%;
+    gap: 0 32px;
+    align-items: stretch;
+  }
+  .courses-section-left {
+    position: sticky;
+    top: 0;
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
+    align-items: center;
+  }
+  .courses-section-right {
+    height: var(--courses-panel-h);
+    min-height: var(--courses-panel-h);
+    max-height: var(--courses-panel-h);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 32px 80px 0;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  .courses-section-masonry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+  }
+  .courses-section-column {
+    gap: 16px;
+  }
+  .courses-section-column + .courses-section-column {
+    margin-top: 0;
+  }
+
   .courses-section-inner {
     gap: 0 24px;
     padding: 0 16px;
@@ -604,8 +568,35 @@
   }
 }
 
-// Mobile portrait: increase Courses typography for readability
+// Portrait: consolidate all phone portrait rules in one place
 @media (max-width: $bp-section-sm) and (orientation: portrait) {
+  .courses-section-inner {
+    padding: 0;
+  }
+  .courses-section-left-sticky {
+    padding-top: 16px; // move number/title/desc/cta further up on phone portrait
+    padding-bottom: 32px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .courses-section-right {
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 36px; // reduce end-of-section whitespace before Subscribe in portrait
+  }
+  .courses-section-left-footer {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
+  .courses-section-masonry {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .courses-section-column + .courses-section-column {
+    margin-top: 20px;
+  }
+
   .courses-section-inner {
     padding-left: 0;
     padding-right: 0;
@@ -649,10 +640,7 @@
   .courses-section-item-audience {
     font-size: 1.2rem;
   }
-}
 
-// Phone portrait only: space after Marquee before Courses
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
   .courses-section {
     padding-top: clamp(28px, 7vw, 44px);
   }
