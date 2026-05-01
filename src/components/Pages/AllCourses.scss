@@ -517,7 +517,7 @@
   }
 
   .courses-inner {
-    --panel-h: 165dvh;
+    --panel-h: 100dvh;
     grid-template-columns: 45% 55%;
     gap: 0 24px;
     align-items: stretch;
@@ -563,23 +563,17 @@
 
 // Very short landscape viewports (e.g., foldables/small-height phones):
 // keep both panels equally tall so left content remains inside the card.
-@media (max-height: 430px) and (orientation: landscape) {
+@media (max-width: $bp-section-sm) and (max-height: 430px) and (orientation: landscape) {
   .courses-inner {
+    --panel-h: 100dvh;
     align-items: stretch;
   }
 
-  .courses-left {
-    height: 165vh;
-    height: 165dvh;
-    min-height: 165vh;
-    min-height: 165dvh;
-  }
-
+  .courses-left,
   .courses-right {
-    height: 165vh;
-    height: 165dvh;
-    max-height: 165vh;
-    max-height: 165dvh;
+    height: var(--panel-h);
+    min-height: var(--panel-h);
+    max-height: var(--panel-h);
     overflow-y: auto;
   }
 
