@@ -15,6 +15,30 @@
 @import '../../styles/breakpoints';
 @import '../../styles/mixins';
 
+// New semantic class names mapped to legacy selectors.
+// Keeps styles stable while JSX uses file-aligned naming.
+.why-gorythm-section { @extend .key-achievements-section; }
+.why-gorythm-inview { @extend .key-achievements-inview; }
+.why-gorythm-inner { @extend .key-achievements-inner; }
+.why-gorythm-left { @extend .key-achievements-left; }
+.why-gorythm-images { @extend .key-achievements-images; }
+.why-gorythm-img-wrap { @extend .key-achievements-img-wrap; }
+.why-gorythm-img-wrap--popup-open { @extend .img-wrap--popup-open; }
+.why-gorythm-img-inner { @extend .key-achievements-img-inner; }
+.why-gorythm-img-1 { @extend .key-achievements-img-1; }
+.why-gorythm-img-2 { @extend .key-achievements-img-2; }
+.why-gorythm-plus { @extend .key-achievements-plus; }
+.why-gorythm-plus-icon { @extend .key-achievements-plus-icon; }
+.why-gorythm-popup { @extend .key-achievements-popup; }
+.why-gorythm-right { @extend .key-achievements-right; }
+.why-gorythm-big-number { @extend .key-achievements-big-number; }
+.why-gorythm-content { @extend .key-achievements-content; }
+.why-gorythm-eyebrow { @extend .key-achievements-eyebrow; }
+.why-gorythm-title { @extend .key-achievements-title; }
+.why-gorythm-description { @extend .key-achievements-description; }
+.why-gorythm-cta { @extend .key-achievements-cta; }
+.why-gorythm_anim { @extend .key_anim; }
+
 // ── Scroll-in animation (unchanged) ──────────────────────────────────────────
 @keyframes keyFadeUp {
   from { opacity: 0; transform: translateY(28px); }
@@ -83,7 +107,7 @@
 
 .key-achievements-images {
   display: grid;
-  grid-template-columns: 45fr 55fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0 24px;
   align-items: start;
   position: relative;
@@ -124,13 +148,13 @@
   margin-top: 0;
 
   .key-achievements-img-inner img {
-    aspect-ratio: 2 / 3;
+    aspect-ratio: 3 / 4;
   }
 }
 
 @media (min-width: $bp-section-md) {
   .key-achievements-img-1 {
-    margin-top: 28px;
+    margin-top: 50px;
   }
 }
 
