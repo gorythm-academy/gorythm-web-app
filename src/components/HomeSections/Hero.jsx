@@ -89,9 +89,9 @@ const HeroSection = () => {
   };
 
   const heroData = {
-    caption: "You are built with",
-    caption2: "signs",
-    caption3: "discover Yourself",
+    caption: "YOU ARE BUILT WITH",
+    caption2: "SIGNS",
+    caption3: "DISCOVER YOURSELF",
     description:
     "GoRythm supports learners of all ages in building knowledge, confidence, and strong personal values through structured online courses in language, reading, and personal development.",
     bgImage: heroBgImage,
@@ -144,15 +144,15 @@ const HeroSection = () => {
           <div className="hero-title-wrapper">
 
             {/* NEW small caption above title – animated entrance */}
-            <motion.div
+            {/* <motion.div
               className="hero-eyebrow"
               initial={{ opacity: 0, y: -14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0, ease: [0.22, 1, 0.36, 1] }}
             >
-              {/* Premium Education Platform */}
+              Premium Education Platform
               A project of Alfarhan
-            </motion.div>
+            </motion.div> */}
 
             <div className="hero-title-block">
               <div className="hero-title-line-1">

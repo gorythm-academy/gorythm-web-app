@@ -193,7 +193,7 @@
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
         font-family: var(--font-primary);
         font-weight: 550;
-        color: white;
+        color: rgba(255, 255, 255, 0.9); // match title color with description color
         line-height: 1;
         transform: translateY(4px); // lower first-line title words slightly
         letter-spacing: 0px;
@@ -229,7 +229,7 @@
         /* Matches .hero-title-word fluid scale */
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
         font-weight: 550;
-        color: white;
+        color: rgba(255, 255, 255, 0.9); // match title color with description color
         margin: 0;
         line-height: 1;
         transform: translateY(4px); // lower second-line title words slightly
