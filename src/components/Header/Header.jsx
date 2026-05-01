@@ -468,7 +468,14 @@ const Header = () => {
                               →
                             </button>
                           ) : (
-                            <span className="mobile-nav-arrow">→</span>
+                            <Link
+                              to={item.path}
+                              className="mobile-nav-arrow mobile-nav-arrow-link"
+                              onClick={closeMobileMenu}
+                              aria-label={`Go to ${item.title}`}
+                            >
+                              →
+                            </Link>
                           )}
                         </div>
                         {item.hasDropdown && (
@@ -545,7 +552,14 @@ const Header = () => {
                                 →
                               </button>
                             ) : (
-                              <span className="mobile-nav-arrow">→</span>
+                              <Link
+                                to={item.path}
+                                className="mobile-nav-arrow mobile-nav-arrow-link"
+                                onClick={closeMobileMenu}
+                                aria-label={`Go to ${item.title}`}
+                              >
+                                →
+                              </Link>
                             )}
                           </div>
                           {item.hasDropdown && (

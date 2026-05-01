@@ -14,8 +14,12 @@ const BlogSection = () => {
   const sliderRef = useRef(null);
   const touchStartRef = useRef(null); // { x, y }
   const touchGestureRef = useRef({ isHorizontalSwipe: false });
+  const mouseDragStartXRef = useRef(0);
+  const isMouseDraggingRef = useRef(false);
+  const didMouseDragRef = useRef(false);
   const [isInView, setIsInView] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isAutoSlidePaused, setIsAutoSlidePaused] = useState(false);
 
   const slides = useMemo(() => {
     const list = [...blogPosts];
@@ -41,11 +45,12 @@ const BlogSection = () => {
 
   useEffect(() => {
     if (totalSlides <= 1) return;
+    if (isAutoSlidePaused) return;
     const t = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % totalSlides);
     }, AUTO_ADVANCE_MS);
     return () => clearInterval(t);
-  }, [totalSlides]);
+  }, [totalSlides, isAutoSlidePaused]);
 
   const goToSlide = (index) => {
     if (!totalSlides) return;
@@ -100,6 +105,74 @@ const BlogSection = () => {
     else goToPrev();
   };
 
+  const handleMouseDown = (event) => {
+    if (event.button !== 0 || totalSlides <= 1) return;
+    event.preventDefault();
+    mouseDragStartXRef.current = event.clientX;
+    isMouseDraggingRef.current = true;
+    didMouseDragRef.current = false;
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      if (!isMouseDraggingRef.current) return;
+      const dragDelta = event.clientX - mouseDragStartXRef.current;
+      if (Math.abs(dragDelta) > 4) {
+        didMouseDragRef.current = true;
+      }
+    };
+
+    const handleMouseUp = (event) => {
+      if (!isMouseDraggingRef.current) return;
+      const dragDelta = event.clientX - mouseDragStartXRef.current;
+      isMouseDraggingRef.current = false;
+
+      const threshold = 24;
+      if (dragDelta <= -threshold) goToNext();
+      else if (dragDelta >= threshold) goToPrev();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [totalSlides]);
+
+  const handleMouseClickCapture = (event) => {
+    if (!didMouseDragRef.current) return;
+    // Prevent opening a blog card link after a drag gesture.
+    event.preventDefault();
+    event.stopPropagation();
+    didMouseDragRef.current = false;
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+    touchGestureRef.current = { isHorizontalSwipe: false };
+  };
+
+  const handleBlur = () => {
+    isMouseDraggingRef.current = false;
+    didMouseDragRef.current = false;
+    touchStartRef.current = null;
+    touchGestureRef.current = { isHorizontalSwipe: false };
+  };
+
+  const handleDragStart = (event) => {
+    // Stop native browser drag ghost image on links/text while dragging slider.
+    event.preventDefault();
+  };
+
+  const handleMouseEnterSlider = () => {
+    setIsAutoSlidePaused(true);
+  };
+
+  const handleMouseLeaveSlider = () => {
+    setIsAutoSlidePaused(false);
+  };
+
   return (
     <section
       ref={sectionRef}
@@ -114,9 +187,16 @@ const BlogSection = () => {
         <div
           className="blog-slider"
           ref={sliderRef}
+          onMouseDown={handleMouseDown}
+          onMouseEnter={handleMouseEnterSlider}
+          onMouseLeave={handleMouseLeaveSlider}
+          onClickCapture={handleMouseClickCapture}
+          onTouchCancel={handleTouchCancel}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onBlur={handleBlur}
+          onDragStart={handleDragStart}
         >
           <div
             className="blog-slider-track"
