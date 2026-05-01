@@ -1,7 +1,7 @@
 // Blog Section – slider with 3 cards visible; data from blog page
 // Auto left-to-right slider with dot indicators
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { blogPosts } from '../Pages/BlogData';
 import './BlogSection.scss';
@@ -52,20 +52,20 @@ const BlogSection = () => {
     return () => clearInterval(t);
   }, [totalSlides, isAutoSlidePaused]);
 
-  const goToSlide = (index) => {
+  const goToSlide = useCallback((index) => {
     if (!totalSlides) return;
     setCurrentSlide(Math.max(0, Math.min(index, totalSlides - 1)));
-  };
+  }, [totalSlides]);
 
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     if (totalSlides <= 1) return;
     setCurrentSlide((prev) => (prev + 1) % totalSlides);
-  };
+  }, [totalSlides]);
 
-  const goToPrev = () => {
+  const goToPrev = useCallback(() => {
     if (totalSlides <= 1) return;
     setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
-  };
+  }, [totalSlides]);
 
   const handleTouchStart = (e) => {
     const touch = e.touches?.[0];
@@ -138,7 +138,7 @@ const BlogSection = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [totalSlides]);
+  }, [goToNext, goToPrev]);
 
   const handleMouseClickCapture = (event) => {
     if (!didMouseDragRef.current) return;
