@@ -1,5 +1,5 @@
 // Video Section – full-width image banner with cursor-following PLAY button
-// PLAY follows the mouse anywhere inside the section; opens Instagram reel in modal
+// PLAY follows the mouse; Instagram reel plays inline inside this section only
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Video.scss';
@@ -8,7 +8,7 @@ import videoThumbnail from '../../assets/images/about us/video-thumbnail.png';
 const VIDEO_EMBED = 'https://www.instagram.com/reel/DMCsgSoNFVQ/embed';
 
 const VideoSection = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isInView, setIsInView]       = useState(false);
   const [isHovering, setIsHovering]   = useState(false);
 
@@ -47,75 +47,58 @@ const VideoSection = () => {
     setBtnPos({ x: 50, y: 50 });
   };
 
-  // ── Keyboard close + body scroll lock when modal open ────────────────────
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') setIsModalOpen(false); };
-    if (isModalOpen) {
-      document.addEventListener('keydown', handleKey);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setIsPlaying(false);
     };
-  }, [isModalOpen]);
+    if (!isPlaying) return undefined;
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isPlaying]);
 
   return (
-    <>
-      <section
-        ref={sectionRef}
-        className={`video-section${isInView ? ' video-inview' : ''}${isHovering ? ' video-hovering' : ''}`}
+    <section
+      ref={sectionRef}
+      className={`video-section${isInView ? ' video-inview' : ''}${isHovering ? ' video-hovering' : ''}${isPlaying ? ' video-section--playing' : ''}`}
+      style={{
+        backgroundImage: `url(${videoThumbnail})`,
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className="video-section-overlay" />
+
+      <button
+        className="video-play-btn"
         style={{
-          backgroundImage: `url(${videoThumbnail})`,
+          left: `${btnPos.x}%`,
+          top: `${btnPos.y}%`,
         }}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onClick={() => setIsPlaying(true)}
+        aria-label="Play video"
+        type="button"
       >
-        {/* Dark overlay */}
-        <div className="video-section-overlay" />
+        <span className="video-play-ring" aria-hidden="true" />
+        <span className="video-play-text">PLAY</span>
+      </button>
 
-        {/* PLAY button – absolutely positioned, follows cursor via inline style */}
-        <button
-          className="video-play-btn"
-          style={{
-            left: `${btnPos.x}%`,
-            top:  `${btnPos.y}%`,
-          }}
-          onClick={() => setIsModalOpen(true)}
-          aria-label="Play video"
-          type="button"
-        >
-          <span className="video-play-ring" aria-hidden="true" />
-          <span className="video-play-text">PLAY</span>
-        </button>
-      </section>
-
-      {/* ── Video modal ─────────────────────────────────────────────────────── */}
-      {isModalOpen && (
+      {isPlaying && (
         <div
-          className="video-modal-overlay"
-          onClick={() => setIsModalOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Video player"
+          className="video-section-player"
+          role="region"
+          aria-label="Instagram video"
         >
-          <div
-            className="video-modal-content"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            className="video-section-player-close"
+            onClick={() => setIsPlaying(false)}
+            aria-label="Close video"
+            type="button"
           >
-            <button
-              className="video-modal-close"
-              onClick={() => setIsModalOpen(false)}
-              aria-label="Close video"
-              type="button"
-            >
-              ✕
-            </button>
-            <div className="video-modal-embed">
+            ✕
+          </button>
+          <div className="video-section-player-fit">
+            <div className="video-section-embed">
               <iframe
                 src={VIDEO_EMBED}
                 title="Instagram Reel"
@@ -126,7 +109,7 @@ const VideoSection = () => {
           </div>
         </div>
       )}
-    </>
+    </section>
   );
 };
 

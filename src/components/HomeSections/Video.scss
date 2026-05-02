@@ -30,6 +30,10 @@
   background-repeat: no-repeat;
   overflow: hidden;
   cursor: none;               // hide default cursor inside section while hovering
+
+  &.video-section--playing {
+    cursor: auto;
+  }
 }
 
 // Dark overlay over the background image
@@ -93,6 +97,14 @@
   }
 }
 
+// Beat .video-section.video-inview.video-hovering .video-play-btn while reel is open
+.video-section.video-section--playing.video-inview .video-play-btn {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  animation: none;
+}
+
 // Outer ring circle
 .video-play-ring {
   position: absolute;
@@ -114,41 +126,34 @@
 }
 
 // =============================================================================
-// MODAL
+// INLINE PLAYER (fills section only; Reel scaled to fit)
 // =============================================================================
 
-.video-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.88);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: modalIn 0.25s ease-out;
-}
-
-@keyframes modalIn {
+@keyframes videoPlayerIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
-.video-modal-content {
-  position: relative;
-  width: min(90vw, 1100px);
-  background: #000;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+.video-section-player {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  // Grid so the fit layer stretches to full area (flex + align-items:center shrink-wraps to 0-height content)
+  display: grid;
+  grid-template: 1fr / 1fr;
+  padding: clamp(8px, 2vw, 20px);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.88);
+  animation: videoPlayerIn 0.25s ease-out;
 }
 
-.video-modal-close {
+.video-section-player-close {
   position: absolute;
-  top: 12px;
-  right: 14px;
-  z-index: 10;
+  top: clamp(8px, 1.8vw, 14px);
+  right: clamp(8px, 1.8vw, 14px);
+  z-index: 5;
   background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-size: 1rem;
   line-height: 1;
@@ -167,11 +172,25 @@
   }
 }
 
-// 16:9 responsive embed
-.video-modal-embed {
-  position: relative;
+.video-section-player-fit {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding-top: 56.25%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+// Instagram Reels ≈ 9:16 — height fills slot; width follows aspect-ratio, capped by section width
+.video-section-embed {
+  position: relative;
+  flex-shrink: 0;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 9 / 16;
 
   iframe {
     position: absolute;
@@ -221,7 +240,6 @@
     transition: none;
   }
   .video-play-text { font-size: 0.65rem; }
-  .video-modal-content { width: 96vw; }
 }
 
 @media (max-width: $bp-section-sm) and (orientation: landscape) {

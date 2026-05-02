@@ -4,7 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 
-if (!process.env.VERCEL && process.env.NODE_ENV !== 'production') {
+// Load backend/.env on self-hosted servers. On Vercel, env vars are injected — skip file load.
+if (!process.env.VERCEL) {
     require('dotenv').config({ path: path.join(__dirname, '.env') });
 }
 
