@@ -602,7 +602,7 @@
   }
 }
 
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .courses-inner {
     padding: 0;
   }

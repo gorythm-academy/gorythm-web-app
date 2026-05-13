@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import HeroSection from './components/HomeSections/Hero';
-import NewsletterIdlePopup from './components/HomeSections/NewsletterIdlePopup';
+import SubscribePopup from './components/HomeSections/SubscribePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
@@ -67,7 +67,7 @@ import { CurrencyProvider } from './context/CurrencyContext';
 const Home = () => {
   return (
     <div className="front_page">
-      <NewsletterIdlePopup />
+      <SubscribePopup />
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
       
@@ -91,10 +91,20 @@ function AppLayout() {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isPublicLoginRoute = location.pathname === '/login';
+  const hideSiteFooter = isAdminRoute || isPublicLoginRoute;
 
   return (
     <SmoothScroll>
-      <div className={`academy-app ${isAdminRoute ? 'admin-route' : ''}`}>
+      <div
+        className={[
+          'academy-app',
+          isAdminRoute ? 'admin-route' : null,
+          isPublicLoginRoute ? 'public-login-route' : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <Cursor />
          
           {/* Header is already correctly positioned here */}
@@ -196,7 +206,7 @@ function AppLayout() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
-          <FooterSimple />
+          {!hideSiteFooter && <FooterSimple />}
         </div>
       </SmoothScroll>
   );

@@ -1,0 +1,255 @@
+// Subscribe popup — two-column modal; form column is one flush-left stack (reference layout).
+
+.subscribe-popup-overlay {
+  // ---------------------------------------------------------------------------
+  // Design tokens
+  // ---------------------------------------------------------------------------
+  --np-pad-outer: clamp(12px, 2.8vw, 22px);
+  --np-card-max-w: min(640px, 100%);
+  --np-card-min-h: clamp(240px, 34vh, 360px);
+  --np-card-max-h: min(76dvh, calc(100dvh - 2 * var(--np-pad-outer)));
+  --np-grid-cols: minmax(0, 1fr) minmax(0, 1fr);
+  // cover = fills cell, no letterboxing (edges may crop). Override with `contain` if needed.
+  --np-visual-object-fit: cover;
+  --np-content-pad-x: clamp(18px, 3vw, 34px);
+  --np-content-pad-y: clamp(18px, 3vw, 34px);
+  --np-title-mb: clamp(14px, 2vw, 22px);
+  --np-title-size: clamp(1.25rem, 0.95rem + 1vw, 1.75rem);
+  --np-field-gap: clamp(10px, 1.5vw, 16px);
+  --np-input-fs: 1rem;
+  --np-input-h: 40px;
+  --np-input-border: #d4d4d4;
+  --np-placeholder: #9a9a9a;
+  --np-privacy-fs: 0.875rem;
+  --np-privacy-check-gap: 10px;
+  --np-submit-fs: 1rem;
+  --np-submit-h: 40px;
+  --np-submit-pad-x: 2rem;
+  --np-submit-bg: #a39485;
+  --np-submit-bg-hover: #928377;
+  --np-close-size: clamp(26px, 3.8vw, 34px);
+  --np-close-inset: clamp(10px, 1.8vw, 16px);
+  --np-success-title: clamp(1.15rem, 1rem + 0.9vw, 1.5rem);
+
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--np-pad-outer);
+  background: rgba(0, 0, 0, 0.52);
+  cursor: auto;
+
+  * {
+    cursor: inherit;
+  }
+}
+
+.subscribe-popup-card {
+  width: min(var(--np-card-max-w), calc(100vw - 2 * var(--np-pad-outer)));
+  min-height: var(--np-card-min-h);
+  max-height: var(--np-card-max-h);
+  display: grid;
+  grid-template-columns: var(--np-grid-cols);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  background: #fff;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
+  overflow: hidden auto;
+}
+
+// Left column: image only, flush to card edges (no padding).
+.subscribe-popup-visual {
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  align-self: stretch;
+  background: #0b0b0b;
+  display: block;
+  overflow: hidden;
+}
+
+.subscribe-popup-visual-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  object-fit: var(--np-visual-object-fit);
+  object-position: center;
+  filter: saturate(0.95) contrast(1.05);
+}
+
+.subscribe-popup-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--np-content-pad-y) var(--np-content-pad-x);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.subscribe-popup-close {
+  position: absolute;
+  top: var(--np-close-inset);
+  right: var(--np-close-inset);
+  border: none;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: var(--np-close-size);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.subscribe-popup-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  text-align: left;
+
+  h2 {
+    margin: 0 0 var(--np-title-mb);
+    padding: 0;
+    font-size: var(--np-title-size);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    color: #0a0a0a;
+    font-weight: 600;
+    text-align: left;
+  }
+}
+
+.subscribe-popup-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: var(--np-input-h);
+  border: none;
+  border-bottom: 1px solid var(--np-input-border);
+  border-radius: 0;
+  outline: none;
+  padding: 0;
+  margin: 0 0 var(--np-field-gap);
+  font-family: inherit;
+  font-size: var(--np-input-fs);
+  font-weight: 400;
+  line-height: 1.25;
+  color: #1a1a1a;
+  background: transparent;
+  cursor: text;
+  text-align: left;
+
+  &::placeholder {
+    color: var(--np-placeholder);
+    opacity: 1;
+  }
+}
+
+.subscribe-popup-privacy {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--np-privacy-check-gap);
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 var(--np-field-gap);
+  padding: 0;
+  color: #6f6f6f;
+  font-size: var(--np-privacy-fs);
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    grid-column: 1;
+    grid-row: 1;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0.2em 0 0;
+    padding: 0;
+    border: 1px solid #c4c4c4;
+    border-radius: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-sizing: border-box;
+    accent-color: var(--np-submit-bg);
+    align-self: start;
+  }
+
+  a,
+  button.subscribe-popup-privacy-link {
+    color: #4a4a4a;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  button.subscribe-popup-privacy-link {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: inline;
+    text-align: left;
+  }
+
+  span {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    white-space: normal;
+    text-align: left;
+  }
+}
+
+.subscribe-popup-submit {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: var(--np-submit-h);
+  padding: 0 var(--np-submit-pad-x);
+  border: none;
+  border-radius: 999px;
+  background: var(--np-submit-bg);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--np-submit-fs);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: var(--np-submit-bg-hover);
+  }
+}
+
+.subscribe-popup-success {
+  width: 100%;
+  text-align: left;
+
+  h3 {
+    margin: 0;
+    color: #171717;
+    font-size: var(--np-success-title);
+    font-weight: 600;
+  }
+}

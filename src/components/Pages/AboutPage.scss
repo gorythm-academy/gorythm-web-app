@@ -234,12 +234,28 @@
 
 .about-page-dark__statement-word-current {
   grid-area: word;
-  white-space: nowrap;
+  /* Preserve leading/trailing spaces inside per-character spans (e.g. " emotionally") */
+  white-space: pre;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0;
+}
 
-  &--underlined {
-    /* Use box-shadow instead of border-bottom so vertical metrics stay identical */
-    box-shadow: 0 2px 0 0 currentColor;
-  }
+/* Character-by-character reveal with visually continuous underline segments. */
+.about-page-dark__statement-char {
+  position: relative;
+  display: inline-block;
+}
+
+.about-page-dark__statement-char::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.08em;
+  height: 1px;
+  background: currentColor;
+  pointer-events: none;
 }
 
 .about-page-dark__eyebrow {
@@ -309,14 +325,14 @@
 
 .about-page-dark__value-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(12px, 1.8vw, 24px);
   margin-top: 26px;
 }
 
 .about-page-dark__value-card {
-  min-height: 220px;
-  padding: 34px 28px;
+  min-height: clamp(180px, 18vw, 220px);
+  padding: clamp(16px, 2.2vw, 34px) clamp(12px, 1.8vw, 28px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #141414;
   text-align: center;
@@ -324,13 +340,14 @@
   h3 {
     margin: 0 0 12px;
     color: #fff;
-    font-size: 1.28rem;
+    font-size: clamp(0.98rem, 1.15vw, 1.28rem);
     font-weight: 500;
   }
 
   p {
     margin: 0;
     color: rgba(255, 255, 255, 0.68);
+    font-size: clamp(0.78rem, 0.9vw, 1rem);
     line-height: 1.8;
   }
 }
@@ -400,6 +417,10 @@
   position: relative;
   width: 100%;
   height: 100%;
+
+  .optimized-picture {
+    height: 100%;
+  }
 
   img {
     display: block;
@@ -1105,9 +1126,9 @@
 
   .about-page-dark__academy-slide {
     --academy-panel-w: clamp(172px, 44vw, 260px);
-    --academy-title-top: clamp(14px, 5vw, 20px);
+    --academy-title-top: clamp(6px, 2.6vw, 12px);
     --academy-title-side: clamp(12px, 4vw, 18px);
-    --academy-title-space: clamp(72px, 16vw, 112px);
+    --academy-title-space: clamp(44px, 10.5vw, 74px);
     aspect-ratio: auto;
     min-height: 0;
   }
@@ -1119,8 +1140,8 @@
     bottom: 0;
     width: var(--academy-panel-w);
     max-width: none;
-    padding: calc(var(--academy-title-space) + clamp(6px, 2vw, 12px)) var(--academy-title-side)
-      clamp(12px, 2.8vw, 18px);
+    padding: calc(var(--academy-title-space) + clamp(2px, 1.2vw, 8px)) var(--academy-title-side)
+      clamp(10px, 2.4vw, 16px);
     background: linear-gradient(
       90deg,
       rgba(0, 0, 0, 0.48) 0%,
@@ -1146,12 +1167,17 @@
     position: static;
     transform: none;
     display: flex;
-    margin-top: 14px;
+    margin-top: 26px;
     flex-direction: row;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     visibility: visible;
     opacity: 1;
+  }
+
+  .about-page-dark__academy-dot {
+    width: 6px;
+    height: 6px;
   }
 
   .about-page-dark__intro-media {
@@ -1258,6 +1284,20 @@
     );
   }
 
+  /* Phone portrait: move Mission/Vision title + description higher */
+  @media (orientation: portrait) {
+    .about-page-dark__academy-slide {
+      --academy-title-top: clamp(0px, 1.2vw, 6px);
+      /* Increase title→description spacing on mobile portrait */
+      --academy-title-space: clamp(52px, 13vw, 92px);
+    }
+
+    .about-page-dark__academy-copy {
+      padding: calc(var(--academy-title-space) + clamp(0px, 0.8vw, 6px)) var(--academy-title-side)
+        clamp(10px, 2.4vw, 16px);
+    }
+  }
+
   .about-page-dark__academy-dots {
     position: static;
     transform: none;
@@ -1265,9 +1305,14 @@
     margin-top: 12px;
     flex-direction: row;
     justify-content: center;
-    gap: 10px;
+    gap: 7px;
     visibility: visible;
     opacity: 1;
+  }
+
+  .about-page-dark__academy-dot {
+    width: 6px;
+    height: 6px;
   }
 
   .about-page-dark__academy-media-title {
@@ -1307,7 +1352,7 @@
   }
 }
 
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .about-page-dark + .video-section {
     margin-bottom: 0;
   }

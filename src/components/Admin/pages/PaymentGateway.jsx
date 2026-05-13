@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { API_BASE_URL, BANK_TRANSFER_NOTE, CONTACT_EMAIL } from '../../../config/constants';
+import {
+    API_BASE_URL,
+    BANK_TRANSFER_NOTE_CUSTOM,
+    BANK_TRANSFER_NOTE_DEFAULT_LEAD,
+    INFO_EMAIL,
+} from '../../../config/constants';
+import { navigateToMailto } from '../../../utils/mailto';
 import { getAuthUserJson } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
 import './PaymentGateway.scss';
@@ -57,6 +63,17 @@ const PaymentGateway = () => {
         }));
     }, [paymentDetails.courseName]);
 
+    useEffect(() => {
+        const handlePageShow = () => {
+            setCheckoutLoading(false);
+        };
+
+        window.addEventListener('pageshow', handlePageShow);
+        return () => {
+            window.removeEventListener('pageshow', handlePageShow);
+        };
+    }, []);
+
     const selectedCourse = useMemo(
         () => courseOptions.find((course) => course?.title === formData.courseName) || null,
         [courseOptions, formData.courseName]
@@ -75,6 +92,12 @@ const PaymentGateway = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
+        if (!/^\d{8,15}$/.test(normalizedPhone)) {
+            alert('Please enter a valid phone number with 8 to 15 digits.');
+            return;
+        }
 
         if (paymentMethod === 'stripe') {
             if (!selectedCourse?._id) {
@@ -105,6 +128,7 @@ const PaymentGateway = () => {
                         courseId: String(selectedCourse._id),
                         studentName: formData.studentName.trim(),
                         email: formData.email.trim(),
+                        phone: normalizedPhone,
                         ...(userId ? { userId: String(userId) } : {})
                     })
                 });
@@ -141,6 +165,7 @@ const PaymentGateway = () => {
                     body: JSON.stringify({
                         studentName: formData.studentName,
                         email: formData.email,
+                        phone: normalizedPhone,
                         courseName: formData.courseName || paymentDetails.courseName || 'Selected Course',
                         amount: resolvedAmount,
                         paymentMethod: 'bank'
@@ -215,12 +240,18 @@ const PaymentGateway = () => {
                             </div>
 
                             <div className="form-group form-group-wide">
-                                <label>Student/Parent Phone Number *</label>
+                                <label>Student/Parent Phone Number (whatsapp Please) *</label>
                                 <input
-                                    type="text"
-                                    placeholder="e.g. +31-6-1234567"
+                                    type="tel"
+                                    placeholder="Country code + phone no"
                                     value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    inputMode="numeric"
+                                    pattern="[0-9]{8,15}"
+                                    minLength={8}
+                                    maxLength={15}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })
+                                    }
                                     required
                                 />
                             </div>
@@ -325,10 +356,22 @@ const PaymentGateway = () => {
                             ) : (
                                 <div className="paypal-info payment-bank-info">
                                     <h3>Bank transfer</h3>
-                                    <p>{BANK_TRANSFER_NOTE}</p>
-                                    <p className="payment-bank-contact">
-                                        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
-                                    </p>
+                                    {BANK_TRANSFER_NOTE_CUSTOM ? (
+                                        <p>{BANK_TRANSFER_NOTE_CUSTOM}</p>
+                                    ) : (
+                                        <p className="payment-bank-note">
+                                            {BANK_TRANSFER_NOTE_DEFAULT_LEAD}{' '}
+                                            <button
+                                                type="button"
+                                                className="payment-mailto-link"
+                                                aria-label={`Send email to ${INFO_EMAIL}`}
+                                                onClick={(e) => navigateToMailto(INFO_EMAIL, e)}
+                                            >
+                                                {INFO_EMAIL}
+                                            </button>
+                                            .
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

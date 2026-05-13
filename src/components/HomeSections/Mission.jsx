@@ -8,22 +8,22 @@ const missionCards = [
   {
     id: 1,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-1.svg',
-    title: "Qur'an-Centered Learning",
-    description: "Every course is designed to help learners build a stronger relationship with the Qur'an through recitation, understanding, reflection, and consistent practice in daily life.",
+    title: "IQ — Intellectual Quotient",
+    description: "Intellectual Creativity, critical thinking, logical reasoning, pattern recognition, and the capacity to learn independently, Curiosity, adaptability of thought, and the courage to question what you think you know ",
     path: '/mission/satellite-maintenance',
   },
   {
     id: 2,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-2.svg',
-    title: 'Character That Grows With Knowledge',
-    description: 'We believe meaningful education should shape both the mind and the heart. Our learning approach encourages discipline, sincerity, confidence, respect, and strong Islamic character.',
+    title: 'EQ — Emotional Quotient',
+    description: 'Emotional Self-awareness, empathy, emotional regulation, and the ability to act with clarity under pressure, Resilience in adversity, moral integrity, and the inner sense of purpose that guides your decisions',
     path: '/mission/exploration-missions',
   },
   {
     id: 3,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-3.svg',
-    title: 'Flexible Learning for Modern Families',
-    description: 'With interactive online classes, supportive teachers, and structured guidance, GoRythm makes it easier for kids, teens, and adults to learn from anywhere without losing quality or connection.',
+    title: 'PhQ — Physical  Quotient',
+    description: 'Physical Discipline, vitality, and the habits that sustain the energy to pursue meaningful goals over time, Body awareness, rest as a practice, and the connection between physical state and mental performance',
     path: '/mission/research-and-observation',
   },
 ];

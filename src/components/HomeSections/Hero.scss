@@ -64,17 +64,28 @@
     }
   }
 
-  // Full-screen background image container
+  // Full-screen background image container (was CSS `background-image`; now `<picture>` for AVIF/WebP)
   .hero-background {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-size: cover;
-    background-position: center;
-    background-attachment: scroll; // Standard scroll (not fixed)
     z-index: 0; // stay behind content, but inside hero stacking context
+
+    .hero-background-picture {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hero-background-fill {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
 
     // (Mobile-only background overrides are in the two mobile blocks below.)
   }
@@ -122,18 +133,6 @@
     margin-bottom: 10px;
   }
 
-
-  // Hero description paragraph (desktop/tablet base; mobile overrides in mobile blocks)
-  .hero-description {
-    font-size: 1.4rem;
-    line-height: 1.7;
-    margin-bottom: 3rem;
-    opacity: 0.9;
-    max-width: 700px;
-    margin-left: 0;
-    margin-right: auto;
-    text-align: left;
-  }
 
   /* ===== NEW SPLIT TITLE LAYOUT WITH IMAGE ===== */
 
@@ -191,7 +190,7 @@
         /* Formula: clamp(min-size-mobile, base + viewport-scale, max-size-desktop) */
         /* Scales from 1.5rem (small phones) up to 5rem on large screens */
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
-        font-family: var(--font-primary);
+        font-family: 'Nunito', var(--font-primary), sans-serif;
         font-weight: 550;
         color: rgba(255, 255, 255, 0.9); // match title color with description color
         line-height: 1;
@@ -228,6 +227,7 @@
         /* UPDATED: Using clamp() for smooth responsive scaling - matches hero-title-word */
         /* Matches .hero-title-word fluid scale */
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
+        font-family: 'Nunito', var(--font-primary), sans-serif;
         font-weight: 550;
         color: rgba(255, 255, 255, 0.9); // match title color with description color
         margin: 0;
@@ -297,26 +297,49 @@
     }
   }
 
-  // Description box (visible on desktop + tablet; hidden only in mobile blocks below)
+  // Description box: single source of truth across all non-portrait viewports.
   .hero-description-container {
     position: static;
     display: block;
-    max-width: min(380px, 100%);
+    max-width: min(460px, 100%); // slightly wider without breaking title layout
     overflow-wrap: break-word;
     text-align: right;
     margin: 0;
     align-self: flex-end;
-    flex: 0 1 min(420px, 36vw);
+    flex: 0 1 min(460px, 38vw);
 
     .hero-description {
-      font-size: clamp(0.95rem, 0.8rem + 0.4vw, 1.2rem);
-      line-height: 1.6;
+      font-size: clamp(0.78rem, 0.62rem + 0.35vw, 1.08rem); // naturally smaller on mobile
+      font-family: 'Nunito', var(--font-primary), sans-serif;
+      line-height: 1.42;
       color: rgba(255, 255, 255, 0.9);
       margin: 0;
       font-weight: 250;
       text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
       max-width: 100%;
-      word-wrap: break-word;
+      text-align: left; // keep right-side position, but align text left
+      overflow-wrap: anywhere;
+      word-break: normal;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 4;
+      line-clamp: 4;
+      overflow: hidden;
+    }
+  }
+
+  // Extended screens: slightly increase description width.
+  @media (min-width: $bp-hero-2000) {
+    .hero-description-container {
+      max-width: min(540px, 100%);
+      flex: 0 1 min(540px, 40vw);
+    }
+  }
+
+  // Hidden on portrait only.
+  @media (orientation: portrait) {
+    .hero-description-container {
+      display: none;
     }
   }
 
@@ -337,11 +360,6 @@
       flex: 1 1 0;
     }
 
-    .hero-description-container {
-      flex-shrink: 1;
-      max-width: min(380px, 45vw);
-      overflow-wrap: anywhere;
-    }
   }
 
   // ===========================================================================
@@ -358,9 +376,8 @@
       margin-bottom: 2px; // tighter gap to title on portrait phones
       line-height: 1.1;
     }
-    .hero-background { // adjust hero background framing for portrait phones
-      background-position: 50% center; // shift focal point to the right for better subject framing
-      background-size: cover; // ensure background always covers the hero area
+    .hero-background .hero-background-fill {
+      object-position: 50% center; // portrait phones — match prior CSS background focal point
     }
 
     .hero-container { // tighten container spacing + keep content anchored low
@@ -380,10 +397,6 @@
       margin-top: 0; // ensure title block remains bottom-anchored
       margin-bottom: 0; // remove inherited lift from base spacing
       min-height: 0; // cancel desktop min-height so title can drop to bottom
-    }
-
-    .hero-description-container { // hide right-side description on phones
-      display: none; // remove description to reduce clutter on small screens
     }
 
     .hero-title-wrapper { // ensure title wrapper spans full width on phones
@@ -456,9 +469,6 @@
       margin-bottom: 26px;
     }
 
-    .hero-description-container {
-      display: none;
-    }
   }
 
   // ===========================================================================
@@ -475,9 +485,8 @@
     height: 100svh; // lock section to viewport — no page scroll
     overflow: hidden; // clip anything outside
 
-    .hero-background {
-      background-position: 60% center;
-      background-size: cover;
+    .hero-background .hero-background-fill {
+      object-position: 60% center;
     }
 
     .hero-container {
@@ -530,23 +539,6 @@
       margin: 0 4px;
     }
 
-    .hero-description-container {
-      position: static; // keep in normal flow so it stays parallel to title
-      display: block;
-      max-width: 42%;
-      align-self: flex-end;
-      text-align: right;
-      padding-right: 0;
-      overflow: hidden;
-
-      .hero-description {
-        font-size: clamp(0.7rem, 1.5vw, 0.88rem);
-        line-height: 1.4;
-        margin-bottom: 0;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-      }
-    }
   }
 
   // ===========================================================================
@@ -578,13 +570,6 @@
       min-width: 44px;
     }
 
-    .hero-description-container {
-      max-width: 40%;
-
-      .hero-description {
-        font-size: clamp(0.65rem, 1.3vw, 0.82rem);
-      }
-    }
   }
 
   // ===========================================================================
@@ -621,10 +606,6 @@
       margin: 0 2px;
     }
 
-    .hero-description-container {
-      display: block;
-      max-width: 38%;
-    }
   }
 
   // ===========================================================================
@@ -664,16 +645,5 @@
       min-height: 0;
     }
 
-    .hero-description-container {
-      display: block;
-      max-width: min(440px, 42%);
-      align-self: flex-end;
-      text-align: right;
-
-      .hero-description {
-        font-size: clamp(1rem, 1.1vw, 1.28rem); // larger than mobile-landscape sizing
-        line-height: 1.55;
-      }
-    }
   }
 }

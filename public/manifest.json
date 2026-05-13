@@ -3,9 +3,14 @@
   "name": "Gorythm Academy — Online Education Platform",
   "icons": [
     {
+      "src": "favicon-48.png",
+      "type": "image/png",
+      "sizes": "48x48"
+    },
+    {
       "src": "favicon.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "192x192"
     },
     {
       "src": "logo192.png",

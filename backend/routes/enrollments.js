@@ -4,7 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
-const STUDENT_POPULATE = 'name email personalEmail avatar studentId isActive';
+const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive';
 const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
 
 const coursePopulate = () => ({
@@ -42,20 +42,26 @@ const ensureStudentEnrollmentBackfill = async () => {
 
 const removeOrphanEnrollmentRows = async () => {
     const validStudentIds = await User.find({ role: 'student' }).distinct('_id');
-    await Enrollment.deleteMany({
-        $or: [
-            { student: null },
-            { student: { $exists: false } },
-            { student: { $nin: validStudentIds } }
-        ]
-    });
+    const orConditions = [
+        { student: null },
+        { student: { $exists: false } },
+    ];
+    // MongoDB: `{ student: { $nin: [] } }` matches every document — never add it with an empty array.
+    if (validStudentIds.length > 0) {
+        orConditions.push({ student: { $nin: validStudentIds } });
+    }
+    await Enrollment.deleteMany({ $or: orConditions });
 };
 
 // Get all enrollments (admin only)
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        await removeOrphanEnrollmentRows();
-        await ensureStudentEnrollmentBackfill();
+        try {
+            await removeOrphanEnrollmentRows();
+            await ensureStudentEnrollmentBackfill();
+        } catch (maintErr) {
+            req.log.warn('Enrollment list maintenance skipped', { err: maintErr });
+        }
         const enrollments = await Enrollment.find()
             .populate('student', STUDENT_POPULATE)
             .populate(coursePopulate())
@@ -67,6 +73,7 @@ router.get('/', authMiddleware, async (req, res) => {
             count: enrollments.length
         });
     } catch (error) {
+        req.log.error('Error fetching enrollments', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error fetching enrollments',
@@ -101,9 +108,8 @@ router.post('/', authMiddleware, async (req, res) => {
         if (student.role !== 'student') {
             return res.status(400).json({ success: false, message: 'Selected user is not a student' });
         }
-        if (student.isActive === false) {
-            return res.status(400).json({ success: false, message: 'Cannot enroll an inactive student' });
-        }
+        // Do not block on `isActive`: pending learners use isActive=false for portal login, but admins
+        // must still be able to assign courses from Students data / Enroll Student.
 
         // Check if already enrolled in this course
         const alreadyEnrolled = await Enrollment.findOne({ student: student._id, course: courseId });
@@ -141,15 +147,8 @@ router.post('/', authMiddleware, async (req, res) => {
             });
         }
 
-        if (!course.students.includes(student._id)) {
-            course.students.push(student._id);
-            await course.save();
-        }
-
-        if (!student.enrolledCourses.includes(courseId)) {
-            student.enrolledCourses.push(courseId);
-            await student.save();
-        }
+        await Course.findByIdAndUpdate(course._id, { $addToSet: { students: student._id } });
+        await User.findByIdAndUpdate(student._id, { $addToSet: { enrolledCourses: courseId } });
 
         const populatedEnrollment = await Enrollment.findById(enrollment._id)
             .populate('student', STUDENT_POPULATE)
@@ -200,18 +199,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 });
             }
 
-            // Push into new course arrays
-            if (!newCourse.students.includes(enrollment.student._id)) {
-                await Course.findByIdAndUpdate(courseId, {
-                    $push: { students: enrollment.student._id }
-                });
-            }
-            const studentDoc = await User.findById(enrollment.student._id);
-            if (!studentDoc.enrolledCourses.includes(courseId)) {
-                await User.findByIdAndUpdate(enrollment.student._id, {
-                    $push: { enrolledCourses: courseId }
-                });
-            }
+            // Push into new course arrays (avoid .includes on undefined legacy docs)
+            await Course.findByIdAndUpdate(courseId, { $addToSet: { students: enrollment.student._id } });
+            await User.findByIdAndUpdate(enrollment.student._id, { $addToSet: { enrolledCourses: courseId } });
 
             enrollment.course = courseId;
         }

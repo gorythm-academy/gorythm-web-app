@@ -623,6 +623,14 @@
   }
 }
 
+// Portrait (mobile/tablet): nudge WhatsApp + hamburger row slightly upward vs logo.
+// Landscape gets its own translateY in _header-landscape.scss.
+@media (max-width: $bp-laptop-max) and (orientation: portrait) {
+  .header .header-actions {
+    transform: translateY(-4px);
+  }
+}
+
 .auth-buttons {
   display: flex;
   gap: 15px;
@@ -754,7 +762,7 @@
       max-height: 100%;
       object-fit: contain;
       object-position: left center;
-      transform: translateY(12px) scale(3.5);
+      transform: translateY(4px) scale(3.5);
       transform-origin: left center;
     }
   }
@@ -1701,8 +1709,32 @@
   }
 
   @media (orientation: landscape) {
+    .menu-grid-panel {
+      height: 100svh;
+      max-height: 100svh;
+    }
+
+    // Keep social links strictly between logo(header) and info(footer).
+    // The middle area scrolls when viewport height is short.
+    .menu-grid-container {
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      justify-content: stretch;
+    }
+
+    .menu-grid-content {
+      justify-content: flex-start;
+      align-items: stretch;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+
     .social-links-list {
       gap: 4px;
+      min-height: 0;
     }
 
     .social-link-item {
@@ -1723,6 +1755,10 @@
 
     .social-link-name {
       line-height: 1.05;
+    }
+
+    .menu-grid-footer {
+      margin-top: 0;
     }
   }
 
@@ -1894,6 +1930,56 @@ body.no-page-scroll {
   .menu-grid-panel {
     height: 100svh;
     max-height: 100svh;
+  }
+}
+
+// ===============================================================
+// MOBILE LANDSCAPE HARD FIXES (9-dot social panel)
+// - Remove social item gaps so all links fit between logo and info bar.
+// - Use dynamic viewport height to match Chrome URL bar expand/collapse.
+// ===============================================================
+@media (orientation: landscape) and (max-width: 1024px) {
+  .menu-grid-panel {
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .menu-grid-container {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .menu-grid-content {
+    min-height: 0;
+    overflow-y: auto;
+    justify-content: flex-start;
+    padding: 2px 0;
+  }
+
+  .social-links-list {
+    gap: 0;
+  }
+
+  .social-link-item {
+    gap: 6px;
+    padding: 1px 4px;
+  }
+
+  .menu-grid-footer {
+    margin-top: 0;
+  }
+}
+
+@supports not (height: 100dvh) {
+  @media (orientation: landscape) and (max-width: 1024px) {
+    .menu-grid-panel {
+      height: 100vh;
+      min-height: 100vh;
+      max-height: 100vh;
+    }
   }
 }
 

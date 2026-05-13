@@ -255,9 +255,9 @@
 
 .key-achievements-big-number {
   position: absolute;
-  right: -0.05em;
+  right: var(--why-bn-right, -0.05em);
   left: auto;
-  top: 0.3em;
+  top: var(--why-bn-top, 0.3em);
   font-size: clamp(8rem, 16vw, 18rem);
   font-weight: 800;
   line-height: 0.85;
@@ -279,7 +279,7 @@
 
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .key-achievements-big-number {
-    top: -0.17em;
+    top: var(--why-bn-top, 0.3em);
   }
 }
 
@@ -360,7 +360,7 @@
   .key-achievements-right  { padding-top: 0; }
 }
 
-@media (max-width: $bp-section-sm) {
+@media (max-width: ($bp-section-sm - 1px)) {
   .key-achievements-section { padding: 28px 0 44px; }
   .key-achievements-inner   { padding: 0 20px; }
 
@@ -592,8 +592,8 @@
     margin-top: 28px;
   }
 
-  .key-achievements-big-number {
-    top: 0.55em;
+  .why-gorythm-section {
+    --why-bn-top: 0.55em;
   }
 
   .key-achievements-eyebrow {
@@ -608,6 +608,31 @@
 
   .key-achievements-cta {
     font-size: 1.2rem;
+  }
+}
+
+// iPad Mini portrait (768px): keep desktop section styling for WhyGorythm.
+@media (min-width: $bp-section-sm) and (max-width: $bp-section-sm) and (orientation: portrait) {
+  .key-achievements-img-1 {
+    margin-top: 50px;
+  }
+
+  .why-gorythm-section {
+    --why-bn-top: 0.3em;
+  }
+
+  .key-achievements-eyebrow {
+    font-size: 0.88rem;
+    margin-bottom: 16px;
+  }
+
+  .key-achievements-description {
+    font-size: 1.08rem;
+    max-width: 560px;
+  }
+
+  .key-achievements-cta {
+    font-size: 0.88rem;
   }
 }
 

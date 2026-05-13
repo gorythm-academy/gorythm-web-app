@@ -1,4 +1,4 @@
-// Video Section – full-width image banner, PLAY button follows cursor
+// Video Section – full-width image banner, PLAY centered; whole section opens video
 // ============================================================================
 @import '../../styles/breakpoints';
 
@@ -25,14 +25,39 @@
   min-height: 420px;
   height: 50vw;
   max-height: 680px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  // `hidden` can break touch hit-testing for cross-origin iframes on iOS/WebKit.
+  // `clip` paints the same overflow without the problematic scroll/touch container.
   overflow: hidden;
-  cursor: none;               // hide default cursor inside section while hovering
+  overflow: clip;
+  cursor: pointer;
 
   &.video-section--playing {
     cursor: auto;
+    // Player now stays inside the section bounds.
+    overflow: hidden;
+    overflow: clip;
+  }
+}
+
+// Replaces former `background-image` on `.video-section` — keeps cover + lazy-friendly `<img>`
+.video-section-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  .video-section-backdrop-picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .video-section-backdrop-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
   }
 }
 
@@ -46,13 +71,13 @@
 }
 
 // =============================================================================
-// PLAY BUTTON – absolutely positioned, cursor-following via JS + CSS transition
+// PLAY BUTTON – fixed center; visible once section scrolls into view
 // =============================================================================
 
 .video-play-btn {
   position: absolute;
-  // left / top set via inline style from JS (percentage of section)
-  // transform keeps the button centred on that coordinate
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   z-index: 2;
 
@@ -66,24 +91,11 @@
   cursor: pointer;
   padding: 0;
 
-  // Smooth cursor-follow transition – adjust duration to taste
-  // 0.12s = snappy but smooth; increase for more "lag/magnetic" feel
-  transition: left 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              top  0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-
   // Initially hidden; appears on scroll-in
   opacity: 0;
 
   .video-section.video-inview & {
-    // duration 0.6s, delay 0.2s – change these to adjust entrance
     animation: videoPlayAppear 0.6s ease-out 0.2s forwards;
-  }
-
-  // After animation, stay visible while section is in view
-  .video-section.video-inview.video-hovering & {
-    animation: none;           // cancel keyframe so transition takes over
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
 
   &:hover .video-play-ring {
@@ -97,7 +109,6 @@
   }
 }
 
-// Beat .video-section.video-inview.video-hovering .video-play-btn while reel is open
 .video-section.video-section--playing.video-inview .video-play-btn {
   opacity: 0;
   pointer-events: none;
@@ -126,7 +137,7 @@
 }
 
 // =============================================================================
-// INLINE PLAYER (fills section only; Reel scaled to fit)
+// INLINE PLAYER (fills section only; native video letterboxed to fit)
 // =============================================================================
 
 @keyframes videoPlayerIn {
@@ -134,15 +145,19 @@
   to   { opacity: 1; }
 }
 
+// Previously this was fullscreen (`position: fixed; inset: 0`).
+// Now it is constrained to the video section only.
 .video-section-player {
   position: absolute;
   inset: 0;
   z-index: 4;
-  // Grid so the fit layer stretches to full area (flex + align-items:center shrink-wraps to 0-height content)
   display: grid;
   grid-template: 1fr / 1fr;
-  padding: clamp(8px, 2vw, 20px);
   box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: clamp(8px, 2vw, 20px);
   background: rgba(0, 0, 0, 0.88);
   animation: videoPlayerIn 0.25s ease-out;
 }
@@ -183,14 +198,28 @@
   min-height: 0;
 }
 
-// Instagram Reels ≈ 9:16 — height fills slot; width follows aspect-ratio, capped by section width
+// Keep a responsive 16:9 player box that always fits inside the section overlay.
 .video-section-embed {
-  position: relative;
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   height: 100%;
-  width: auto;
-  max-width: 100%;
-  aspect-ratio: 9 / 16;
+  min-width: 0;
+  min-height: 0;
+
+  .video-section-embed-inner {
+    max-width: 100%;
+    max-height: 100%;
+    width: min(100%, 960px);
+    aspect-ratio: 16 / 9;
+    background: #000;
+    position: relative;
+    z-index: 1;
+    // Promote compositing so the iframe receives taps reliably on mobile WebKit.
+    transform: translateZ(0);
+    touch-action: manipulation;
+  }
 
   iframe {
     position: absolute;
@@ -199,8 +228,41 @@
     height: 100%;
     border: none;
     display: block;
+    background: #000;
+    pointer-events: auto;
+    touch-action: manipulation;
+  }
+
+  // Transparent hit target: toggles play/pause via @vimeo/player (Vimeo’s own surface tap is unreliable in embeds).
+  // Leave the bottom band uncovered so scrubber / volume / fullscreen on the iframe still receive touches.
+  .video-section-embed-tap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: clamp(52px, 16%, 112px);
+    z-index: 2;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    touch-action: manipulation;
+    appearance: none;
+    color: transparent;
+
+    &::-moz-focus-inner {
+      border: 0;
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.65);
+      outline-offset: -6px;
+    }
   }
 }
+
+// Fullscreen-only dvh sizing was removed because player is in-section now.
 
 // =============================================================================
 // BREAKPOINTS
@@ -223,26 +285,21 @@
   .video-section { height: 70vh; min-height: 240px; max-height: 400px; }
 }
 
-@media (max-width: $bp-section-sm) {
+@media (max-width: ($bp-section-sm - 1px)) {
   .video-section {
     height: 60vw;
     min-height: 240px;
     max-height: 420px;
-    // Restore default cursor on mobile (no cursor tracking)
-    cursor: auto;
+    cursor: pointer;
   }
   .video-play-btn {
     width: 64px;
     height: 64px;
-    // On mobile keep button centred; no cursor-follow
-    left: 50%;
-    top:  50%;
-    transition: none;
   }
   .video-play-text { font-size: 0.65rem; }
 }
 
-@media (max-width: $bp-section-sm) and (orientation: landscape) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: landscape) {
   .video-section { height: 80vh; min-height: 200px; max-height: 360px; }
   .video-play-btn { width: 56px; height: 56px; }
 }

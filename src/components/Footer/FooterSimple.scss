@@ -11,10 +11,23 @@
 .footer-milky-bg {
   position: absolute;
   inset: 0;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
   transform: scale(1.02);
+  overflow: hidden;
+
+  // `<picture>` fill (replaces inline `background-image` URL)
+  .footer-milky-bg-picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .footer-milky-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
 
   // Temporary: disabled dark overlay on footer background image.
   // &::after {
@@ -33,24 +46,30 @@
   width: min(1280px, calc(100% - 48px));
   margin: 0 auto;
   padding: 78px 0 28px;
+  display: flex;
+  flex-direction: column;
 }
 
 .footer-milky-top {
   min-height: 300px;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 32px;
+  margin-bottom: auto;
 }
 
 .footer-milky-copy {
-  max-width: 470px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 920px;
+  margin-top: 12px;
 }
 
 .footer-milky-title {
   margin: 0;
   color: #fff;
-  font-size: clamp(2.1rem, 4vw, 3.1rem);
+  font-size: clamp(2rem, 3.6vw, 3.05rem);
   font-weight: 500;
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -58,12 +77,13 @@
 }
 
 .footer-milky-subtitle {
-  margin: 6px 0 32px;
+  margin: 10px 0 32px;
   color: #fff;
-  font-size: clamp(2rem, 3.8vw, 2.95rem);
+  font-size: clamp(0.68rem, 1.05vw, 0.95rem);
   font-weight: 500;
   line-height: 1.08;
   letter-spacing: -0.03em;
+  white-space: nowrap;
 }
 
 .footer-milky-nav {
@@ -113,13 +133,14 @@
 .footer-milky-social {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 8px;
+  align-self: flex-start;
+  gap: clamp(8px, 1vw, 12px);
+  margin-bottom: clamp(8px, 1.2vw, 16px);
 }
 
 .footer-milky-social-link {
-  width: 34px;
-  height: 34px;
+  width: clamp(30px, 2.2vw, 36px);
+  height: clamp(30px, 2.2vw, 36px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
   display: inline-flex;
@@ -137,13 +158,13 @@
   }
 
   i {
-    font-size: 0.85rem;
+    font-size: clamp(0.78rem, 0.7rem + 0.2vw, 0.9rem);
   }
 }
 
 .footer-milky-bottom {
-  margin-top: 54px;
-  padding-top: 18px;
+  margin-top: 0;
+  padding-top: clamp(10px, 1.1vw, 18px);
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -164,6 +185,15 @@
     max-width: 760px; // wider nav area so links can stay on a single row
   }
 
+  .footer-milky-title {
+    font-size: clamp(1.35rem, 3.6vw, 2.05rem);
+    white-space: nowrap;
+  }
+
+  .footer-milky-subtitle {
+    font-size: clamp(0.56rem, 1.35vw, 0.78rem);
+  }
+
   .footer-milky-nav {
     width: 100%;
     flex-wrap: nowrap;
@@ -176,81 +206,8 @@
     }
   }
 
-  .footer-milky-social-link {
-    width: 50px;
-    height: 50px;
-
-    i {
-      font-size: 1.3rem;
-    }
-  }
-
   .footer-milky-copyright {
     font-size: 1.5rem;
-  }
-}
-
-// Phone portrait (≤ 743px portrait): increase footer nav link size for readability
-@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
-  .footer-milky-bg {
-    transform: none;
-    background-size: contain;
-    background-position: center bottom;
-  }
-
-  .footer-milky-inner {
-    width: min(100% - 24px, 100%);
-    padding-top: 44px;
-    padding-bottom: 20px;
-  }
-
-  .footer-milky-top {
-    min-height: 0;
-    gap: 18px;
-  }
-
-  .footer-milky-copy {
-    max-width: 100%;
-  }
-
-  .footer-milky-title {
-    white-space: normal;
-    font-size: clamp(1.5rem, 8.5vw, 2.1rem);
-    line-height: 1.14;
-  }
-
-  .footer-milky-subtitle {
-    margin: 6px 0 18px;
-    font-size: clamp(1.4rem, 8vw, 1.95rem);
-    line-height: 1.14;
-  }
-
-  .footer-milky-nav {
-    gap: 10px 14px;
-
-    a {
-      font-size: 0.95rem;
-      line-height: 1.35;
-    }
-  }
-
-  .footer-milky-social {
-    gap: 10px;
-  }
-
-  .footer-milky-social-link {
-    width: 32px;
-    height: 32px;
-  }
-
-  .footer-milky-bottom {
-    margin-top: 24px;
-    padding-top: 14px;
-  }
-
-  .footer-milky-copyright {
-    font-size: 0.72rem;
-    line-height: 1.45;
   }
 }
 
@@ -277,17 +234,28 @@
     margin-bottom: 24px;
   }
 
-  .footer-milky-social {
-    padding-bottom: 0;
+}
+
+// iPad Mini portrait width (768px): preserve desktop-like footer layout.
+// This reverts only content structure for this exact portrait width.
+@media (min-width: $bp-section-sm) and (max-width: $bp-section-sm) and (orientation: portrait) {
+  .footer-milky-top {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
   }
+
 }
 
 // ≤ 560px: smaller font sizes and tighter spacing for compact phone portrait viewports
 @media (max-width: $bp-legacy-560) {
   .footer-milky-bg {
     transform: none;
-    background-size: contain;
-    background-position: center bottom;
+
+    .footer-milky-bg-img {
+      object-fit: contain;
+      object-position: center bottom;
+    }
   }
 
   .footer-milky-inner {
@@ -301,12 +269,12 @@
   }
 
   .footer-milky-title {
-    font-size: clamp(1.8rem, 9vw, 2.35rem);
+    font-size: clamp(1.35rem, 7.2vw, 2rem);
     white-space: normal;
   }
 
   .footer-milky-subtitle {
-    font-size: clamp(1.7rem, 8vw, 2.2rem);
+    font-size: clamp(0.5rem, 2.45vw, 0.7rem);
   }
 
   .footer-milky-nav {
@@ -315,5 +283,98 @@
 
   .footer-milky-bottom {
     margin-top: 36px;
+  }
+}
+
+// Phone portrait (≤767px): keep headline visible but smaller, and push the copy down
+// so it sits inside the contained footer artwork area. Declared last so min-height beats wider breakpoints.
+@media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
+  // Let the artwork drive the footer height (no stretching/cropping):
+  // - Background becomes part of the normal document flow
+  // - Content is overlaid on top and anchored to the bottom
+  .footer-milky {
+    overflow: hidden;
+  }
+
+  .footer-milky-bg {
+    position: relative;
+    inset: auto;
+    transform: none;
+
+    .footer-milky-bg-img {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      object-position: center bottom;
+    }
+  }
+
+  .footer-milky-inner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 1;
+    width: min(100% - 24px, 100%);
+    margin: 0 auto;
+    padding-top: 14px;
+    padding-bottom: 0;
+  }
+
+  .footer-milky-top {
+    min-height: 0;
+    gap: 12px;
+  }
+
+  .footer-milky-copy {
+    max-width: 100%;
+  }
+
+  .footer-milky-title {
+    display: block;
+    font-size: clamp(0.74rem, 4vw, 0.98rem);
+    line-height: 1.18;
+    white-space: nowrap;
+  }
+
+  .footer-milky-subtitle {
+    margin: 8px 0 14px;
+    font-size: clamp(0.38rem, 1.95vw, 0.52rem);
+    line-height: 1.14;
+  }
+
+  .footer-milky-nav {
+    gap: 10px 14px;
+
+    a {
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+  }
+
+  .footer-milky-social {
+    gap: 10px;
+  }
+
+  .footer-milky-bottom {
+    margin-top: 14px;
+    padding-top: 10px;
+  }
+
+  .footer-milky-copyright {
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+}
+
+// Phone landscape: make title/subtitle smaller than tablet/desktop
+@media (max-width: ($bp-section-sm - 1)) and (orientation: landscape) {
+  .footer-milky-title {
+    font-size: clamp(1.05rem, 3.1vw, 1.35rem);
+    white-space: normal;
+  }
+
+  .footer-milky-subtitle {
+    font-size: clamp(0.44rem, 1.35vw, 0.62rem);
   }
 }

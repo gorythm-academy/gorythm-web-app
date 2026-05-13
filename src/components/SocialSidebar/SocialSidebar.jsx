@@ -1,6 +1,7 @@
 import React from 'react';
 import { SiTiktok } from 'react-icons/si';
 import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL, CONTACT_PHONE, INFO_EMAIL, WHATSAPP_URL } from '../../config/constants';
+import { navigateToMailto } from '../../utils/mailto';
 import './SocialSidebar.scss';
 
 const SocialSidebar = ({ isOpen, onClose }) => {
@@ -66,7 +67,14 @@ const SocialSidebar = ({ isOpen, onClose }) => {
               <i className="fas fa-envelope contact-icon"></i>
               <div className="contact-details">
                 <span className="contact-label">Email Us</span>
-                <a href={`mailto:${INFO_EMAIL}`} className="contact-value">{INFO_EMAIL}</a>
+                <a
+                  href={`mailto:${INFO_EMAIL}`}
+                  className="contact-value"
+                  aria-label={`Send email to ${INFO_EMAIL}`}
+                  onClick={(e) => navigateToMailto(INFO_EMAIL, e)}
+                >
+                  {INFO_EMAIL}
+                </a>
               </div>
             </div>
           </div>

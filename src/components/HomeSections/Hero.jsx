@@ -2,9 +2,20 @@ import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
+import heroBannerPng from '../../assets/images/home/hero-banner-image.png';
+import centerLogoPng from '../../assets/images/home/center-logo.png';
+import centerLogoWebp from '../../assets/images/home/center-logo.webp';
+import centerLogoAvif from '../../assets/images/home/center-logo.avif';
 import './Hero.scss';
-import heroBgImage from '../../assets/images/home/hero-banner-image.png';
-import centerImage from '../../assets/images/home/center-logo.png';
+
+/**
+ * Stable URLs under `public/preload/` — duplicated from bundled PNG by `npm run optimize-images`.
+ * Lets `public/index.html` `<link rel="preload">` discover the same bytes the `<picture>` picks first (AVIF-capable browsers).
+ */
+const PUBLIC = process.env.PUBLIC_URL || '';
+const HERO_LCP_AVIF = `${PUBLIC}/preload/lcp-hero.avif`;
+const HERO_LCP_WEBP = `${PUBLIC}/preload/lcp-hero.webp`;
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -93,9 +104,7 @@ const HeroSection = () => {
     caption2: "SIGNS",
     caption3: "DISCOVER YOURSELF",
     description:
-    "GoRythm supports learners of all ages in building knowledge, confidence, and strong personal values through structured online courses in language, reading, and personal development.",
-    bgImage: heroBgImage,
-    centerImage: centerImage,
+    "Gorythm is a research centre & development platform dedicated to intellectual, emotional, & physical growth delivering structured, purposeful learning for every stage of life",
     particles: [
       { top: '15%', left: '5%', size: '4px' },
       { top: '70%', left: '90%', size: '6px' },
@@ -129,12 +138,22 @@ const HeroSection = () => {
         ))}
       </div>
 
-      {/* ===== BACKGROUND ===== */}
-      <div
-        ref={bgRef}
-        className="hero-background zoomed-bg"
-        style={{ backgroundImage: `url(${heroData.bgImage})` }}
-      >
+      {/* ===== BACKGROUND (LCP) — AVIF/WebP from /public/preload; PNG fallback stays in the JS bundle */}
+      <div ref={bgRef} className="hero-background zoomed-bg">
+        <picture className="hero-background-picture">
+          <source srcSet={HERO_LCP_AVIF} type="image/avif" />
+          <source srcSet={HERO_LCP_WEBP} type="image/webp" />
+          <img
+            src={heroBannerPng}
+            alt=""
+            aria-hidden
+            className="hero-background-fill"
+            fetchPriority="high"
+            decoding="async"
+            width={1920}
+            height={1080}
+          />
+        </picture>
         <div className="gradient-overlay"></div>
       </div>
 
@@ -174,7 +193,17 @@ const HeroSection = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.8, delay: 0.4 }}
                 >
-                  <img src={heroData.centerImage} alt="" width={800} height={500} />
+                  {/* Decorative mark between title words — empty alt; smaller than sky background */}
+                  <OptimizedPicture
+                    avifSrc={centerLogoAvif}
+                    webpSrc={centerLogoWebp}
+                    fallbackSrc={centerLogoPng}
+                    alt=""
+                    width={800}
+                    height={500}
+                    fetchPriority="high"
+                    decoding="async"
+                  />
                 </motion.div>
 
                 <motion.span

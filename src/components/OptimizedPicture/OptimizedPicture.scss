@@ -1,0 +1,5 @@
+// Defaults so `<picture>` participates in layout like a lone `<img>` (inline `<picture>` can shrink oddly)
+.optimized-picture {
+  display: block;
+  width: 100%;
+}

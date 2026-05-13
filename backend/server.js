@@ -31,6 +31,24 @@ const User = require('./models/User');
 
 const app = express();
 
+// Behind nginx / ALB / Vercel, proxies send X-Forwarded-For. Express must trust them so req.ip and
+// express-rate-limit see the real client IP (avoids ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+// Default: 1 hop. Set TRUST_PROXY=2 if you have e.g. load balancer + nginx; TRUST_PROXY=0 only when
+// Node is reached directly with no reverse proxy.
+(function applyTrustProxy() {
+    const raw = process.env.TRUST_PROXY;
+    if (raw === '0' || raw === 'false') {
+        app.set('trust proxy', false);
+        return;
+    }
+    if (raw != null && String(raw).trim() !== '') {
+        const n = parseInt(raw, 10);
+        app.set('trust proxy', Number.isFinite(n) && n >= 0 ? n : 1);
+        return;
+    }
+    app.set('trust proxy', 1);
+})();
+
 const ensureDefaultAdmin = async () => {
     try {
         const rawEmail = process.env.DEFAULT_ADMIN_EMAIL;
@@ -63,6 +81,8 @@ const ensureDefaultAdmin = async () => {
 const allowedOrigins = new Set([
     'http://localhost:3000',
     'https://gorythm-client.vercel.app',
+    'https://gorythmacademy.com',
+    'https://www.gorythmacademy.com',
     process.env.FRONTEND_URL,
 ].filter(Boolean));
 
@@ -152,8 +172,6 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/payroll', payrollRoutes);
-app.use(notFound);
-app.use(errorHandler);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -192,6 +210,9 @@ app.get('/', (req, res) => {
     });
 });
 
+app.use(notFound);
+app.use(errorHandler);
+
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
     const frontendUrl = process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app';
@@ -201,6 +222,7 @@ if (require.main === module) {
             hasMongoUri: Boolean(process.env.MONGODB_URI),
             frontendUrl,
             healthUrl: `http://localhost:${PORT}/health`,
+            trustProxy: app.get('trust proxy'),
         });
     });
 }

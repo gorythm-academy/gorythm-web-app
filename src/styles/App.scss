@@ -18,6 +18,11 @@
   width: 100%;
 }
 
+// Public portal login (/login): same full-screen treatment as admin — no marketing header.
+.academy-app.public-login-route .header {
+  display: none;
+}
+
 /* ===== CONTENT CONTAINER (Fixes Alignment) ===== */
 .content-container {
   max-width: 1200px;

@@ -158,11 +158,14 @@
   }
 }
 
-.subscribe-error-message {
-  margin: 10px 0 0;
-  color: #fca5a5;
-  font-size: 0.82rem;
-  line-height: 1.4;
+button.subscribe-privacy-link {
+  display: inline;
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: inherit;
+  cursor: pointer;
 }
 
 // ── 3. Subscribe button (right) – circle icon + text ─────────────────────────

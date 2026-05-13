@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL, CONTACT_EMAIL, INFO_EMAIL, SITE_URL } from '../../../config/constants';
+import { ADMIN_SETTINGS_PAGE_ENABLED } from '../../../utils/adminDashboardTheme';
 import '../Admin.scss';
 
 const Settings = () => {
     const [activeTab, setActiveTab] = useState('general');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(ADMIN_SETTINGS_PAGE_ENABLED);
     const [saveMessage, setSaveMessage] = useState('');
     
     // General Settings
@@ -74,6 +75,7 @@ const Settings = () => {
 
     // Load settings on component mount
     useEffect(() => {
+        if (!ADMIN_SETTINGS_PAGE_ENABLED) return;
         fetchSettings();
     }, [fetchSettings]);
 
@@ -133,6 +135,25 @@ const Settings = () => {
         { id: 'appearance', label: 'Appearance', icon: 'fas fa-palette' },
         { id: 'notifications', label: 'Notifications', icon: 'fas fa-bell' }
     ];
+
+    if (!ADMIN_SETTINGS_PAGE_ENABLED) {
+        return (
+            <div className="settings-page settings-page--disabled">
+                <div className="settings-header">
+                    <h1><i className="fas fa-cogs"></i> System Settings</h1>
+                    <p>Settings are temporarily unavailable.</p>
+                </div>
+                <div className="settings-card">
+                    <div className="card-body">
+                        <p className="settings-disabled-message">
+                            The settings area is disabled for now. Use <strong>Dashboard → Dashboard appearance</strong> to
+                            change the admin accent color.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading && !saveMessage) {
         return (

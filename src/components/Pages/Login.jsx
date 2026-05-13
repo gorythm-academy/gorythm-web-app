@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { setAuthSession, getAuthToken, getAuthUserJson, setAuthUserJson } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
+import headerLogo from '../../assets/images/home/logo.png';
 import './Login.scss';
 
 const Login = () => {
@@ -18,14 +19,14 @@ const Login = () => {
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [formData, setFormData] = useState({
         email: '',
-        password: ''
+        password: '',
     });
     const [rememberMe, setRememberMe] = useState(false);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            [e.target.name]: e.target.value,
         });
     };
 
@@ -103,97 +104,137 @@ const Login = () => {
 
     if (isResetMode) {
         return (
-            <div className="login-page">
-                <div className="login-container">
-                    <div className="login-header">
-                        <h1>Reset Your Password</h1>
-                        <p>For security, please set a new password before continuing.</p>
+            <div className="auth-login">
+                <div className="auth-login__center">
+                    <Link to="/" className="auth-login__back">
+                        ← Back to website
+                    </Link>
+                    <div className="auth-login__card">
+                        <header className="auth-login__brand">
+                            <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
+                                <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                            </Link>
+                            <h1 className="auth-login__title">Set a new password</h1>
+                            <p className="auth-login__subtitle">
+                                For security, choose a new password before continuing.
+                            </p>
+                        </header>
+                        <form className="auth-login__form" onSubmit={handleInitialPasswordReset} noValidate>
+                            <div className="auth-login__field">
+                                <label className="auth-login__label" htmlFor="portal-reset-password">
+                                    New password
+                                </label>
+                                <div className="auth-login__input-wrap">
+                                    <input
+                                        id="portal-reset-password"
+                                        className="auth-login__input"
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="At least 6 characters"
+                                        autoComplete="new-password"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="auth-login__field">
+                                <label className="auth-login__label" htmlFor="portal-reset-password-confirm">
+                                    Confirm password
+                                </label>
+                                <div className="auth-login__input-wrap">
+                                    <input
+                                        id="portal-reset-password-confirm"
+                                        className="auth-login__input"
+                                        type="password"
+                                        value={confirmNewPassword}
+                                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                        placeholder="Re-enter password"
+                                        autoComplete="new-password"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            {error ? <div className="auth-login__error">{error}</div> : null}
+                            <button type="submit" className="auth-login__submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Updating…' : 'Update password'}
+                            </button>
+                        </form>
                     </div>
-                    <form className="login-form" onSubmit={handleInitialPasswordReset}>
-                        <div className="form-group">
-                            <label>New Password</label>
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter new password"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Confirm New Password</label>
-                            <input
-                                type="password"
-                                value={confirmNewPassword}
-                                onChange={(e) => setConfirmNewPassword(e.target.value)}
-                                placeholder="Confirm new password"
-                                required
-                            />
-                        </div>
-                        {error && <div className="auth-error">{error}</div>}
-                        <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                            {isSubmitting ? 'Updating...' : 'Update Password'}
-                        </button>
-                    </form>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="login-page">
-            <div className="login-container">
-                <div className="login-header">
-                    <h1>Welcome Back</h1>
-                    <p>Sign in to continue your learning journey</p>
+        <div className="auth-login">
+            <div className="auth-login__center">
+                <Link to="/" className="auth-login__back">
+                    ← Back to website
+                </Link>
+                <div className="auth-login__card">
+                    <header className="auth-login__brand">
+                        <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
+                            <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                        </Link>
+                        <h1 className="auth-login__title">Welcome back</h1>
+                        <p className="auth-login__subtitle">Sign in to your portal to continue learning.</p>
+                    </header>
+                    <form className="auth-login__form" onSubmit={handleSubmit} noValidate>
+                        <div className="auth-login__field">
+                            <label className="auth-login__label" htmlFor="portal-login-email">
+                                Email
+                            </label>
+                            <div className="auth-login__input-wrap">
+                                <input
+                                    id="portal-login-email"
+                                    className="auth-login__input"
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    placeholder="you@example.com"
+                                    autoComplete="username"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="auth-login__field">
+                            <label className="auth-login__label" htmlFor="portal-login-password">
+                                Password
+                            </label>
+                            <div className="auth-login__input-wrap">
+                                <input
+                                    id="portal-login-password"
+                                    className="auth-login__input"
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="Your password"
+                                    autoComplete="current-password"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="auth-login__options">
+                            <label className="auth-login__checkbox">
+                                <input
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                />
+                                <span>Remember me</span>
+                            </label>
+                            <Link to="/contact" className="auth-login__link">
+                                Need account help?
+                            </Link>
+                        </div>
+                        {error ? <div className="auth-login__error">{error}</div> : null}
+                        <button type="submit" className="auth-login__submit" disabled={isSubmitting}>
+                            {isSubmitting ? 'Signing in…' : 'Sign in'}
+                        </button>
+                    </form>
                 </div>
-
-                <form className="login-form" onSubmit={handleSubmit}>
-
-                    <div className="form-group">
-                        <label>Email Address</label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            placeholder="Enter your email"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            placeholder="Enter your password"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-options">
-                        <label className="remember-me">
-                            <input
-                                type="checkbox"
-                                checked={rememberMe}
-                                onChange={(e) => setRememberMe(e.target.checked)}
-                            />
-                            Remember me
-                        </label>
-                        <a href="/forgot-password" className="forgot-password">
-                            Forgot Password?
-                        </a>
-                    </div>
-
-                    {error && <div className="auth-error">{error}</div>}
-
-                    <button type="submit" className="submit-btn">
-                        {isSubmitting ? 'Please wait...' : 'Sign In'}
-                    </button>
-                </form>
             </div>
         </div>
     );

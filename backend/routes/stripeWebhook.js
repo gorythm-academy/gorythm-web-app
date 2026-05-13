@@ -37,11 +37,17 @@ module.exports = async (req, res) => {
                         ? session.payment_intent
                         : session.payment_intent?.id;
 
+                const stripePhone = session.customer_details?.phone || null;
+                const metaPhone = session.metadata?.phone ? String(session.metadata.phone).trim() : '';
+                const resolvedPhone =
+                    (stripePhone && String(stripePhone).trim()) || metaPhone || undefined;
+
                 const update = {
                     status: 'completed',
                     paymentMethod: session.payment_method_types?.[0] || 'card',
                 };
                 if (piId) update.stripePaymentIntentId = piId;
+                if (resolvedPhone) update.phone = resolvedPhone;
 
                 await Payment.findOneAndUpdate({ transactionId: session.id }, update);
 
@@ -81,6 +87,46 @@ module.exports = async (req, res) => {
                     { stripePaymentIntentId: intent.id },
                     { status: 'failed', failureReason: msg }
                 );
+                break;
+            }
+            case 'charge.refunded': {
+                const charge = event.data.object;
+                const paymentIntentId =
+                    typeof charge.payment_intent === 'string'
+                        ? charge.payment_intent
+                        : charge.payment_intent?.id;
+                const latestRefundId =
+                    Array.isArray(charge.refunds?.data) && charge.refunds.data.length
+                        ? charge.refunds.data[0]?.id
+                        : undefined;
+
+                if (paymentIntentId) {
+                    await Payment.findOneAndUpdate(
+                        { stripePaymentIntentId: paymentIntentId },
+                        {
+                            status: 'refunded',
+                            ...(latestRefundId ? { refundId: latestRefundId } : {}),
+                        }
+                    );
+                }
+                break;
+            }
+            case 'refund.created': {
+                const refund = event.data.object;
+                const paymentIntentId =
+                    typeof refund.payment_intent === 'string'
+                        ? refund.payment_intent
+                        : refund.payment_intent?.id;
+
+                if (paymentIntentId) {
+                    await Payment.findOneAndUpdate(
+                        { stripePaymentIntentId: paymentIntentId },
+                        {
+                            status: 'refunded',
+                            ...(refund.id ? { refundId: refund.id } : {}),
+                        }
+                    );
+                }
                 break;
             }
             default:

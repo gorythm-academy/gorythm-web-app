@@ -105,6 +105,11 @@
   .header .menu-grid-trigger {
     display: flex;
   }
+
+  // Nudge icon row (WhatsApp + hamburger + 9-dot) slightly upward vs logo — landscape only
+  .header .header-actions {
+    transform: translateY(-4px);
+  }
 }
 
 // Portrait (any size): hide 9-dot trigger (it lives in the sidebar, not the header bar)

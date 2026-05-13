@@ -38,10 +38,12 @@ const Analytics = () => {
     const [timeFilter, setTimeFilter] = useState('30');
     const [insights, setInsights] = useState([]);
     const [cardTrends, setCardTrends] = useState({
-        students: { value: '0%', direction: 'up' },
-        courses: { value: '0 published', direction: 'neutral' },
+        students: { value: '- 0 active', secondaryValue: '- 0 inactive', direction: 'neutral' },
+        courses: { value: '- 0 published • 0 draft', secondaryValue: '- 0 with enrollments', direction: 'neutral' },
         revenue: { value: '+0%', direction: 'up' },
-        activeUsers: { value: '0%', direction: 'up' }
+        activeUsers: { value: '- 0 active', secondaryValue: '- 0 inactive', direction: 'neutral' },
+        teachers: { value: '- 0 active', secondaryValue: '- 0 inactive', direction: 'neutral' },
+        parents: { value: '- 0 active', secondaryValue: '- 0 inactive', direction: 'neutral' }
     });
 
     const fetchPerformanceMetrics = useCallback(async () => {
@@ -72,17 +74,23 @@ const Analytics = () => {
     }, [timeFilter]);
 
     const fetchAnalyticsData = useCallback(async () => {
+        let computedCoursesWithEnrollments = 0;
         try {
             setLoading(true);
             const token = getAuthToken();
 
-            const metrics = await fetchPerformanceMetrics();
-            setPerformanceMetrics(metrics);
+            const headers = { Authorization: `Bearer ${token}` };
+            const daysParams = { days: timeFilter };
 
-            const analyticsRes = await axios.get(`${API_BASE_URL}/api/analytics/overview`, {
-                headers: { Authorization: `Bearer ${token}` },
-                params: { days: timeFilter }
-            });
+            const [metrics, analyticsRes, enrollmentsRes, coursesRes, usersRes] = await Promise.all([
+                fetchPerformanceMetrics(),
+                axios.get(`${API_BASE_URL}/api/analytics/overview`, { headers, params: daysParams }),
+                axios.get(`${API_BASE_URL}/api/enrollments`, { headers }),
+                axios.get(`${API_BASE_URL}/api/courses`, { headers }),
+                axios.get(`${API_BASE_URL}/api/users`, { headers }),
+            ]);
+
+            setPerformanceMetrics(metrics);
 
             if (analyticsRes.data.success && analyticsRes.data.data) {
                 const summary = analyticsRes.data.data.summary || {};
@@ -102,19 +110,20 @@ const Analytics = () => {
                 const activeUsers = summary.activeUsers || 0;
                 const completionRate = Number(summary.completionRate) || 0;
                 const revenueGrowthNumeric = Number(String(metrics.revenueGrowth || '0').replace('%', '')) || 0;
-                const enrollmentRateNumeric = Number(String(metrics.enrollmentRate || '0').replace('%', '')) || 0;
-                const activeRate = totalEnrollments > 0 ? (activeUsers / totalEnrollments) * 100 : 0;
                 const publishedCourses = (analyticsRes.data.data.coursePopularity || []).filter(
                     (course) => Number(course.enrollmentCount) > 0
                 ).length;
+                computedCoursesWithEnrollments = publishedCourses;
 
                 setCardTrends({
                     students: {
-                        value: formatSignedValue(enrollmentRateNumeric),
-                        direction: enrollmentRateNumeric >= 0 ? 'up' : 'down'
+                        value: '- 0 active',
+                        secondaryValue: '- 0 inactive',
+                        direction: 'neutral'
                     },
                     courses: {
-                        value: `${publishedCourses} with enrollments`,
+                        value: '- 0 published • 0 draft',
+                        secondaryValue: `- ${publishedCourses} with enrollments`,
                         direction: 'neutral'
                     },
                     revenue: {
@@ -122,8 +131,19 @@ const Analytics = () => {
                         direction: revenueGrowthNumeric >= 0 ? 'up' : 'down'
                     },
                     activeUsers: {
-                        value: formatPercent(activeRate),
-                        direction: 'up'
+                        value: '- 0 active',
+                        secondaryValue: '- 0 inactive',
+                        direction: 'neutral'
+                    },
+                    teachers: {
+                        value: '- 0 active',
+                        secondaryValue: '- 0 inactive',
+                        direction: 'neutral'
+                    },
+                    parents: {
+                        value: '- 0 active',
+                        secondaryValue: '- 0 inactive',
+                        direction: 'neutral'
                     }
                 });
 
@@ -151,20 +171,68 @@ const Analytics = () => {
                 ]);
             }
 
-            const enrollmentsRes = await axios.get(`${API_BASE_URL}/api/enrollments`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
             if (enrollmentsRes.data?.success) {
                 setRecentEnrollments((enrollmentsRes.data.enrollments || []).slice(0, 5));
             }
 
-            const coursesRes = await axios.get(`${API_BASE_URL}/api/courses`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
             if (coursesRes.data?.success) {
-                setCourseStats((coursesRes.data.courses || []).slice(0, 3));
+                const allCourses = Array.isArray(coursesRes.data.courses) ? coursesRes.data.courses : [];
+                const publishedCount = allCourses.filter((course) => course?.status === 'published' || course?.isPublished === true).length;
+                const draftCount = allCourses.filter((course) => course?.status === 'draft' || course?.isPublished === false).length;
+
+                setCourseStats(allCourses.slice(0, 3));
+                setCardTrends((prev) => ({
+                    ...prev,
+                    courses: {
+                        value: `- ${publishedCount} published • ${draftCount} draft`,
+                        secondaryValue: `- ${computedCoursesWithEnrollments} with enrollments`,
+                        direction: 'neutral'
+                    }
+                }));
+            }
+
+            if (usersRes.data?.success) {
+                const allUsers = Array.isArray(usersRes.data.users) ? usersRes.data.users : [];
+                const isInactive = (u) => u?.isActive === false;
+
+                const studentUsers = allUsers.filter((u) => u?.role === 'student');
+                const teacherUsers = allUsers.filter((u) => u?.role === 'teacher');
+                const parentUsers = allUsers.filter((u) => u?.role === 'parent');
+                const staffUsers = allUsers.filter((u) => ['admin', 'super-admin', 'accountant'].includes(u?.role));
+
+                const studentInactive = studentUsers.filter(isInactive).length;
+                const teacherInactive = teacherUsers.filter(isInactive).length;
+                const parentInactive = parentUsers.filter(isInactive).length;
+                const staffInactive = staffUsers.filter(isInactive).length;
+
+                const studentActive = Math.max(0, studentUsers.length - studentInactive);
+                const teacherActive = Math.max(0, teacherUsers.length - teacherInactive);
+                const parentActive = Math.max(0, parentUsers.length - parentInactive);
+                const staffActive = Math.max(0, staffUsers.length - staffInactive);
+
+                setCardTrends((prev) => ({
+                    ...prev,
+                    students: {
+                        value: `- ${studentActive} active`,
+                        secondaryValue: `- ${studentInactive} inactive`,
+                        direction: 'neutral'
+                    },
+                    activeUsers: {
+                        value: `- ${staffActive} active`,
+                        secondaryValue: `- ${staffInactive} inactive`,
+                        direction: 'neutral'
+                    },
+                    teachers: {
+                        value: `- ${teacherActive} active`,
+                        secondaryValue: `- ${teacherInactive} inactive`,
+                        direction: 'neutral'
+                    },
+                    parents: {
+                        value: `- ${parentActive} active`,
+                        secondaryValue: `- ${parentInactive} inactive`,
+                        direction: 'neutral'
+                    }
+                }));
             }
 
             setLoading(false);
@@ -195,6 +263,7 @@ const Analytics = () => {
         icon: 'fas fa-users', 
         color: 'var(--color-accent)', 
         change: cardTrends.students.value,
+        secondaryValue: cardTrends.students.secondaryValue,
         direction: cardTrends.students.direction,
         link: '/admin/users'
     },
@@ -204,6 +273,7 @@ const Analytics = () => {
         icon: 'fas fa-book', 
         color: '#10b981', 
         change: cardTrends.courses.value,
+        secondaryValue: cardTrends.courses.secondaryValue,
         direction: cardTrends.courses.direction,
         link: '/admin/courses'
     },
@@ -222,6 +292,7 @@ const Analytics = () => {
         icon: 'fas fa-user-check', 
         color: '#8b5cf6', 
         change: cardTrends.activeUsers.value,
+        secondaryValue: cardTrends.activeUsers.secondaryValue,
         direction: cardTrends.activeUsers.direction,
         link: '/admin/users'
     },
@@ -230,8 +301,9 @@ const Analytics = () => {
         value: loading ? '...' : stats?.totalTeachers || 0,
         icon: 'fas fa-chalkboard-teacher',
         color: '#06b6d4',
-        change: '+0',
-        direction: 'neutral',
+        change: cardTrends.teachers.value,
+        secondaryValue: cardTrends.teachers.secondaryValue,
+        direction: cardTrends.teachers.direction,
         link: '/admin/people'
     },
     {
@@ -239,8 +311,9 @@ const Analytics = () => {
         value: loading ? '...' : stats?.totalParents || 0,
         icon: 'fas fa-people-roof',
         color: '#f97316',
-        change: '+0',
-        direction: 'neutral',
+        change: cardTrends.parents.value,
+        secondaryValue: cardTrends.parents.secondaryValue,
+        direction: cardTrends.parents.direction,
         link: '/admin/people'
     },
 ];
@@ -341,8 +414,13 @@ const Analytics = () => {
                             <h3>{card.value}</h3>
                             <p>{card.title}</p>
                             <div className="trend-badge">
-                                <i className={`fas ${card.direction === 'down' ? 'fa-arrow-down' : card.direction === 'neutral' ? 'fa-minus' : 'fa-arrow-up'}`}></i>
-                                {card.change}
+                                {card.direction !== 'neutral' ? (
+                                    <i className={`fas ${card.direction === 'down' ? 'fa-arrow-down' : 'fa-arrow-up'}`}></i>
+                                ) : null}
+                                <span>
+                                    {card.change}
+                                    {card.secondaryValue ? <><br />{card.secondaryValue}</> : null}
+                                </span>
                             </div>
                         </div>
                     </div>

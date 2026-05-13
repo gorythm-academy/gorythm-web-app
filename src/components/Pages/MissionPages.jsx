@@ -41,13 +41,13 @@ const MissionPageLayout = ({ title, subtitle, description, points }) => (
 export const SatelliteMaintenancePage = () => (
   <MissionPageLayout
     subtitle="How We Support Growth"
-    title="Qur'an-Centered Learning"
-    description="Every course is built to help learners strengthen their relationship with the Qur'an through recitation, understanding, and reflection. We focus on meaningful progress so learners can apply Islamic guidance in everyday life with confidence."
+    title="IQ — Intellectual Quotient: How you think, learn, and grow"
+    description="Intelligence is not what you know, it is how you engage with what you do not know yet. We develop intellectual creativity, critical thinking, logical reasoning, pattern recognition, and the capacity to learn independently. We build curiosity, adaptability of thought, and the courage to question what you think you know. Real intelligence is not fixed. It is forged."
     points={[
-      'Step-by-step recitation with Tajweed and personalized feedback',
-      'Concept-based lessons that build understanding, not memorization only',
-      'Interactive sessions that connect learning to daily practice and character',
-      'A consistent learning path for kids, teens, and adults at all levels',
+      'Critical Thinking: Analyse deeply before deciding. Examine assumptions and arrive at conclusions that hold, not just ones that feel right.',
+      'Pattern Recognition: See connections others miss across disciplines and contexts. The mind that finds structure in complexity is the mind that leads.',
+      'Independent Learning: Take ownership of your growth. The ability to direct your own learning is one of the rarest things education can build.',
+      'Adaptability of Thought: Revise beliefs when evidence calls for it. Hold ideas firmly enough to defend them, loosely enough to release them. That tension is the mark of a developed intellect. The mind that thinks well, learns well. The mind that learns well, lives well.',
     ]}
   />
 );
@@ -56,12 +56,12 @@ export const SatelliteMaintenancePage = () => (
 export const ExplorationMissionsPage = () => (
   <MissionPageLayout
     subtitle="How We Support Growth"
-    title="Character That Grows With Knowledge"
+    title="EQ — Emotional Quotient: How you feel, connect, and lead."
     description="At GoRythm, education is not limited to academics. We nurture emotional awareness, discipline, leadership, and empathy through Islamic teachings so learners grow in both mindset and manners."
     points={[
-      'Life skills and communication rooted in Islamic values',
-      'Practical reflection through real-life scenarios and guided discussion',
-      'Focus on sincerity, consistency, and excellence in learning habits',
+      'Emotional intelligence is not softness; it is precision. We develop self-awareness, empathy, emotional regulation, and the ability to act with clarity under pressure. Deepened by resilience in adversity, moral integrity, and the inner sense of purpose that keeps you grounded when circumstances are not. Character is not built in comfort. It is built in the moments that test it.',
+      'Self-Awareness: Know your triggers, patterns, and emotional landscape honestly. The person who understands themselves is rarely controlled by circumstances. Empathy Hold space for others without losing your own centre. Real empathy is not agreement — it is presence, without losing yourself in it.',
+      'Clarity Under Pressure: Respond rather than react when things get hard. The ability to stay clear when everything pulls toward panic is one of the highest forms of emotional strength. Moral Integrity Act in alignment with your values, especially when no one is watching. Consistency between belief and behavior is the foundation of a trustworthy character. The person who knows themselves leads others. The person who leads with character changes them.',
       'A supportive environment that helps learners build confidence and akhlaq',
     ]}
   />
@@ -71,13 +71,13 @@ export const ExplorationMissionsPage = () => (
 export const ResearchObservationPage = () => (
   <MissionPageLayout
     subtitle="How We Support Growth"
-    title="Flexible Learning for Modern Families"
+    title="PhQ — Physical Health Quotient: How you move, recover, and sustain."
     description="Our online model combines qualified teachers, structured curriculum, and flexible scheduling so families can stay consistent in Islamic learning from anywhere in the world."
     points={[
-      'Live online classes designed for convenience without compromising quality',
-      'Structured courses in Qur\'an, Arabic, and Islamic studies',
-      'Guided progress tracking and regular support from teachers',
-      'A faith-centered journey that builds knowledge, confidence, and purpose',
-    ]}
+      'The body is not separate from the mind; it is the condition of it. We develop discipline, vitality, and the habits that sustain the energy to pursue meaningful goals over time. Extended by body awareness, rest as a practice, and a deep understanding of how physical state shapes mental performance and emotional resilience. The body is a trust. We treat it accordingly. Discipline & Vitality Build movement habits that serve your energy, not just your appearance. Consistency over intensity every time.',
+      'Body Awareness: Listen to what your body is telling you before it starts shouting. Awareness precedes every meaningful physical change.',
+      'Rest as a Practice Recovery is not laziness; it is the foundation of sustained performance. The person who rests well works well.',
+      'Body-Mind Connection: Your physical state directly shapes your mental clarity and emotional resilience. How you carry your body determines, in part, how you carry everything else. Think with depth. Feel with clarity. Live with discipline.',
+        ]}
   />
 );
