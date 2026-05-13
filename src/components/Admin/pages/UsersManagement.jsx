@@ -3,6 +3,7 @@ import axios from 'axios';
 import { getAuthToken, getAuthUserJson } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import EnrollStudentModal from './EnrollStudentModal';
+import { useAdminDialog } from '../AdminDialogContext';
 import './UsersManagement.scss';
 
 const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
@@ -14,17 +15,25 @@ const PEOPLE_ROLE_OPTIONS = [
     { value: 'parent', label: 'Parent/Guardian', icon: 'fa-people-roof' },
 ];
 
-const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'joined', 'lastLogin', 'actions'];
-const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 130, 180, 150];
-const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 100, 120, 120];
-const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 220, 320, 260];
+const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'];
+const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 250, 130, 180, 150];
+const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 140, 100, 120, 120];
+const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 420, 220, 320, 260];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythm\.com$/i;
+const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythmacademy\.com$/i;
+const GORYTHM_EMAIL_DOMAIN = '@gorythmacademy.com';
+
+const sanitizePortalEmailLocal = (raw) => {
+    const value = String(raw ?? '');
+    const beforeAt = value.includes('@') ? value.split('@')[0] : value;
+    return beforeAt.replace(/\s+/g, '');
+};
 const PERSONAL_EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 const USER_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const UsersManagement = ({ variant = 'staff' }) => {
+    const { showAlert, showConfirm } = useAdminDialog();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +45,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [viewUser, setViewUser] = useState(null);
     const [editingUser, setEditingUser] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     // Enroll modal state (People tab only)
     const [showEnrollModal, setShowEnrollModal] = useState(false);
@@ -194,17 +205,17 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 const allowed = variant === 'people' ? PEOPLE_ROLE_SLUGS : STAFF_ROLE_SLUGS;
                 setUsers(raw.filter((u) => allowed.includes(u.role)));
             } else {
-                alert('Failed to load users');
+                showAlert('Failed to load users', 'error');
                 setUsers([]);
             }
             setLoading(false);
         } catch (error) {
             console.error('Error fetching users:', error);
-            alert('Failed to load users. Check backend connection.');
+            showAlert('Failed to load users. Check backend connection.', 'error');
             setUsers([]);
             setLoading(false);
         }
-    }, [variant]);
+    }, [showAlert, variant]);
 
     useEffect(() => {
         fetchUsers();
@@ -238,6 +249,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
             status: 'active',
             mustChangePassword: true
         });
+        setShowPassword(false);
+        setShowConfirmPassword(false);
         setShowUserModal(true);
     };
 
@@ -256,6 +269,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
             status: USER_STATUS_OPTIONS.includes(user.status) ? user.status : (user.isActive !== false ? 'active' : 'inactive'),
             mustChangePassword: !!user.mustChangePassword
         });
+        setShowPassword(false);
+        setShowConfirmPassword(false);
         setShowUserModal(true);
     };
 
@@ -294,32 +309,32 @@ const UsersManagement = ({ variant = 'staff' }) => {
         const personalEmail = formData.personalEmail?.trim();
 
         if (!formData.name.trim()) {
-            alert('Name is required');
+            showAlert('Name is required', 'warning');
             return false;
         }
         
         if (!email) {
-            alert('Email is required');
+            showAlert('Email is required', 'warning');
             return false;
         }
 
         if (!EMAIL_REGEX.test(email)) {
-            alert('Please enter a valid email address');
+            showAlert('Please enter a valid email address', 'warning');
             return false;
         }
 
-        if (variant === 'people' && !GORYTHM_EMAIL_REGEX.test(email)) {
-            alert('Portal email must be in this format: id@gorythm.com');
+        if (!editingUser && !GORYTHM_EMAIL_REGEX.test(email)) {
+            showAlert('Portal email must be in this format: id@gorythmacademy.com', 'warning');
             return false;
         }
 
-        if (formData.role === 'student' && personalEmail) {
+        if (personalEmail) {
             if (personalEmail !== personalEmail.toLowerCase()) {
-                alert('Personal email must be in lowercase letters');
+                showAlert('Personal email must be in lowercase letters', 'warning');
                 return false;
             }
             if (!PERSONAL_EMAIL_REGEX.test(personalEmail)) {
-                alert('Please enter a valid personal email, or leave it blank');
+                showAlert('Please enter a valid personal email, or leave it blank', 'warning');
                 return false;
             }
         }
@@ -327,15 +342,15 @@ const UsersManagement = ({ variant = 'staff' }) => {
         // Password validation for new users
         if (!editingUser) {
             if (!formData.password) {
-                alert('Password is required for new users');
+                showAlert('Password is required for new users', 'warning');
                 return false;
             }
             if (formData.password.length < 6) {
-                alert('Password must be at least 6 characters');
+                showAlert('Password must be at least 6 characters', 'warning');
                 return false;
             }
             if (formData.password !== formData.confirmPassword) {
-                alert('Passwords do not match');
+                showAlert('Passwords do not match', 'warning');
                 return false;
             }
         }
@@ -359,11 +374,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 role: formData.role,
                 phone: formData.phone.trim(),
                 status: formData.status,
-                isActive: formData.status === 'active'
+                isActive: formData.status === 'active',
+                personalEmail: (formData.personalEmail || '').trim(),
             };
-            if (formData.role === 'student') {
-                payload.personalEmail = (formData.personalEmail || '').trim();
-            }
             
             if (!editingUser) {
                 // Create new user
@@ -376,7 +389,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 
-                alert('User created successfully!');
+                showAlert('User created successfully!', 'success');
                 setUsers(prev => [response.data.user, ...prev]);
             } else {
                 // Update existing user
@@ -386,7 +399,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 
-                alert('User updated successfully!');
+                showAlert('User updated successfully!', 'success');
                 
                 // Update in list
                 setUsers(prev => prev.map(user => 
@@ -400,7 +413,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         { password: formData.password },
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
-                    alert('Password updated successfully!');
+                    showAlert('Password updated successfully!', 'success');
                 }
             }
             
@@ -410,7 +423,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         } catch (error) {
             console.error('Error saving user:', error);
             const errorMessage = error.response?.data?.error || 'Failed to save user';
-            alert(`Error: ${errorMessage}`);
+            showAlert(errorMessage, 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -431,7 +444,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (user && isRowActionsLocked(user)) return;
         const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
         
-        if (!window.confirm(`Change "${user?.name || 'this user'}" from ${currentStatus} to ${newStatus}?`)) {
+        const confirmed = await showConfirm({
+            title: 'Change User Status?',
+            message: `Change "${user?.name || 'this user'}" from ${currentStatus} to ${newStatus}?`,
+            confirmLabel: 'Change Status',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -450,10 +468,10 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     : user
             ));
             
-            alert(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`);
+            showAlert(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`, 'success');
         } catch (error) {
             console.error('Error updating user status:', error);
-            alert('Failed to update user status');
+            showAlert('Failed to update user status', 'error');
         }
     };
 
@@ -461,7 +479,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
         const user = users.find(u => u._id === userId);
         if (user && isRowActionsLocked(user)) return;
 
-        if (!window.confirm(`Are you sure you want to delete "${user?.name || 'this user'}"? This action cannot be undone.`)) {
+        const confirmed = await showConfirm({
+            title: 'Delete User?',
+            message: `Delete "${user?.name || 'this user'}"? This action cannot be undone.`,
+            confirmLabel: 'Delete User',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -475,20 +498,25 @@ const UsersManagement = ({ variant = 'staff' }) => {
             setUsers(prev => prev.filter(user => user._id !== userId));
             setSelectedUsers(prev => prev.filter(id => id !== userId));
             
-            alert('User deleted successfully!');
+            showAlert('User deleted successfully!', 'success');
         } catch (error) {
             console.error('Error deleting user:', error);
-            alert('Failed to delete user');
+            showAlert('Failed to delete user', 'error');
         }
     };
 
     const deleteSelectedUsers = async () => {
         if (!selectedUsers.length) {
-            alert('Please select users to delete');
+            showAlert('Please select users to delete', 'warning');
             return;
         }
         
-        if (!window.confirm(`Are you sure you want to delete ${selectedUsers.length} selected user(s)? This action cannot be undone.`)) {
+        const confirmed = await showConfirm({
+            title: 'Delete Users?',
+            message: `Delete ${selectedUsers.length} selected user(s)? This action cannot be undone.`,
+            confirmLabel: 'Delete Selected',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -504,20 +532,25 @@ const UsersManagement = ({ variant = 'staff' }) => {
             await fetchUsers();
             setSelectedUsers([]);
             
-            alert(response.data.message || `${selectedUsers.length} user(s) deleted successfully!`);
+            showAlert(response.data.message || `${selectedUsers.length} user(s) deleted successfully!`, 'success');
         } catch (error) {
             console.error('Error deleting selected users:', error);
-            alert('Failed to delete users');
+            showAlert('Failed to delete users', 'error');
         }
     };
 
     const updateSelectedStatus = async (status) => {
         if (!selectedUsers.length) {
-            alert('Please select users to update');
+            showAlert('Please select users to update', 'warning');
             return;
         }
 
-        if (!window.confirm(`Set ${selectedUsers.length} selected user(s) to ${status}?`)) {
+        const confirmed = await showConfirm({
+            title: 'Update User Status?',
+            message: `Set ${selectedUsers.length} selected user(s) to ${status}?`,
+            confirmLabel: 'Update Status',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -530,10 +563,10 @@ const UsersManagement = ({ variant = 'staff' }) => {
             
             // Refresh list
             await fetchUsers();
-            alert(`${selectedUsers.length} user(s) set to ${status} successfully!`);
+            showAlert(`${selectedUsers.length} user(s) set to ${status} successfully!`, 'success');
         } catch (error) {
             console.error('Error updating selected users status:', error);
-            alert('Failed to update status');
+            showAlert('Failed to update status', 'error');
         }
     };
 
@@ -557,6 +590,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             if (key === 'status') return (u.status || '').toLowerCase();
             if (key === 'phone') return (u.phone || '').toLowerCase();
             if (key === 'email') return (u.email || '').toLowerCase();
+            if (key === 'personalEmail') return (u.personalEmail || '').toLowerCase();
             if (key === 'joined') return new Date(u.joinDate || 0).getTime();
             if (key === 'lastLogin') return new Date(u.lastLogin || 0).getTime();
             return 0;
@@ -694,47 +728,77 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
                                         <div className="form-group">
                                             <label>Email Address *</label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleFormChange}
-                                                placeholder={variant === 'people' ? 'id@gorythm.com' : 'user@example.com'}
-                                                pattern={variant === 'people' ? '[^\\s@]+@gorythm\\.com' : undefined}
-                                                title={variant === 'people' ? 'Use email format: id@gorythm.com' : undefined}
-                                                required
-                                                disabled={isSubmitting || editingUser}
-                                            />
-                                            {editingUser && (
+                                            {!editingUser ? (
+                                                <div
+                                                    className={`email-input-group ${
+                                                        isSubmitting ? 'is-disabled' : ''
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="text"
+                                                        name="emailLocal"
+                                                        className="email-input-group__local"
+                                                        value={sanitizePortalEmailLocal(formData.email)}
+                                                        onChange={(e) => {
+                                                            const local = sanitizePortalEmailLocal(e.target.value);
+                                                            handleFormChange({
+                                                                target: {
+                                                                    name: 'email',
+                                                                    value: local ? `${local}${GORYTHM_EMAIL_DOMAIN}` : '',
+                                                                },
+                                                            });
+                                                        }}
+                                                        placeholder="id"
+                                                        required
+                                                        disabled={isSubmitting}
+                                                        autoComplete="off"
+                                                        spellCheck={false}
+                                                        aria-label="Portal email ID"
+                                                    />
+                                                    <span
+                                                        className="email-input-group__suffix"
+                                                        aria-hidden="true"
+                                                    >
+                                                        {GORYTHM_EMAIL_DOMAIN}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    placeholder="user@example.com"
+                                                    disabled
+                                                    readOnly
+                                                />
+                                            )}
+                                            {editingUser ? (
                                                 <small className="form-hint">
                                                     Email cannot be changed for existing users
                                                 </small>
-                                            )}
-                                            {!editingUser && variant === 'people' && (
+                                            ) : (
                                                 <small className="form-hint">
-                                                    Portal email must use the <strong>@gorythm.com</strong> domain.
+                                                    Only enter the ID — <strong>@gorythmacademy.com</strong> is added automatically.
                                                 </small>
                                             )}
                                         </div>
 
-                                        {formData.role === 'student' && (
-                                            <div className="form-group">
-                                                <label>Personal email (optional)</label>
-                                                <input
-                                                    type="email"
-                                                    name="personalEmail"
-                                                    value={formData.personalEmail}
-                                                    onChange={handleFormChange}
-                                                    placeholder="Gmail, Hotmail, etc. (not portal login)"
-                                                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
-                                                    title="Use a valid lowercase email format, e.g. name@gmail.com"
-                                                    disabled={isSubmitting}
-                                                />
-                                                <small className="form-hint">
-                                                    Separate from portal login above; for contact only.
-                                                </small>
-                                            </div>
-                                        )}
+                                        <div className="form-group">
+                                            <label>Personal email (optional)</label>
+                                            <input
+                                                type="email"
+                                                name="personalEmail"
+                                                value={formData.personalEmail}
+                                                onChange={handleFormChange}
+                                                placeholder="Gmail, Hotmail, etc. (not portal login)"
+                                                pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
+                                                title="Use a valid lowercase email format, e.g. name@gmail.com"
+                                                disabled={isSubmitting}
+                                            />
+                                            <small className="form-hint">
+                                                Separate from portal login above; for contact only.
+                                            </small>
+                                        </div>
 
                                         <div className="form-group">
                                             <label>Phone Number</label>
@@ -815,14 +879,29 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         
                                         <div className="form-group">
                                             <label>Password {!editingUser && '*'}</label>
-                                            <input
-                                                type="password"
-                                                name="password"
-                                                value={formData.password}
-                                                onChange={handleFormChange}
-                                                placeholder={editingUser ? "Leave blank to keep current" : "Enter password"}
-                                                disabled={isSubmitting}
-                                            />
+                                            <div className={`password-field ${isSubmitting ? 'is-disabled' : ''}`}>
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    name="password"
+                                                    value={formData.password}
+                                                    onChange={handleFormChange}
+                                                    placeholder={editingUser ? 'Leave blank to keep current' : 'Enter password'}
+                                                    disabled={isSubmitting}
+                                                    autoComplete="new-password"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="password-field__toggle"
+                                                    onClick={() => setShowPassword((v) => !v)}
+                                                    disabled={isSubmitting}
+                                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                                    aria-pressed={showPassword}
+                                                    title={showPassword ? 'Hide password' : 'Show password'}
+                                                    tabIndex={-1}
+                                                >
+                                                    <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                                </button>
+                                            </div>
                                             <small className="form-hint">
                                                 {editingUser 
                                                     ? "Enter new password only if you want to change it"
@@ -833,14 +912,29 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         {(formData.password || !editingUser) && (
                                             <div className="form-group">
                                                 <label>Confirm Password {!editingUser && '*'}</label>
-                                                <input
-                                                    type="password"
-                                                    name="confirmPassword"
-                                                    value={formData.confirmPassword}
-                                                    onChange={handleFormChange}
-                                                    placeholder="Confirm password"
-                                                    disabled={isSubmitting}
-                                                />
+                                                <div className={`password-field ${isSubmitting ? 'is-disabled' : ''}`}>
+                                                    <input
+                                                        type={showConfirmPassword ? 'text' : 'password'}
+                                                        name="confirmPassword"
+                                                        value={formData.confirmPassword}
+                                                        onChange={handleFormChange}
+                                                        placeholder="Confirm password"
+                                                        disabled={isSubmitting}
+                                                        autoComplete="new-password"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        className="password-field__toggle"
+                                                        onClick={() => setShowConfirmPassword((v) => !v)}
+                                                        disabled={isSubmitting}
+                                                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                                        aria-pressed={showConfirmPassword}
+                                                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                                        tabIndex={-1}
+                                                    >
+                                                        <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1049,16 +1143,20 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 {sortBy === 'email' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
                             </th>
+                            <th className="sortable" onClick={() => handleSort('personalEmail')}>Personal email
+                                {sortBy === 'personalEmail' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                            </th>
                             <th className="sortable" onClick={() => handleSort('joined')}>Joined
                                 {sortBy === 'joined' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('lastLogin')}>Last Login
                                 {sortBy === 'lastLogin' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
                             </th>
                             <th>Actions
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
                             </th>
                         </tr>
                     </thead>
@@ -1127,6 +1225,15 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         {user.email}
                                     </span>
                                 </td>
+                                <td className="cell-email">
+                                    {user.personalEmail ? (
+                                        <span className="email-cell personal-email-cell" title={user.personalEmail}>
+                                            <i className="fas fa-envelope-open-text" aria-hidden="true"></i> {user.personalEmail}
+                                        </span>
+                                    ) : (
+                                        <span className="empty-cell">—</span>
+                                    )}
+                                </td>
                                 <td>
                                     {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : 'N/A'}
                                 </td>
@@ -1190,18 +1297,45 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     </tbody>
                 </table>
 
-                {sortedUsers.length === 0 && (
-                    <div className="no-results">
-                        <i className="fas fa-user-slash"></i>
-                        <h3>No users found</h3>
-                        <p>Try a different search term or filter</p>
-                        {showAddButton && (
-                        <button className="btn-primary" onClick={openCreateModal}>
-                            <i className="fas fa-user-plus"></i> Add first record
-                        </button>
-                        )}
-                    </div>
-                )}
+                {sortedUsers.length === 0 && (() => {
+                    const hasAnyUsers = users.length > 0;
+                    const emptyTitle = hasAnyUsers
+                        ? 'No matching records'
+                        : variant === 'people'
+                          ? 'No learners yet'
+                          : 'No staff accounts yet';
+                    const emptySubtitle = hasAnyUsers
+                        ? 'Try a different search term or filter to find who you’re looking for.'
+                        : variant === 'people'
+                          ? 'Add your first student, teacher, or parent to get started.'
+                          : 'Invite your first admin or accountant to start managing the platform.';
+                    return (
+                        <div className="no-results">
+                            <div className="no-results__icon" aria-hidden="true">
+                                <i className={`fas ${hasAnyUsers ? 'fa-magnifying-glass' : 'fa-user-slash'}`}></i>
+                            </div>
+                            <h3>{emptyTitle}</h3>
+                            <p>{emptySubtitle}</p>
+                            {showAddButton && !hasAnyUsers && (
+                                <button
+                                    type="button"
+                                    className="btn-primary empty-state-cta"
+                                    onClick={openCreateModal}
+                                >
+                                    <span className="empty-state-cta__icon" aria-hidden="true">
+                                        <i className="fas fa-user-plus"></i>
+                                    </span>
+                                    <span className="empty-state-cta__label">
+                                        {variant === 'people' ? 'Add your first learner' : 'Add your first staff user'}
+                                    </span>
+                                    <span className="empty-state-cta__arrow" aria-hidden="true">
+                                        <i className="fas fa-arrow-right"></i>
+                                    </span>
+                                </button>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Stats Summary */}

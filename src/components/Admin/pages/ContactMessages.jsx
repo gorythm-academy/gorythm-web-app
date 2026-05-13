@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { useAdminDialog } from '../AdminDialogContext';
 import '../Admin.scss';
 
 const idKey = (id) => String(id);
@@ -13,6 +14,7 @@ const isTrashedMessage = (m) => {
 };
 
 const ContactMessages = () => {
+  const { showAlert, showConfirm } = useAdminDialog();
   const [listTab, setListTab] = useState('inbox');
   const [messages, setMessages] = useState([]);
   const [trashCount, setTrashCount] = useState(0);
@@ -326,13 +328,12 @@ const ContactMessages = () => {
     if (listTab !== 'inbox' || selectedMessages.length === 0 || deleting) return;
     const n = selectedMessages.length;
     const label = n === 1 ? 'this message' : `${n} messages`;
-    if (
-      !window.confirm(
-        `Move ${label} to Deleted? You can open “Deleted messages” below and restore them later.`
-      )
-    ) {
-      return;
-    }
+    const confirmed = await showConfirm({
+      title: 'Move To Deleted?',
+      message: `Move ${label} to Deleted? You can open Deleted messages below and restore them later.`,
+      confirmLabel: 'Move To Deleted',
+    });
+    if (!confirmed) return;
 
     setDeleting(true);
     const token = getAuthToken();
@@ -349,6 +350,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to delete contact message(s):', error.response?.data || error.message);
+      showAlert('Failed to move selected contact messages.', 'error');
       await fetchMessages();
     } finally {
       setDeleting(false);
@@ -378,7 +380,13 @@ const ContactMessages = () => {
   const handleRestoreSelected = async () => {
     if (listTab !== 'trash' || selectedMessages.length === 0 || restoring || purging) return;
     const n = selectedMessages.length;
-    if (!window.confirm(`Restore ${n === 1 ? 'this message' : `${n} messages`} to the inbox?`)) return;
+    const confirmed = await showConfirm({
+      type: 'info',
+      title: 'Restore Messages?',
+      message: `Restore ${n === 1 ? 'this message' : `${n} messages`} to the inbox?`,
+      confirmLabel: 'Restore',
+    });
+    if (!confirmed) return;
 
     setRestoring(true);
     const token = getAuthToken();
@@ -397,6 +405,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to restore message(s):', error.response?.data || error.message);
+      showAlert('Failed to restore selected messages.', 'error');
       await fetchMessages();
     } finally {
       setRestoring(false);
@@ -405,7 +414,12 @@ const ContactMessages = () => {
 
   const handlePurgeOne = async (messageId) => {
     if (listTab !== 'trash' || purging || restoring) return;
-    if (!window.confirm('Permanently erase this message? This cannot be undone.')) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Forever?',
+      message: 'Permanently erase this message? This cannot be undone.',
+      confirmLabel: 'Delete Forever',
+    });
+    if (!confirmed) return;
 
     setPurging(true);
     const token = getAuthToken();
@@ -417,6 +431,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to permanently delete:', error.response?.data || error.message);
+      showAlert('Failed to permanently delete this message.', 'error');
       await fetchMessages();
     } finally {
       setPurging(false);
@@ -426,13 +441,12 @@ const ContactMessages = () => {
   const handlePurgeSelected = async () => {
     if (listTab !== 'trash' || selectedMessages.length === 0 || purging || restoring) return;
     const n = selectedMessages.length;
-    if (
-      !window.confirm(
-        `Permanently erase ${n === 1 ? 'this message' : `${n} messages`}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    const confirmed = await showConfirm({
+      title: 'Delete Forever?',
+      message: `Permanently erase ${n === 1 ? 'this message' : `${n} messages`}? This cannot be undone.`,
+      confirmLabel: 'Delete Forever',
+    });
+    if (!confirmed) return;
 
     setPurging(true);
     const token = getAuthToken();
@@ -449,6 +463,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to permanently delete:', error.response?.data || error.message);
+      showAlert('Failed to permanently delete selected messages.', 'error');
       await fetchMessages();
     } finally {
       setPurging(false);

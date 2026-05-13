@@ -1,23 +1,35 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { FACEBOOK_URL, YOUTUBE_URL, INSTAGRAM_URL, TIKTOK_URL } from '../../config/constants';
-import footerBgImage from '../../assets/images/footer-bd-image.png';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
+import footerBgPng from '../../assets/images/footer-bd-image.png';
+import footerBgWebp from '../../assets/images/footer-bd-image.webp';
+import footerBgAvif from '../../assets/images/footer-bd-image.avif';
 import './FooterSimple.scss';
 
 const FooterSimple = () => {
   return (
     <footer className="footer-milky">
-      <div
-        className="footer-milky-bg"
-        style={{ backgroundImage: `url(${footerBgImage})` }}
-        aria-hidden="true"
-      />
+      {/* Full-bleed decorative photo — lazy + modern codecs; below the fold on most pages */}
+      <div className="footer-milky-bg" aria-hidden="true">
+        <OptimizedPicture
+          avifSrc={footerBgAvif}
+          webpSrc={footerBgWebp}
+          fallbackSrc={footerBgPng}
+          alt=""
+          loading="lazy"
+          pictureClassName="footer-milky-bg-picture"
+          className="footer-milky-bg-img"
+          width={1920}
+          height={600}
+        />
+      </div>
 
       <div className="footer-milky-inner">
         <div className="footer-milky-top">
           <div className="footer-milky-copy">
-            <h2 className="footer-milky-title">Your journey starts here!</h2>
-            <p className="footer-milky-subtitle">Let&apos;s talk!</p>
+            <h2 className="footer-milky-title">Learn, Reflect, Know yourself!</h2>
+            <p className="footer-milky-subtitle">A Gorythm initiative part of the Al-Farhan</p>
 
             <nav className="footer-milky-nav" aria-label="Footer navigation">
               <NavLink to="/" end>
@@ -29,50 +41,50 @@ const FooterSimple = () => {
               <NavLink to="/contact">Contact Us</NavLink>
             </nav>
           </div>
+        </div>
 
-          <div className="footer-milky-social" aria-label="Social links">
-            <a
-              href={FACEBOOK_URL}
-              className="footer-milky-social-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Facebook"
-            >
-              <i className="fab fa-facebook-f" />
-            </a>
-            <a
-              href={YOUTUBE_URL}
-              className="footer-milky-social-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="YouTube"
-            >
-              <i className="fab fa-youtube" />
-            </a>
-            <a
-              href={INSTAGRAM_URL}
-              className="footer-milky-social-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram"
-            >
-              <i className="fab fa-instagram" />
-            </a>
-            <a
-              href={TIKTOK_URL}
-              className="footer-milky-social-link"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="TikTok"
-            >
-              <i className="fab fa-tiktok" />
-            </a>
-          </div>
+        <div className="footer-milky-social" aria-label="Social links">
+          <a
+            href={FACEBOOK_URL}
+            className="footer-milky-social-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >
+            <i className="fab fa-facebook-f" />
+          </a>
+          <a
+            href={YOUTUBE_URL}
+            className="footer-milky-social-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="YouTube"
+          >
+            <i className="fab fa-youtube" />
+          </a>
+          <a
+            href={INSTAGRAM_URL}
+            className="footer-milky-social-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >
+            <i className="fab fa-instagram" />
+          </a>
+          <a
+            href={TIKTOK_URL}
+            className="footer-milky-social-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="TikTok"
+          >
+            <i className="fab fa-tiktok" />
+          </a>
         </div>
 
         <div className="footer-milky-bottom">
           <div className="footer-milky-copyright">
-            Gorythm © 2026. All rights reserved.
+            GorythmAcademy © 2026. All rights reserved.
           </div>
         </div>
       </div>

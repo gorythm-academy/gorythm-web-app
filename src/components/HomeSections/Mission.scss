@@ -196,6 +196,11 @@
   display: flex;
   justify-content: center;
   margin-top: 18px;
+  // Keep arrows aligned even if text wraps differently.
+  // The grid rows above can grow; this ensures the arrow sits at the bottom of the card-info block.
+  align-self: stretch;
+  justify-self: stretch;
+  margin-top: auto;
 }
 
 .mission-arrow-icon {
@@ -244,7 +249,7 @@
   .mission-card:last-child { grid-column: auto; max-width: 100%; justify-self: auto; }
 }
 
-@media (max-width: $bp-section-sm) {
+@media (max-width: ($bp-section-sm - 1px)) {
   .mission-section { padding: 0 0 60px; }
   .mission-inner  { padding: 0 20px; }
 
@@ -265,7 +270,7 @@
   .mission-card-description { font-size: 0.85rem; }
 }
 
-@media (max-width: $bp-section-sm) and (orientation: landscape) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: landscape) {
   .mission-section { padding: 0 0 50px; }
   .mission-cards { grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
   .mission-shape-img { width: 65%; }
@@ -284,6 +289,15 @@
   .mission-card-title { font-size: 0.88rem; }
 }
 
+// Very short landscape phones (e.g., iPhone SE / Galaxy S8+):
+// keep consistent text block heights so arrows align.
+@media (orientation: landscape) and (max-height: 430px) {
+  .mission-card-info {
+    --mission-title-min-h: 2.7em;
+    --mission-desc-min-h: 8.4em;
+  }
+}
+
 @media (min-width: $bp-section-xl) {
   .mission-inner { max-width: 1290px; }
   .mission-shape-img { width: 68%; max-width: 220px; }
@@ -297,7 +311,7 @@
 }
 
 // Portrait phones only: larger shapes + typography
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .mission-shape-img {
     width: 78%;
     max-width: 220px;

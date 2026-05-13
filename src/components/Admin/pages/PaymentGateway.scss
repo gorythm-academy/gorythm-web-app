@@ -231,13 +231,39 @@
   }
 }
 
-.payment-bank-contact {
-  margin-top: 12px;
-
+.payment-bank-contact,
+.payment-bank-note {
   a {
     color: #c5a45c;
     text-decoration: underline;
     text-underline-offset: 3px;
+  }
+}
+
+/* Button styled as link — avoids form/anchor quirks; opens mail client via JS */
+.payment-mailto-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: #c5a45c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(197, 164, 92, 0.85);
+    outline-offset: 2px;
   }
 }
 

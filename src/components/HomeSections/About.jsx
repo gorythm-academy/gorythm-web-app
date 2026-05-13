@@ -2,9 +2,16 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import './About.scss';
-import aboutImage1 from '../../assets/images/home/about-left.png';
-import aboutImage2 from '../../assets/images/home/about-right.png';
+
+import aboutLeftPng from '../../assets/images/home/about-left.png';
+import aboutLeftWebp from '../../assets/images/home/about-left.webp';
+import aboutLeftAvif from '../../assets/images/home/about-left.avif';
+
+import aboutRightPng from '../../assets/images/home/about-right.png';
+import aboutRightWebp from '../../assets/images/home/about-right.webp';
+import aboutRightAvif from '../../assets/images/home/about-right.avif';
 
 const AboutSection = () => {
   const navigate = useNavigate();
@@ -43,9 +50,9 @@ const AboutSection = () => {
   const sectionData = {
     sectionNumber: '02',
     label: 'About Gorythm',
-    title: 'Building character, leading the next generation',
+    title: 'Knowledge Connected To Identity',
     paragraph:
-      'GoRythm is a project of Al Farhan Academy, created to provide meaningful and engaging Islamic education for learners of all ages. Our mission is to make learning accessible, relevant, and deeply rooted in faith.',
+      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding grounded in a single conviction: that truth is coherent, self-knowledge is the root of real growth, and the signs pointing toward both are already within you. Our courses develop the whole person. Thought. Character. Purpose`,
 
   };
 
@@ -76,12 +83,28 @@ const AboutSection = () => {
               <p className="about_label about_anim">{sectionData.label}</p>
               <h2 className="about_title about_anim">{sectionData.title}</h2>
               <div className="about_image_wrap about_image_left about_anim">
-                <img src={aboutImage1} alt="" loading="lazy" width={400} height={300} />
+                <OptimizedPicture
+                  avifSrc={aboutLeftAvif}
+                  webpSrc={aboutLeftWebp}
+                  fallbackSrc={aboutLeftPng}
+                  alt=""
+                  loading="lazy"
+                  width={400}
+                  height={300}
+                />
               </div>
             </div>
             <div className="about_right">
               <div className="about_image_wrap about_image_right about_anim">
-                <img src={aboutImage2} alt="" loading="lazy" width={400} height={300} />
+                <OptimizedPicture
+                  avifSrc={aboutRightAvif}
+                  webpSrc={aboutRightWebp}
+                  fallbackSrc={aboutRightPng}
+                  alt=""
+                  loading="lazy"
+                  width={400}
+                  height={300}
+                />
               </div>
               <p
                 ref={paragraphRef}

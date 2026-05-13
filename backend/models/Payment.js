@@ -4,6 +4,7 @@ const paymentSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
     studentName: { type: String, trim: true },
+    phone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
     courseName: { type: String, trim: true },
     amount: { type: Number, required: true },

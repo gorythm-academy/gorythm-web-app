@@ -2,23 +2,28 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import './WhyGorythm.scss';
 
-// Section images from src/assets/images
-import whyGorythmImg01 from '../../assets/images/home/why-choose-left.png';
-import whyGorythmImg02 from '../../assets/images/home/why-choose-right.png';
+import whyLeftPng from '../../assets/images/home/why-choose-left.png';
+import whyLeftWebp from '../../assets/images/home/why-choose-left.webp';
+import whyLeftAvif from '../../assets/images/home/why-choose-left.avif';
+
+import whyRightPng from '../../assets/images/home/why-choose-right.png';
+import whyRightWebp from '../../assets/images/home/why-choose-right.webp';
+import whyRightAvif from '../../assets/images/home/why-choose-right.avif';
 
 const whyGorythmImages = [
   {
     id: 1,
-    image: whyGorythmImg01,
+    raster: { avif: whyLeftAvif, webp: whyLeftWebp, png: whyLeftPng },
     title: 'Guided by Qualified Teachers',
     description:
       'Learn with caring instructors who combine authentic Islamic knowledge with clear, student-friendly teaching.',
   },
   {
     id: 2,
-    image: whyGorythmImg02,
+    raster: { avif: whyRightAvif, webp: whyRightWebp, png: whyRightPng },
     title: 'Built for Real Growth',
     description:
       'Our lessons support progress in recitation, understanding, character, and daily practice, not just class attendance.',
@@ -58,8 +63,10 @@ const WhyGorythmSection = () => {
                 className={`why-gorythm-img-wrap why-gorythm-img-${idx + 1}${popupId === item.id ? ' why-gorythm-img-wrap--popup-open' : ''}`}
               >
                 <div className="why-gorythm-img-inner">
-                  <img
-                    src={item.image}
+                  <OptimizedPicture
+                    avifSrc={item.raster.avif}
+                    webpSrc={item.raster.webp}
+                    fallbackSrc={item.raster.png}
                     alt={item.title}
                     loading="lazy"
                     width={300}
@@ -105,11 +112,8 @@ const WhyGorythmSection = () => {
               A learning experience designed with purpose and care.
             </h2>
             <p className="why-gorythm-description why-gorythm_anim">
-              At GoRythm, we bring together qualified teachers, engaging teaching methods, and a
-              well-structured curriculum to create a meaningful learning journey. Our focus goes beyond
-              academic progress, supporting the development of confidence, discipline, and strong personal
-              values in every learner.
-            </p>
+            Gorythm is not about adding information. It is about refining your capacity to use it. Our research is organic, each study connected to the next, forming a coherent picture of human development.
+Qualified educators. Original research. A curriculum built around your intellect, your inner life, and your presence in the world. </p>
             <Link to="/contact" className="why-gorythm-cta why-gorythm_anim">
               Contact Us
             </Link>

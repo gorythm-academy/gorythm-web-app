@@ -38,7 +38,7 @@
 
   // Mobile (phones): global chrome collapses here
   } @else if $breakpoint == 'sm' {
-    @media (max-width: $bp-sm) { @content; }
+    @media (max-width: ($bp-sm - 1px)) { @content; }
 
   // Small phone
   } @else if $breakpoint == 'xs' {

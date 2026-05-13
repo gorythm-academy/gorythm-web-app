@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
 import BlogSidebar from './BlogSidebar';
 import { blogPosts } from './BlogData';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import { API_BASE_URL } from '../../config/constants';
 import './BlogMainPage.scss';
 
@@ -139,7 +140,16 @@ const ArticlePageLayout = ({ post, children }) => {
     <article className="news-article-page scheme_dark">
       <section className="news-article-hero">
         <div className="news-article-hero-image">
-          <img src={post.image} alt={post.title} loading="lazy" width={1200} height={630} sizes="100vw" />
+          <OptimizedPicture
+            avifSrc={post.image.avif}
+            webpSrc={post.image.webp}
+            fallbackSrc={post.image.png}
+            alt={post.title}
+            loading="lazy"
+            width={1200}
+            height={630}
+            sizes="100vw"
+          />
         </div>
         <div className="news-article-hero-overlay">
           <span className="news-article-meta">Blog · {post.category}</span>

@@ -1,29 +1,71 @@
-import buildingCharacterImage from '../../assets/images/blog/Building character through Islamic education.png';
-import understandingAqeedahImage from '../../assets/images/blog/Understanding Aqeedah the foundation of Islamic belief.png';
-import fiqhBasicsImage from '../../assets/images/blog/Fiqh basics every Muslim student should know.png';
-import propheticMannersImage from '../../assets/images/blog/Prophetic manners and how to teach them online.png';
-import whyQuranicArabicImage from '../../assets/images/blog/Why Quranic Arabic opens doors to understanding.png';
-import frequentQuranicWordsImage from '../../assets/images/blog/The 200 most frequent Quranic words you should learn first.png';
-import keyArabicGrammarImage from '../../assets/images/blog/Key Arabic grammar patterns that unlock the Quran.png';
-import lettersToMeaningImage from '../../assets/images/blog/From letters to meaning a structured Arabic learning path.png';
-import tajweedForEveryoneImage from '../../assets/images/blog/Tajweed for everyone beginners and advanced.png';
-import masteringMakharijImage from '../../assets/images/blog/Mastering Makharij where each Arabic letter comes from.png';
-import rulesOfNoonAndMeemImage from '../../assets/images/blog/The rules of Noon and Meem in Tajweed explained clearly.png';
-import dailyQuranRoutineImage from '../../assets/images/blog/Building a daily Quran recitation routine that sticks.png';
-import stemAndFaithImage from '../../assets/images/blog/STEM and faith learning that integrates both.png';
-import islamicMathImage from '../../assets/images/blog/Mathematics in Islamic architecture and design.png';
-import environmentalStewardshipImage from '../../assets/images/blog/Environmental stewardship what Islam teaches about the natural world.png';
-import programmingWithPurposeImage from '../../assets/images/blog/Programming with purpose coding for the Muslim student.png';
-import applyingSeerahImage from '../../assets/images/blog/Applying Seerah and Prophetic values in modern life.png';
-import honestyInLearningImage from '../../assets/images/blog/Honesty in learning why Sidq is the Muslim student\'s greatest asset.png';
-import patienceAndConsistencyImage from '../../assets/images/blog/Patience and consistency the Islamic approach to deep learning.png';
-import leadershipLessonsImage from '../../assets/images/blog/Leadership lessons from the Seerah for students and educators.png';
+import buildingCharacterImagePng from '../../assets/images/blog/Building character through Islamic education.png';
+import buildingCharacterImageWebp from '../../assets/images/blog/Building character through Islamic education.webp';
+import buildingCharacterImageAvif from '../../assets/images/blog/Building character through Islamic education.avif';
+import understandingAqeedahImagePng from '../../assets/images/blog/Understanding Aqeedah the foundation of Islamic belief.png';
+import understandingAqeedahImageWebp from '../../assets/images/blog/Understanding Aqeedah the foundation of Islamic belief.webp';
+import understandingAqeedahImageAvif from '../../assets/images/blog/Understanding Aqeedah the foundation of Islamic belief.avif';
+import fiqhBasicsImagePng from '../../assets/images/blog/Fiqh basics every Muslim student should know.png';
+import fiqhBasicsImageWebp from '../../assets/images/blog/Fiqh basics every Muslim student should know.webp';
+import fiqhBasicsImageAvif from '../../assets/images/blog/Fiqh basics every Muslim student should know.avif';
+import propheticMannersImagePng from '../../assets/images/blog/Prophetic manners and how to teach them online.png';
+import propheticMannersImageWebp from '../../assets/images/blog/Prophetic manners and how to teach them online.webp';
+import propheticMannersImageAvif from '../../assets/images/blog/Prophetic manners and how to teach them online.avif';
+import whyQuranicArabicImagePng from '../../assets/images/blog/Why Quranic Arabic opens doors to understanding.png';
+import whyQuranicArabicImageWebp from '../../assets/images/blog/Why Quranic Arabic opens doors to understanding.webp';
+import whyQuranicArabicImageAvif from '../../assets/images/blog/Why Quranic Arabic opens doors to understanding.avif';
+import frequentQuranicWordsImagePng from '../../assets/images/blog/The 200 most frequent Quranic words you should learn first.png';
+import frequentQuranicWordsImageWebp from '../../assets/images/blog/The 200 most frequent Quranic words you should learn first.webp';
+import frequentQuranicWordsImageAvif from '../../assets/images/blog/The 200 most frequent Quranic words you should learn first.avif';
+import keyArabicGrammarImagePng from '../../assets/images/blog/Key Arabic grammar patterns that unlock the Quran.png';
+import keyArabicGrammarImageWebp from '../../assets/images/blog/Key Arabic grammar patterns that unlock the Quran.webp';
+import keyArabicGrammarImageAvif from '../../assets/images/blog/Key Arabic grammar patterns that unlock the Quran.avif';
+import lettersToMeaningImagePng from '../../assets/images/blog/From letters to meaning a structured Arabic learning path.png';
+import lettersToMeaningImageWebp from '../../assets/images/blog/From letters to meaning a structured Arabic learning path.webp';
+import lettersToMeaningImageAvif from '../../assets/images/blog/From letters to meaning a structured Arabic learning path.avif';
+import tajweedForEveryoneImagePng from '../../assets/images/blog/Tajweed for everyone beginners and advanced.png';
+import tajweedForEveryoneImageWebp from '../../assets/images/blog/Tajweed for everyone beginners and advanced.webp';
+import tajweedForEveryoneImageAvif from '../../assets/images/blog/Tajweed for everyone beginners and advanced.avif';
+import masteringMakharijImagePng from '../../assets/images/blog/Mastering Makharij where each Arabic letter comes from.png';
+import masteringMakharijImageWebp from '../../assets/images/blog/Mastering Makharij where each Arabic letter comes from.webp';
+import masteringMakharijImageAvif from '../../assets/images/blog/Mastering Makharij where each Arabic letter comes from.avif';
+import rulesOfNoonAndMeemImagePng from '../../assets/images/blog/The rules of Noon and Meem in Tajweed explained clearly.png';
+import rulesOfNoonAndMeemImageWebp from '../../assets/images/blog/The rules of Noon and Meem in Tajweed explained clearly.webp';
+import rulesOfNoonAndMeemImageAvif from '../../assets/images/blog/The rules of Noon and Meem in Tajweed explained clearly.avif';
+import dailyQuranRoutineImagePng from '../../assets/images/blog/Building a daily Quran recitation routine that sticks.png';
+import dailyQuranRoutineImageWebp from '../../assets/images/blog/Building a daily Quran recitation routine that sticks.webp';
+import dailyQuranRoutineImageAvif from '../../assets/images/blog/Building a daily Quran recitation routine that sticks.avif';
+import stemAndFaithImagePng from '../../assets/images/blog/STEM and faith learning that integrates both.png';
+import stemAndFaithImageWebp from '../../assets/images/blog/STEM and faith learning that integrates both.webp';
+import stemAndFaithImageAvif from '../../assets/images/blog/STEM and faith learning that integrates both.avif';
+import islamicMathImagePng from '../../assets/images/blog/Mathematics in Islamic architecture and design.png';
+import islamicMathImageWebp from '../../assets/images/blog/Mathematics in Islamic architecture and design.webp';
+import islamicMathImageAvif from '../../assets/images/blog/Mathematics in Islamic architecture and design.avif';
+import environmentalStewardshipImagePng from '../../assets/images/blog/Environmental stewardship what Islam teaches about the natural world.png';
+import environmentalStewardshipImageWebp from '../../assets/images/blog/Environmental stewardship what Islam teaches about the natural world.webp';
+import environmentalStewardshipImageAvif from '../../assets/images/blog/Environmental stewardship what Islam teaches about the natural world.avif';
+import programmingWithPurposeImagePng from '../../assets/images/blog/Programming with purpose coding for the Muslim student.png';
+import programmingWithPurposeImageWebp from '../../assets/images/blog/Programming with purpose coding for the Muslim student.webp';
+import programmingWithPurposeImageAvif from '../../assets/images/blog/Programming with purpose coding for the Muslim student.avif';
+import applyingSeerahImagePng from '../../assets/images/blog/Applying Seerah and Prophetic values in modern life.png';
+import applyingSeerahImageWebp from '../../assets/images/blog/Applying Seerah and Prophetic values in modern life.webp';
+import applyingSeerahImageAvif from '../../assets/images/blog/Applying Seerah and Prophetic values in modern life.avif';
+import honestyInLearningImagePng from '../../assets/images/blog/Honesty in learning why Sidq is the Muslim student\'s greatest asset.png';
+import honestyInLearningImageWebp from '../../assets/images/blog/Honesty in learning why Sidq is the Muslim student\'s greatest asset.webp';
+import honestyInLearningImageAvif from '../../assets/images/blog/Honesty in learning why Sidq is the Muslim student\'s greatest asset.avif';
+import patienceAndConsistencyImagePng from '../../assets/images/blog/Patience and consistency the Islamic approach to deep learning.png';
+import patienceAndConsistencyImageWebp from '../../assets/images/blog/Patience and consistency the Islamic approach to deep learning.webp';
+import patienceAndConsistencyImageAvif from '../../assets/images/blog/Patience and consistency the Islamic approach to deep learning.avif';
+import leadershipLessonsImagePng from '../../assets/images/blog/Leadership lessons from the Seerah for students and educators.png';
+import leadershipLessonsImageWebp from '../../assets/images/blog/Leadership lessons from the Seerah for students and educators.webp';
+import leadershipLessonsImageAvif from '../../assets/images/blog/Leadership lessons from the Seerah for students and educators.avif';
+
+const blogRaster = (png, webp, avif) => ({ png, webp, avif });
 
 export const blogPosts = [
   {
     id: 15,
     slug: 'math-in-islamic-architecture',
-    image: islamicMathImage,
+    image: blogRaster(islamicMathImagePng, islamicMathImageWebp, islamicMathImageAvif),
     date: 'April 9, 2026',
     author: 'Gorythm Team',
     category: 'STEM',
@@ -36,7 +78,7 @@ export const blogPosts = [
   {
     id: 5,
     slug: 'seerah-and-modern-life',
-    image: applyingSeerahImage,
+    image: blogRaster(applyingSeerahImagePng, applyingSeerahImageWebp, applyingSeerahImageAvif),
     date: 'March 10, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -49,7 +91,7 @@ export const blogPosts = [
   {
     id: 20,
     slug: 'leadership-from-the-seerah',
-    image: leadershipLessonsImage,
+    image: blogRaster(leadershipLessonsImagePng, leadershipLessonsImageWebp, leadershipLessonsImageAvif),
     date: 'April 19, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -62,7 +104,7 @@ export const blogPosts = [
   {
     id: 14,
     slug: 'building-a-quran-recitation-routine',
-    image: dailyQuranRoutineImage,
+    image: blogRaster(dailyQuranRoutineImagePng, dailyQuranRoutineImageWebp, dailyQuranRoutineImageAvif),
     date: 'April 7, 2026',
     author: 'Gorythm Team',
     category: 'Recitation',
@@ -75,7 +117,7 @@ export const blogPosts = [
   {
     id: 13,
     slug: 'rules-of-noon-and-meem-in-tajweed',
-    image: rulesOfNoonAndMeemImage,
+    image: blogRaster(rulesOfNoonAndMeemImagePng, rulesOfNoonAndMeemImageWebp, rulesOfNoonAndMeemImageAvif),
     date: 'April 5, 2026',
     author: 'Gorythm Team',
     category: 'Recitation',
@@ -88,7 +130,7 @@ export const blogPosts = [
   {
     id: 12,
     slug: 'mastering-makharij-letter-articulation',
-    image: masteringMakharijImage,
+    image: blogRaster(masteringMakharijImagePng, masteringMakharijImageWebp, masteringMakharijImageAvif),
     date: 'April 3, 2026',
     author: 'Gorythm Team',
     category: 'Recitation',
@@ -101,7 +143,7 @@ export const blogPosts = [
   {
     id: 6,
     slug: 'understanding-aqeedah-for-students',
-    image: understandingAqeedahImage,
+    image: blogRaster(understandingAqeedahImagePng, understandingAqeedahImageWebp, understandingAqeedahImageAvif),
     date: 'March 22, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -114,7 +156,7 @@ export const blogPosts = [
   {
     id: 7,
     slug: 'fiqh-basics-for-daily-life',
-    image: fiqhBasicsImage,
+    image: blogRaster(fiqhBasicsImagePng, fiqhBasicsImageWebp, fiqhBasicsImageAvif),
     date: 'March 24, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -127,7 +169,7 @@ export const blogPosts = [
   {
     id: 1,
     slug: 'astronomy-for-all-educational-insights',
-    image: buildingCharacterImage,
+    image: blogRaster(buildingCharacterImagePng, buildingCharacterImageWebp, buildingCharacterImageAvif),
     date: 'March 20, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -140,7 +182,7 @@ export const blogPosts = [
   {
     id: 8,
     slug: 'prophetic-manners-for-modern-learners',
-    image: propheticMannersImage,
+    image: blogRaster(propheticMannersImagePng, propheticMannersImageWebp, propheticMannersImageAvif),
     date: 'March 26, 2026',
     author: 'Gorythm Team',
     category: 'Islamic Studies',
@@ -153,7 +195,7 @@ export const blogPosts = [
   {
     id: 16,
     slug: 'environmental-stewardship-in-islam',
-    image: environmentalStewardshipImage,
+    image: blogRaster(environmentalStewardshipImagePng, environmentalStewardshipImageWebp, environmentalStewardshipImageAvif),
     date: 'April 11, 2026',
     author: 'Gorythm Team',
     category: 'STEM',
@@ -166,7 +208,7 @@ export const blogPosts = [
   {
     id: 10,
     slug: 'understanding-quran-grammar-patterns',
-    image: keyArabicGrammarImage,
+    image: blogRaster(keyArabicGrammarImagePng, keyArabicGrammarImageWebp, keyArabicGrammarImageAvif),
     date: 'March 30, 2026',
     author: 'Gorythm Team',
     category: 'Quranic Arabic',
@@ -179,7 +221,7 @@ export const blogPosts = [
   {
     id: 18,
     slug: 'honesty-as-a-learning-value',
-    image: honestyInLearningImage,
+    image: blogRaster(honestyInLearningImagePng, honestyInLearningImageWebp, honestyInLearningImageAvif),
     date: 'April 15, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -192,7 +234,7 @@ export const blogPosts = [
   {
     id: 4,
     slug: 'tajweed-for-everyone',
-    image: tajweedForEveryoneImage,
+    image: blogRaster(tajweedForEveryoneImagePng, tajweedForEveryoneImageWebp, tajweedForEveryoneImageAvif),
     date: 'March 12, 2026',
     author: 'Gorythm Team',
     category: 'Recitation',
@@ -205,7 +247,7 @@ export const blogPosts = [
   {
     id: 9,
     slug: 'arabic-vocabulary-for-quran-reading',
-    image: frequentQuranicWordsImage,
+    image: blogRaster(frequentQuranicWordsImagePng, frequentQuranicWordsImageWebp, frequentQuranicWordsImageAvif),
     date: 'March 28, 2026',
     author: 'Gorythm Team',
     category: 'Quranic Arabic',
@@ -218,7 +260,7 @@ export const blogPosts = [
   {
     id: 3,
     slug: 'zero-gravity-thrills-a-life-of-an-astronaut',
-    image: stemAndFaithImage,
+    image: blogRaster(stemAndFaithImagePng, stemAndFaithImageWebp, stemAndFaithImageAvif),
     date: 'March 15, 2026',
     author: 'Gorythm Team',
     category: 'STEM',
@@ -231,7 +273,7 @@ export const blogPosts = [
   {
     id: 19,
     slug: 'patience-and-consistency-in-study',
-    image: patienceAndConsistencyImage,
+    image: blogRaster(patienceAndConsistencyImagePng, patienceAndConsistencyImageWebp, patienceAndConsistencyImageAvif),
     date: 'April 17, 2026',
     author: 'Gorythm Team',
     category: 'Character',
@@ -244,7 +286,7 @@ export const blogPosts = [
   {
     id: 17,
     slug: 'programming-with-purpose',
-    image: programmingWithPurposeImage,
+    image: blogRaster(programmingWithPurposeImagePng, programmingWithPurposeImageWebp, programmingWithPurposeImageAvif),
     date: 'April 13, 2026',
     author: 'Gorythm Team',
     category: 'STEM',
@@ -257,7 +299,7 @@ export const blogPosts = [
   {
     id: 11,
     slug: 'from-letters-to-meaning-arabic-path',
-    image: lettersToMeaningImage,
+    image: blogRaster(lettersToMeaningImagePng, lettersToMeaningImageWebp, lettersToMeaningImageAvif),
     date: 'April 1, 2026',
     author: 'Gorythm Team',
     category: 'Quranic Arabic',
@@ -270,7 +312,7 @@ export const blogPosts = [
   {
     id: 2,
     slug: 'cosmic-challenges-help-us-prepare',
-    image: whyQuranicArabicImage,
+    image: blogRaster(whyQuranicArabicImagePng, whyQuranicArabicImageWebp, whyQuranicArabicImageAvif),
     date: 'March 18, 2026',
     author: 'Gorythm Team',
     category: 'Quranic Arabic',

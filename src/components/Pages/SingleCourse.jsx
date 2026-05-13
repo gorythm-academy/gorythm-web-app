@@ -4,7 +4,8 @@ import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
 import { getPriceDisplayParts, parsePriceAmount } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
-import { getCourseImageSrc, setImageFallbackToPlaceholder } from '../../utils/courseImages';
+import { getCourseImageSrc } from '../../utils/courseImages';
+import SmartCourseImage from '../SmartCourseImage/SmartCourseImage';
 import './SingleCourse.scss';
 
 const renderGallery = (images) => {
@@ -319,14 +320,13 @@ export function SingleCourse() {
             <div ref={leftRef} className="cip-left">
               {course.image ? (
                 <div className="cip-main-image">
-                  <img
-                    src={course.image}
+                  <SmartCourseImage
+                    course={course}
                     alt={course.title}
                     loading="lazy"
                     width={1180}
                     height={664}
                     sizes="(min-width: 1200px) 1180px, 100vw"
-                    onError={setImageFallbackToPlaceholder}
                   />
                 </div>
               ) : null}
@@ -342,14 +342,13 @@ export function SingleCourse() {
             <div ref={leftRef} className="cip-left">
               {course.image ? (
                 <div className="cip-main-image">
-                  <img
-                    src={course.image}
+                  <SmartCourseImage
+                    course={course}
                     alt={course.title}
                     loading="lazy"
                     width={1180}
                     height={664}
                     sizes="(min-width: 1200px) 1180px, 100vw"
-                    onError={setImageFallbackToPlaceholder}
                   />
                 </div>
               ) : null}

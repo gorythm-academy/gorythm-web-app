@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { blogCategories, blogPosts, blogTags } from './BlogData';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 
 const BlogSidebar = ({
   searchInputValue,
@@ -80,7 +81,16 @@ const BlogSidebar = ({
               <li key={post.id}>
                 <Link to={`/blog/${post.slug}`} className="blog-recent-item">
                   <span className="blog-recent-thumb">
-                    <img src={post.image} alt={post.title || 'Blog post'} loading="lazy" width={280} height={175} sizes="280px" />
+                    <OptimizedPicture
+                      avifSrc={post.image.avif}
+                      webpSrc={post.image.webp}
+                      fallbackSrc={post.image.png}
+                      alt={post.title || 'Blog post'}
+                      loading="lazy"
+                      width={280}
+                      height={175}
+                      sizes="280px"
+                    />
                   </span>
                   <span className="blog-recent-text">
                     <span className="blog-recent-title">{post.title}</span>

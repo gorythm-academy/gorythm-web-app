@@ -57,13 +57,14 @@ $bp-touch-tablet-max: $bp-lg;              // Maximum width for coarse-pointer t
 $bp-touch-tablet-landscape-min: $bp-md;    // Landscape touch-tablet minimum
 
 // Mobile portrait
-$bp-mobile-portrait-max: $bp-sm;           // ≤ 768px   = phone/compact tablet portrait
+// NOTE: Keep tablet starting at 768px, so mobile must end at 767px to avoid overlap.
+$bp-mobile-portrait-max: ($bp-sm - 1px);  // ≤ 767px   = phone/compact tablet portrait
 
 // Mobile landscape — phones + small foldables in landscape
 $bp-mobile-landscape-max: $bp-md;          // ≤ 1024px
 
 // Mobile generic (all phones regardless of orientation)
-$bp-mobile-max: $bp-sm;                    // Same as phone-max; use for non-orientation rules
+$bp-mobile-max: ($bp-sm - 1px);            // Same as phone-max; use for non-orientation rules
 
 // Chrome-specific mobile maximum (header/footer/float switches to mobile layout)
 $bp-chrome-mobile-max: $bp-lg;             // ≤ 1280px = mobile/tablet chrome mode
@@ -89,7 +90,7 @@ $bp-section-xl:        $bp-xl;
 $bp-section-lg:        $bp-lg;
 
 // Canonical section aliases
-$bp-section-phone-max: $bp-sm;
+$bp-section-phone-max: ($bp-sm - 1px);
 $bp-section-md:        $bp-md;
 $bp-section-sm:        $bp-sm;
 
@@ -101,7 +102,7 @@ $bp-section-3xs:  $bp-xs;
 $bp-section-landscape-se: $bp-sm;
 
 // Homepage-specific aliases (all mapped to canonical widths)
-$bp-home-mobile-max:           $bp-sm;   // Legacy; some HomeSections use this for phone-check
+$bp-home-mobile-max:           ($bp-sm - 1px);   // Legacy; some HomeSections use this for phone-check
 $bp-home-phone-sm-max:         $bp-xs;
 $bp-home-tablet-max:           $bp-md;
 $bp-home-landscape-max:        $bp-md;

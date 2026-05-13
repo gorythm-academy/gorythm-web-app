@@ -79,8 +79,8 @@
 
 .courses-section-big-number {
   position: absolute;
-  top: -0.17em;
-  left: 0.4em;
+  top: var(--courses-bn-top, -0.17em);
+  left: var(--courses-bn-left, 0.4em);
   right: auto;
   font-size: clamp(8rem, 16vw, 18rem);
   font-weight: 800;
@@ -101,14 +101,10 @@
   color: transparent;
 }
 
-// Portrait: center the big number horizontally and move it slightly lower
 @media (orientation: portrait) {
   .courses-section-big-number {
-    top: 2rem; // move "02" a bit lower in portrait
-    left: 30%;
-    right: auto;
-    transform: translateX(-50%);
-    text-align: center;
+    transform: none;
+    text-align: left;
   }
 }
 
@@ -369,7 +365,7 @@
 // Desktop and extended keep original spacing.
 @media (max-width: #{$bp-desktop-min - 1}) {
   .courses-section-big-number {
-    top: -0.17em;
+    top: var(--courses-bn-top, -0.17em);
   }
 
   .courses-section-left-sticky {
@@ -412,7 +408,7 @@
   .courses-section-title-line { margin-bottom: 28px; }
 }
 
-@media (max-width: $bp-section-sm) {
+@media (max-width: ($bp-section-sm - 1px)) {
   .courses-section-inner {
     grid-template-columns: 1fr;
     gap: 20px 0;
@@ -482,7 +478,7 @@
 // ≤768px: typography/padding for all orientations. Do NOT force single-column masonry here —
 // that would override the three-column masonry from the sm-1+landscape block on
 // phones like S8+ (740×360) and iPhone SE (667×375) where width is still ≤768px.
-@media (max-width: $bp-section-sm) {
+@media (max-width: ($bp-section-sm - 1px)) {
   .courses-section-inner {
     padding: 0 20px;
     gap: 20px 0;
@@ -499,8 +495,7 @@
 // over any same-specificity rules and matches wider mobile landscape behavior.
 @media (max-width: $bp-home-landscape-max) and (orientation: landscape) {
   .courses-section-big-number {
-    top: 0.95rem; // move "01" down on mobile landscape only
-    transform: translateY(0);
+    transform: none;
   }
 
   .courses-section-title {
@@ -569,7 +564,7 @@
 }
 
 // Portrait: consolidate all phone portrait rules in one place
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .courses-section-inner {
     padding: 0;
   }
@@ -751,7 +746,102 @@
 
   // Keep iPad portrait (e.g., 820x1180, 1024x1366) from inheriting a down-shift.
   // Mobile landscape uses separate rules above and is not affected by this.
+  .courses-section-big-number { transform: none; }
+}
+
+// iPad Mini portrait (768px): keep desktop section styling for Courses.
+@media (min-width: $bp-section-sm) and (max-width: $bp-section-sm) and (orientation: portrait) {
+  .courses-section-left {
+    height: 100vh;
+    min-height: 100vh;
+  }
+
+  .courses-section-right {
+    height: auto;
+    min-height: 0;
+    max-height: 100vh;
+  }
+
+  .courses-section-left-footer {
+    max-width: 350px;
+    width: auto;
+  }
+
+  .courses-section-title {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .courses-section-description {
+    max-width: 100%;
+    width: auto;
+  }
+
+  .courses-section-description { font-size: 1.05rem; }
+  .courses-section-cta { font-size: 0.88rem; }
+  .courses-section-item-category { font-size: 0.78rem; }
+  .courses-section-item-title { font-size: 0.95rem; }
+  .courses-section-item-description { font-size: 0.98rem; }
+  .courses-section-item-price { font-size: 1.1rem; }
+  .courses-section-item-duration,
+  .courses-section-item-audience { font-size: 0.92rem; }
+  .courses-section-item-arrow { font-size: 1.15rem; }
+
   .courses-section-big-number {
-    top: -0.15rem;
+    top: var(--courses-bn-top, -0.17em);
+  }
+}
+
+// Unified native page scroll behavior (no inner masonry scroll / forced panel heights)
+// Keeps left and right columns in normal flow so height follows content changes.
+.courses-section {
+  // Keep consistent spacing between Courses and the next section (e.g. Video)
+  // without adding "fake height" to only the right panel.
+  padding-bottom: clamp(56px, 6vw, 96px);
+}
+
+.courses-section-inner {
+  align-items: stretch;
+}
+
+.courses-section-left {
+  position: relative;
+  top: auto;
+  height: auto;
+  min-height: 0;
+  display: block;
+}
+
+.courses-section-left-sticky {
+  position: relative;
+  height: 100%;
+  padding-top: clamp(92px, 8vw, 132px);
+  padding-bottom: clamp(92px, 8vw, 132px);
+}
+
+.courses-section-left-content {
+  gap: 20px;
+}
+
+.courses-section-right {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: initial;
+  -webkit-overflow-scrolling: auto;
+  // When we switched to native page scroll, the old "inner scroll panel"
+  // padding-bottom created a visible bottom gap and inflated the left column height.
+  padding-bottom: 0;
+}
+
+@media (max-width: ($bp-section-sm - 1px)) {
+  .courses-section-left-sticky {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+
+  .courses-section-left-content {
+    gap: 14px;
   }
 }

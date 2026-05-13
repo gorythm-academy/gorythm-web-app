@@ -21,20 +21,38 @@ const normalizeUserStatus = (status, fallbackIsActive = true) => {
 };
 const isLoginAllowedFromStatus = (status) => status === 'active';
 
-const ensureStudentPlaceholderEnrollment = async (userId) => {
+const ensureStudentPlaceholderEnrollment = async (userId, statusOverride) => {
+    const normalizedStatus = USER_STATUS_OPTIONS.includes(statusOverride)
+        ? statusOverride
+        : 'pending';
+
     const existingEnrollment = await Enrollment.findOne({ student: userId });
     if (existingEnrollment) return existingEnrollment;
 
     return Enrollment.create({
         student: userId,
         course: null,
-        status: 'pending',
+        status: normalizedStatus,
         progress: 0,
         grade: null,
         enrollmentDate: new Date(),
         lastAccessed: new Date(),
         paymentStatus: 'pending',
     });
+};
+
+/** Mirror People status onto the student's placeholder enrollment(s) (course = null only). */
+const syncPlaceholderEnrollmentStatus = async (userId, status) => {
+    if (!USER_STATUS_OPTIONS.includes(status)) return;
+    const update = { status };
+    if (status === 'completed') update.completionDate = new Date();
+    await Enrollment.updateMany(
+        {
+            student: userId,
+            $or: [{ course: null }, { course: { $exists: false } }],
+        },
+        update,
+    );
 };
 
 const cleanupStudentDataForUserIds = async (userIds = []) => {
@@ -227,16 +245,17 @@ router.post(
                 }
                 userFields.studentId = sid;
             }
-            if (personalEmail !== undefined && personalEmail !== null) {
-                const pe = String(personalEmail).trim();
-                if (pe && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pe)) {
-                    return res.status(400).json({
-                        success: false,
-                        error: 'Invalid personal email format',
-                    });
-                }
-                userFields.personalEmail = pe;
+        }
+
+        if (personalEmail !== undefined && personalEmail !== null) {
+            const pe = String(personalEmail).trim();
+            if (pe && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pe)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid personal email format',
+                });
             }
+            userFields.personalEmail = pe;
         }
 
         const user = new User(userFields);
@@ -244,8 +263,9 @@ router.post(
 
         // Auto-create a placeholder enrollment so students appear on the Enrollment tab immediately.
         // The placeholder has course = null; it gets filled when admin assigns a course.
+        // Status mirrors the People status admin chose at creation time.
         if (nextRole === 'student') {
-            await ensureStudentPlaceholderEnrollment(user._id);
+            await ensureStudentPlaceholderEnrollment(user._id, user.status);
         }
 
         await logAudit({
@@ -343,7 +363,7 @@ router.put(
             user.status = isActive ? 'active' : 'inactive';
         }
 
-        if (personalEmail !== undefined && user.role === 'student') {
+        if (personalEmail !== undefined) {
             const pe = String(personalEmail).trim();
             if (pe && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pe)) {
                 return res.status(400).json({
@@ -374,7 +394,13 @@ router.put(
         await user.save();
 
         if (!wasStudent && user.role === 'student') {
-            await ensureStudentPlaceholderEnrollment(user._id);
+            await ensureStudentPlaceholderEnrollment(user._id, user.status);
+        }
+
+        // Keep the placeholder enrollment status in sync with People status
+        // (only affects rows where course is still unassigned).
+        if (user.role === 'student' && status !== undefined) {
+            await syncPlaceholderEnrollmentStatus(user._id, user.status);
         }
 
         await logAudit({
@@ -467,6 +493,12 @@ router.patch('/:id/status', async (req, res) => {
         user.isActive = isLoginAllowedFromStatus(normalizedStatus);
         user.updatedAt = Date.now();
         await user.save();
+
+        // Mirror onto placeholder enrollment(s) so Students data shows the same status.
+        if (user.role === 'student') {
+            await syncPlaceholderEnrollmentStatus(user._id, user.status);
+        }
+
         await logAudit({
             actor: req.user.userId || req.user.id,
             action: 'user.status.update',
@@ -594,12 +626,26 @@ router.patch('/bulk-status', async (req, res) => {
 
         await User.updateMany(
             { _id: { $in: ids } },
-            { 
+            {
                 status,
                 isActive: isLoginAllowedFromStatus(status),
                 updatedAt: Date.now()
             }
         );
+
+        // Mirror onto placeholder enrollments for affected students.
+        const studentIds = await User.find({ _id: { $in: ids }, role: 'student' }).distinct('_id');
+        if (studentIds.length > 0) {
+            const update = { status };
+            if (status === 'completed') update.completionDate = new Date();
+            await Enrollment.updateMany(
+                {
+                    student: { $in: studentIds },
+                    $or: [{ course: null }, { course: { $exists: false } }],
+                },
+                update,
+            );
+        }
 
         res.json({
             success: true,

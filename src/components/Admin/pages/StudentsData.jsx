@@ -3,16 +3,18 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import EnrollStudentModal from './EnrollStudentModal';
+import { useAdminDialog } from '../AdminDialogContext';
 import './StudentsData.scss';
 
-const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'course', 'enrollmentDate', 'status', 'action'];
-const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 220, 130, 140, 120];
-const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 120, 100, 100, 90];
-const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 400, 220, 260, 180];
+const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'phone', 'course', 'enrollmentDate', 'status', 'action'];
+const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 150, 220, 130, 140, 120];
+const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 110, 120, 100, 100, 90];
+const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 240, 400, 220, 260, 180];
 const ENROLLMENT_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const StudentsData = () => {
+    const { showAlert, showConfirm } = useAdminDialog();
     const [enrollments, setEnrollments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -105,7 +107,12 @@ const StudentsData = () => {
             
         } catch (error) {
             console.error('Error fetching enrollments:', error);
-            setErrorMessage(error.response?.data?.message || error.message || 'Failed to load enrollments');
+            setErrorMessage(
+                error.response?.data?.error
+                || error.response?.data?.message
+                || error.message
+                || 'Failed to load enrollments'
+            );
             setEnrollments([]);
             calculateStats([]);
             setLoading(false);
@@ -136,6 +143,7 @@ const StudentsData = () => {
                 name: s.name || '',
                 portalEmail: s.email || '',
                 personalEmail: s.personalEmail || '',
+                phone: s.phone || '',
                 course: c.title || '',
                 enrollmentDate: enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10) : '',
                 status: enrollment.status || 'pending',
@@ -147,6 +155,7 @@ const StudentsData = () => {
             ['name', 'Name'],
             ['portalEmail', 'Portal email'],
             ['personalEmail', 'Personal email'],
+            ['phone', 'Phone'],
             ['course', 'Course'],
             ['enrollmentDate', 'Enrollment date'],
             ['status', 'Status'],
@@ -310,31 +319,39 @@ const StudentsData = () => {
     const updateSelectedStatus = async (newStatus) => {
         if (!selectedEnrollments.length) return;
         
-        if (window.confirm(`Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`)) {
-            try {
-                const token = getAuthToken();
-                await axios.post(
-                    `${API_BASE_URL}/api/enrollments/bulk-update`,
-                    { enrollmentIds: selectedEnrollments, status: newStatus },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+        const confirmed = await showConfirm({
+            title: 'Update Enrollment Status?',
+            message: `Change status to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)?`,
+            confirmLabel: 'Update Status',
+        });
+        if (!confirmed) return;
 
-                const updated = enrollments.map((enrollment) => {
-                    if (!selectedEnrollments.includes(enrollment._id)) return enrollment;
-                    return {
-                        ...enrollment,
-                        status: newStatus,
-                    };
-                });
-                setEnrollments(updated);
-                calculateStats(updated);
-                setSelectedEnrollments([]);
+        try {
+            const token = getAuthToken();
+            await axios.post(
+                `${API_BASE_URL}/api/enrollments/bulk-update`,
+                { enrollmentIds: selectedEnrollments, status: newStatus },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
 
-                setSuccessMessage(`Status updated to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)`);
-                setTimeout(() => setSuccessMessage(''), 3000);
-            } catch (error) {
-                setErrorMessage(error.response?.data?.message || 'Failed to update status');
-            }
+            const updated = enrollments.map((enrollment) => {
+                if (!selectedEnrollments.includes(enrollment._id)) return enrollment;
+                return {
+                    ...enrollment,
+                    status: newStatus,
+                };
+            });
+            setEnrollments(updated);
+            calculateStats(updated);
+            setSelectedEnrollments([]);
+
+            setSuccessMessage(`Status updated to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)`);
+            showAlert(`Status updated to "${newStatus}" for ${selectedEnrollments.length} enrollment(s)`, 'success');
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (error) {
+            const message = error.response?.data?.message || 'Failed to update status';
+            setErrorMessage(message);
+            showAlert(message, 'error');
         }
     };
 
@@ -405,6 +422,7 @@ const handleEditEnrollment = (enrollment) => {
             student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (student.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (student.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.title?.toLowerCase().includes(searchTerm.toLowerCase());
         
         const enrollmentStatus = ENROLLMENT_STATUS_OPTIONS.includes(enrollment.status)
@@ -420,6 +438,7 @@ const handleEditEnrollment = (enrollment) => {
         const getVal = (enrollment, key) => {
             if (key === 'student') return (enrollment.student?.name || '').toLowerCase();
             if (key === 'personalEmail') return (enrollment.student?.personalEmail || '').toLowerCase();
+            if (key === 'phone') return (enrollment.student?.phone || '').toLowerCase();
             if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
             if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
             if (key === 'status') return (enrollment.status || 'pending');
@@ -430,11 +449,6 @@ const handleEditEnrollment = (enrollment) => {
         if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
         return mult * (va < vb ? -1 : va > vb ? 1 : 0);
     });
-
-    const getStudentAvatar = (student) => {
-        if (student.avatar) return student.avatar;
-        return student.name ? student.name.charAt(0).toUpperCase() : '?';
-    };
 
     if (loading) {
         return (
@@ -466,6 +480,7 @@ const EditEnrollmentModal = () => {
         studentName: editingEnrollment?.student?.name || '',
         studentId: editingEnrollment?.student?.studentId || '',
         personalEmail: editingEnrollment?.student?.personalEmail || '',
+        phone: editingEnrollment?.student?.phone || '',
         courseId: editingEnrollment?.course?._id || '',
         status: editingEnrollment?.status || 'pending',
         enrollmentDate: editingEnrollment?.enrollmentDate
@@ -543,20 +558,37 @@ const EditEnrollmentModal = () => {
             return;
         }
 
+        const phoneTrim = (formData.phone || '').trim();
+
         if (editingEnrollment.student?._id) {
             const currentStudentId = String(editingEnrollment.student?.studentId || '').trim();
+            const trimmedName = (formData.studentName || '').trim();
+            const currentName = (editingEnrollment.student?.name || '').trim();
+            const currentEmail = (editingEnrollment.student?.email || '').trim();
+            const currentPersonal = String(editingEnrollment.student?.personalEmail || '').trim();
+            const currentPhone = String(editingEnrollment.student?.phone || '').trim();
+
             const shouldUpdateStudentId = !!studentIdTrim && studentIdTrim !== currentStudentId;
-            const shouldUpdateName = editingEnrollment.student?.name !== formData.studentName;
-            const shouldUpdatePersonalEmail =
-                String(editingEnrollment.student?.personalEmail || '').trim() !== personalTrim;
+            const shouldUpdateName = !!trimmedName && trimmedName !== currentName;
+            const shouldUpdatePersonalEmail = currentPersonal !== personalTrim;
+            const shouldUpdatePhone = currentPhone !== phoneTrim;
 
-            const userUpdatePayload = {};
-            if (shouldUpdateName) userUpdatePayload.name = formData.studentName;
-            if (shouldUpdatePersonalEmail) userUpdatePayload.personalEmail = personalTrim;
-            // Only set studentId when admin explicitly enters it
-            if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
+            if (!trimmedName) {
+                setFormError('Student name is required.');
+                setLoading(false);
+                return;
+            }
 
-            if (Object.keys(userUpdatePayload).length) {
+            if (shouldUpdateName || shouldUpdatePersonalEmail || shouldUpdateStudentId || shouldUpdatePhone) {
+                // Backend PUT /api/users/:id requires name + email — always send them.
+                const userUpdatePayload = {
+                    name: trimmedName,
+                    email: currentEmail,
+                    personalEmail: personalTrim,
+                    phone: phoneTrim,
+                };
+                if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
+
                 await axios.put(
                     `${API_BASE_URL}/api/users/${editingEnrollment.student._id}`,
                     userUpdatePayload,
@@ -593,6 +625,7 @@ const EditEnrollmentModal = () => {
                             name: formData.studentName,
                             studentId: studentIdTrim || enrollment.student?.studentId,
                             personalEmail: personalTrim,
+                            phone: phoneTrim,
                         },
                         status: formData.status,
                         course: newCourse
@@ -607,7 +640,8 @@ const EditEnrollmentModal = () => {
             handleClose();
         }
     } catch (error) {
-        setFormError(error.response?.data?.message || 'Failed to update');
+        const data = error.response?.data;
+        setFormError(data?.error || data?.message || error.message || 'Failed to update');
     } finally {
         setLoading(false);
     }
@@ -693,6 +727,20 @@ const EditEnrollmentModal = () => {
                                 />
                                 <small className="form-hint-muted">Separate from portal login; same field as Enroll Student form.</small>
                             </div>
+                            <div className="form-group">
+                                <label>
+                                    <i className="fas fa-phone"></i> Phone number (optional)
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="form-input"
+                                    placeholder="+1 (123) 456-7890"
+                                    autoComplete="tel"
+                                />
+                                <small className="form-hint-muted">Shown in Students data and People.</small>
+                            </div>
                         </div>
 
 {/* Course Section */}
@@ -771,6 +819,10 @@ const EditEnrollmentModal = () => {
                                     <span className="preview-value">{formData.personalEmail?.trim() || '—'}</span>
                                 </div>
                                 <div className="preview-row">
+                                    <span className="preview-label">Phone:</span>
+                                    <span className="preview-value">{formData.phone?.trim() || '—'}</span>
+                                </div>
+                                <div className="preview-row">
                                     <span className="preview-label">Student ID:</span>
                                     <span className="preview-value" style={{ fontFamily: 'monospace', color: '#2563eb' }}>
                                         {formData.studentId?.trim() || editingEnrollment.student?.studentId || '—'}
@@ -837,7 +889,10 @@ const EditEnrollmentModal = () => {
                 <div className="header-left">
                     <h1><i className="fas fa-user-graduate"></i> Students data</h1>
                     <p>View and manage student records and course assignments</p>
-                    <small>Data stored in MongoDB | {enrollments.length} total records</small>
+                    <small>
+                        <i className="fas fa-database" aria-hidden="true" />
+                        Data stored in MongoDB | {enrollments.length} total records
+                    </small>
                 </div>
             </div>
 
@@ -886,7 +941,7 @@ const EditEnrollmentModal = () => {
             const enrollment = enrollments.find(e => e._id === selectedEnrollments[0]);
             handleEditEnrollment(enrollment);
         } else {
-            alert('Please select only one enrollment to edit');
+            showAlert('Please select only one enrollment to edit', 'warning');
         }
     }}
 >
@@ -954,7 +1009,7 @@ const EditEnrollmentModal = () => {
                     <i className="fas fa-search"></i>
                     <input
                         type="text"
-                        placeholder="Search by student name, email, or course..."
+                        placeholder="Search by student name, email, phone, or course..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -1022,20 +1077,24 @@ const EditEnrollmentModal = () => {
                                 {sortBy === 'personalEmail' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
                             </th>
+                            <th className="sortable" onClick={() => handleSort('phone')}>Phone
+                                {sortBy === 'phone' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                            </th>
                             <th className="sortable" onClick={() => handleSort('course')}>Course
                                 {sortBy === 'course' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('enrollmentDate')}>Enrollment Date
                                 {sortBy === 'enrollmentDate' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('status')}>Status
                                 {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
                             </th>
                             <th className="action-col">Action
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
                             </th>
                         </tr>
                     </thead>
@@ -1070,10 +1129,7 @@ const EditEnrollmentModal = () => {
                                             )}
                                         </td>
                                         <td>
-                                            <div className="student-info">
-                                                <div className="student-avatar">
-                                                    {getStudentAvatar(student)}
-                                                </div>
+                                            <div className="student-info no-avatar">
                                                 <div className="student-details">
                                                     <strong>{student.name || 'Unknown Student'}</strong>
                                                     <span className="student-email">{student.email || 'No portal email'}</span>
@@ -1082,6 +1138,17 @@ const EditEnrollmentModal = () => {
                                         </td>
                                         <td>
                                             <span className="student-email-cell">{student.personalEmail || '—'}</span>
+                                        </td>
+                                        <td>
+                                            <span className="student-phone-cell">
+                                                {student.phone ? (
+                                                    <>
+                                                        <i className="fas fa-phone" aria-hidden="true"></i> {student.phone}
+                                                    </>
+                                                ) : (
+                                                    '—'
+                                                )}
+                                            </span>
                                         </td>
                                         <td>
                                             {course._id ? (
@@ -1146,7 +1213,7 @@ const EditEnrollmentModal = () => {
                             })
                         ) : (
                             <tr>
-                                <td colSpan="8" className="no-data-row">
+                                <td colSpan="9" className="no-data-row">
                                     <div className="no-data-message">
                                         <i className="fas fa-user-graduate"></i>
                                         <p><strong>No course enrollments yet.</strong></p>

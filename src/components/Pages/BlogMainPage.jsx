@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import BlogSidebar from './BlogSidebar';
 import { blogPosts, categoryFromSlug, tagFromSlug } from './BlogData';
+import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import { useStickyPanel } from './useStickyPanel';
 import { API_BASE_URL } from '../../config/constants';
 import './BlogMainPage.scss';
@@ -99,7 +100,16 @@ export const BlogMainPage = () => {
                   onKeyDown={(e) => e.key === 'Enter' && navigate(`/blog/${post.slug}`)}
                 >
                   <div className="blog-post-image-wrap">
-                    <img src={post.image} alt={post.title || 'Blog post'} loading="lazy" width={400} height={250} sizes="(min-width: 768px) 400px, 100vw" />
+                    <OptimizedPicture
+                      avifSrc={post.image.avif}
+                      webpSrc={post.image.webp}
+                      fallbackSrc={post.image.png}
+                      alt={post.title || 'Blog post'}
+                      loading="lazy"
+                      width={400}
+                      height={250}
+                      sizes="(min-width: 768px) 400px, 100vw"
+                    />
                   </div>
                   <div className="blog-post-meta">
                     <span className="blog-post-date">{post.date}</span>

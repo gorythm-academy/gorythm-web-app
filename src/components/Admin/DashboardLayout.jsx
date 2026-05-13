@@ -1,57 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { getAuthToken, getAuthUserJson, clearAuthSession } from '../../utils/authStorage';
+import {
+    ADMIN_SETTINGS_PAGE_ENABLED,
+    readAdminDashboardAccent,
+    DEFAULT_ADMIN_DASHBOARD_ACCENT,
+    getAdminDashboardAccentStyleVars,
+    ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT,
+    ADMIN_DASHBOARD_ACCENT_STORAGE_KEY,
+} from '../../utils/adminDashboardTheme';
+import headerLogo from '../../assets/images/home/logo.png';
+import { AdminDialogProvider } from './AdminDialogContext';
 import './Admin.scss';
 
+const MOBILE_MAX_WIDTH = 1024;
+const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
+
 const DashboardLayout = () => {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [sidebarFrozen, setSidebarFrozen] = useState(true);
-    const footerRef = useRef(null);
-    const dashboardRef = useRef(null);
-    const sidebarRef = useRef(null);
-    const [sidebarAbsoluteTop, setSidebarAbsoluteTop] = useState(null);
+    const [sidebarOpen, setSidebarOpen] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        return !isMobileViewport();
+    });
     const navigate = useNavigate();
     const location = useLocation();
-
-    // Unfreeze sidebar when footer enters viewport (works with Lenis smooth scroll)
-    useEffect(() => {
-        const footer = footerRef.current;
-        if (!footer) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                const intersecting = entry.isIntersecting;
-
-                // When the footer starts intersecting, "pin" the sidebar in-place
-                // by switching to absolute positioning at its current visual top.
-                if (intersecting) {
-                    window.requestAnimationFrame(() => {
-                        const dashboardEl = dashboardRef.current;
-                        const sidebarEl = sidebarRef.current;
-                        if (!dashboardEl || !sidebarEl) {
-                            setSidebarFrozen(false);
-                            return;
-                        }
-
-                        const dashboardRect = dashboardEl.getBoundingClientRect();
-                        const sidebarRect = sidebarEl.getBoundingClientRect();
-
-                        // Compute sidebar's top relative to the dashboard container.
-                        // (Both rects are viewport-relative, so subtracting is sufficient.)
-                        const nextTop = sidebarRect.top - dashboardRect.top;
-                        setSidebarAbsoluteTop(nextTop);
-                        setSidebarFrozen(false);
-                    });
-                } else {
-                    setSidebarFrozen(true);
-                    setSidebarAbsoluteTop(null);
-                }
-            },
-            // Trigger a bit later (closer to footer) for smoother feel.
-            { root: null, rootMargin: '0px 0px -120px 0px', threshold: 0 }
-        );
-        observer.observe(footer);
-        return () => observer.disconnect();
-    }, []);
 
     // Check authentication on mount
     useEffect(() => {
@@ -62,6 +33,21 @@ const DashboardLayout = () => {
             navigate('/admin/login');
         }
     }, [navigate]);
+
+    useEffect(() => {
+        const handleViewportChange = () => {
+            if (isMobileViewport()) {
+                setSidebarOpen(false);
+            } else {
+                setSidebarOpen(true);
+            }
+        };
+
+        handleViewportChange();
+        window.addEventListener('resize', handleViewportChange);
+
+        return () => window.removeEventListener('resize', handleViewportChange);
+    }, []);
 
     const handleLogout = () => {
         clearAuthSession();
@@ -83,23 +69,45 @@ const DashboardLayout = () => {
         { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
         { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
         { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
-    ];
+    ].filter((item) => ADMIN_SETTINGS_PAGE_ENABLED || item.path !== '/admin/settings');
+
+    const [dashboardAccent, setDashboardAccent] = useState(
+        () => readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT
+    );
+
+    useEffect(() => {
+        const syncFromEvent = (e) => {
+            const next = e?.detail?.hex || readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT;
+            setDashboardAccent(next);
+        };
+        const onStorage = (ev) => {
+            if (ev.key === ADMIN_DASHBOARD_ACCENT_STORAGE_KEY || ev.key === null) {
+                setDashboardAccent(readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT);
+            }
+        };
+        window.addEventListener(ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT, syncFromEvent);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener(ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT, syncFromEvent);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, []);
+
+    const dashboardThemeStyle = useMemo(
+        () => getAdminDashboardAccentStyleVars(dashboardAccent),
+        [dashboardAccent]
+    );
 
     return (
-        <div ref={dashboardRef} className="admin-dashboard">
+        <div className="admin-dashboard" style={dashboardThemeStyle}>
             {/* Sidebar */}
-            <aside
-                ref={sidebarRef}
-                className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'} ${sidebarFrozen ? 'sidebar-frozen' : 'sidebar-unfrozen'}`}
-                style={!sidebarFrozen && sidebarAbsoluteTop != null ? { top: `${sidebarAbsoluteTop}px` } : undefined}
-            >
+            <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
                 <div className="sidebar-header">
                     {sidebarOpen && (
                         <div className="sidebar-logo-wrap">
-                            <div className="sidebar-logo-text sidebar-logo--full">
-                                <span className="logo-primary">Gory</span>
-                                <span className="logo-secondary">thm</span>
-                            </div>
+                            <Link to="/" className="sidebar-logo-link" aria-label="Go to home page">
+                                <img src={headerLogo} alt="Gorythm Academy" className="sidebar-logo-image" />
+                            </Link>
                         </div>
                     )}
                     <button 
@@ -126,6 +134,10 @@ const DashboardLayout = () => {
                 </nav>
                 
                 <div className="sidebar-footer">
+                    <button className="logout-btn" onClick={handleLogout}>
+                        <i className="fas fa-sign-out-alt"></i>
+                        {sidebarOpen ? <span>Logout</span> : null}
+                    </button>
                     <div className="admin-profile">
                         <div className="profile-avatar">
                             {user.name ? user.name.charAt(0).toUpperCase() : 'A'}
@@ -138,23 +150,16 @@ const DashboardLayout = () => {
                             </div>
                         )}
                     </div>
-                    <button className="logout-btn" onClick={handleLogout}>
-                        <i className="fas fa-sign-out-alt"></i> Logout
-                    </button>
                 </div>
             </aside>
 
             {/* Main Content */}
             <main className="admin-main">
                 <div className="admin-content">
-                    <Outlet />
+                    <AdminDialogProvider>
+                        <Outlet />
+                    </AdminDialogProvider>
                 </div>
-                
-                {/* Footer */}
-                <footer ref={footerRef} className="admin-footer">
-                    <p>© {new Date().getFullYear()} Gorythm Academy. All rights reserved.</p>
-                    <p>v1.0.0 • Backend Connected: ✅</p>
-                </footer>
             </main>
         </div>
     );

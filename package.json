@@ -10,6 +10,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
+    "@vimeo/player": "^2.30.4",
     "axios": "^1.13.2",
     "framer-motion": "^12.23.26",
     "gsap": "^3.12.5",
@@ -29,7 +30,8 @@
     "eject": "react-scripts eject",
     "lint:js": "npx eslint \"src/**/*.{js,jsx}\"",
     "lint:styles": "npx stylelint \"src/**/*.scss\"",
-    "lint": "npm run lint:js && npm run lint:styles"
+    "lint": "npm run lint:js && npm run lint:styles",
+    "optimize-images": "node scripts/generate-modern-image-variants.mjs"
   },
   "eslintConfig": {
     "extends": [
@@ -51,6 +53,7 @@
   },
   "devDependencies": {
     "eslint-config-prettier": "^10.1.8",
+    "sharp": "^0.34.5",
     "stylelint": "^17.6.0",
     "stylelint-config-recommended-scss": "^17.0.0",
     "stylelint-config-standard-scss": "^17.0.0",

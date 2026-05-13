@@ -3,25 +3,40 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { useAdminDialog } from '../AdminDialogContext';
 import './PaymentsManagement.scss';
 
-const COLUMN_DEFS = ['checkbox', 'transactionId', 'student', 'course', 'amount', 'email', 'status', 'method', 'date', 'actions'];
-const DEFAULT_COLUMN_WIDTHS = [60, 230, 220, 220, 130, 230, 130, 130, 190, 150];
-const COLUMN_MIN_WIDTHS = [50, 120, 140, 140, 90, 140, 100, 100, 130, 120];
-const COLUMN_MAX_WIDTHS = [90, 380, 360, 360, 220, 420, 220, 220, 320, 260];
+const COLUMN_DEFS = [
+    'checkbox',
+    'transactionId',
+    'student',
+    'course',
+    'amount',
+    'email',
+    'phone',
+    'status',
+    'method',
+    'date',
+    'actions',
+];
+const DEFAULT_COLUMN_WIDTHS = [60, 132, 200, 200, 120, 200, 130, 110, 110, 170, 140];
+const COLUMN_MIN_WIDTHS = [50, 88, 140, 140, 90, 140, 96, 100, 100, 130, 120];
+const COLUMN_MAX_WIDTHS = [90, 280, 360, 360, 220, 420, 220, 220, 220, 320, 260];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const PaymentsManagement = () => {
+    const { showAlert, showConfirm } = useAdminDialog();
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
+    const [filterStatus, setFilterStatus] = useState('completed');
     const [dateRange, setDateRange] = useState('all');
     const [stats, setStats] = useState({
         totalRevenue: 0,
         successfulPayments: 0,
         pendingPayments: 0,
-        failedPayments: 0
+        failedPayments: 0,
+        refundedPayments: 0,
     });
     const tableContainerRef = useRef(null);
     const dragStateRef = useRef({
@@ -34,69 +49,11 @@ const PaymentsManagement = () => {
     const [sortBy, setSortBy] = useState('date');
     const [sortOrder, setSortOrder] = useState('desc');
     const [selectedPayments, setSelectedPayments] = useState([]);
+    const selectAllRef = useRef(null);
 
     const fetchPayments = useCallback(async () => {
         try {
             setLoading(true);
-            
-            // Mock payment data
-            const mockPayments = [
-                {
-                    _id: '1',
-                    transactionId: 'txn_123456789',
-                    user: { name: 'Ahmed Khan', email: 'ahmed@example.com' },
-                    course: { title: 'Quranic Arabic Course' },
-                    amount: 49.00,
-                    currency: 'USD',
-                    status: 'completed',
-                    paymentMethod: 'stripe',
-                    createdAt: '2024-12-29T10:30:00Z'
-                },
-                {
-                    _id: '2',
-                    transactionId: 'txn_987654321',
-                    user: { name: 'Fatima Ali', email: 'fatima@example.com' },
-                    course: { title: 'Tajweed Mastery' },
-                    amount: 39.00,
-                    currency: 'USD',
-                    status: 'completed',
-                    paymentMethod: 'bank',
-                    createdAt: '2024-12-28T14:45:00Z'
-                },
-                {
-                    _id: '3',
-                    transactionId: 'txn_555555555',
-                    user: { name: 'Omar Hussain', email: 'omar@example.com' },
-                    course: { title: 'Islamic Studies' },
-                    amount: 59.00,
-                    currency: 'USD',
-                    status: 'pending',
-                    paymentMethod: 'stripe',
-                    createdAt: '2024-12-30T09:15:00Z'
-                },
-                {
-                    _id: '4',
-                    transactionId: 'txn_444444444',
-                    user: { name: 'Sarah Johnson', email: 'sarah@example.com' },
-                    course: { title: 'STEM with Islamic Perspective' },
-                    amount: 79.00,
-                    currency: 'USD',
-                    status: 'failed',
-                    paymentMethod: 'stripe',
-                    createdAt: '2024-12-27T16:20:00Z'
-                },
-                {
-                    _id: '5',
-                    transactionId: 'txn_333333333',
-                    user: { name: 'Michael Chen', email: 'michael@example.com' },
-                    course: { title: 'Quranic Arabic Course' },
-                    amount: 49.00,
-                    currency: 'USD',
-                    status: 'completed',
-                    paymentMethod: 'stripe',
-                    createdAt: '2024-12-26T11:10:00Z'
-                }
-            ];
 
             // Try backend first
             try {
@@ -104,12 +61,12 @@ const PaymentsManagement = () => {
                 const response = await axios.get(`${API_BASE_URL}/api/payments`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                const fetchedPayments = response.data.payments || mockPayments;
+                const fetchedPayments = Array.isArray(response.data.payments) ? response.data.payments : [];
                 setPayments(fetchedPayments);
                 calculateStats(fetchedPayments);
             } catch {
-                setPayments(mockPayments);
-                calculateStats(mockPayments);
+                setPayments([]);
+                calculateStats([]);
             }
             setLoading(false);
         } catch (error) {
@@ -216,7 +173,8 @@ const PaymentsManagement = () => {
             totalRevenue: 0,
             successfulPayments: 0,
             pendingPayments: 0,
-            failedPayments: 0
+            failedPayments: 0,
+            refundedPayments: 0,
         };
 
         paymentData.forEach(payment => {
@@ -227,6 +185,8 @@ const PaymentsManagement = () => {
                 stats.pendingPayments++;
             } else if (payment.status === 'failed') {
                 stats.failedPayments++;
+            } else if (payment.status === 'refunded') {
+                stats.refundedPayments++;
             }
         });
 
@@ -238,7 +198,8 @@ const PaymentsManagement = () => {
             (payment.user?.name || payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (payment.user?.email || payment.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (payment.course?.title || payment.courseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (payment.transactionId || '').toLowerCase().includes(searchTerm.toLowerCase());
+            (payment.transactionId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (payment.phone || '').toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
         
@@ -260,6 +221,14 @@ const PaymentsManagement = () => {
         return matchesSearch && matchesStatus && matchesDate;
     });
 
+    useEffect(() => {
+        const visibleIds = new Set(filteredPayments.map((payment) => payment._id));
+        setSelectedPayments((prev) => {
+            const next = prev.filter((id) => visibleIds.has(id));
+            return next.length === prev.length ? prev : next;
+        });
+    }, [filteredPayments]);
+
     const sortedPayments = [...filteredPayments].sort((a, b) => {
         const mult = sortOrder === 'asc' ? 1 : -1;
         const getVal = (p, key) => {
@@ -268,6 +237,7 @@ const PaymentsManagement = () => {
             if (key === 'course') return (p.course?.title || p.courseName || '').toLowerCase();
             if (key === 'amount') return Number(p.amount) || 0;
             if (key === 'email') return (p.user?.email || p.email || '').toLowerCase();
+            if (key === 'phone') return (p.phone || '').toLowerCase();
             if (key === 'status') return (p.status || '').toLowerCase();
             if (key === 'method') return (p.paymentMethod || '').toLowerCase();
             if (key === 'date') return new Date(p.createdAt || 0).getTime();
@@ -281,15 +251,65 @@ const PaymentsManagement = () => {
 
     const toggleAllPayments = () => {
         const visibleIds = sortedPayments.map((payment) => payment._id);
-        if (visibleIds.length > 0 && selectedPayments.length === visibleIds.length) {
+        const allVisibleSelected = visibleIds.every((id) => selectedPayments.includes(id));
+        if (visibleIds.length > 0 && allVisibleSelected) {
             setSelectedPayments([]);
         } else {
             setSelectedPayments(visibleIds);
         }
     };
 
+    const handleDeleteSelectedPayments = async () => {
+        if (!selectedPayments.length) return;
+        const confirmed = await showConfirm({
+            title: 'Delete Payments?',
+            message: `Delete ${selectedPayments.length} selected payment record(s)? This action cannot be undone.`,
+            confirmLabel: 'Delete Selected',
+        });
+        if (!confirmed) return;
+
+        const token = getAuthToken();
+
+        await Promise.all(
+            selectedPayments.map(async (paymentId) => {
+                try {
+                    await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                } catch (error) {
+                    console.warn('Backend delete failed for payment, removing locally instead:', paymentId, error);
+                }
+            })
+        );
+
+        setPayments((prev) => {
+            const selectedSet = new Set(selectedPayments);
+            const nextPayments = prev.filter((payment) => !selectedSet.has(payment._id));
+            calculateStats(nextPayments);
+            return nextPayments;
+        });
+        setSelectedPayments([]);
+        showAlert(`${selectedPayments.length} payment record(s) deleted.`, 'success');
+    };
+
+    const selectedVisibleCount = sortedPayments.filter((payment) => selectedPayments.includes(payment._id)).length;
+
+    useEffect(() => {
+        if (!selectAllRef.current) return;
+        const isIndeterminate =
+            sortedPayments.length > 0 &&
+            selectedVisibleCount > 0 &&
+            selectedVisibleCount < sortedPayments.length;
+        selectAllRef.current.indeterminate = isIndeterminate;
+    }, [selectedVisibleCount, sortedPayments.length]);
+
     const handleDeletePayment = async (paymentId) => {
-        if (!window.confirm('Delete this payment record? This action cannot be undone.')) return;
+        const confirmed = await showConfirm({
+            title: 'Delete Payment?',
+            message: 'Delete this payment record? This action cannot be undone.',
+            confirmLabel: 'Delete Payment',
+        });
+        if (!confirmed) return;
 
         try {
             const token = getAuthToken();
@@ -306,6 +326,7 @@ const PaymentsManagement = () => {
             return nextPayments;
         });
         setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
+        showAlert('Payment record deleted.', 'success');
     };
 
     const triggerDownload = (blob, fileName) => {
@@ -352,6 +373,7 @@ const PaymentsManagement = () => {
             ['Transaction ID', payment.transactionId || 'N/A'],
             ['Student', payment.user?.name || payment.studentName || 'Unknown'],
             ['Email', payment.user?.email || payment.email || 'N/A'],
+            ['Phone', payment.phone || 'N/A'],
             ['Course', payment.course?.title || payment.courseName || 'Unknown Course'],
             ['Amount', `$${Number(payment.amount || 0).toFixed(2)} ${payment.currency || ''}`.trim()],
             ['Status', payment.status || 'N/A'],
@@ -409,20 +431,23 @@ const PaymentsManagement = () => {
     };
 
     const exportPayments = () => {
-        const csvData = filteredPayments.map(p => ({
+        if (!filteredPayments.length) return;
+
+        const csvData = filteredPayments.map((p) => ({
             'Transaction ID': p.transactionId,
-            'Student': p.user?.name || p.studentName || 'Unknown',
-            'Email': p.user?.email || p.email || '',
-            'Course': p.course?.title || p.courseName || 'Unknown Course',
-            'Amount': `$${p.amount}`,
-            'Status': p.status,
+            Student: p.user?.name || p.studentName || 'Unknown',
+            Email: p.user?.email || p.email || '',
+            Phone: p.phone || '',
+            Course: p.course?.title || p.courseName || 'Unknown Course',
+            Amount: `$${p.amount}`,
+            Status: p.status,
             'Payment Method': p.paymentMethod,
-            'Date & Time': new Date(p.createdAt).toLocaleString()
+            'Date & Time': new Date(p.createdAt).toLocaleString(),
         }));
 
         const csvContent = [
             Object.keys(csvData[0]).join(','),
-            ...csvData.map(row => Object.values(row).join(','))
+            ...csvData.map((row) => Object.values(row).join(',')),
         ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -431,6 +456,13 @@ const PaymentsManagement = () => {
         a.href = url;
         a.download = `payments_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
+    };
+
+    const onStatCardKeyDown = (event, status) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setFilterStatus(status);
+        }
     };
 
     if (loading) {
@@ -461,8 +493,15 @@ const PaymentsManagement = () => {
 
             {/* Stats Cards */}
             <div className="stats-grid">
-                <div className="stat-card revenue">
-                    <div className="stat-icon">
+                <div
+                    className={`stat-card revenue ${filterStatus === 'all' ? 'filter-active' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFilterStatus('all')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'all')}
+                    title="Show all payments"
+                >
+                    <div className="stat-icon revenue">
                         <i className="fas fa-dollar-sign"></i>
                     </div>
                     <div className="stat-info">
@@ -470,8 +509,15 @@ const PaymentsManagement = () => {
                         <p>Total Revenue</p>
                     </div>
                 </div>
-                <div className="stat-card success">
-                    <div className="stat-icon">
+                <div
+                    className={`stat-card success ${filterStatus === 'completed' ? 'filter-active' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFilterStatus('completed')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'completed')}
+                    title="Show successful payments"
+                >
+                    <div className="stat-icon success">
                         <i className="fas fa-check-circle"></i>
                     </div>
                     <div className="stat-info">
@@ -479,8 +525,15 @@ const PaymentsManagement = () => {
                         <p>Successful</p>
                     </div>
                 </div>
-                <div className="stat-card pending">
-                    <div className="stat-icon">
+                <div
+                    className={`stat-card pending ${filterStatus === 'pending' ? 'filter-active' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFilterStatus('pending')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'pending')}
+                    title="Show pending payments"
+                >
+                    <div className="stat-icon pending">
                         <i className="fas fa-clock"></i>
                     </div>
                     <div className="stat-info">
@@ -488,13 +541,36 @@ const PaymentsManagement = () => {
                         <p>Pending</p>
                     </div>
                 </div>
-                <div className="stat-card failed">
-                    <div className="stat-icon">
+                <div
+                    className={`stat-card failed ${filterStatus === 'failed' ? 'filter-active' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFilterStatus('failed')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'failed')}
+                    title="Show failed payments"
+                >
+                    <div className="stat-icon failed">
                         <i className="fas fa-times-circle"></i>
                     </div>
                     <div className="stat-info">
                         <h3>{stats.failedPayments}</h3>
                         <p>Failed</p>
+                    </div>
+                </div>
+                <div
+                    className={`stat-card refunded ${filterStatus === 'refunded' ? 'filter-active' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setFilterStatus('refunded')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'refunded')}
+                    title="Show refunded payments"
+                >
+                    <div className="stat-icon refunded">
+                        <i className="fas fa-undo"></i>
+                    </div>
+                    <div className="stat-info">
+                        <h3>{stats.refundedPayments}</h3>
+                        <p>Refunded</p>
                     </div>
                 </div>
             </div>
@@ -505,7 +581,7 @@ const PaymentsManagement = () => {
                     <i className="fas fa-search"></i>
                     <input
                         type="text"
-                        placeholder="Search by student, email, course, or transaction ID..."
+                        placeholder="Search by student, email, phone, course, or transaction ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -541,6 +617,31 @@ const PaymentsManagement = () => {
                 </div>
             </div>
 
+            {selectedPayments.length > 0 && (
+                <div className="selection-action-bar">
+                    <div className="selection-info">
+                        <i className="fas fa-check-square"></i>
+                        <span>{selectedPayments.length} payment{selectedPayments.length > 1 ? 's' : ''} selected</span>
+                    </div>
+                    <div className="selection-actions">
+                        <button
+                            type="button"
+                            className="bulk-btn clear-btn"
+                            onClick={() => setSelectedPayments([])}
+                        >
+                            <i className="fas fa-times"></i> Clear selection
+                        </button>
+                        <button
+                            type="button"
+                            className="bulk-btn delete-btn"
+                            onClick={handleDeleteSelectedPayments}
+                        >
+                            <i className="fas fa-trash"></i> Delete selected
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Payments Table */}
             <div
                 ref={tableContainerRef}
@@ -560,8 +661,9 @@ const PaymentsManagement = () => {
                         <tr>
                             <th className="checkbox-cell">
                                 <input
+                                    ref={selectAllRef}
                                     type="checkbox"
-                                    checked={sortedPayments.length > 0 && selectedPayments.length === sortedPayments.length}
+                                    checked={sortedPayments.length > 0 && selectedVisibleCount === sortedPayments.length}
                                     onChange={toggleAllPayments}
                                 />
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
@@ -591,24 +693,29 @@ const PaymentsManagement = () => {
                                 {sortBy === 'email' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
                             </th>
+                            <th className="sortable" onClick={() => handleSort('phone')}>
+                                Phone
+                                {sortBy === 'phone' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                            </th>
                             <th className="sortable" onClick={() => handleSort('status')}>
                                 Status
                                 {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('method')}>
                                 Method
                                 {sortBy === 'method' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
                             </th>
                             <th className="sortable" onClick={() => handleSort('date')}>
                                 Date & Time
                                 {sortBy === 'date' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
                             </th>
                             <th>
                                 Actions
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 10)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(10); }} />
                             </th>
                         </tr>
                     </thead>
@@ -622,10 +729,28 @@ const PaymentsManagement = () => {
                                         onChange={() => togglePaymentSelection(payment._id)}
                                     />
                                 </td>
-                                <td>
-                                    <div className="transaction-id">
-                                        <i className="fas fa-receipt"></i>
-                                        <code>{payment.transactionId}</code>
+                                <td className="transaction-id-cell">
+                                    <div
+                                        className="transaction-id"
+                                        title={payment.transactionId ? `Full ID: ${payment.transactionId}` : ''}
+                                    >
+                                        <i className="fas fa-receipt" aria-hidden />
+                                        <code className="transaction-id-short">{shortenTxnId(payment.transactionId)}</code>
+                                        {payment.transactionId ? (
+                                            <button
+                                                type="button"
+                                                className="copy-txn-btn"
+                                                title="Copy full transaction ID"
+                                                aria-label="Copy full transaction ID"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    copyToClipboard(payment.transactionId);
+                                                }}
+                                            >
+                                                <i className="fas fa-copy" aria-hidden />
+                                            </button>
+                                        ) : null}
                                     </div>
                                 </td>
                                 <td>
@@ -653,6 +778,7 @@ const PaymentsManagement = () => {
                                 <td>
                                     {payment.user?.email || payment.email || 'No email'}
                                 </td>
+                                <td className="phone-cell">{payment.phone || '—'}</td>
                                 <td>
                                     <span className={`status-badge ${payment.status}`}>
                                         <i className={`fas fa-${getStatusIcon(payment.status)}`}></i>
@@ -722,6 +848,37 @@ const PaymentsManagement = () => {
             </div>
         </div>
     );
+};
+
+const shortenTxnId = (id) => {
+    if (!id) return '—';
+    const s = String(id);
+    if (s.length <= 22) return s;
+    return `${s.slice(0, 10)}…${s.slice(-8)}`;
+};
+
+const copyToClipboard = (text) => {
+    if (!text) return;
+    const t = String(text);
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(t).catch(() => {
+            /* ignore */
+        });
+        return;
+    }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    } catch {
+        /* ignore */
+    }
 };
 
 const methodBadgeClass = (method) => {

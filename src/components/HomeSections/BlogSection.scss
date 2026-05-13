@@ -437,6 +437,20 @@
   .blog-cta { font-size: 1.3rem; }
 }
 
+// iPad Mini portrait width (768px): keep desktop card meta row structure.
+// Header/Hero are intentionally untouched in their own files.
+@media (min-width: $bp-section-sm) and (max-width: $bp-section-sm) and (orientation: portrait) {
+  .blog-card-meta {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .blog-card-dot {
+    display: inline-block;
+  }
+}
+
 // ≤ 480px (small phone): further typography reduction
 @media (max-width: $bp-section-xs) {
   .blog-section { padding: 30px 0 56px; }

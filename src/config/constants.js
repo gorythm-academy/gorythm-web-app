@@ -1,16 +1,21 @@
 // Centralized project constants
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://gorythmacademy.com';
 /** Public site URL for UI placeholders and links (override in .env). */
-export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythm.com';
-export const CONTACT_EMAIL = 'support@gorythm.com';
-/** Shown on payment page for bank transfer option (override with REACT_APP_BANK_TRANSFER_NOTE). */
+export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythmacademy.com';
+export const CONTACT_EMAIL = 'support@gorythmacademy.com';
+/** Optional env: full bank-transfer notice as plain text (replaces default composed message on the payment page). */
+export const BANK_TRANSFER_NOTE_CUSTOM = process.env.REACT_APP_BANK_TRANSFER_NOTE || '';
+/** Default bank-transfer copy before the linked support email (when `BANK_TRANSFER_NOTE_CUSTOM` is empty). */
+export const BANK_TRANSFER_NOTE_DEFAULT_LEAD =
+  'After you submit, we will email you at the address you provide with our bank details and the payment reference to use. Your enrollment stays pending until we confirm receipt. Questions:';
+/** Full default notice including plain-text email (e.g. default export); prefer composing with mailto in UI. */
 export const BANK_TRANSFER_NOTE =
-  process.env.REACT_APP_BANK_TRANSFER_NOTE ||
-  `After you submit, we will email you at the address you provide with our bank details and the payment reference to use. Your enrollment stays pending until we confirm receipt. Questions: ${CONTACT_EMAIL}.`;
-export const INFO_EMAIL = 'info@gorythm.com';
+  BANK_TRANSFER_NOTE_CUSTOM ||
+  `${BANK_TRANSFER_NOTE_DEFAULT_LEAD} ${CONTACT_EMAIL}.`;
+export const INFO_EMAIL = 'gorythm.academy@gmail.com';
 export const CONTACT_PHONE = '+31 684 427 025';
 export const CONTACT_ADDRESS = 'Eindhoven, Netherlands';
-export const FACEBOOK_URL = 'https://www.facebook.com/share/1ByY4R1aei/';
+export const FACEBOOK_URL = 'https://www.facebook.com/share/1B437rw5Dk/';
 /** E.164 digits only (no +), for wa.me / api / deep links. */
 export const WHATSAPP_PHONE_DIGITS = '31684427025';
 export const WHATSAPP_PRESET_MESSAGE = "I'm interested in your courses";
@@ -50,16 +55,22 @@ export function onWhatsAppAnchorClick(e) {
     window.location.href = url;
   }
 }
-export const YOUTUBE_URL = 'https://www.youtube.com/@alfarhanacademy';
+export const YOUTUBE_URL = 'https://www.youtube.com/@GorythmAcademy';
 export const INSTAGRAM_URL =
-  'https://www.instagram.com/al_farhan_academy_?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==';
+  'https://www.instagram.com/gorythm08?igsh=MWFjemEyNG5jb2FsMA==';
 export const TIKTOK_URL = 'https://www.tiktok.com/@alfarhan621';
+
+/** Shown when users open “Privacy Policy” from subscribe forms (email updates consent). */
+export const SUBSCRIBE_PRIVACY_POLICY_BODY =
+  'By subscribing, you agree to receive updates about courses, programs, events, and learning resources from Gorythm Academy. Your information will remain private and will never be shared or sold to third parties. You may unsubscribe at any time.';
 
 const constants = {
   API_BASE_URL,
   SITE_URL,
   CONTACT_EMAIL,
   BANK_TRANSFER_NOTE,
+  BANK_TRANSFER_NOTE_CUSTOM,
+  BANK_TRANSFER_NOTE_DEFAULT_LEAD,
   INFO_EMAIL,
   CONTACT_PHONE,
   CONTACT_ADDRESS,

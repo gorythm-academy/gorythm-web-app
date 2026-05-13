@@ -13,7 +13,8 @@ import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
 import { getPriceDisplayParts } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
-import { getCourseImageSrc, setImageFallbackToPlaceholder } from '../../utils/courseImages';
+import { getCourseImageSrc } from '../../utils/courseImages';
+import SmartCourseImage from '../SmartCourseImage/SmartCourseImage';
 // NOTE: Homepage courses are now API-only (no static fallback).
 import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
@@ -93,7 +94,6 @@ const CoursesSection = ({
   emptyStateMode = 'home',
 }) => {
   const sectionRef = useRef(null);
-  const galleryRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,98 +185,6 @@ const CoursesSection = ({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  useEffect(() => {
-    const galleryEl = galleryRef.current;
-    if (!galleryEl || typeof window === 'undefined') return undefined;
-    let lastTouchY = null;
-    const SCROLL_EPSILON = 1;
-
-    const getMaxScrollTop = () => galleryEl.scrollHeight - galleryEl.clientHeight;
-    const isInnerScrollActive = () => {
-      const overflowY = window.getComputedStyle(galleryEl).overflowY;
-      const canScrollByStyle = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
-      return canScrollByStyle && getMaxScrollTop() > 0;
-    };
-
-    const handleWheel = (event) => {
-      // Only intervene when this element is actually acting as an inner scroller.
-      // This avoids overriding native page scroll behavior on layouts where masonry
-      // is not independently scrollable.
-      if (!isInnerScrollActive()) return;
-      if (event.deltaY === 0) return;
-
-      const maxScrollTop = getMaxScrollTop();
-
-      const scrollTop = galleryEl.scrollTop;
-      const scrollingDown = event.deltaY > 0;
-      const scrollingUp = event.deltaY < 0;
-      const atTop = scrollTop <= 0;
-      const atBottom = scrollTop >= maxScrollTop - SCROLL_EPSILON;
-
-      // When the masonry is already at a boundary, hand wheel delta to the page
-      // immediately so users don't need to move the cursor to resume page scroll.
-      if ((scrollingDown && atBottom) || (scrollingUp && atTop)) {
-        event.preventDefault();
-        window.scrollBy({ top: event.deltaY, behavior: 'auto' });
-      }
-    };
-
-    const handleTouchStart = (event) => {
-      if (!event.touches || event.touches.length !== 1) {
-        lastTouchY = null;
-        return;
-      }
-      lastTouchY = event.touches[0].clientY;
-    };
-
-    const handleTouchMove = (event) => {
-      if (!event.touches || event.touches.length !== 1 || lastTouchY == null) return;
-      if (!isInnerScrollActive()) return;
-
-      const currentY = event.touches[0].clientY;
-      const deltaY = lastTouchY - currentY;
-      if (deltaY === 0) return;
-
-      const maxScrollTop = getMaxScrollTop();
-      if (maxScrollTop <= 0) {
-        lastTouchY = currentY;
-        return;
-      }
-
-      const scrollTop = galleryEl.scrollTop;
-      const swipingUp = deltaY > 0;
-      const swipingDown = deltaY < 0;
-      const atTop = scrollTop <= 0;
-      const atBottom = scrollTop >= maxScrollTop - SCROLL_EPSILON;
-
-      // Match wheel behavior for touch: if inner masonry is at a boundary,
-      // route the swipe delta to the page so handoff feels immediate.
-      if ((swipingUp && atBottom) || (swipingDown && atTop)) {
-        event.preventDefault();
-        window.scrollBy({ top: deltaY, behavior: 'auto' });
-      }
-
-      lastTouchY = currentY;
-    };
-
-    const handleTouchEnd = () => {
-      lastTouchY = null;
-    };
-
-    galleryEl.addEventListener('wheel', handleWheel, { passive: false });
-    galleryEl.addEventListener('touchstart', handleTouchStart, { passive: true });
-    galleryEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-    galleryEl.addEventListener('touchend', handleTouchEnd, { passive: true });
-    galleryEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
-    return () => {
-      galleryEl.removeEventListener('wheel', handleWheel);
-      galleryEl.removeEventListener('touchstart', handleTouchStart);
-      galleryEl.removeEventListener('touchmove', handleTouchMove);
-      galleryEl.removeEventListener('touchend', handleTouchEnd);
-      galleryEl.removeEventListener('touchcancel', handleTouchEnd);
-    };
-  }, []);
-
   return (
     <section
       ref={sectionRef}
@@ -289,13 +197,13 @@ const CoursesSection = ({
             <div className="courses-section-left-content">
               <span className="courses-section-big-number" aria-hidden="true">01</span>
               <h2 className="courses-section-title courses-section_anim">
-              Learn Qur’an, Arabic, STEM, emotional intelligence and critical thinking in one place
+              Programs that develop the whole person
               </h2>
               <img src={titleLineSvg} alt="" className="courses-section-title-line courses-section_anim" aria-hidden="true" />
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                Explore a range of courses designed to strengthen your connection with the Qur’an, build Islamic understanding, and develop essential skills like problem-solving, reflection, and independent thinking.
+                At Gorythm, every course is designed with an aim: to build something that endures. Grounded in research and anchored in faith, structured for learners worldwide, and always oriented toward a fuller, more purposeful vision of yourself
                 </p>
                 <Link to={ctaTo} className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">{ctaLabel}</span>
@@ -306,7 +214,7 @@ const CoursesSection = ({
           </div>
         </div>
 
-        <div ref={galleryRef} className="courses-section-right native-scroll-zone">
+        <div className="courses-section-right native-scroll-zone">
           {loading ? (
             <div className="courses-section-loading">
               <p>Loading courses…</p>
@@ -341,14 +249,13 @@ const CoursesSection = ({
                       className="courses-section-item-img-wrap"
                       style={{ aspectRatio: course.aspectRatio }}
                     >
-                      <img
-                        src={course.image}
+                      <SmartCourseImage
+                        course={course}
                         alt={course.title}
                         loading="lazy"
                         width={400}
                         height={250}
                         sizes="(min-width: 993px) 50vw, 100vw"
-                        onError={setImageFallbackToPlaceholder}
                       />
                     </div>
                     <div className="courses-section-item-caption">

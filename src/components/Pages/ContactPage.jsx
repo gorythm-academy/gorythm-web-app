@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
 import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL, CONTACT_PHONE, CONTACT_ADDRESS } from '../../config/constants';
+import { navigateToMailto } from '../../utils/mailto';
+import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
 import './ContactPage.scss';
 
 /** WhatsApp / E.164-style: digits only, 7–15 when provided (optional field). */
@@ -24,6 +26,32 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
 };
 
+/** All client-side checks so the user sees every problem in one popup. */
+const collectContactValidationIssues = (form) => {
+  const issues = [];
+  if (!String(form.name ?? '').trim()) {
+    issues.push('Please enter your name.');
+  }
+  const emailTrim = String(form.email ?? '').trim();
+  if (!emailTrim) {
+    issues.push('Please enter your email address.');
+  } else if (!isValidEmail(form.email)) {
+    issues.push('Please enter a valid email address.');
+  }
+  if (!String(form.message ?? '').trim()) {
+    issues.push('Please enter a message so we know how to help.');
+  }
+  if (!isPhoneValidOrEmpty(form.phone)) {
+    issues.push(
+      `WhatsApp number must be ${PHONE_DIGITS_MIN}–${PHONE_DIGITS_MAX} digits (country code, numbers only), or leave the field empty.`
+    );
+  }
+  if (!form.consent) {
+    issues.push('Please tick “I agree that my data is collected” to submit the form.');
+  }
+  return issues;
+};
+
 const contactInfo = {
   address: CONTACT_ADDRESS,
   phone: CONTACT_PHONE,
@@ -39,6 +67,15 @@ const ContactPage = () => {
     consent: false,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [validationModal, setValidationModal] = useState({
+    open: false,
+    title: '',
+    issues: [],
+  });
+
+  const closeValidationModal = useCallback(() => {
+    setValidationModal((prev) => ({ ...prev, open: false }));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -52,17 +89,13 @@ const ContactPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.consent) return;
-
-    if (!isValidEmail(form.email)) {
-      alert('Please enter a valid email address.');
-      return;
-    }
-
-    if (!isPhoneValidOrEmpty(form.phone)) {
-      alert(
-        `Please enter a valid WhatsApp number (${PHONE_DIGITS_MIN}–${PHONE_DIGITS_MAX} digits), or leave the field empty.`
-      );
+    const issues = collectContactValidationIssues(form);
+    if (issues.length > 0) {
+      setValidationModal({
+        open: true,
+        title: 'Please check the following',
+        issues,
+      });
       return;
     }
 
@@ -84,7 +117,11 @@ const ContactPage = () => {
 
       if (!response.ok || !data.success) {
         console.error('Contact form API error', { status: response.status, data });
-        alert(data.error || 'Something went wrong while sending your message. Please try again.');
+        setValidationModal({
+          open: true,
+          title: 'Message could not be sent',
+          issues: [data.error || 'Something went wrong while sending your message. Please try again.'],
+        });
         return;
       }
 
@@ -99,7 +136,11 @@ const ContactPage = () => {
       });
     } catch (error) {
       console.error('Contact form submission error', error);
-      alert('Network error. Please try again later.');
+      setValidationModal({
+        open: true,
+        title: 'Connection problem',
+        issues: ['Network error. Please check your connection and try again.'],
+      });
     }
   };
 
@@ -141,7 +182,11 @@ const ContactPage = () => {
                 </a>
               </li>
               <li>
-                <a href={`mailto:${contactInfo.email}`}>
+                <a
+                  href={`mailto:${contactInfo.email}`}
+                  aria-label={`Send email to ${contactInfo.email}`}
+                  onClick={(e) => navigateToMailto(contactInfo.email, e)}
+                >
                   <span className="contact-page__icon-wrap" aria-hidden="true">
                     <FiMail className="contact-page__icon" />
                   </span>
@@ -210,7 +255,7 @@ const ContactPage = () => {
                 />
               </label>
               <div className="contact-page__form-actions">
-                <button type="submit" className="contact-page__submit" disabled={!form.consent}>
+                <button type="submit" className="contact-page__submit">
                   <FiSend className="contact-page__submit-icon" aria-hidden="true" />
                   Get in Touch
                 </button>
@@ -229,6 +274,13 @@ const ContactPage = () => {
           </div>
         </div>
       </div>
+
+      <SiteValidationModal
+        open={validationModal.open}
+        title={validationModal.title}
+        issues={validationModal.issues}
+        onClose={closeValidationModal}
+      />
     </section>
   );
 };

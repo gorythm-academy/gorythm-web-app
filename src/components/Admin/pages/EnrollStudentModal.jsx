@@ -4,6 +4,11 @@ import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import './EnrollStudentModal.scss';
 
+const ENROLLMENT_STATUS_VALUES = ['active', 'pending', 'completed', 'inactive'];
+
+const enrollmentStatusFromUser = (status) =>
+    ENROLLMENT_STATUS_VALUES.includes(status) ? status : 'pending';
+
 /**
  * EnrollStudentModal
  *
@@ -12,7 +17,7 @@ import './EnrollStudentModal.scss';
  *  onClose            - fn
  *  onEnrollSuccess    - fn(newEnrollment)
  *  courses            - array of course objects (passed from parent)
- *  preselectedStudent - optional: { _id, name, email, studentId, personalEmail } – skips student dropdown
+ *  preselectedStudent - optional: { _id, name, email, studentId, personalEmail, phone, status } – skips student dropdown
  */
 const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, preselectedStudent }) => {
     const [loading, setLoading] = useState(false);
@@ -25,13 +30,14 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
         studentUserId: preselectedStudent?._id || '',
         studentId: preselectedStudent?.studentId || '',
         personalEmail: preselectedStudent?.personalEmail || '',
+        phone: preselectedStudent?.phone || '',
         courseId: '',
-        status: 'pending',
+        status: enrollmentStatusFromUser(preselectedStudent?.status),
     });
 
     const statusOptions = [
-        { value: 'pending',   label: 'Pending',   color: '#f59e0b' },
         { value: 'active',    label: 'Active',     color: '#10b981' },
+        { value: 'pending',   label: 'Pending',   color: '#f59e0b' },
         { value: 'completed', label: 'Completed',  color: 'var(--color-accent)' },
         { value: 'inactive',  label: 'Inactive',   color: '#64748b' }
     ];
@@ -69,8 +75,9 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                 studentUserId: preselectedStudent?._id || '',
                 studentId: preselectedStudent?.studentId || '',
                 personalEmail: preselectedStudent?.personalEmail || '',
+                phone: preselectedStudent?.phone || '',
                 courseId: '',
-                status: 'pending',
+                status: enrollmentStatusFromUser(preselectedStudent?.status),
             });
             setError('');
             setSuccess('');
@@ -95,11 +102,11 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                 params: { segment: 'people', limit: 500 }
             });
             if (response.data.success) {
-                // Treat missing isActive as active (legacy DB rows)
-                const activeStudents = (response.data.users || []).filter(
-                    (u) => u.role === 'student' && u.isActive !== false
-                );
-                setStudents(activeStudents);
+                // All learner accounts with role student — include pending/inactive.
+                // Backend sets isActive=false when portal login is not allowed yet; those
+                // users must still be assignable to courses from this modal.
+                const studentUsers = (response.data.users || []).filter((u) => u.role === 'student');
+                setStudents(studentUsers);
             } else {
                 setError(response.data.error || 'Failed to load students.');
                 setStudents([]);
@@ -125,6 +132,8 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                 studentUserId: value,
                 studentId: s ? (s.studentId || '') : '',
                 personalEmail: s ? (s.personalEmail || '') : '',
+                phone: s ? (s.phone || '') : '',
+                status: s ? enrollmentStatusFromUser(s.status) : 'pending',
             }));
             return;
         }
@@ -173,14 +182,27 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             }
 
             const selected = getSelectedStudent();
-            if (
-                selected?._id &&
-                (personalTrim !== String(selected.personalEmail || '').trim() ||
-                    (studentIdTrim && studentIdTrim !== String(selected.studentId || '').trim()))
-            ) {
+            const currentPersonal = String(selected?.personalEmail || '').trim();
+            const currentStudentId = String(selected?.studentId || '').trim();
+            const currentPhone = String(selected?.phone || '').trim();
+            const phoneTrim = (formData.phone || '').trim();
+
+            const personalChanged = personalTrim !== currentPersonal;
+            const studentIdChanged = !!studentIdTrim && studentIdTrim !== currentStudentId;
+            const phoneChanged = phoneTrim !== currentPhone;
+
+            // Only pre-update the user if something actually changed.
+            // Backend PUT /api/users/:id requires name + email, so always send them.
+            if (selected?._id && (personalChanged || studentIdChanged || phoneChanged)) {
                 await axios.put(
                     `${API_BASE_URL}/api/users/${selected._id}`,
-                    { personalEmail: personalTrim, studentId: studentIdTrim || undefined },
+                    {
+                        name: selected.name || '',
+                        email: selected.email || '',
+                        personalEmail: personalTrim,
+                        phone: phoneTrim,
+                        ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
+                    },
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -218,7 +240,8 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             }
         } catch (err) {
             if (err.response) {
-                setError(err.response.data.message || 'Server error. Please try again.');
+                const data = err.response.data || {};
+                setError(data.error || data.message || 'Server error. Please try again.');
             } else if (err.request) {
                 setError('Cannot connect to server. Please check backend is running.');
             } else {
@@ -234,8 +257,9 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             studentUserId: preselectedStudent?._id || '',
             studentId: preselectedStudent?.studentId || '',
             personalEmail: preselectedStudent?.personalEmail || '',
+            phone: preselectedStudent?.phone || '',
             courseId: '',
-            status: 'pending',
+            status: enrollmentStatusFromUser(preselectedStudent?.status),
         });
         setError('');
         setSuccess('');
@@ -398,6 +422,23 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                             />
                                             <small className="form-hint">Separate from portal login; for contact only.</small>
                                         </div>
+                                        <div className="form-group">
+                                            <label htmlFor="enroll-phone">
+                                                <i className="fas fa-phone"></i> Phone number (optional)
+                                            </label>
+                                            <input
+                                                id="enroll-phone"
+                                                type="tel"
+                                                name="phone"
+                                                value={formData.phone}
+                                                onChange={handleChange}
+                                                className="form-input"
+                                                placeholder="+1 (123) 456-7890"
+                                                autoComplete="tel"
+                                                disabled={loading || success}
+                                            />
+                                            <small className="form-hint">Shown in Students data and People.</small>
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -434,8 +475,12 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
 
                                 <div className="form-group">
                                     <label>
-                                        <i className="fas fa-toggle-on"></i> Enrollment status
+                                        <i className="fas fa-toggle-on"></i> Enrollment status (this course)
                                     </label>
+                                    <small className="form-hint enrollment-status-hint">
+                                        Applies only to this course row in Students data. To change the learner’s
+                                        account / portal status, edit them in <strong>People</strong>.
+                                    </small>
                                     <div className="status-buttons">
                                         {statusOptions.map((status) => (
                                             <button
@@ -479,6 +524,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                             <p><strong>Portal email:</strong> {selectedStudent?.email || '—'}</p>
                                             <p><strong>Student ID:</strong> {formData.studentId?.trim() || selectedStudent?.studentId || '—'}</p>
                                             <p><strong>Personal email:</strong> {formData.personalEmail?.trim() || '—'}</p>
+                                            <p><strong>Phone:</strong> {formData.phone?.trim() || '—'}</p>
                                             <p><strong>Course:</strong> {getSelectedCourse()?.title || '—'}</p>
                                         </div>
                                     </div>

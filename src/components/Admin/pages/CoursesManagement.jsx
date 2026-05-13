@@ -3,6 +3,7 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { CATEGORY_ORDER } from '../../HomeSections/Courses';
 import { API_BASE_URL } from '../../../config/constants';
+import { useAdminDialog } from '../AdminDialogContext';
 import './CoursesManagement.scss';
 
 const getCategorySortIndex = (category) => {
@@ -35,6 +36,7 @@ const COLUMN_MAX_WIDTHS = [90, 360, 440, 300, 380, 180, 180, 220, 280, 220, 240,
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const CoursesManagement = () => {
+    const { showAlert, showConfirm, showChoice } = useAdminDialog();
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -236,14 +238,14 @@ const CoursesManagement = () => {
 
     const openEditForm = (course) => {
         if (!course) {
-            alert('Error: Course data is invalid');
+            showAlert('Course data is invalid', 'error');
             return;
         }
         
         const courseId = course._id || course.id;
         if (!courseId) {
             console.error('Course ID not found. Course object:', course);
-            alert('Error: Course ID is missing. Cannot edit this course.');
+            showAlert('Course ID is missing. Cannot edit this course.', 'error');
             return;
         }
         
@@ -272,7 +274,7 @@ const CoursesManagement = () => {
 
     const openBulkEditForm = () => {
         if (selectedCourses.length === 0) {
-            alert('Please select courses to edit');
+            showAlert('Please select courses to edit', 'warning');
             return;
         }
         
@@ -283,7 +285,7 @@ const CoursesManagement = () => {
         if (firstSelected) {
             openEditForm(firstSelected);
         } else {
-            alert('Selected course not found. Please refresh and try again.');
+            showAlert('Selected course not found. Please refresh and try again.', 'error');
         }
     };
 
@@ -303,15 +305,15 @@ const CoursesManagement = () => {
         }
 
         if (!formData.title.trim()) {
-            alert('Please enter a course title');
+            showAlert('Please enter a course title', 'warning');
             return;
         }
         if (!formData.description.trim()) {
-            alert('Please enter a course description');
+            showAlert('Please enter a course description', 'warning');
             return;
         }
         if (!formData.duration.trim()) {
-            alert('Please enter course duration (e.g., "8 weeks")');
+            showAlert('Please enter course duration (e.g., "8 weeks")', 'warning');
             return;
         }
 
@@ -319,7 +321,7 @@ const CoursesManagement = () => {
         const token = getAuthToken();
         
         if (!token) {
-            alert('Authentication token not found. Please log in again.');
+            showAlert('Authentication token not found. Please log in again.', 'error');
             setIsSubmitting(false);
             return;
         }
@@ -342,7 +344,7 @@ const CoursesManagement = () => {
                 const courseId = editingCourse._id || editingCourse.id;
                 
                 if (!courseId) {
-                    alert('Error: Course ID is missing. Cannot update course.');
+                    showAlert('Course ID is missing. Cannot update course.', 'error');
                     setIsSubmitting(false);
                     return;
                 }
@@ -429,7 +431,7 @@ setFormData({
                 errorMessage = error.message || 'Failed to save course';
             }
             
-            alert(`Failed to save course: ${errorMessage}`);
+            showAlert(`Failed to save course: ${errorMessage}`, 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -453,27 +455,40 @@ setFormData({
     };
 
     const deleteCourse = async (courseId) => {
-        if (window.confirm('Are you sure you want to delete this course?')) {
-            try {
-                const token = getAuthToken();
-                await axios.delete(`${API_BASE_URL}/api/courses/${courseId}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                
-                setSelectedCourses(prev => prev.filter(id => id !== courseId));
-                await fetchCourses();
-                showConfirmation('Course deleted successfully!');
-            } catch (error) {
-                console.error('Error deleting course:', error);
-                const errorMessage = error.response?.data?.error || error.message || 'Failed to delete course';
-                alert(`Failed to delete course: ${errorMessage}. Please try again.`);
-            }
+        const confirmed = await showConfirm({
+            title: 'Delete Course?',
+            message: 'This course will be permanently deleted.',
+            confirmLabel: 'Delete Course',
+        });
+        if (!confirmed) return;
+
+        try {
+            const token = getAuthToken();
+            await axios.delete(`${API_BASE_URL}/api/courses/${courseId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setSelectedCourses(prev => prev.filter(id => id !== courseId));
+            await fetchCourses();
+            showConfirmation('Course deleted successfully!');
+        } catch (error) {
+            console.error('Error deleting course:', error);
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to delete course';
+            showAlert(`Failed to delete course: ${errorMessage}. Please try again.`, 'error');
         }
     };
 
     // FIXED: Bulk delete function
     const deleteSelectedCourses = async () => {
-        if (!selectedCourses.length || !window.confirm(`Delete ${selectedCourses.length} selected course(s)?`)) {
+        if (!selectedCourses.length) {
+            return;
+        }
+        const confirmed = await showConfirm({
+            title: 'Delete Courses?',
+            message: `Delete ${selectedCourses.length} selected course(s)? This cannot be undone.`,
+            confirmLabel: 'Delete Selected',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -492,7 +507,7 @@ setFormData({
         } catch (error) {
             console.error('Error deleting selected courses:', error);
             console.error('Error details:', error.response?.data);
-            alert(`Failed to delete selected courses: ${error.response?.data?.error || error.message}`);
+            showAlert(`Failed to delete selected courses: ${error.response?.data?.error || error.message}`, 'error');
         }
     };
 
@@ -508,12 +523,19 @@ setFormData({
             showConfirmation('Status updated successfully.');
         } catch (error) {
             console.error('Error updating course status:', error);
-            alert('Failed to update course status. Please try again.');
+            showAlert('Failed to update course status. Please try again.', 'error');
         }
     };
 
     const toggleSelectedStatus = async () => {
-        const targetStatus = prompt('Set all selected courses to (published/draft):', 'published');
+        const targetStatus = await showChoice({
+            title: 'Set Course Status',
+            message: `Choose the status for ${selectedCourses.length} selected course(s).`,
+            choices: [
+                { value: 'published', label: 'Published' },
+                { value: 'draft', label: 'Draft' },
+            ],
+        });
         if (!targetStatus || !['published', 'draft'].includes(targetStatus)) return;
 
         try {
@@ -526,7 +548,7 @@ setFormData({
             showConfirmation(`${selectedCourses.length} course(s) set to ${targetStatus}`);
         } catch (error) {
             console.error('Error updating selected courses status:', error);
-            alert('Failed to update status for selected courses. Please try again.');
+            showAlert('Failed to update status for selected courses. Please try again.', 'error');
         }
     };
 

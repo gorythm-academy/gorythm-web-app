@@ -12,6 +12,7 @@ import {
   YOUTUBE_URL,
   TIKTOK_URL,
 } from '../../config/constants';
+import { navigateToMailto } from '../../utils/mailto';
 
 /** Viewports using compact nav (hamburger / tablet layout). */
 const MOBILE_TABLET_MAX_WIDTH = 1279;
@@ -603,7 +604,15 @@ const Header = () => {
                 <div className="mobile-menu-right mobile-right-anim">
                   <div className="mobile-menu-right-gp">
                     <p className="mobile-menu-gp-title">Have A Question?</p>
-                    <a href={`mailto:${INFO_EMAIL}`} className="mobile-menu-email" onClick={closeMobileMenu}>
+                    <a
+                      href={`mailto:${INFO_EMAIL}`}
+                      className="mobile-menu-email"
+                      aria-label={`Send email to ${INFO_EMAIL}`}
+                      onClick={(e) => {
+                        navigateToMailto(INFO_EMAIL, e);
+                        closeMobileMenu();
+                      }}
+                    >
                       {INFO_EMAIL}
                     </a>
                   </div>
@@ -687,7 +696,13 @@ const Header = () => {
               <div className="contact-item">
                 <div className="contact-details">
                   <div className="contact-value">
-                    <a href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>
+                    <a
+                      href={`mailto:${INFO_EMAIL}`}
+                      aria-label={`Send email to ${INFO_EMAIL}`}
+                      onClick={(e) => navigateToMailto(INFO_EMAIL, e)}
+                    >
+                      {INFO_EMAIL}
+                    </a>
                   </div>
                 </div>
               </div>

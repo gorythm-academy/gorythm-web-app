@@ -77,16 +77,20 @@
 }
 
 // Mobile first: no top padding so label/title sit over digit on small screens
+.front_page_section_about {
+  --about-content-offset: 0px;
+}
+
 .about_content_wrap {
   position: relative;
-  padding-top: 0;
+  padding-top: var(--about-content-offset);
 }
 
 // Large "01" behind heading – gradient, very big
 .about_big_number {
   position: absolute;
   left: 0;
-  top: -0.15em;
+  top: var(--about-bn-top, -0.15em);
   font-size: clamp(8rem, 18vw, 20rem);
   font-weight: 800;     
   line-height: 0.85;
@@ -183,7 +187,7 @@
   line-height: 1.7;
   color: rgba(255, 255, 255, 0.75);
   margin: 0;
-  max-width: 100%;
+  max-width: 85%;
 }
 
 // =============================================================================
@@ -207,8 +211,9 @@
 
 // ≥ 993px (desktop only): content starts a little lower; right image contained and larger
 @media (min-width: #{$bp-section-md + 1}) {
-  .about_content_wrap {
-    padding-top: 60px;
+  .front_page_section_about {
+    --about-content-offset: 60px;
+    --about-right-img-h: auto;
   }
 
   .about_label {
@@ -221,24 +226,39 @@
     z-index: 2;
   }
 
-  .about_image_right {
-    height: 540px;
-  }
 }
 
 // Any landscape viewport with limited vertical space (height ≤ 600px):
 // Override the desktop fixed heights so images scale down proportionally.
 // Covers: most phones in landscape where the viewport height is constrained.
+// Any landscape viewport with limited vertical space:
+// shift About content down so "02" stays readable (covers all phones in landscape).
 @media (orientation: landscape) and (max-height: 600px) {
-  .front_page_section_about .about_image_left,
-  .front_page_section_about .about_image_right {
-    height: clamp(320px, 80vh, 560px);
+  .front_page_section_about {
+    --about-content-offset: 56px;
+  }
+}
+
+// Very short landscape phones (e.g., iPhone SE / Galaxy S8+):
+// also pull the digit down and tighten typography so both columns share the same endpoint.
+@media (orientation: landscape) and (max-height: 430px) {
+  .front_page_section_about {
+    --about-content-offset: 56px;
+    --about-bn-top: 0;
   }
 
-  .front_page_section_about .about_image_left img,
-  .front_page_section_about .about_image_right img {
-    height: 100%;
-    object-fit: cover;
+  .front_page_section_about .about_label {
+    font-size: 0.9rem;
+  }
+
+  .front_page_section_about .about_title {
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+  }
+
+  .front_page_section_about .about_paragraph {
+    font-size: 0.95rem;
+    line-height: 1.65;
   }
 }
 
@@ -256,58 +276,22 @@
 // Touch tablet portrait: widen images for finger-friendly proportions
 // Applies to: iPad, iPad Mini, iPad Air in portrait with coarse pointer
 @include touch-tablet-portrait {
+  .front_page_section_about {
+    --about-content-offset: 34px;
+  }
+
   // Tablet portrait: increase left image height
   // Widen images by giving the grid columns more space (smaller gap).
   .about_layout {
     gap: 50px;
-  }
-
-  .front_page_section_about .about_image_left {
-    // Tablet portrait: widen vs desktop defaults
-    width: 100%;
-    height: clamp(360px, 38vh, 570px);
-
-    img {
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  // Keep right image at a stable desktop-like height
-  .front_page_section_about .about_image_right {
-    width: 100%;
-    height: clamp(320px, 38vh, 520px);
-
-    img {
-      height: 100%;
-      object-fit: cover;
-    }
   }
 }
 
 // Touch tablet landscape: taller images for wider viewport proportions
 // Applies to: iPad, iPad Mini, iPad Air in landscape with coarse pointer
 @include touch-tablet-landscape {
-  .front_page_section_about .about_image_right {
-    // Tablet landscape: widen vs desktop defaults
-    width: 100%;
-    height: clamp(480px, 55vh, 700px);
-
-    img {
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  // Ensure left image still fits the taller right-side rhythm
-  .front_page_section_about .about_image_left {
-    width: 80%;
-    height: clamp(440px, 60vh, 680px);
-
-    img {
-      height: 100%;
-      object-fit: cover;
-    }
+  .front_page_section_about {
+    --about-content-offset: 42px;
   }
 }
 
@@ -338,8 +322,7 @@
 
   .about_big_number {
     font-size: clamp(5rem, 20vw, 8rem);
-    // On mobile/tablet, lift the big "01" slightly higher behind the heading
-    top: -0.5em;
+    top: var(--about-bn-top, -0.15em);
   }
 }
 
@@ -350,8 +333,8 @@
     padding: 80px 0 80px;
   }
 
-  .about_content_wrap {
-    padding-top: 40px; // closer to desktop feel under the big number
+  .front_page_section_about {
+    --about-content-offset: 56px; // move both columns lower so "02" remains visible
   }
 
   .about_layout {
@@ -362,41 +345,17 @@
 
   .about_big_number {
     font-size: clamp(6rem, 16vw, 10rem);
-    top: 0;
-    transform: translateY(-18%); // stable across landscape phone heights (iOS/Samsung URL bar changes)
+    top: var(--about-bn-top, -0.15em);
+    transform: none;
   }
 
   .about_image_left {
     width: 70%;
   }
 
-  .about_image_right {
-    width: 100%;
-  }
-
-  // Keep both images visually consistent in landscape so the paragraph aligns
-  // like desktop (stable bottom edges across varying viewport heights).
-  .about_image_left,
-  .about_image_right {
-    height: clamp(360px, 74vh, 600px);
-  }
-
-  .about_image_left img,
-  .about_image_right img {
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .about_left,
-  .about_right {
-    height: 100%; // ensure both columns end at the same bottom line
-    justify-content: flex-end; // keep paragraph toward the bottom in landscape
-  }
-
   .about_paragraph {
     font-size: 0.98rem;
-    margin-top: auto; // push paragraph down to the bottom
-    padding-top: 20px;
+    margin-top: auto;
   }
 }
 
@@ -408,14 +367,11 @@
   }
 }
 
-// ≤ 743px (mobile, any orientation): section padding + label/image sizing reductions
-@media (max-width: $bp-section-sm) {
+// ≤ 743px portrait only: section padding + label/image sizing reductions
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .front_page_section_about {
     padding: 60px 0 80px;
-  }
-
-  .about_content_wrap {
-    padding-top: 0;
+    --about-content-offset: 0px;
   }
 
   .about_label {
@@ -447,7 +403,7 @@
 
 // ≤ 743px portrait: right image overlaps the left (z-index stacking), larger typography.
 // Note: xs/xxs breakpoints below are landscape-only — portrait keeps these larger sizes.
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .about_left {
     position: relative;
     z-index: 1;
@@ -489,29 +445,14 @@
 
   .about_big_number {
     font-size: clamp(5.5rem, 14vw, 9rem);
-    top: 0;
-    transform: translateY(-18%);
+    top: var(--about-bn-top, -0.15em);
+    transform: none;
   }
 
   .about_title {
     margin-bottom: 20px;
   }
 
-  // Ensure landscape phones also keep both images aligned at the bottom
-  .about_image_left,
-  .about_image_right {
-    height: clamp(320px, 80vh, 540px);
-  }
-
-  .about_image_left img,
-  .about_image_right img {
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .about_paragraph {
-    margin-top: 24px; // gap between right image and paragraph
-  }
 }
 
 // ≤ 480px landscape only: small phone, further reduce section padding and font sizes
@@ -560,7 +501,7 @@
 // High specificity via .front_page_section_about parent beats the tablet rule.
 @media (max-width: $bp-section-xxxs) and (orientation: portrait) {
   .front_page_section_about .about_big_number {
-    top: -1.5rem;                           // moved more higher so "01" sits above eyebrow & title
+    --about-bn-top: -1.5rem;               // lift number for very narrow portrait
     font-size: clamp(6rem, 26vw, 8rem);    // larger to fill the 360px portrait width
   }
 }
@@ -570,14 +511,85 @@
 // The min-height prevents this from firing in landscape where height < 600px.
 @media (max-width: $bp-section-xxs) and (min-height: 600px) and (orientation: portrait) {
   .front_page_section_about .about_big_number {
-    top: -1.5rem;                           // moved more higher behind the heading
+    --about-bn-top: -1.5rem;               // lift number for tall narrow portrait
     font-size: clamp(6rem, 26vw, 8rem);    // larger to fill the 375px portrait width
   }
 }
 
 // ≤ 743px portrait: remove bottom padding — the next section provides its own top spacing
-@media (max-width: $bp-section-sm) and (orientation: portrait) {
+@media (max-width: ($bp-section-sm - 1px)) and (orientation: portrait) {
   .front_page_section_about {
     padding-bottom: 0;
+  }
+}
+
+// Final About alignment contract (desktop + iPad + all landscape).
+// Keeps start/end points aligned by structure, not ad-hoc spacing hacks.
+// Mobile portrait is intentionally excluded.
+@media (min-width: $bp-section-sm), (orientation: landscape) {
+  .front_page_section_about {
+    --about-right-img-w: 85%;
+    --about-right-img-h: auto;
+    --about-left-img-h: auto;
+    --about-para-size: 1rem;
+    --about-para-lh: 1.7;
+  }
+
+  .front_page_section_about .about_layout {
+    align-items: stretch;
+  }
+
+  .front_page_section_about .about_left,
+  .front_page_section_about .about_right {
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+
+  // Eyebrow/title starts at top while paragraph is bottom-locked.
+  .front_page_section_about .about_right {
+    justify-content: flex-start;
+  }
+
+  // Bottom lock both sides so endpoints stay aligned when content length changes.
+  .front_page_section_about .about_image_left {
+    height: var(--about-left-img-h);
+    margin-top: auto;
+  }
+
+  .front_page_section_about .about_image_right {
+    width: var(--about-right-img-w);
+    height: var(--about-right-img-h);
+    margin-top: 0;
+  }
+
+  .front_page_section_about .about_image_right img {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+  }
+
+  .front_page_section_about .about_paragraph {
+    font-size: var(--about-para-size);
+    line-height: var(--about-para-lh);
+    margin-top: auto;
+    padding-top: 20px;
+  }
+}
+
+// Very short landscape phones (SE/S8+ class): tighter sizing + visible "02".
+@media (orientation: landscape) and (max-height: 380px) {
+  .front_page_section_about {
+    --about-content-offset: 52px;
+    --about-bn-top: 0;
+    --about-right-img-w: 90%;
+    --about-right-img-h: clamp(250px, 70vh, 340px);
+    --about-left-img-h: clamp(250px, 70vh, 340px);
+    --about-para-size: 0.9rem;
+    --about-para-lh: 1.55;
   }
 }

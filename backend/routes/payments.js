@@ -70,7 +70,7 @@ router.post(
     ]),
     async (req, res) => {
     try {
-        const { studentName, email, courseName, amount, paymentMethod } = req.body || {};
+        const { studentName, email, courseName, amount, paymentMethod, phone } = req.body || {};
 
         if (!studentName || !email || !courseName || amount == null) {
             return res.status(400).json({
@@ -89,6 +89,9 @@ router.post(
 
         const normalizedEmail = String(email).trim().toLowerCase();
         const normalizedCourseName = String(courseName).trim();
+        const bankDigits = phone != null ? String(phone).replace(/\D/g, '') : '';
+        const bankPhone =
+            bankDigits.length >= 8 && bankDigits.length <= 15 ? bankDigits : undefined;
         const numericAmount = Number(amount);
         if (Number.isNaN(numericAmount) || numericAmount < 0) {
             return res.status(400).json({
@@ -102,6 +105,7 @@ router.post(
         const payment = new Payment({
             studentName: String(studentName).trim(),
             email: normalizedEmail,
+            phone: bankPhone,
             courseName: normalizedCourseName,
             course: course?._id || undefined,
             amount: numericAmount,
@@ -137,7 +141,7 @@ router.post(
     async (req, res) => {
     if (!requireStripe(res)) return;
     try {
-        const { courseId, studentName, email, userId } = req.body || {};
+        const { courseId, studentName, email, userId, phone } = req.body || {};
 
         if (!courseId || !studentName || !email) {
             return res.status(400).json({
@@ -176,8 +180,13 @@ router.post(
         const base = frontendBase();
         const paymentMethodTypes = checkoutPaymentMethodTypes();
 
+        const digitsPhone = phone != null ? String(phone).replace(/\D/g, '') : '';
+        const normalizedPhone =
+            digitsPhone.length >= 8 && digitsPhone.length <= 15 ? digitsPhone : '';
+
         const sessionParams = {
             customer_email: String(email).trim().toLowerCase(),
+            phone_number_collection: { enabled: true },
             line_items: [
                 {
                     price_data: {
@@ -198,6 +207,7 @@ router.post(
                 courseId: String(courseId),
                 studentName: String(studentName).trim(),
                 email: String(email).trim().toLowerCase(),
+                ...(normalizedPhone ? { phone: normalizedPhone } : {}),
                 ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
             },
         };
@@ -208,6 +218,7 @@ router.post(
             user: linkedUserId,
             course: courseId,
             studentName: String(studentName).trim(),
+            phone: normalizedPhone || undefined,
             email: String(email).trim().toLowerCase(),
             courseName: course.title,
             amount: priceUsd,
