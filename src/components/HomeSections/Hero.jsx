@@ -2,11 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import heroBannerPng from '../../assets/images/home/hero-banner-image.png';
-import centerLogoPng from '../../assets/images/home/center-logo.png';
-import centerLogoWebp from '../../assets/images/home/center-logo.webp';
-import centerLogoAvif from '../../assets/images/home/center-logo.avif';
+import { HERO_CENTER_LOGO_AVIF, HERO_CENTER_LOGO_WEBP } from '../../config/publicAssets';
 import './Hero.scss';
 
 /**
@@ -193,17 +190,20 @@ const HeroSection = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.8, delay: 0.4 }}
                 >
-                  {/* Decorative mark between title words — empty alt; smaller than sky background */}
-                  <OptimizedPicture
-                    avifSrc={centerLogoAvif}
-                    webpSrc={centerLogoWebp}
-                    fallbackSrc={centerLogoPng}
-                    alt=""
-                    width={800}
-                    height={500}
-                    fetchPriority="high"
-                    decoding="async"
-                  />
+                  {/* Decorative mark — small files in /public/images/hero (see npm run optimize-images) */}
+                  <picture className="optimized-picture hero-center-logo-picture">
+                    <source srcSet={HERO_CENTER_LOGO_AVIF} type="image/avif" />
+                    <source srcSet={HERO_CENTER_LOGO_WEBP} type="image/webp" />
+                    <img
+                      src={HERO_CENTER_LOGO_WEBP}
+                      alt=""
+                      width={240}
+                      height={264}
+                      sizes="(max-width: 768px) 12vw, 96px"
+                      fetchPriority="high"
+                      decoding="async"
+                    />
+                  </picture>
                 </motion.div>
 
                 <motion.span

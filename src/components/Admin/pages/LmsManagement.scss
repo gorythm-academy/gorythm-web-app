@@ -1,0 +1,367 @@
+.lms-management {
+  padding: 0.5rem 0 2rem;
+
+  h1 {
+    margin: 0 0 0.35rem;
+  }
+
+  .lms-management-lead {
+    color: #64748b;
+    margin: 0 0 1.25rem;
+    max-width: 52rem;
+  }
+
+  .lms-management-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+
+    button {
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+
+      &.active {
+        background: var(--color-accent, #3b82f6);
+        color: #fff;
+        border-color: transparent;
+      }
+    }
+  }
+
+  .lms-panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+
+  .lms-field-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .lms-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .lms-btn-secondary {
+    padding: 0.5rem 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .lms-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-width: 480px;
+    margin-bottom: 1.5rem;
+
+    h2 {
+      margin: 0 0 0.25rem;
+      font-size: 1.1rem;
+    }
+
+    input,
+    select {
+      padding: 0.5rem 0.65rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
+
+    button[type='submit'] {
+      align-self: flex-start;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      background: var(--color-accent, #3b82f6);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  }
+
+  .lms-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      padding: 0.65rem 0;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+
+      &.lms-list-item--editing {
+        background: #eff6ff;
+        margin: 0 -0.5rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        border-radius: 8px;
+      }
+    }
+  }
+
+  .lms-list-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  .lms-btn-edit {
+    background: none;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.25rem 0.65rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #1e40af;
+  }
+
+  .lms-link-btn {
+    background: none;
+    border: none;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .lms-empty {
+    color: #64748b;
+    margin: 0.5rem 0 0;
+  }
+
+  .lms-hint {
+    color: #92400e;
+    background: #fffbeb;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+  }
+
+  .lms-form-grid {
+    max-width: 520px;
+    margin-bottom: 1.5rem;
+  }
+
+  .lms-table-wrap {
+    overflow-x: auto;
+  }
+
+  .lms-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+
+    th,
+    td {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+  }
+
+  .lms-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .lms-btn-danger {
+    padding: 0.35rem 0.65rem;
+    border: none;
+    border-radius: 6px;
+    background: #fee2e2;
+    color: #991b1b;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .lms-attendance-panel {
+    .lms-panel-head {
+      margin-bottom: 1rem;
+
+      h2 {
+        margin: 0 0 0.35rem;
+      }
+    }
+
+    .lms-attendance-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem 1rem;
+      margin-bottom: 1rem;
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #475569;
+      }
+
+      select {
+        min-width: 180px;
+        padding: 0.45rem 0.65rem;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+      }
+    }
+
+    .lms-attendance-table-wrap {
+      overflow-x: auto;
+    }
+
+    .lms-attendance-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+
+      th,
+      td {
+        padding: 0.65rem 0.75rem;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      small {
+        color: #64748b;
+        font-size: 0.8rem;
+      }
+    }
+
+    .lms-status-pill {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: capitalize;
+
+      &--pending {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      &--approved {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      &--rejected {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+    }
+
+    .lms-attendance-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      white-space: nowrap;
+
+      .btn-sm {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.82rem;
+      }
+    }
+
+    .lms-attendance-daily-row td {
+      background: #f8fafc;
+      padding: 1rem;
+    }
+
+    .lms-daily-log-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      gap: 0.35rem;
+      max-width: 900px;
+    }
+
+    .lms-daily-log-cell {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.35rem;
+      text-align: center;
+      font-size: 0.72rem;
+      background: #fff;
+
+      &--weekend {
+        background: #f1f5f9;
+        color: #94a3b8;
+      }
+
+      &--holiday {
+        background: #fff7ed;
+        border-color: #fed7aa;
+      }
+    }
+
+    .lms-daily-log-date {
+      display: block;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .lms-daily-log-status {
+      display: block;
+      text-transform: capitalize;
+      font-weight: 600;
+      margin-top: 2px;
+
+      &--present {
+        color: #166534;
+      }
+      &--absent {
+        color: #991b1b;
+      }
+      &--late {
+        color: #854d0e;
+      }
+      &--leave {
+        color: #3730a3;
+      }
+    }
+
+    .lms-daily-log-off {
+      color: #94a3b8;
+      font-size: 0.65rem;
+    }
+  }
+}

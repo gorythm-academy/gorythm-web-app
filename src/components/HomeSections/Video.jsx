@@ -97,6 +97,7 @@ const VideoSection = () => {
           className="video-section-backdrop-img"
           width={1600}
           height={900}
+          sizes="(max-width: 768px) 100vw, min(100vw, 900px)"
         />
       </div>
       <div className="video-section-overlay" />

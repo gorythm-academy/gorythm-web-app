@@ -49,6 +49,9 @@ const MissionSection = () => {
       className={`mission-section${isInView ? ' mission-inview' : ''}`}
     >
       <div className="mission-inner">
+        <h2 className="mission-section-heading mission-section-heading--sr-only">
+          Mission — IQ, EQ, and PhQ
+        </h2>
         <div className="mission-cards">
           {missionCards.map((card, idx) => (
             <Link
@@ -72,7 +75,7 @@ const MissionSection = () => {
 
               {/* Text info */}
               <div className="mission-card-info">
-                <h4 className="mission-card-title">{card.title}</h4>
+                <h3 className="mission-card-title">{card.title}</h3>
                 <p className="mission-card-description">{card.description}</p>
                 <div className="mission-card-arrow">
                   <span className="mission-arrow-icon" aria-hidden="true">→</span>

@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
 const ContactMessage = require('../models/ContactMessage');
 const Subscriber = require('../models/Subscriber');
+const ClassSchedule = require('../models/ClassSchedule');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 
@@ -34,6 +35,24 @@ router.get('/dashboard', async (req, res) => {
 
         const recentActivities = await buildCrossTabRecentActivities();
 
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const upcomingSchedules = await ClassSchedule.find()
+            .populate('course', 'title')
+            .populate('teacher', 'name')
+            .sort({ dayOfWeek: 1, startTime: 1 })
+            .limit(12);
+        const upcomingClasses = upcomingSchedules.map((s) => ({
+            id: String(s._id),
+            course: s.course?.title || 'Course',
+            teacher: s.teacher?.name || '—',
+            day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][s.dayOfWeek] || '',
+            time: `${s.startTime} – ${s.endTime}`,
+            room: s.roomOrLink || '',
+            dayOfWeek: s.dayOfWeek,
+            isToday: s.dayOfWeek === dayOfWeek,
+        }));
+
         res.json({
             success: true,
             stats: {
@@ -44,7 +63,8 @@ router.get('/dashboard', async (req, res) => {
                 totalRevenue,
                 activeUsers
             },
-            recentActivities
+            recentActivities,
+            upcomingClasses,
         });
 
         req.log.debug('Dashboard stats sent');

@@ -89,10 +89,15 @@
 .footer-milky-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 28px;
+  gap: 12px 20px;
+  align-items: center;
 
   a {
     position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 6px;
     color: rgba(255, 255, 255, 0.82);
     text-decoration: none;
     font-size: 0.88rem;
@@ -102,9 +107,9 @@
     &::after {
       content: '';
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -5px;
+      left: 6px;
+      right: 6px;
+      bottom: 6px;
       height: 1px;
       background: currentColor;
       transform: scaleX(0);
@@ -134,13 +139,15 @@
   display: flex;
   align-items: center;
   align-self: flex-start;
-  gap: clamp(8px, 1vw, 12px);
+  gap: 12px;
   margin-bottom: clamp(8px, 1.2vw, 16px);
 }
 
 .footer-milky-social-link {
-  width: clamp(30px, 2.2vw, 36px);
-  height: clamp(30px, 2.2vw, 36px);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
   display: inline-flex;
@@ -158,7 +165,7 @@
   }
 
   i {
-    font-size: clamp(0.78rem, 0.7rem + 0.2vw, 0.9rem);
+    font-size: clamp(0.88rem, 0.82rem + 0.2vw, 1rem);
   }
 }
 
@@ -354,11 +361,20 @@
 
   .footer-milky-social {
     gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  // Smaller hit ring only on phone portrait — rest of layout unchanged
+  .footer-milky-social-link {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
   }
 
   .footer-milky-bottom {
-    margin-top: 14px;
-    padding-top: 10px;
+    margin-top: 0;
+    padding-top: 4px;
   }
 
   .footer-milky-copyright {

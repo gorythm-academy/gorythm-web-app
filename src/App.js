@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
@@ -9,60 +9,109 @@ import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
 // import MarqueeSection from './components/HomeSections/Marquee';
 import CoursesSection from './components/HomeSections/Courses';
-import { PortfolioPage, PortfolioItemPage } from './components/Pages/PortfolioPages';
-import BlogMainPage from './components/Pages/BlogMainPage';
-import BlogCategory from './components/Pages/BlogCategory';
-import SingleBlogPostPage from './components/Pages/SingleBlogPostPage';
 import SubscribeSection from './components/HomeSections/Subscribe';
 import WhyGorythmSection from './components/HomeSections/WhyGorythm';
 import BlogSection from './components/HomeSections/BlogSection';
 import StudentTestimonialsSection from './components/HomeSections/StudentTestimonials';
 import SocialSidebar from './components/SocialSidebar/SocialSidebar';
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
-import DashboardLayout from './components/Admin/DashboardLayout';
-import DashboardHome from './components/Admin/DashboardHome';
 import Cursor from './components/Cursor/Cursor';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 // Side icon: floating WhatsApp button fixed on the left of the viewport
 // import WhatsAppFloat from './components/WhatsAppFloat/WhatsAppFloat';
 import './styles/App.scss';
-
-// Import new page components
-import AllCourses from './components/Pages/AllCourses';
-import { SingleCourse } from './components/Pages/SingleCourse';
-import Login from './components/Pages/Login';
-import AboutPage from './components/Pages/AboutPage';
-import ContactPage from './components/Pages/ContactPage';
-import {
-  SatelliteMaintenancePage,
-  ExplorationMissionsPage,
-  ResearchObservationPage,
-} from './components/Pages/MissionPages';
-
-// Import Admin Login component
-import AdminLogin from './components/Admin/pages/Login';
-
-// Import Admin Management Components
-import UsersManagement from './components/Admin/pages/UsersManagement';
-import CoursesManagement from './components/Admin/pages/CoursesManagement';
-import PaymentsManagement from './components/Admin/pages/PaymentsManagement';
-import Analytics from './components/Admin/pages/Analytics';
-import Settings from './components/Admin/pages/Settings';
-import StudentsData from './components/Admin/pages/StudentsData';
-import PaymentGateway from './components/Admin/pages/PaymentGateway';
-import { PaymentSuccess } from './components/Pages/PaymentSuccess';
-import { PaymentCancel } from './components/Pages/PaymentCancel';
-import PeopleManagement from './components/Admin/pages/PeopleManagement';
-import ContactMessages from './components/Admin/pages/ContactMessages';
-import Subscribers from './components/Admin/pages/Subscribers';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
-import PortalLayout from './components/Portals/PortalLayout';
-import StudentPortal from './components/Portals/StudentPortal';
-import TeacherPortal from './components/Portals/TeacherPortal';
-import ParentPortal from './components/Portals/ParentPortal';
-import AccountantPortal from './components/Portals/AccountantPortal';
+import { AUTH_REALM } from './utils/authStorage';
 import { CurrencyProvider } from './context/CurrencyContext';
 
+const AllCourses = lazy(() => import('./components/Pages/AllCourses'));
+const SingleCourse = lazy(() =>
+  import('./components/Pages/SingleCourse').then((m) => ({ default: m.SingleCourse }))
+);
+const Login = lazy(() => import('./components/Pages/Login'));
+const AboutPage = lazy(() => import('./components/Pages/AboutPage'));
+const ContactPage = lazy(() => import('./components/Pages/ContactPage'));
+const SatelliteMaintenancePage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.SatelliteMaintenancePage }))
+);
+const ExplorationMissionsPage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.ExplorationMissionsPage }))
+);
+const ResearchObservationPage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.ResearchObservationPage }))
+);
+const AdminLogin = lazy(() => import('./components/Admin/pages/Login'));
+const UsersManagement = lazy(() => import('./components/Admin/pages/UsersManagement'));
+const CoursesManagement = lazy(() => import('./components/Admin/pages/CoursesManagement'));
+const PaymentsManagement = lazy(() => import('./components/Admin/pages/PaymentsManagement'));
+const Analytics = lazy(() => import('./components/Admin/pages/Analytics'));
+const Settings = lazy(() => import('./components/Admin/pages/Settings'));
+const StudentsData = lazy(() => import('./components/Admin/pages/StudentsData'));
+const PaymentGateway = lazy(() => import('./components/Admin/pages/PaymentGateway'));
+const PaymentSuccess = lazy(() =>
+  import('./components/Pages/PaymentSuccess').then((m) => ({ default: m.PaymentSuccess }))
+);
+const PaymentCancel = lazy(() =>
+  import('./components/Pages/PaymentCancel').then((m) => ({ default: m.PaymentCancel }))
+);
+const ContactMessages = lazy(() => import('./components/Admin/pages/ContactMessages'));
+const Subscribers = lazy(() => import('./components/Admin/pages/Subscribers'));
+const DashboardLayout = lazy(() => import('./components/Admin/DashboardLayout'));
+const DashboardHome = lazy(() => import('./components/Admin/DashboardHome'));
+const PortfolioPage = lazy(() =>
+  import('./components/Pages/PortfolioPages').then((m) => ({ default: m.PortfolioPage }))
+);
+const PortfolioItemPage = lazy(() =>
+  import('./components/Pages/PortfolioPages').then((m) => ({ default: m.PortfolioItemPage }))
+);
+const BlogMainPage = lazy(() => import('./components/Pages/BlogMainPage'));
+const BlogCategory = lazy(() => import('./components/Pages/BlogCategory'));
+const SingleBlogPostPage = lazy(() => import('./components/Pages/SingleBlogPostPage'));
+const PortalLayout = lazy(() => import('./components/Portals/PortalLayout'));
+const LmsManagement = lazy(() => import('./components/Admin/pages/LmsManagement'));
+const ResourcesManagement = lazy(() => import('./components/Admin/pages/ResourcesManagement'));
+const StudentDashboard = lazy(() => import('./components/Portals/student/StudentDashboard'));
+const StudentCourses = lazy(() => import('./components/Portals/student/StudentCourses'));
+const StudentFees = lazy(() => import('./components/Portals/student/StudentFees'));
+const StudentAssignments = lazy(() => import('./components/Portals/student/StudentAssignments'));
+const StudentQuizzes = lazy(() => import('./components/Portals/student/StudentQuizzes'));
+const StudentContent = lazy(() => import('./components/Portals/student/StudentContent'));
+const StudentSchedule = lazy(() => import('./components/Portals/student/StudentSchedule'));
+const StudentAttendance = lazy(() => import('./components/Portals/student/StudentAttendance'));
+const TeacherDashboard = lazy(() => import('./components/Portals/teacher/TeacherDashboard'));
+const TeacherClasses = lazy(() => import('./components/Portals/teacher/TeacherClasses'));
+const TeacherAttendance = lazy(() => import('./components/Portals/teacher/TeacherAttendance'));
+const TeacherContent = lazy(() => import('./components/Portals/teacher/TeacherContent'));
+const TeacherSchedule = lazy(() => import('./components/Portals/teacher/TeacherSchedule'));
+const TeacherMyAttendance = lazy(() => import('./components/Portals/teacher/TeacherMyAttendance'));
+const TeacherQuizzes = lazy(() => import('./components/Portals/teacher/TeacherQuizzes'));
+const ParentDashboard = lazy(() => import('./components/Portals/parent/ParentDashboard'));
+const ParentChildren = lazy(() => import('./components/Portals/parent/ParentChildren'));
+const ParentProgress = lazy(() => import('./components/Portals/parent/ParentProgress'));
+const AccountantDashboard = lazy(() => import('./components/Portals/accountant/AccountantDashboard'));
+const AccountantPayments = lazy(() => import('./components/Portals/accountant/AccountantPayments'));
+const AccountantPayroll = lazy(() => import('./components/Portals/accountant/AccountantPayroll'));
+const AccountantReports = lazy(() => import('./components/Portals/accountant/AccountantReports'));
+
+function RouteFallback() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="route-loading-fallback"
+      style={{
+        minHeight: '40vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--body-color, #333)',
+        fontSize: '1rem',
+      }}
+    >
+      Loading…
+    </div>
+  );
+}
 
 const Home = () => {
   return (
@@ -70,7 +119,7 @@ const Home = () => {
       <SubscribePopup />
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
-      
+
       {/* Other sections */}
       <MissionSection />
       <CoursesSection />
@@ -91,8 +140,9 @@ function AppLayout() {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isPortalLmsRoute = /^\/(student|teacher|parent|accountant)(\/|$)/.test(location.pathname);
   const isPublicLoginRoute = location.pathname === '/login';
-  const hideSiteFooter = isAdminRoute || isPublicLoginRoute;
+  const hideSiteFooter = isAdminRoute || isPublicLoginRoute || isPortalLmsRoute;
 
   return (
     <SmoothScroll>
@@ -100,25 +150,27 @@ function AppLayout() {
         className={[
           'academy-app',
           isAdminRoute ? 'admin-route' : null,
+          isPortalLmsRoute ? 'portal-lms-route' : null,
           isPublicLoginRoute ? 'public-login-route' : null,
         ]
           .filter(Boolean)
           .join(' ')}
       >
         <Cursor />
-         
-          {/* Header is already correctly positioned here */}
-          <Header toggleSidebar={toggleSidebar} />
-          
-          {/* Pass state and close function to Sidebar */}
-          <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-          {/* Side icon: floating WhatsApp button fixed on the left of the viewport */}
-          {/* <WhatsAppFloat /> */}
-	  
-          <ScrollToTop />
-          
-          <main className="main-content">
-            <Routes key={location.pathname}>
+
+        {/* Header is already correctly positioned here */}
+        <Header toggleSidebar={toggleSidebar} />
+
+        {/* Pass state and close function to Sidebar */}
+        <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+        {/* Side icon: floating WhatsApp button fixed on the left of the viewport */}
+        {/* <WhatsAppFloat /> */}
+
+        <ScrollToTop />
+
+        <main className="main-content">
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/courses" element={<AllCourses />} />
@@ -126,7 +178,15 @@ function AppLayout() {
               <Route path="/payment" element={<PaymentGateway />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/payment-cancel" element={<PaymentCancel />} />
-              <Route path="/instructors" element={<div className="content-container"><h1>Instructors</h1><p>Page content.</p></div>} />
+              <Route
+                path="/instructors"
+                element={
+                  <div className="content-container">
+                    <h1>Instructors</h1>
+                    <p>Page content.</p>
+                  </div>
+                }
+              />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<Login />} />
@@ -145,70 +205,128 @@ function AppLayout() {
               <Route path="/blog/category/:categorySlug" element={<BlogCategory />} />
               <Route path="/blog/:slug" element={<SingleBlogPostPage />} />
               <Route path="/blog" element={<BlogMainPage />} />
-              
+
               {/* Admin Login Route */}
               <Route path="/admin/login" element={<AdminLogin />} />
-              
+
               {/* Protected Admin Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['super-admin', 'admin']} loginPath="/admin/login" />}>
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['super-admin', 'admin']}
+                    loginPath="/admin/login"
+                    authRealm={AUTH_REALM.ADMIN}
+                  />
+                }
+              >
                 <Route path="/admin/*" element={<DashboardLayout />}>
                   <Route index element={<DashboardHome />} />
                   <Route path="dashboard" element={<DashboardHome />} />
                   <Route path="users" element={<UsersManagement key="staff-users-tab" variant="staff" />} />
-                  <Route path="people" element={<PeopleManagement />} />
+                  <Route path="people" element={<Navigate to="/admin/students" replace />} />
+                  <Route path="students" element={<StudentsData />} />
+                  <Route path="students-data" element={<Navigate to="/admin/students" replace />} />
+                  <Route path="teachers" element={<UsersManagement key="teachers-tab" variant="teachers" />} />
+                  <Route path="parents" element={<UsersManagement key="parents-tab" variant="parents" />} />
                   <Route path="courses" element={<CoursesManagement />} />
-                  <Route path="assignments" element={<div>Assignments Management</div>} />
+                  <Route path="assignments" element={<ResourcesManagement />} />
+                  <Route path="resources" element={<Navigate to="/admin/assignments" replace />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="payments" element={<PaymentsManagement />} />
-                  <Route path="students-data" element={<StudentsData />} />
-                  <Route path="enrollments" element={<Navigate to="/admin/students-data" replace />} />
+                  <Route path="lms" element={<LmsManagement />} />
+                  <Route path="enrollments" element={<Navigate to="/admin/students" replace />} />
                   <Route path="contact-messages" element={<ContactMessages />} />
                   <Route path="subscribers" element={<Subscribers />} />
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['student']} loginPath="/login" />}>
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['student']}
+                    loginPath="/login"
+                    allowAdminPortalPreview
+                    authRealm={AUTH_REALM.PORTAL}
+                  />
+                }
+              >
                 <Route path="/student/*" element={<PortalLayout role="student" title="Student Portal" />}>
-                  <Route index element={<StudentPortal />} />
-                  <Route path="courses" element={<StudentPortal />} />
-                  <Route path="assignments" element={<StudentPortal />} />
-                  <Route path="quizzes" element={<StudentPortal />} />
+                  <Route index element={<StudentDashboard />} />
+                  <Route path="courses" element={<StudentCourses />} />
+                  <Route path="fees" element={<StudentFees />} />
+                  <Route path="assignments" element={<StudentAssignments />} />
+                  <Route path="quizzes" element={<StudentQuizzes />} />
+                  <Route path="content" element={<StudentContent />} />
+                  <Route path="schedule" element={<StudentSchedule />} />
+                  <Route path="attendance" element={<StudentAttendance />} />
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['teacher']} loginPath="/login" />}>
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['teacher']}
+                    loginPath="/login"
+                    allowAdminPortalPreview
+                    authRealm={AUTH_REALM.PORTAL}
+                  />
+                }
+              >
                 <Route path="/teacher/*" element={<PortalLayout role="teacher" title="Teacher Portal" />}>
-                  <Route index element={<TeacherPortal />} />
-                  <Route path="classes" element={<TeacherPortal />} />
-                  <Route path="attendance" element={<TeacherPortal />} />
-                  <Route path="content" element={<TeacherPortal />} />
+                  <Route index element={<TeacherDashboard />} />
+                  <Route path="classes" element={<TeacherClasses />} />
+                  <Route path="attendance" element={<TeacherAttendance />} />
+                  <Route path="content" element={<TeacherContent />} />
+                  <Route path="schedule" element={<TeacherSchedule />} />
+                  <Route path="my-attendance" element={<TeacherMyAttendance />} />
+                  <Route path="quizzes" element={<TeacherQuizzes />} />
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['parent']} loginPath="/login" />}>
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['parent']}
+                    loginPath="/login"
+                    allowAdminPortalPreview
+                    authRealm={AUTH_REALM.PORTAL}
+                  />
+                }
+              >
                 <Route path="/parent/*" element={<PortalLayout role="parent" title="Parent Portal" />}>
-                  <Route index element={<ParentPortal />} />
-                  <Route path="children" element={<ParentPortal />} />
-                  <Route path="progress" element={<ParentPortal />} />
+                  <Route index element={<ParentDashboard />} />
+                  <Route path="children" element={<ParentChildren />} />
+                  <Route path="progress" element={<ParentProgress />} />
                 </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={['accountant']} loginPath="/login" />}>
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['accountant']}
+                    loginPath="/login"
+                    allowAdminPortalPreview
+                    authRealm={AUTH_REALM.PORTAL}
+                  />
+                }
+              >
                 <Route path="/accountant/*" element={<PortalLayout role="accountant" title="Accountant Portal" />}>
-                  <Route index element={<AccountantPortal />} />
-                  <Route path="payments" element={<AccountantPortal />} />
-                  <Route path="reports" element={<AccountantPortal />} />
+                  <Route index element={<AccountantDashboard />} />
+                  <Route path="payments" element={<AccountantPayments />} />
+                  <Route path="payroll" element={<AccountantPayroll />} />
+                  <Route path="reports" element={<AccountantReports />} />
                 </Route>
               </Route>
-              
+
               {/* Redirect to home */}
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
-          </main>
-          {!hideSiteFooter && <FooterSimple />}
-        </div>
-      </SmoothScroll>
+          </Suspense>
+        </main>
+        {!hideSiteFooter && <FooterSimple />}
+      </div>
+    </SmoothScroll>
   );
 }
 

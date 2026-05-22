@@ -1,9 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { setAuthSession, getAuthToken, getAuthUserJson, setAuthUserJson } from '../../../utils/authStorage';
+import {
+    setAuthSession,
+    getAuthToken,
+    getAuthUserJson,
+    setAuthUserJson,
+    AUTH_REALM,
+} from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
-import headerLogo from '../../../assets/images/home/logo.png';
+import BrandLogo from '../../BrandLogo/BrandLogo';
 import './Login.scss';
 
 const AdminLogin = () => {
@@ -22,35 +28,29 @@ const AdminLogin = () => {
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const routeByRole = (role) => {
-        if (role === 'teacher') return '/teacher';
-        if (role === 'parent') return '/parent';
-        if (role === 'accountant') return '/accountant';
-        if (role === 'admin' || role === 'super-admin') return '/admin';
-        return '/student';
-    };
+    const redirectMessage = location.state?.message;
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
         try {
             setIsSubmitting(true);
-            const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+            const response = await axios.post(`${API_BASE_URL}/api/auth/admin-login`, {
                 email,
                 password,
                 rememberMe,
             });
 
-            setAuthSession(response.data.token, response.data.user, rememberMe);
+            setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.ADMIN);
 
             if (response.data.user?.mustChangePassword) {
-                const resetPath = ['admin', 'super-admin'].includes(response.data.user.role)
-                    ? '/admin/login?reset=1'
-                    : '/login?reset=1';
-                navigate(resetPath, { replace: true });
+                navigate('/admin/login?reset=1', { replace: true });
                 return;
             }
-            navigate(routeByRole(response.data.user.role), { replace: true });
+            const from = location.state?.from;
+            navigate(typeof from === 'string' && from.startsWith('/admin') ? from : '/admin', {
+                replace: true,
+            });
         } catch (err) {
             const msg = err.response?.data?.error;
             setError(msg || 'Invalid credentials.');
@@ -70,8 +70,8 @@ const AdminLogin = () => {
             setError('Passwords do not match');
             return;
         }
-        const token = getAuthToken();
-        const rawUser = getAuthUserJson();
+        const token = getAuthToken(AUTH_REALM.ADMIN);
+        const rawUser = getAuthUserJson(AUTH_REALM.ADMIN);
         if (!token || !rawUser) {
             setError('Session expired. Please log in again.');
             navigate('/admin/login', { replace: true });
@@ -86,8 +86,8 @@ const AdminLogin = () => {
             );
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            setAuthUserJson(JSON.stringify(updatedUser));
-            navigate(routeByRole(updatedUser.role), { replace: true });
+            setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.ADMIN);
+            navigate('/admin', { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
         } finally {
@@ -105,7 +105,7 @@ const AdminLogin = () => {
                     <div className="auth-login__card">
                         <header className="auth-login__brand">
                             <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
-                                <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                                <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                             </Link>
                             <h1 className="auth-login__title">Set a new password</h1>
                             <p className="auth-login__subtitle">
@@ -165,12 +165,17 @@ const AdminLogin = () => {
                 <div className="auth-login__card">
                     <header className="auth-login__brand">
                         <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
-                            <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                            <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                         </Link>
                         <h1 className="auth-login__title">Admin sign in</h1>
                         <p className="auth-login__subtitle">Authorized access to the academy dashboard.</p>
                     </header>
                     <form className="auth-login__form" onSubmit={handleLogin} noValidate>
+                        {redirectMessage ? (
+                            <div className="auth-login__error" style={{ color: '#b45309', marginBottom: '0.75rem' }}>
+                                {redirectMessage}
+                            </div>
+                        ) : null}
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="admin-login-email">
                                 Email

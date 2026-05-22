@@ -23,6 +23,7 @@
 #
 # Cache: CRA emits content-hashed filenames under /static/ — safe to cache "forever".
 # index.html must stay short-cache or no-cache so users pick up new chunk names.
+# Use ^~ so these prefixes win over a generic regex `location ~* \.(js|css|...)$` block.
 
 upstream gorythm_api {
     server 127.0.0.1:5000;
@@ -43,36 +44,58 @@ server {
         add_header Cache-Control "no-cache";
     }
 
-    # Single Page App: all non-file routes → index.html
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Hashed JS/CSS/media from `react-scripts build`
-    location /static/ {
+    # Hashed JS/CSS/media from `react-scripts build` (PageSpeed: long cache TTL)
+    location ^~ /static/ {
         expires 1y;
         add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
     }
 
-    # `public/` assets (fixed names e.g. /preload/lcp-hero.* , /video/*) — bump ?v= or filename on change
-    location /preload/ {
+    # Public raster/video (filenames may be unhashed — bump file or ?v= on change)
+    location ^~ /images/ {
         expires 30d;
-        add_header Cache-Control "public, max-age=2592000";
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
         try_files $uri =404;
     }
 
-    location /video/ {
+    location ^~ /preload/ {
         expires 30d;
-        add_header Cache-Control "public, max-age=2592000";
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
         try_files $uri =404;
     }
 
-    # Raster fallbacks & icons outside /static/
-    location ~* \.(js|css|png|jpg|jpeg|gif|webp|avif|ico|svg|woff2?|mp4|webm)$ {
-        expires 7d;
-        add_header Cache-Control "public, max-age=604800";
+    location ^~ /video/ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
         try_files $uri =404;
+    }
+
+    # Short cache for manifest / favicon (swap filenames when branding changes)
+    location = /manifest.json {
+        add_header Cache-Control "public, max-age=3600";
+        try_files $uri =404;
+    }
+
+    # API on same host (production uses https://gorythmacademy.com/api/...)
+    location /api/ {
+        client_max_body_size 25m;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_pass http://gorythm_api;
+    }
+
+    # Uploaded LMS files (PDFs, etc.)
+    location /api/uploads/ {
+        proxy_pass http://gorythm_api;
+    }
+
+    # Single Page App: all non-file routes → index.html
+    location / {
+        try_files $uri $uri/ /index.html;
     }
 }
 

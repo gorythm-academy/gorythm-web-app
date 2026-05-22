@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
-import EnrollStudentModal from './EnrollStudentModal';
+import AddStudentUnifiedModal from './AddStudentUnifiedModal';
 import { useAdminDialog } from '../AdminDialogContext';
 import './StudentsData.scss';
 
-const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'phone', 'course', 'enrollmentDate', 'status', 'action'];
+const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'phone', 'course', 'enrollmentDate', 'paymentStatus', 'status', 'action'];
 const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 150, 220, 130, 140, 120];
 const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 110, 120, 100, 100, 90];
 const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 240, 400, 220, 260, 180];
@@ -32,7 +32,7 @@ const StudentsData = () => {
     });
     
     // Modal state
-    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
     const [courses, setCourses] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -388,8 +388,8 @@ const handleEditEnrollment = (enrollment) => {
 };
 
     // Open modal
-    const handleEnrollStudent = () => {
-        setShowEnrollModal(true);
+    const handleAddStudent = () => {
+        setShowAddModal(true);
     };
 
     // Handle modal success
@@ -411,7 +411,7 @@ const handleEditEnrollment = (enrollment) => {
         setTimeout(() => setSuccessMessage(''), 3000);
         
         // Close modal
-        setShowEnrollModal(false);
+        setShowAddModal(false);
     };
 
     const filteredEnrollments = enrollments.filter(enrollment => {
@@ -483,6 +483,7 @@ const EditEnrollmentModal = () => {
         phone: editingEnrollment?.student?.phone || '',
         courseId: editingEnrollment?.course?._id || '',
         status: editingEnrollment?.status || 'pending',
+        paymentStatus: editingEnrollment?.paymentStatus || 'pending',
         enrollmentDate: editingEnrollment?.enrollmentDate
             ? new Date(editingEnrollment.enrollmentDate).toISOString().split('T')[0]
             : new Date().toISOString().split('T')[0]
@@ -602,6 +603,7 @@ const EditEnrollmentModal = () => {
             enrollmentDate: formData.enrollmentDate,
             courseId: formData.courseId || undefined,
             status: formData.status,
+            paymentStatus: formData.paymentStatus,
         };
 
         const response = await axios.put(
@@ -628,6 +630,7 @@ const EditEnrollmentModal = () => {
                             phone: phoneTrim,
                         },
                         status: formData.status,
+                        paymentStatus: response.data.enrollment?.paymentStatus ?? formData.paymentStatus,
                         course: newCourse
                     }
                     : enrollment
@@ -706,12 +709,12 @@ const EditEnrollmentModal = () => {
                             </div>
                             <div className="form-group">
                                 <label>
-                                    <i className="fas fa-key"></i> Portal login email (People)
+                                    <i className="fas fa-key"></i> Portal login email (Students)
                                 </label>
                                 <div className="portal-email-readonly-edit">
                                     {editingEnrollment.student?.email || '—'}
                                 </div>
-                                <small className="form-hint-muted">Student portal sign-in. Change account email in People if required.</small>
+                                <small className="form-hint-muted">Student portal sign-in. Change account email in Students tab if required.</small>
                             </div>
                             <div className="form-group">
                                 <label>
@@ -800,6 +803,22 @@ const EditEnrollmentModal = () => {
                                     </select>
                                 </div>
                             </div>
+                            <div className="form-group">
+                                <label>Fee status</label>
+                                <select
+                                    value={formData.paymentStatus}
+                                    onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+                                    className="form-select"
+                                >
+                                    <option value="pending">Pending</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="refunded">Refunded</option>
+                                </select>
+                                <small className="form-hint-muted">
+                                    Overrides display for this enrollment. Stripe payments may sync this automatically.
+                                </small>
+                            </div>
                         </div>
 
                         {/* Preview */}
@@ -875,11 +894,11 @@ const EditEnrollmentModal = () => {
     return (
         <div className="students-data-page">
             {/* MODAL */}
-            {showEnrollModal && (
-                <EnrollStudentModal 
-                    isOpen={showEnrollModal}
-                    onClose={() => setShowEnrollModal(false)}
-                    onEnrollSuccess={handleEnrollSuccess}
+            {showAddModal && (
+                <AddStudentUnifiedModal
+                    isOpen={showAddModal}
+                    onClose={() => setShowAddModal(false)}
+                    onSuccess={handleEnrollSuccess}
                     courses={courses}
                 />
             )}
@@ -887,8 +906,8 @@ const EditEnrollmentModal = () => {
             {/* Header */}
             <div className="page-header">
                 <div className="header-left">
-                    <h1><i className="fas fa-user-graduate"></i> Students data</h1>
-                    <p>View and manage student records and course assignments</p>
+                    <h1><i className="fas fa-user-graduate"></i> Students</h1>
+                    <p>Accounts, enrollments, fee status, and course assignments in one place</p>
                     <small>
                         <i className="fas fa-database" aria-hidden="true" />
                         Data stored in MongoDB | {enrollments.length} total records
@@ -1031,8 +1050,8 @@ const EditEnrollmentModal = () => {
                     <button className="refresh-btn" onClick={fetchEnrollments}>
                         <i className="fas fa-sync-alt"></i> Refresh
                     </button>
-                    <button className="btn-primary enroll-btn" onClick={handleEnrollStudent}>
-                        <i className="fas fa-user-plus"></i> Enroll Student
+                    <button className="btn-primary enroll-btn" onClick={handleAddStudent}>
+                        <i className="fas fa-user-plus"></i> Add Student
                     </button>
                     <button className="btn-secondary download-btn" onClick={downloadStudentsDataCsv}>
                         <i className="fas fa-file-export"></i> Download Excel
@@ -1089,6 +1108,7 @@ const EditEnrollmentModal = () => {
                                 {sortBy === 'enrollmentDate' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
                             </th>
+                            <th>Fee status</th>
                             <th className="sortable" onClick={() => handleSort('status')}>Status
                                 {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
@@ -1178,6 +1198,12 @@ const EditEnrollmentModal = () => {
                                             }
                                         </td>
                                         <td>
+                                            <span className={`status-badge payment-${enrollment.paymentStatus || 'pending'}`}>
+                                                {(enrollment.paymentStatus || 'pending').charAt(0).toUpperCase() +
+                                                    (enrollment.paymentStatus || 'pending').slice(1)}
+                                            </span>
+                                        </td>
+                                        <td>
                                             <div className="status-cell">
                                                 <span className={`status-badge ${enrollment.status || 'pending'}`}>
                                                     <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.status || 'pending')}`}></i>
@@ -1218,10 +1244,10 @@ const EditEnrollmentModal = () => {
                                         <i className="fas fa-user-graduate"></i>
                                         <p><strong>No course enrollments yet.</strong></p>
                                         <p className="no-data-hint">
-                                            This table shows one row per student per course. Students from the People tab appear here only after you assign them to a course (use <strong>Enroll Student</strong> or the graduation-cap button on a student row in People).
+                                            One row per student per course. Use <strong>Add Student</strong> to create an account and enroll in a course.
                                         </p>
-                                        <button className="btn-primary" onClick={handleEnrollStudent}>
-                                            <i className="fas fa-user-plus"></i> Enroll Student in a Course
+                                        <button className="btn-primary" onClick={handleAddStudent}>
+                                            <i className="fas fa-user-plus"></i> Add Student
                                         </button>
                                     </div>
                                 </td>

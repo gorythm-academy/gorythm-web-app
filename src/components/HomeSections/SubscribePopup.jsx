@@ -125,7 +125,7 @@ const SubscribePopup = () => {
     <div className="subscribe-popup-overlay" role="dialog" aria-modal="true" aria-label="Subscribe popup">
       <div className="subscribe-popup-card">
         <div className="subscribe-popup-visual" aria-hidden="true">
-          <img src={popupVisual} alt="" className="subscribe-popup-visual-img" draggable={false} />
+          <img src={popupVisual} alt="Newsletter subscription" className="subscribe-popup-visual-img" draggable={false} />
         </div>
 
         <div className="subscribe-popup-content">

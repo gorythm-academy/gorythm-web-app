@@ -21,6 +21,7 @@ import './OptimizedPicture.scss';
  * @param {string} props.fallbackSrc – bundled URL from `import x from '…png'` (or jpeg)
  * @param {string} props.alt – required for accessibility (use "" for decorative)
  * @param {string} [props.pictureClassName] – class on `<picture>` wrapper
+ * @param {string} [props.sizes] – optional `sizes` on `<img>` (helps the browser pick decode priority)
  */
 export default function OptimizedPicture({
   avifSrc,
@@ -28,6 +29,7 @@ export default function OptimizedPicture({
   fallbackSrc,
   alt,
   pictureClassName,
+  sizes,
   ...imgProps
 }) {
   return (
@@ -35,7 +37,7 @@ export default function OptimizedPicture({
       {/* Modern codecs first — order matters for negotiation */}
       {avifSrc ? <source srcSet={avifSrc} type="image/avif" /> : null}
       {webpSrc ? <source srcSet={webpSrc} type="image/webp" /> : null}
-      <img src={fallbackSrc} alt={alt} {...imgProps} />
+      <img src={fallbackSrc} alt={alt} sizes={sizes} {...imgProps} />
     </picture>
   );
 }

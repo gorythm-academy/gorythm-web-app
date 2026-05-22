@@ -1,0 +1,71 @@
+.schedule-week {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.schedule-week-empty {
+  color: #64748b;
+  margin: 0.5rem 0;
+}
+
+.schedule-week-day {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.schedule-week-day--today {
+  border-color: var(--color-accent, #3b82f6);
+  box-shadow: 0 0 0 1px var(--color-accent, #3b82f6);
+}
+
+.schedule-week-day-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.schedule-week-today {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-accent, #3b82f6);
+}
+
+.schedule-week-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.schedule-week-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid #f1f5f9;
+
+  &:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
+}
+
+.schedule-week-time {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.schedule-week-course {
+  font-size: 0.9rem;
+}
+
+.schedule-week-meta,
+.schedule-week-room {
+  font-size: 0.8rem;
+  color: #64748b;
+}

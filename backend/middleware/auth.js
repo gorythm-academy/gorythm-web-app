@@ -6,7 +6,8 @@ const authMiddleware = (req, res, next) => {
     if (!token) {
         return res.status(401).json({
             success: false,
-            message: 'No token, authorization denied'
+            error: 'No token, authorization denied',
+            message: 'No token, authorization denied',
         });
     }
     
@@ -17,7 +18,8 @@ const authMiddleware = (req, res, next) => {
     } catch (error) {
         res.status(401).json({
             success: false,
-            message: 'Token is not valid'
+            error: 'Token is not valid',
+            message: 'Token is not valid',
         });
     }
 };

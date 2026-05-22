@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import './Header.scss';
-import headerLogo from '../../assets/images/home/logo.png';
+import BrandLogo from '../BrandLogo/BrandLogo';
 import {
   INFO_EMAIL,
   CONTACT_PHONE,
@@ -303,7 +303,7 @@ const Header = () => {
               <div className="header-logo">
                 <Link to="/" className="logo-link" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <img className="logo-image" src={headerLogo} alt="GoRythm" />
+                    <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
                   </div>
 
                 </Link>
@@ -418,7 +418,7 @@ const Header = () => {
               <div className="mobile-logo">
                 <Link to="/" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <img className="logo-image" src={headerLogo} alt="GoRythm" />
+                    <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
                   </div>
                 </Link>
               </div>
@@ -646,7 +646,7 @@ const Header = () => {
           <div className="menu-grid-header">
             <div className="menu-grid-logo">
               <div className="logo-text">
-                <img className="logo-image" src={headerLogo} alt="GoRythm" />
+                <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
               </div>
 
             </div>

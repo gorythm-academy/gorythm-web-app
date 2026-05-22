@@ -7,6 +7,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
+const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
 const authMiddleware = require('../middleware/auth');
 const { allowPermission } = require('../middleware/authorize');
 const logger = require('../utils/logger');
@@ -254,9 +255,18 @@ router.get('/verify-session', async (req, res) => {
     }
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        const payment = await Payment.findOne({ transactionId: sessionId })
-            .populate('course', 'title')
-            .lean();
+        let payment = await Payment.findOne({ transactionId: sessionId }).populate('course').populate('user');
+
+        if (session.payment_status === 'paid' && payment && payment.status !== 'completed') {
+            payment.status = 'completed';
+            const piId =
+                typeof session.payment_intent === 'string'
+                    ? session.payment_intent
+                    : session.payment_intent?.id;
+            if (piId) payment.stripePaymentIntentId = piId;
+            await payment.save();
+            await syncEnrollmentFromPayment(payment);
+        }
 
         res.json({
             success: true,
@@ -323,6 +333,10 @@ router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) 
         payment.status = 'refunded';
         payment.refundId = refund.id;
         await payment.save();
+
+        const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
+        await payment.populate(['user', 'course']);
+        await syncEnrollmentFromPayment(payment);
 
         res.json({
             success: true,

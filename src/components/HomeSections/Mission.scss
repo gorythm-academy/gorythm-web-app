@@ -58,9 +58,23 @@
 // =============================================================================
 
 .mission-section {
+  position: relative;
   padding: 0 0 90px;     // top: 0 removes gap with AboutSection
   background: #000;
   color: #fff;
+}
+
+// Screen-reader-only section title so card titles can use h3 without skipping heading levels
+.mission-section-heading--sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .mission-inner {

@@ -114,7 +114,7 @@ router.post(
         user.lastLogin = new Date();
         await user.save();
 
-        const token = createToken(user);
+        const token = createToken(user, !!rememberMe);
         res.json({
             token,
             user: {

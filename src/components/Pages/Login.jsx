@@ -1,9 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { setAuthSession, getAuthToken, getAuthUserJson, setAuthUserJson } from '../../utils/authStorage';
+import {
+    setAuthSession,
+    getAuthToken,
+    getAuthUserJson,
+    setAuthUserJson,
+    AUTH_REALM,
+} from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
-import headerLogo from '../../assets/images/home/logo.png';
+import BrandLogo from '../BrandLogo/BrandLogo';
 import './Login.scss';
 
 const Login = () => {
@@ -49,7 +55,7 @@ const Login = () => {
                 password: formData.password,
                 rememberMe,
             });
-            setAuthSession(response.data.token, response.data.user, rememberMe);
+            setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.PORTAL);
             if (response.data.user?.mustChangePassword) {
                 navigate('/login?reset=1', { replace: true });
                 return;
@@ -75,8 +81,8 @@ const Login = () => {
             return;
         }
 
-        const token = getAuthToken();
-        const rawUser = getAuthUserJson();
+        const token = getAuthToken(AUTH_REALM.PORTAL);
+        const rawUser = getAuthUserJson(AUTH_REALM.PORTAL);
         if (!token || !rawUser) {
             setError('Session expired. Please login again.');
             navigate('/login');
@@ -93,7 +99,7 @@ const Login = () => {
 
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            setAuthUserJson(JSON.stringify(updatedUser));
+            setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
             navigate(routeByRole(updatedUser.role));
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
@@ -112,7 +118,7 @@ const Login = () => {
                     <div className="auth-login__card">
                         <header className="auth-login__brand">
                             <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
-                                <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                                <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                             </Link>
                             <h1 className="auth-login__title">Set a new password</h1>
                             <p className="auth-login__subtitle">
@@ -174,7 +180,7 @@ const Login = () => {
                 <div className="auth-login__card">
                     <header className="auth-login__brand">
                         <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
-                            <img src={headerLogo} alt="" className="auth-login__logo" width={180} height={48} />
+                            <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                         </Link>
                         <h1 className="auth-login__title">Welcome back</h1>
                         <p className="auth-login__subtitle">Sign in to your portal to continue learning.</p>
@@ -234,6 +240,19 @@ const Login = () => {
                             {isSubmitting ? 'Signing in…' : 'Sign in'}
                         </button>
                     </form>
+                    <div className="auth-login__divider" role="presentation">
+                        <span>or</span>
+                    </div>
+                    <Link to="/admin/login" className="auth-login__admin-cta">
+                        <span className="auth-login__admin-cta-icon" aria-hidden="true">
+                            <i className="fas fa-shield-alt" />
+                        </span>
+                        <span className="auth-login__admin-cta-copy">
+                            <strong>Admin &amp; staff sign in</strong>
+                            <small>Open the academy dashboard</small>
+                        </span>
+                        <i className="fas fa-arrow-right auth-login__admin-cta-arrow" aria-hidden="true" />
+                    </Link>
                 </div>
             </div>
         </div>

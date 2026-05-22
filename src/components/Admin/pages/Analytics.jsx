@@ -455,7 +455,7 @@ const Analytics = () => {
                 <div className="dashboard-card">
                     <div className="card-header">
                         <h3><i className="fas fa-history"></i> Latest student records</h3>
-                        <button className="view-all" onClick={() => navigate('/admin/students-data')}>
+                        <button className="view-all" onClick={() => navigate('/admin/students')}>
                             View All
                         </button>
                     </div>
