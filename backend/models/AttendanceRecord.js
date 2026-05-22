@@ -6,7 +6,11 @@ const attendanceRecordSchema = new mongoose.Schema(
         teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         date: { type: Date, required: true, default: Date.now },
-        status: { type: String, enum: ['present', 'absent', 'late'], default: 'present' },
+        status: {
+            type: String,
+            enum: ['present', 'absent', 'late', 'leave', 'holiday', 'weekend'],
+            default: 'present',
+        },
         notes: { type: String, default: '' },
     },
     { timestamps: true }

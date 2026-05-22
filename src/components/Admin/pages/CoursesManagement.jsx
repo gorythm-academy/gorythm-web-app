@@ -38,6 +38,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const CoursesManagement = () => {
     const { showAlert, showConfirm, showChoice } = useAdminDialog();
     const [courses, setCourses] = useState([]);
+    const [teachers, setTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
@@ -54,6 +55,7 @@ const CoursesManagement = () => {
         duration: '8 weeks',
         status: 'draft',
         level: 'beginner',
+        instructorId: '',
         instructorName: '',
         displayOrder: '',
         masonryColumn: '',
@@ -162,6 +164,15 @@ const CoursesManagement = () => {
 
     useEffect(() => {
         fetchCourses();
+        const token = getAuthToken();
+        if (token) {
+            axios
+                .get(`${API_BASE_URL}/api/users?role=teacher&limit=200`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                })
+                .then((res) => setTeachers(res.data?.users || []))
+                .catch(() => setTeachers([]));
+        }
     }, []);
 
     useEffect(() => {
@@ -222,6 +233,7 @@ const CoursesManagement = () => {
             duration: '8 weeks',
             status: 'draft',
             level: 'beginner',
+            instructorId: '',
             instructorName: '',
             displayOrder: '',
             masonryColumn: '',
@@ -258,6 +270,7 @@ const CoursesManagement = () => {
             duration: course.duration || '8 weeks',
             status: course.status || 'draft',
             level: course.level || 'beginner',
+            instructorId: course.instructor?._id || course.instructor || '',
             instructorName: course.instructorName || course.instructor?.name || '',
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
@@ -334,6 +347,7 @@ const CoursesManagement = () => {
             duration: formData.duration.trim(),
             status: formData.status,
             level: formData.level,
+            instructorId: formData.instructorId || undefined,
             instructorName: (formData.instructorName || '').trim(),
             displayOrder: formData.displayOrder === '' ? 9999 : Number(formData.displayOrder),
             masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
@@ -762,13 +776,36 @@ setFormData({
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Instructor</label>
+                                <label>Assigned teacher (portal)</label>
+                                <select
+                                    name="instructorId"
+                                    value={formData.instructorId}
+                                    onChange={(e) => {
+                                        const id = e.target.value;
+                                        const t = teachers.find((x) => String(x._id) === String(id));
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            instructorId: id,
+                                            instructorName: t?.name || prev.instructorName,
+                                        }));
+                                    }}
+                                >
+                                    <option value="">Select teacher account</option>
+                                    {teachers.map((t) => (
+                                        <option key={t._id} value={t._id}>
+                                            {t.name} ({t.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Display name (optional)</label>
                                 <input
                                     type="text"
                                     name="instructorName"
                                     value={formData.instructorName}
                                     onChange={handleFormChange}
-                                    placeholder="e.g., Dr. Ahmed Hassan"
+                                    placeholder="Website label if different"
                                 />
                             </div>
                         </div>

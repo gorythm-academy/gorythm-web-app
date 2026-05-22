@@ -553,6 +553,122 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+/** Courses where this user is instructor (syncs with Courses tab). */
+router.get('/:id/assigned-courses', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('role name');
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        if (user.role !== 'teacher') {
+            return res.status(400).json({ success: false, error: 'User is not a teacher' });
+        }
+        const courses = await Course.find({ instructor: user._id }).select('title category').sort({ title: 1 });
+        res.json({ success: true, courses });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load assigned courses' });
+    }
+});
+
+router.put('/:id/assigned-courses', async (req, res) => {
+    try {
+        const { courseIds = [], releaseToTeacherId } = req.body;
+        const teacher = await User.findById(req.params.id);
+        if (!teacher) return res.status(404).json({ success: false, error: 'User not found' });
+        if (teacher.role !== 'teacher') {
+            return res.status(400).json({ success: false, error: 'User is not a teacher' });
+        }
+        const ids = (Array.isArray(courseIds) ? courseIds : []).map(String).filter(Boolean);
+        const toRelease = await Course.find({
+            instructor: teacher._id,
+            _id: { $nin: ids },
+        });
+        if (toRelease.length > 0) {
+            if (!releaseToTeacherId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Choose a teacher to take over courses you remove from this teacher',
+                    coursesToReassign: toRelease.map((c) => ({ _id: c._id, title: c.title })),
+                });
+            }
+            const replacement = await User.findById(releaseToTeacherId);
+            if (!replacement || replacement.role !== 'teacher') {
+                return res.status(400).json({ success: false, error: 'Invalid replacement teacher' });
+            }
+            await Course.updateMany(
+                { _id: { $in: toRelease.map((c) => c._id) } },
+                { $set: { instructor: replacement._id, instructorName: replacement.name } }
+            );
+        }
+        for (const cid of ids) {
+            const course = await Course.findById(cid);
+            if (!course) continue;
+            await Course.findByIdAndUpdate(cid, {
+                instructor: teacher._id,
+                instructorName: teacher.name,
+            });
+        }
+        const assigned = await Course.find({ instructor: teacher._id }).select('title category').sort({ title: 1 });
+        res.json({ success: true, courses: assigned });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to update assigned courses' });
+    }
+});
+
+/** Parent ↔ student links for Parents tab (same data as LMS). */
+router.get('/:id/child-links', async (req, res) => {
+    try {
+        const ParentStudentLink = require('../models/ParentStudentLink');
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        if (user.role !== 'parent') {
+            return res.status(400).json({ success: false, error: 'User is not a parent' });
+        }
+        const links = await ParentStudentLink.find({ parent: user._id })
+            .populate('student', 'name email studentId')
+            .sort({ createdAt: -1 });
+        const students = await User.find({ role: 'student' }).select('name email studentId').sort({ name: 1 });
+        res.json({ success: true, links, students });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load child links' });
+    }
+});
+
+router.post('/:id/child-links', async (req, res) => {
+    try {
+        const ParentStudentLink = require('../models/ParentStudentLink');
+        const { studentId, relation = 'guardian' } = req.body;
+        const parent = await User.findById(req.params.id);
+        if (!parent || parent.role !== 'parent') {
+            return res.status(400).json({ success: false, error: 'Invalid parent' });
+        }
+        const link = await ParentStudentLink.findOneAndUpdate(
+            { parent: parent._id, student: studentId },
+            { relation },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        )
+            .populate('parent', 'name email')
+            .populate('student', 'name email studentId');
+        res.json({ success: true, link });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to link child' });
+    }
+});
+
+router.delete('/:id/child-links/:linkId', async (req, res) => {
+    try {
+        const ParentStudentLink = require('../models/ParentStudentLink');
+        const parent = await User.findById(req.params.id);
+        if (!parent || parent.role !== 'parent') {
+            return res.status(400).json({ success: false, error: 'Invalid parent' });
+        }
+        const link = await ParentStudentLink.findOne({ _id: req.params.linkId, parent: parent._id });
+        if (!link) return res.status(404).json({ success: false, error: 'Link not found' });
+        await ParentStudentLink.findByIdAndDelete(link._id);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to remove link' });
+    }
+});
+
 // Bulk delete users
 router.post('/bulk-delete', async (req, res) => {
     try {

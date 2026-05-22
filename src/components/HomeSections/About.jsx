@@ -91,6 +91,7 @@ const AboutSection = () => {
                   loading="lazy"
                   width={400}
                   height={300}
+                  sizes="(max-width: 768px) 90vw, 400px"
                 />
               </div>
             </div>
@@ -104,6 +105,7 @@ const AboutSection = () => {
                   loading="lazy"
                   width={400}
                   height={300}
+                  sizes="(max-width: 768px) 90vw, 400px"
                 />
               </div>
               <p

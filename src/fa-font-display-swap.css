@@ -1,0 +1,16 @@
+/* Font Awesome 7 ships font-display:block on webfonts — Lighthouse flags it. Re-declare with swap (same files, same metrics). */
+@font-face {
+  font-family: 'Font Awesome 7 Free';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../node_modules/@fortawesome/fontawesome-free/webfonts/fa-solid-900.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Font Awesome 7 Brands';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../node_modules/@fortawesome/fontawesome-free/webfonts/fa-brands-400.woff2') format('woff2');
+}

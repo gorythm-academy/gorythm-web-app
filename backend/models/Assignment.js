@@ -7,7 +7,7 @@ const assignmentSchema = new mongoose.Schema(
         course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
         teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         dueDate: { type: Date, required: true },
-        maxPoints: { type: Number, default: 100 },
+        maxPoints: { type: Number, default: null },
         attachments: [{ type: String }],
         status: { type: String, enum: ['draft', 'published'], default: 'published' },
     },

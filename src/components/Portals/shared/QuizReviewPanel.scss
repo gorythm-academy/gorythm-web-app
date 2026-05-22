@@ -1,0 +1,76 @@
+.portal-quiz-review {
+  margin-top: 0.5rem;
+}
+
+.portal-quiz-review-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.portal-quiz-review-score {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+}
+
+.portal-quiz-review-meta {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.portal-quiz-review-question {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.portal-quiz-review-qtext {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.portal-quiz-review-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.portal-quiz-review-option {
+  padding: 0.4rem 0.6rem;
+  margin: 0.25rem 0;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.portal-quiz-review-option--correct {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.portal-quiz-review-option--wrong {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.portal-quiz-review-option--chosen-correct {
+  font-weight: 600;
+}
+
+.portal-quiz-review-letter {
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.portal-quiz-review-tag {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.portal-quiz-review-tag--right {
+  color: #166534;
+}

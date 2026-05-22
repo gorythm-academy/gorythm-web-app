@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { getAuthToken, getAuthUserJson } from '../../utils/authStorage';
+import { getAuthToken, parseAuthUser } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
 import {
     ADMIN_SETTINGS_PAGE_ENABLED,
@@ -10,6 +10,8 @@ import {
     DEFAULT_ADMIN_DASHBOARD_ACCENT,
     ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT,
 } from '../../utils/adminDashboardTheme';
+import { isAdminPortalPreviewEnabled, setAdminPortalPreviewActive } from '../../utils/adminPortalPreview';
+import { LMS_PORTAL_LINKS } from '../../config/lmsPortalLinks';
 import './DashboardHome.scss';
 
 /** When set (ISO string), dashboard hides activities at or before this time until newer events arrive. */
@@ -60,7 +62,7 @@ const DashboardHome = () => {
         () => readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT
     );
 
-    const user = JSON.parse(getAuthUserJson() || '{}');
+    const user = parseAuthUser() || {};
 
     const checkBackendHealth = useCallback(async () => {
         try {
@@ -78,8 +80,8 @@ const DashboardHome = () => {
             
             const token = getAuthToken();
             
-            if (!token && backendStatus === 'connected') {
-                navigate('/admin/login');
+            if (!token) {
+                navigate('/admin/login', { replace: true });
                 return;
             }
 
@@ -156,7 +158,7 @@ const DashboardHome = () => {
             value: loading ? '...' : stats.totalStudents.toLocaleString(), 
             icon: 'fas fa-users', 
             color: 'var(--color-accent)', 
-            onClick: () => navigate('/admin/students-data')
+            onClick: () => navigate('/admin/students')
         },
         { 
             title: 'Active Courses', 
@@ -197,7 +199,7 @@ const DashboardHome = () => {
 
     const quickActions = [
         { icon: 'fas fa-plus-circle', label: 'Add Course', action: () => navigate('/admin/courses'), color: 'var(--color-accent)' },
-        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/students-data'), color: '#10b981' },
+        { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/students'), color: '#10b981' },
         { icon: 'fas fa-file-invoice-dollar', label: 'Create Invoice', action: () => navigate('/admin/payments'), color: '#f59e0b' },
         { icon: 'fas fa-chart-line', label: 'View Reports', action: () => navigate('/admin/analytics'), color: '#8b5cf6' },
         ...(ADMIN_SETTINGS_PAGE_ENABLED
@@ -231,6 +233,51 @@ const DashboardHome = () => {
                         {backendStatus === 'connected' ? 'Backend Connected' : 'Backend Disconnected'}
                     </div>
                     <small>{backendStatus === 'connected' ? 'Real data from MongoDB' : 'No backend connection'}</small>
+                </div>
+            </div>
+
+            <div
+                className={`dashboard-card lms-portals-card${
+                    isAdminPortalPreviewEnabled() ? '' : ' lms-portals-card--hint-only'
+                }`}
+            >
+                <div className="card-header">
+                    <h3>
+                        <i className="fas fa-window-restore" aria-hidden="true"></i> LMS portals
+                    </h3>
+                </div>
+                <div className="card-body">
+                    {isAdminPortalPreviewEnabled() ? (
+                        <>
+                            <p className="lms-portals-lead">
+                                Open any portal while logged in as admin. For UI work only; your session is still an
+                                admin account.
+                            </p>
+                            <div className="lms-portals-grid">
+                                {LMS_PORTAL_LINKS.map((item) => (
+                                    <button
+                                        key={item.path}
+                                        type="button"
+                                        className="lms-portal-tile"
+                                        onClick={() => {
+                                            setAdminPortalPreviewActive(true);
+                                            navigate(item.path);
+                                        }}
+                                    >
+                                        <i className={item.icon} aria-hidden="true"></i>
+                                        <span>{item.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="lms-portals-hint">
+                            Portal shortcuts from the admin area only run in local development (
+                            <code>npm start</code>) or when <code>REACT_APP_ADMIN_PORTAL_PREVIEW=true</code> is set for
+                            a build. This production build has preview off. To try portals as admin, run the app
+                            locally, or use separate logins for each role.
+                        </p>
+                    )}
                 </div>
             </div>
 

@@ -694,4 +694,71 @@
       }
     }
   }
+
+  // LMS portal shortcuts (admin dashboard)
+  .lms-portals-card {
+    .lms-portals-lead {
+      margin: 0 0 1rem;
+      color: #64748b;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .lms-portals-hint {
+      margin: 0;
+      color: #64748b;
+      font-size: 0.95rem;
+      line-height: 1.5;
+
+      code {
+        font-size: 0.85em;
+        padding: 0.12em 0.35em;
+        background: #f1f5f9;
+        border-radius: 4px;
+        color: #0f172a;
+      }
+    }
+
+    &.lms-portals-card--hint-only .card-body {
+      padding-top: 1rem;
+    }
+
+    .lms-portals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .lms-portal-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem 0.75rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+      font: inherit;
+      color: #1e293b;
+      transition: border-color 0.2s, box-shadow 0.2s;
+
+      i {
+        font-size: 1.35rem;
+        color: var(--color-accent);
+      }
+
+      span {
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      &:hover {
+        border-color: var(--color-accent);
+        box-shadow: 0 4px 12px rgba(var(--color-accent-rgb), 0.12);
+      }
+    }
+  }
 }

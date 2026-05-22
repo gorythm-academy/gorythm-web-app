@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { getAuthToken, getAuthUserJson } from '../../../utils/authStorage';
+import { getAuthToken, parseAuthUser } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import EnrollStudentModal from './EnrollStudentModal';
 import { useAdminDialog } from '../AdminDialogContext';
@@ -8,6 +8,69 @@ import './UsersManagement.scss';
 
 const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
 const STAFF_ROLE_SLUGS = ['admin', 'super-admin', 'accountant'];
+
+const VARIANT_CONFIG = {
+    staff: {
+        roles: STAFF_ROLE_SLUGS,
+        segment: 'staff',
+        pageTitle: 'Staff accounts (Users)',
+        addLabel: 'Add staff user',
+        icon: 'fa-users-cog',
+        defaultRole: 'admin',
+        fixedRole: null,
+        showEnroll: false,
+    },
+    students: {
+        roles: ['student'],
+        segment: 'people',
+        pageTitle: 'Students',
+        addLabel: 'Add student',
+        icon: 'fa-user-graduate',
+        defaultRole: 'student',
+        fixedRole: 'student',
+        showEnroll: false,
+    },
+    teachers: {
+        roles: ['teacher'],
+        segment: 'people',
+        pageTitle: 'Teachers',
+        addLabel: 'Add teacher',
+        icon: 'fa-chalkboard-teacher',
+        defaultRole: 'teacher',
+        fixedRole: 'teacher',
+        showEnroll: false,
+    },
+    parents: {
+        roles: ['parent'],
+        segment: 'people',
+        pageTitle: 'Parents',
+        addLabel: 'Add parent',
+        icon: 'fa-people-roof',
+        defaultRole: 'parent',
+        fixedRole: 'parent',
+        showEnroll: false,
+    },
+    people: {
+        roles: ['student'],
+        segment: 'people',
+        pageTitle: 'Students',
+        addLabel: 'Add student',
+        icon: 'fa-user-graduate',
+        defaultRole: 'student',
+        fixedRole: 'student',
+        showEnroll: true,
+    },
+};
+
+function displayRoleLabel(role) {
+    if (role === 'admin') return 'Manager';
+    if (role === 'super-admin') return 'Super Admin';
+    if (role === 'teacher') return 'Teacher';
+    if (role === 'parent') return 'Parent';
+    if (role === 'student') return 'Student';
+    if (role === 'accountant') return 'Accountant';
+    return role || '—';
+}
 
 const PEOPLE_ROLE_OPTIONS = [
     { value: 'student', label: 'Student', icon: 'fa-user-graduate' },
@@ -19,6 +82,42 @@ const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'pe
 const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 250, 130, 180, 150];
 const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 140, 100, 120, 120];
 const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 420, 220, 320, 260];
+
+const TABLE_LAYOUT = {
+    staff: {
+        keys: COLUMN_DEFS,
+        widths: DEFAULT_COLUMN_WIDTHS,
+        mins: COLUMN_MIN_WIDTHS,
+        maxs: COLUMN_MAX_WIDTHS,
+    },
+    teachers: {
+        keys: ['checkbox', 'user', 'role', 'status', 'assignedCourses', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 220, 160, 140, 260, 150, 250, 250, 130, 180, 150],
+        mins: [50, 140, 110, 100, 160, 110, 140, 140, 100, 120, 120],
+        maxs: [90, 360, 260, 240, 420, 280, 420, 420, 220, 320, 260],
+    },
+    parents: {
+        keys: ['checkbox', 'user', 'role', 'status', 'children', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 220, 160, 140, 260, 150, 250, 250, 130, 180, 150],
+        mins: [50, 140, 110, 100, 160, 110, 140, 140, 100, 120, 120],
+        maxs: [90, 360, 260, 240, 420, 280, 420, 420, 220, 320, 260],
+    },
+};
+
+const COLUMN_LABELS = {
+    checkbox: '',
+    user: 'User',
+    role: 'Role',
+    status: 'Status',
+    assignedCourses: 'Assigned courses',
+    children: 'Children',
+    phone: 'Phone',
+    email: 'Email',
+    personalEmail: 'Personal email',
+    joined: 'Joined',
+    lastLogin: 'Last Login',
+    actions: 'Actions',
+};
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythmacademy\.com$/i;
 const GORYTHM_EMAIL_DOMAIN = '@gorythmacademy.com';
@@ -48,10 +147,19 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    // Enroll modal state (People tab only)
+    // Enroll modal state (legacy; students tab merged into Students page)
     const [showEnrollModal, setShowEnrollModal] = useState(false);
     const [enrollingStudent, setEnrollingStudent] = useState(null);
     const [coursesForEnroll, setCoursesForEnroll] = useState([]);
+
+    const [allCourses, setAllCourses] = useState([]);
+    const [teacherCoursesById, setTeacherCoursesById] = useState({});
+    const [parentChildrenById, setParentChildrenById] = useState({});
+    const [allStudentsForLink, setAllStudentsForLink] = useState([]);
+    const [coursesToReassign, setCoursesToReassign] = useState([]);
+    const [linkStudentPick, setLinkStudentPick] = useState('');
+    const [parentLinksInModal, setParentLinksInModal] = useState([]);
+    const [pendingParentLinks, setPendingParentLinks] = useState([]);
 
     const tableContainerRef = useRef(null);
     const dragStateRef = useRef({
@@ -60,7 +168,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         startScrollLeft: 0,
     });
     const [isTableDragging, setIsTableDragging] = useState(false);
-    const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+    const tableLayout = TABLE_LAYOUT[variant] || TABLE_LAYOUT.staff;
+    const tableColumnKeys = tableLayout.keys;
+    const [columnWidths, setColumnWidths] = useState(tableLayout.widths);
     const [sortBy, setSortBy] = useState('joined');
     const [sortOrder, setSortOrder] = useState('desc');
 
@@ -100,8 +210,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
         const startX = e.clientX;
         const startWidth = columnWidths[colIndex];
-        const minWidth = COLUMN_MIN_WIDTHS[colIndex] ?? 80;
-        const maxWidth = COLUMN_MAX_WIDTHS[colIndex] ?? 600;
+        const minWidth = tableLayout.mins[colIndex] ?? 80;
+        const maxWidth = tableLayout.maxs[colIndex] ?? 600;
         let rafId = null;
         let latestWidth = startWidth;
 
@@ -133,7 +243,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const resetColumnWidth = (colIndex) => {
         setColumnWidths((prev) => {
             const next = [...prev];
-            next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
+            next[colIndex] = tableLayout.widths[colIndex];
             return next;
         });
     };
@@ -147,18 +257,15 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
     };
 
-    let currentUser = {};
-    try {
-        currentUser = JSON.parse(getAuthUserJson() || '{}');
-    } catch {
-        currentUser = {};
-    }
+    const currentUser = parseAuthUser() || {};
     const isSuperAdmin = currentUser.role === 'super-admin';
     const isAdminViewer = currentUser.role === 'admin';
 
+    const variantConfig = VARIANT_CONFIG[variant] || VARIANT_CONFIG.staff;
+
     const staffRoleOptions = useMemo(() => {
         const base = [
-            { value: 'admin', label: 'Admin/Manager', icon: 'fa-user-cog' },
+            { value: 'admin', label: 'Manager', icon: 'fa-user-cog' },
             { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
         ];
         if (isSuperAdmin) {
@@ -167,11 +274,14 @@ const UsersManagement = ({ variant = 'staff' }) => {
         return base;
     }, [isSuperAdmin]);
 
-    const roleOptions = variant === 'people' ? PEOPLE_ROLE_OPTIONS : staffRoleOptions;
+    const isLearnerTab = ['students', 'teachers', 'parents', 'people'].includes(variant);
+    const roleOptions = isLearnerTab
+        ? PEOPLE_ROLE_OPTIONS.filter((o) => variantConfig.roles.includes(o.value))
+        : staffRoleOptions;
 
-    const canCreatePeople = variant === 'people' && (isSuperAdmin || isAdminViewer);
+    const canCreateLearner = isLearnerTab && (isSuperAdmin || isAdminViewer);
     const canCreateStaff = variant === 'staff' && isSuperAdmin;
-    const showAddButton = canCreatePeople || canCreateStaff;
+    const showAddButton = canCreateLearner || canCreateStaff;
 
     const isRowActionsLocked = (user) =>
         (user.role === 'super-admin' || user.isSystemAccount) && !isSuperAdmin;
@@ -186,14 +296,16 @@ const UsersManagement = ({ variant = 'staff' }) => {
         role: 'teacher',
         phone: '',
         status: 'active',
-        mustChangePassword: true
+        mustChangePassword: true,
+        assignedCourseIds: [],
+        releaseToTeacherId: '',
     });
 
     const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
             const token = getAuthToken();
-            const segment = variant === 'people' ? 'people' : 'staff';
+            const segment = variantConfig.segment;
 
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -202,7 +314,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
             if (response.data.success) {
                 const raw = response.data.users || [];
-                const allowed = variant === 'people' ? PEOPLE_ROLE_SLUGS : STAFF_ROLE_SLUGS;
+                const allowed = variantConfig.roles;
                 setUsers(raw.filter((u) => allowed.includes(u.role)));
             } else {
                 showAlert('Failed to load users', 'error');
@@ -217,9 +329,67 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
     }, [showAlert, variant]);
 
+    const loadTeacherCourseMap = useCallback(async (token) => {
+        const res = await axios.get(`${API_BASE_URL}/api/courses`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const courses = res.data.courses || [];
+        setAllCourses(courses);
+        const map = {};
+        for (const c of courses) {
+            const tid = c.instructor?._id || c.instructor;
+            if (!tid) continue;
+            const key = String(tid);
+            if (!map[key]) map[key] = [];
+            map[key].push(c);
+        }
+        setTeacherCoursesById(map);
+    }, []);
+
+    const loadParentChildrenMap = useCallback(async (token) => {
+        const res = await axios.get(`${API_BASE_URL}/api/lms-admin/parent-links`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.data.success) return;
+        const map = {};
+        for (const link of res.data.links || []) {
+            const pid = link.parent?._id || link.parent;
+            if (!pid) continue;
+            const key = String(pid);
+            if (!map[key]) map[key] = [];
+            map[key].push(link);
+        }
+        setParentChildrenById(map);
+    }, []);
+
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
+
+    useEffect(() => {
+        const layout = TABLE_LAYOUT[variant] || TABLE_LAYOUT.staff;
+        setColumnWidths(layout.widths);
+    }, [variant]);
+
+    useEffect(() => {
+        const token = getAuthToken();
+        if (!token) return;
+        if (variant === 'teachers') loadTeacherCourseMap(token);
+        if (variant === 'parents') {
+            loadParentChildrenMap(token);
+            axios
+                .get(`${API_BASE_URL}/api/users`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: { segment: 'people', limit: 500 },
+                })
+                .then((res) => {
+                    if (res.data.success) {
+                        setAllStudentsForLink((res.data.users || []).filter((u) => u.role === 'student'));
+                    }
+                })
+                .catch(() => setAllStudentsForLink([]));
+        }
+    }, [variant, loadTeacherCourseMap, loadParentChildrenMap]);
 
     // Keep scrolling inside Add/Edit user modal (not the page behind)
     useEffect(() => {
@@ -237,7 +407,24 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     const openCreateModal = () => {
         setEditingUser(null);
-        const defaultRole = variant === 'people' ? 'student' : 'admin';
+        setPendingParentLinks([]);
+        const defaultRole = variantConfig.fixedRole || variantConfig.defaultRole;
+        if (variant === 'parents') {
+            const token = getAuthToken();
+            if (token && !allStudentsForLink.length) {
+                axios
+                    .get(`${API_BASE_URL}/api/users`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                        params: { segment: 'people', limit: 500 },
+                    })
+                    .then((res) => {
+                        if (res.data.success) {
+                            setAllStudentsForLink((res.data.users || []).filter((u) => u.role === 'student'));
+                        }
+                    })
+                    .catch(() => setAllStudentsForLink([]));
+            }
+        }
         setFormData({
             name: '',
             email: '',
@@ -247,28 +434,68 @@ const UsersManagement = ({ variant = 'staff' }) => {
             role: defaultRole,
             phone: '',
             status: 'active',
-            mustChangePassword: true
+            mustChangePassword: true,
+            assignedCourseIds: [],
+            releaseToTeacherId: '',
         });
+        setCoursesToReassign([]);
+        setLinkStudentPick('');
+        setParentLinksInModal([]);
         setShowPassword(false);
         setShowConfirmPassword(false);
         setShowUserModal(true);
     };
 
-    const openEditModal = (user) => {
+    const openEditModal = async (user) => {
         if (!user) return;
         
         setEditingUser(user);
+        const token = getAuthToken();
+        let assignedCourseIds = [];
+        let linksForModal = [];
+        if (variant === 'teachers' && user.role === 'teacher' && token) {
+            try {
+                const res = await axios.get(`${API_BASE_URL}/api/users/${user._id}/assigned-courses`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.data.success) {
+                    assignedCourseIds = (res.data.courses || []).map((c) => String(c._id));
+                }
+            } catch {
+                assignedCourseIds = (teacherCoursesById[String(user._id)] || []).map((c) => String(c._id));
+            }
+        }
+        if (variant === 'parents' && user.role === 'parent' && token) {
+            try {
+                const res = await axios.get(`${API_BASE_URL}/api/users/${user._id}/child-links`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.data.success) {
+                    linksForModal = res.data.links || [];
+                    if (!allStudentsForLink.length && res.data.students) {
+                        setAllStudentsForLink(res.data.students);
+                    }
+                }
+            } catch {
+                linksForModal = parentChildrenById[String(user._id)] || [];
+            }
+        }
         setFormData({
             name: user.name || '',
             email: user.email || '',
             personalEmail: user.personalEmail || '',
             password: '',
             confirmPassword: '',
-            role: user.role || (variant === 'people' ? 'student' : 'admin'),
+            role: user.role || variantConfig.defaultRole,
             phone: user.phone || '',
             status: USER_STATUS_OPTIONS.includes(user.status) ? user.status : (user.isActive !== false ? 'active' : 'inactive'),
-            mustChangePassword: !!user.mustChangePassword
+            mustChangePassword: !!user.mustChangePassword,
+            assignedCourseIds,
+            releaseToTeacherId: '',
         });
+        setParentLinksInModal(linksForModal);
+        setCoursesToReassign([]);
+        setLinkStudentPick('');
         setShowPassword(false);
         setShowConfirmPassword(false);
         setShowUserModal(true);
@@ -358,11 +585,105 @@ const UsersManagement = ({ variant = 'staff' }) => {
         return true;
     };
 
+    const toggleAssignedCourse = (courseId) => {
+        const id = String(courseId);
+        setFormData((prev) => {
+            const ids = prev.assignedCourseIds || [];
+            const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+            return { ...prev, assignedCourseIds: next };
+        });
+        setCoursesToReassign([]);
+    };
+
+    const saveTeacherAssignedCourses = async (teacherId, token) => {
+        if (variant !== 'teachers') return;
+        try {
+            await axios.put(
+                `${API_BASE_URL}/api/users/${teacherId}/assigned-courses`,
+                {
+                    courseIds: formData.assignedCourseIds || [],
+                    releaseToTeacherId: formData.releaseToTeacherId || undefined,
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            await loadTeacherCourseMap(token);
+        } catch (error) {
+            const data = error.response?.data;
+            if (data?.coursesToReassign?.length) {
+                setCoursesToReassign(data.coursesToReassign);
+                showAlert(data.error || 'Choose another teacher for removed courses', 'warning');
+                throw error;
+            }
+            throw error;
+        }
+    };
+
+    const addParentChildLink = async () => {
+        if (!linkStudentPick) return;
+        const student = allStudentsForLink.find((s) => String(s._id) === String(linkStudentPick));
+        if (!student) return;
+
+        if (!editingUser) {
+            if (pendingParentLinks.some((l) => String(l.studentId) === String(linkStudentPick))) {
+                showAlert('Child already added', 'warning');
+                return;
+            }
+            setPendingParentLinks((prev) => [
+                ...prev,
+                { studentId: linkStudentPick, student: { name: student.name, studentId: student.studentId } },
+            ]);
+            setLinkStudentPick('');
+            return;
+        }
+
+        const parentId = editingUser._id;
+        const token = getAuthToken();
+        try {
+            const res = await axios.post(
+                `${API_BASE_URL}/api/users/${parentId}/child-links`,
+                { studentId: linkStudentPick },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (res.data.success) {
+                setParentLinksInModal((prev) => [...prev, res.data.link]);
+                setLinkStudentPick('');
+                await loadParentChildrenMap(token);
+                showAlert('Child linked', 'success');
+            }
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to link child', 'error');
+        }
+    };
+
+    const removePendingParentLink = (studentId) => {
+        setPendingParentLinks((prev) => prev.filter((l) => String(l.studentId) !== String(studentId)));
+    };
+
+    const removeParentChildLink = async (linkId) => {
+        const parentId = editingUser?._id;
+        if (!parentId) return;
+        const token = getAuthToken();
+        try {
+            await axios.delete(`${API_BASE_URL}/api/users/${parentId}/child-links/${linkId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setParentLinksInModal((prev) => prev.filter((l) => String(l._id) !== String(linkId)));
+            await loadParentChildrenMap(token);
+            showAlert('Link removed', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to remove link', 'error');
+        }
+    };
+
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         
         if (isSubmitting) return;
         if (!validateForm()) return;
+        if (variant === 'teachers' && coursesToReassign.length && !formData.releaseToTeacherId) {
+            showAlert('Select a teacher to take over courses you removed from this teacher', 'warning');
+            return;
+        }
         
         setIsSubmitting(true);
         const token = getAuthToken();
@@ -371,7 +692,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             const payload = {
                 name: formData.name.trim(),
                 email: formData.email.trim(),
-                role: formData.role,
+                role: variantConfig.fixedRole || formData.role,
                 phone: formData.phone.trim(),
                 status: formData.status,
                 isActive: formData.status === 'active',
@@ -390,7 +711,22 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 );
                 
                 showAlert('User created successfully!', 'success');
-                setUsers(prev => [response.data.user, ...prev]);
+                const created = response.data.user;
+                setUsers(prev => [created, ...prev]);
+                if (variant === 'teachers' && created.role === 'teacher' && (formData.assignedCourseIds || []).length) {
+                    await saveTeacherAssignedCourses(created._id, token);
+                }
+                if (variant === 'parents' && created.role === 'parent' && pendingParentLinks.length) {
+                    for (const link of pendingParentLinks) {
+                        await axios.post(
+                            `${API_BASE_URL}/api/users/${created._id}/child-links`,
+                            { studentId: link.studentId },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                    }
+                    await loadParentChildrenMap(token);
+                    setPendingParentLinks([]);
+                }
             } else {
                 // Update existing user
                 const response = await axios.put(
@@ -414,6 +750,10 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
                     showAlert('Password updated successfully!', 'success');
+                }
+
+                if (variant === 'teachers' && editingUser.role === 'teacher') {
+                    await saveTeacherAssignedCourses(editingUser._id, token);
                 }
             }
             
@@ -593,6 +933,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
             if (key === 'personalEmail') return (u.personalEmail || '').toLowerCase();
             if (key === 'joined') return new Date(u.joinDate || 0).getTime();
             if (key === 'lastLogin') return new Date(u.lastLogin || 0).getTime();
+            if (key === 'assignedCourses') {
+                return (teacherCoursesById[String(u._id)] || [])
+                    .map((c) => c.title)
+                    .join(', ')
+                    .toLowerCase();
+            }
+            if (key === 'children') {
+                return (parentChildrenById[String(u._id)] || [])
+                    .map((l) => l.student?.name || '')
+                    .join(', ')
+                    .toLowerCase();
+            }
             return 0;
         };
         const va = getVal(a, sortBy);
@@ -687,12 +1039,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
                             <h2>
                                 <i className={`fas ${editingUser ? 'fa-edit' : 'fa-user-plus'}`}></i>
                                 {editingUser
-                                    ? variant === 'people'
-                                        ? 'Edit learner'
-                                        : 'Edit staff user'
-                                    : variant === 'people'
-                                      ? 'Add learner'
-                                      : 'Add staff user'}
+                                    ? `Edit ${variantConfig.pageTitle.replace(/s$/, '')}`
+                                    : variantConfig.addLabel}
                             </h2>
                             <button 
                                 className="modal-close-btn"
@@ -938,6 +1286,141 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             </div>
                                         )}
                                     </div>
+
+                                    {variant === 'teachers' && (
+                                        <div className="form-section">
+                                            <h3><i className="fas fa-book"></i> Assigned courses</h3>
+                                            <p className="form-hint">Synced with the Courses tab (instructor field).</p>
+                                            <div className="course-assign-list">
+                                                {allCourses.length === 0 ? (
+                                                    <p className="form-hint-muted">No courses loaded.</p>
+                                                ) : (
+                                                    allCourses.map((c) => (
+                                                        <label key={c._id} className="checkbox-label course-assign-item">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={(formData.assignedCourseIds || []).includes(String(c._id))}
+                                                                onChange={() => toggleAssignedCourse(c._id)}
+                                                                disabled={isSubmitting}
+                                                            />
+                                                            <span>{c.title}</span>
+                                                        </label>
+                                                    ))
+                                                )}
+                                            </div>
+                                            {coursesToReassign.length > 0 && (
+                                                <div className="form-group">
+                                                    <label>Reassign removed courses to</label>
+                                                    <select
+                                                        name="releaseToTeacherId"
+                                                        value={formData.releaseToTeacherId}
+                                                        onChange={handleFormChange}
+                                                        disabled={isSubmitting}
+                                                    >
+                                                        <option value="">Select teacher</option>
+                                                        {users
+                                                            .filter((u) => u.role === 'teacher' && u._id !== editingUser?._id)
+                                                            .map((t) => (
+                                                                <option key={t._id} value={t._id}>
+                                                                    {t.name}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                    <small className="form-hint">
+                                                        Required for: {coursesToReassign.map((c) => c.title).join(', ')}
+                                                    </small>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {variant === 'parents' && (
+                                        <div className="form-section">
+                                            <h3><i className="fas fa-child"></i> Linked children</h3>
+                                            <p className="form-hint">
+                                                Synced with the LMS Parent links tab. Add children here when creating or
+                                                editing a parent.
+                                            </p>
+                                            <ul className="parent-children-list">
+                                                {(editingUser ? parentLinksInModal : pendingParentLinks).length === 0 ? (
+                                                    <li className="form-hint-muted">No children linked yet.</li>
+                                                ) : editingUser ? (
+                                                    parentLinksInModal.map((link) => (
+                                                        <li key={link._id}>
+                                                            <span>
+                                                                {link.student?.name || 'Student'}{' '}
+                                                                {link.student?.studentId
+                                                                    ? `(${link.student.studentId})`
+                                                                    : ''}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="btn-link-danger"
+                                                                onClick={() => removeParentChildLink(link._id)}
+                                                                disabled={isSubmitting}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </li>
+                                                    ))
+                                                ) : (
+                                                    pendingParentLinks.map((link) => (
+                                                        <li key={link.studentId}>
+                                                            <span>
+                                                                {link.student?.name || 'Student'}{' '}
+                                                                {link.student?.studentId
+                                                                    ? `(${link.student.studentId})`
+                                                                    : ''}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="btn-link-danger"
+                                                                onClick={() => removePendingParentLink(link.studentId)}
+                                                                disabled={isSubmitting}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </li>
+                                                    ))
+                                                )}
+                                            </ul>
+                                            <div className="form-group parent-link-add">
+                                                <select
+                                                    value={linkStudentPick}
+                                                    onChange={(e) => setLinkStudentPick(e.target.value)}
+                                                    disabled={isSubmitting}
+                                                >
+                                                    <option value="">Add child…</option>
+                                                    {allStudentsForLink
+                                                        .filter((s) => {
+                                                            if (editingUser) {
+                                                                return !parentLinksInModal.some(
+                                                                    (l) =>
+                                                                        String(l.student?._id || l.student) ===
+                                                                        String(s._id)
+                                                                );
+                                                            }
+                                                            return !pendingParentLinks.some(
+                                                                (l) => String(l.studentId) === String(s._id)
+                                                            );
+                                                        })
+                                                        .map((s) => (
+                                                            <option key={s._id} value={s._id}>
+                                                                {s.name} {s.studentId ? `(${s.studentId})` : ''}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    className="btn-secondary"
+                                                    onClick={addParentChildLink}
+                                                    disabled={!linkStudentPick || isSubmitting}
+                                                >
+                                                    Link child
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -979,18 +1462,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
             <div className="page-header">
                 <div className="header-left">
                     <h1>
-                        <i className={`fas ${variant === 'people' ? 'fa-people-group' : 'fa-users-cog'}`}></i>{' '}
-                        {variant === 'people' ? 'People' : 'Staff accounts (Users)'}
+                        <i className={`fas ${isLearnerTab ? variantConfig.icon : 'fa-users-cog'}`}></i>{' '}
+                        {variantConfig.pageTitle}
                     </h1>
                     <p>
-                        {variant === 'people' ? (
-                            <>
-                                Students, teachers, and parents. Staff accounts are under <strong>Users</strong>.
-                            </>
+                        {variant === 'students' || variant === 'people' ? (
+                            <>Student portal accounts. Course enrollments and fee status are in <strong>Students data</strong>.</>
+                        ) : variant === 'teachers' ? (
+                            <>Teachers assigned as course instructors in the Courses tab.</>
+                        ) : variant === 'parents' ? (
+                            <>Parent/guardian accounts (link children in LMS tab).</>
                         ) : (
-                            <>
-                                Administrators, super-admins, and accountants. Learners are managed under <strong>People</strong>.
-                            </>
+                            <>Managers, super-admins, and accountants. Learners are under <strong>Students</strong>, <strong>Teachers</strong>, and <strong>Parents</strong>.</>
                         )}
                     </p>
                 </div>
@@ -998,7 +1481,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     {showAddButton && (
                         <button className="btn-primary" onClick={openCreateModal}>
                             <i className="fas fa-user-plus"></i>{' '}
-                            {variant === 'people' ? 'Add learner' : 'Add staff user'}
+                            {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
                         </button>
                     )}
                 </div>
@@ -1047,7 +1530,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     <input
                         type="text"
                         placeholder={
-                            variant === 'people'
+                            isLearnerTab
                                 ? 'Search learners by name, email or phone...'
                                 : 'Search users by name, email or phone...'
                         }
@@ -1069,18 +1552,26 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         value={filterRole}
                         onChange={(e) => setFilterRole(e.target.value)}
                     >
-                        {variant === 'people' ? (
+                        {variant === 'students' || variant === 'people' ? (
                             <>
-                                <option value="all">All learners</option>
+                                <option value="all">All students</option>
                                 <option value="student">Students</option>
+                            </>
+                        ) : variant === 'teachers' ? (
+                            <>
+                                <option value="all">All teachers</option>
                                 <option value="teacher">Teachers</option>
+                            </>
+                        ) : variant === 'parents' ? (
+                            <>
+                                <option value="all">All parents</option>
                                 <option value="parent">Parents</option>
                             </>
                         ) : (
                             <>
                                 <option value="all">All staff roles</option>
                                 <option value="super-admin">Super Admin</option>
-                                <option value="admin">Admin/Manager</option>
+                                <option value="admin">Manager</option>
                                 <option value="accountant">Accountant</option>
                             </>
                         )}
@@ -1106,146 +1597,262 @@ const UsersManagement = ({ variant = 'staff' }) => {
             >
                 <table className="users-table">
                     <colgroup>
-                        {COLUMN_DEFS.map((key, idx) => (
+                        {tableColumnKeys.map((key, idx) => (
                             <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
                         ))}
                     </colgroup>
                     <thead>
                         <tr>
-                            <th className="checkbox-cell">
-                                <input
-                                    type="checkbox"
-                                    checked={
-                                        selectableFilteredUsers.length > 0 &&
-                                        selectedUsers.length === selectableFilteredUsers.length
-                                    }
-                                    onChange={toggleAllUsers}
-                                />
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('user')}>User
-                                {sortBy === 'user' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('role')}>Role
-                                {sortBy === 'role' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 2)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(2); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('status')}>Status
-                                {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 3)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(3); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('phone')}>Phone
-                                {sortBy === 'phone' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 4)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(4); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('email')}>Email
-                                {sortBy === 'email' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('personalEmail')}>Personal email
-                                {sortBy === 'personalEmail' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('joined')}>Joined
-                                {sortBy === 'joined' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
-                            </th>
-                            <th className="sortable" onClick={() => handleSort('lastLogin')}>Last Login
-                                {sortBy === 'lastLogin' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
-                            </th>
-                            <th>Actions
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
-                            </th>
+                            {tableColumnKeys.map((colKey, idx) => {
+                                if (colKey === 'checkbox') {
+                                    return (
+                                        <th key={colKey} className="checkbox-cell">
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    selectableFilteredUsers.length > 0 &&
+                                                    selectedUsers.length === selectableFilteredUsers.length
+                                                }
+                                                onChange={toggleAllUsers}
+                                            />
+                                            <span
+                                                className="col-resizer"
+                                                onPointerDown={(e) => startColumnResize(e, idx)}
+                                                onDoubleClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    resetColumnWidth(idx);
+                                                }}
+                                            />
+                                        </th>
+                                    );
+                                }
+                                if (colKey === 'actions') {
+                                    return (
+                                        <th key={colKey}>
+                                            {COLUMN_LABELS.actions}
+                                            <span
+                                                className="col-resizer"
+                                                onPointerDown={(e) => startColumnResize(e, idx)}
+                                                onDoubleClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    resetColumnWidth(idx);
+                                                }}
+                                            />
+                                        </th>
+                                    );
+                                }
+                                const sortable = colKey !== 'assignedCourses' && colKey !== 'children';
+                                return (
+                                    <th
+                                        key={colKey}
+                                        className={sortable ? 'sortable' : ''}
+                                        onClick={sortable ? () => handleSort(colKey) : undefined}
+                                    >
+                                        {COLUMN_LABELS[colKey]}
+                                        {sortable ? (
+                                            sortBy === colKey ? (
+                                                <i
+                                                    className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}
+                                                ></i>
+                                            ) : (
+                                                <i className="fas fa-sort"></i>
+                                            )
+                                        ) : null}
+                                        <span
+                                            className="col-resizer"
+                                            onPointerDown={(e) => startColumnResize(e, idx)}
+                                            onDoubleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                resetColumnWidth(idx);
+                                            }}
+                                        />
+                                    </th>
+                                );
+                            })}
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedUsers.map(user => (
+                        {sortedUsers.map((user) => (
                             <tr key={user._id} className={selectedUsers.includes(user._id) ? 'selected' : ''}>
-                                <td className="checkbox-cell">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedUsers.includes(user._id)}
-                                        onChange={() => toggleUserSelection(user._id)}
-                                        disabled={isRowActionsLocked(user)}
-                                    />
-                                </td>
-                                <td>
-                                    <div className="user-info">
-                                        <div className="user-avatar">
-                                            {user.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="user-details">
-                                            <strong>{user.name}</strong>
-                                            {user.role === 'student' && user.studentId && (
-                                                <span className="student-id-tag">
-                                                    <i className="fas fa-id-card"></i> {user.studentId}
+                                {tableColumnKeys.map((colKey) => {
+                                    if (colKey === 'checkbox') {
+                                        return (
+                                            <td key={colKey} className="checkbox-cell">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedUsers.includes(user._id)}
+                                                    onChange={() => toggleUserSelection(user._id)}
+                                                    disabled={isRowActionsLocked(user)}
+                                                />
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'user') {
+                                        return (
+                                            <td key={colKey}>
+                                                <div className="user-info">
+                                                    <div className="user-avatar">
+                                                        {user.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="user-details">
+                                                        <strong>{user.name}</strong>
+                                                        {user.role === 'student' && user.studentId && (
+                                                            <span className="student-id-tag">
+                                                                <i className="fas fa-id-card"></i> {user.studentId}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'role') {
+                                        return (
+                                            <td key={colKey}>
+                                                <span className={`role-badge ${user.role}`}>
+                                                    <i
+                                                        className={`fas fa-${
+                                                            user.role === 'super-admin'
+                                                                ? 'user-shield'
+                                                                : user.role === 'admin'
+                                                                  ? 'user-cog'
+                                                                  : user.role === 'teacher'
+                                                                    ? 'chalkboard-teacher'
+                                                                    : user.role === 'accountant'
+                                                                      ? 'calculator'
+                                                                      : user.role === 'parent'
+                                                                        ? 'people-roof'
+                                                                        : 'user-graduate'
+                                                        }`}
+                                                    ></i>
+                                                    {displayRoleLabel(user.role)}
                                                 </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span className={`role-badge ${user.role}`}>
-                                        <i className={`fas fa-${
-                                            user.role === 'super-admin' ? 'user-shield' :
-                                            user.role === 'admin' ? 'user-cog' :
-                                            user.role === 'teacher' ? 'chalkboard-teacher' :
-                                            user.role === 'accountant' ? 'calculator' :
-                                            user.role === 'parent' ? 'people-roof' :
-                                            'user-graduate'
-                                        }`}></i>
-                                        {user.role.replace('-', ' ')}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className={`status-badge ${user.status}`}>
-                                        <i
-                                            className={`fas fa-${
-                                                user.status === 'active'
-                                                    ? 'check-circle'
-                                                    : user.status === 'pending'
-                                                      ? 'clock'
-                                                      : user.status === 'completed'
-                                                        ? 'flag-checkered'
-                                                        : 'times-circle'
-                                            }`}
-                                        ></i>
-                                        {user.status}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className="phone-info">
-                                        {user.phone || 'Not set'}
-                                    </span>
-                                </td>
-                                <td className="cell-email">
-                                    <span className="email-cell" title={user.email}>
-                                        {user.email}
-                                    </span>
-                                </td>
-                                <td className="cell-email">
-                                    {user.personalEmail ? (
-                                        <span className="email-cell personal-email-cell" title={user.personalEmail}>
-                                            <i className="fas fa-envelope-open-text" aria-hidden="true"></i> {user.personalEmail}
-                                        </span>
-                                    ) : (
-                                        <span className="empty-cell">—</span>
-                                    )}
-                                </td>
-                                <td>
-                                    {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : 'N/A'}
-                                </td>
-                                <td>
-                                    {user.lastLogin
-                                        ? new Date(user.lastLogin).toLocaleString(undefined, {
-                                              dateStyle: 'short',
-                                              timeStyle: 'short',
-                                          })
-                                        : 'Never'}
-                                </td>
-                                <td className="cell-actions">
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'status') {
+                                        return (
+                                            <td key={colKey}>
+                                                <span className={`status-badge ${user.status}`}>
+                                                    <i
+                                                        className={`fas fa-${
+                                                            user.status === 'active'
+                                                                ? 'check-circle'
+                                                                : user.status === 'pending'
+                                                                  ? 'clock'
+                                                                  : user.status === 'completed'
+                                                                    ? 'flag-checkered'
+                                                                    : 'times-circle'
+                                                        }`}
+                                                    ></i>
+                                                    {user.status}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'assignedCourses') {
+                                        const courses = teacherCoursesById[String(user._id)] || [];
+                                        return (
+                                            <td key={colKey} className="cell-meta-col cell-meta-col--stacked">
+                                                {courses.length ? (
+                                                    <div className="meta-col-stack">
+                                                        {courses.map((c) => (
+                                                            <div key={c._id} className="meta-col-row">
+                                                                <i className="fas fa-book" aria-hidden="true" />
+                                                                <span>{c.title}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="empty-cell">—</span>
+                                                )}
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'children') {
+                                        const links = parentChildrenById[String(user._id)] || [];
+                                        return (
+                                            <td key={colKey} className="cell-meta-col cell-meta-col--stacked">
+                                                {links.length ? (
+                                                    <div className="meta-col-stack">
+                                                        {links.map((l) => (
+                                                            <div key={l._id} className="meta-col-row">
+                                                                <i className="fas fa-child" aria-hidden="true" />
+                                                                <span>
+                                                                    {l.student?.name || 'Student'}
+                                                                    {l.student?.studentId
+                                                                        ? ` (${l.student.studentId})`
+                                                                        : ''}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="empty-cell">—</span>
+                                                )}
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'phone') {
+                                        return (
+                                            <td key={colKey}>
+                                                <span className="phone-info">{user.phone || 'Not set'}</span>
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'email') {
+                                        return (
+                                            <td key={colKey} className="cell-email">
+                                                <span className="email-cell" title={user.email}>
+                                                    {user.email}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'personalEmail') {
+                                        return (
+                                            <td key={colKey} className="cell-email">
+                                                {user.personalEmail ? (
+                                                    <span
+                                                        className="email-cell personal-email-cell"
+                                                        title={user.personalEmail}
+                                                    >
+                                                        <i className="fas fa-envelope-open-text" aria-hidden="true"></i>{' '}
+                                                        {user.personalEmail}
+                                                    </span>
+                                                ) : (
+                                                    <span className="empty-cell">—</span>
+                                                )}
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'joined') {
+                                        return (
+                                            <td key={colKey}>
+                                                {user.joinDate
+                                                    ? new Date(user.joinDate).toLocaleDateString()
+                                                    : 'N/A'}
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'lastLogin') {
+                                        return (
+                                            <td key={colKey}>
+                                                {user.lastLogin
+                                                    ? new Date(user.lastLogin).toLocaleString(undefined, {
+                                                          dateStyle: 'short',
+                                                          timeStyle: 'short',
+                                                      })
+                                                    : 'Never'}
+                                            </td>
+                                        );
+                                    }
+                                    if (colKey === 'actions') {
+                                        return (
+                                            <td key={colKey} className="cell-actions">
                                     <div className="action-buttons">
                                         {isRowActionsLocked(user) ? (
                                             <button
@@ -1265,7 +1872,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 >
                                                     <i className="fas fa-edit"></i>
                                                 </button>
-                                                {variant === 'people' && user.role === 'student' && user.isActive !== false && (
+                                                {variantConfig.showEnroll && user.role === 'student' && user.isActive !== false && (
                                                     <button
                                                         className="action-btn enroll-btn"
                                                         title="Enroll in Course"
@@ -1291,7 +1898,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             </>
                                         )}
                                     </div>
-                                </td>
+                                            </td>
+                                        );
+                                    }
+                                    return null;
+                                })}
                             </tr>
                         ))}
                     </tbody>
@@ -1301,12 +1912,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     const hasAnyUsers = users.length > 0;
                     const emptyTitle = hasAnyUsers
                         ? 'No matching records'
-                        : variant === 'people'
+                        : isLearnerTab
                           ? 'No learners yet'
                           : 'No staff accounts yet';
                     const emptySubtitle = hasAnyUsers
                         ? 'Try a different search term or filter to find who you’re looking for.'
-                        : variant === 'people'
+                        : isLearnerTab
                           ? 'Add your first student, teacher, or parent to get started.'
                           : 'Invite your first admin or accountant to start managing the platform.';
                     return (
@@ -1326,7 +1937,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         <i className="fas fa-user-plus"></i>
                                     </span>
                                     <span className="empty-state-cta__label">
-                                        {variant === 'people' ? 'Add your first learner' : 'Add your first staff user'}
+                                        {isLearnerTab ? variantConfig.addLabel : 'Add your first staff user'}
                                     </span>
                                     <span className="empty-state-cta__arrow" aria-hidden="true">
                                         <i className="fas fa-arrow-right"></i>
@@ -1340,7 +1951,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
             {/* Stats Summary */}
             <div className="stats-summary">
-                {variant === 'people' ? (
+                {variantConfig.showEnroll ? (
                     <>
                         <div className="stat-card">
                             <div className="stat-icon total">

@@ -1,137 +1,174 @@
-// PortalLayout – shared shell used by Student, Teacher, Parent, and Accountant portals.
-// Desktop-first: sidebar + content side-by-side on desktop, stacked on tablet/mobile.
-// Breakpoint tokens from _breakpoints.scss.
+// LMS portals: reuse admin dashboard shell styles + inner page tweaks.
 @import '../../styles/breakpoints';
 @import '../../styles/mixins';
+@import '../Admin/admin-dashboard-layout';
 
-.portal-layout {
-  min-height: calc(100vh - 80px);
-  display: grid;
-  grid-template-columns: 260px 1fr; // desktop: fixed sidebar + fluid content
-  background: #f8fafc;
-}
+.admin-dashboard.portal-dashboard {
+  input:not([type='checkbox']):not([type='radio']):not([type='color']),
+  select,
+  textarea {
+    background-color: #fff;
+    color: #1e293b;
+  }
 
-.portal-sidebar {
-  background: #0f172a;
-  color: #fff;
-  padding: 1.2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
+  input:not([type='checkbox']):not([type='radio']):not([type='color'])::placeholder,
+  textarea::placeholder {
+    color: #94a3b8;
+  }
 
-  h2 {
+  .portal-dashboard-title {
     margin: 0;
-    font-size: 1.15rem;
+    padding: 0 1rem 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.72);
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.15);
   }
 
-  p {
-    margin: 0;
-    color: #cbd5e1;
+  .admin-sidebar.closed .portal-dashboard-title {
+    display: none;
   }
 
-  nav {
-    display: grid;
-    gap: 0.5rem;
-  }
+  .portal-lms-preview-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem 1rem;
+    padding: 0.65rem 2rem;
+    background: linear-gradient(90deg, #422006, #713f12);
+    color: #fef3c7;
+    font-size: 0.9rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
 
-  .portal-link {
-    color: #e2e8f0;
-    text-decoration: none;
-    padding: 0.55rem 0.65rem;
-    border-radius: 8px;
+    strong {
+      color: #fff;
+      white-space: nowrap;
+    }
 
-    &:hover {
-      background: rgba(148, 163, 184, 0.2);
+    span {
+      flex: 1 1 220px;
+      line-height: 1.35;
+      opacity: 0.95;
     }
   }
 
-  .portal-logout {
-    margin-top: auto;
-    border: none;
-    border-radius: 8px;
-    padding: 0.65rem 0.8rem;
-    background: #ef4444;
+  .portal-lms-preview-back {
+    margin-left: auto;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
-    cursor: pointer;
-  }
-}
-
-.portal-content {
-  padding: 1.2rem;
-}
-
-.portal-page {
-  background: #fff;
-  border-radius: 12px;
-  padding: 1.2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-
-  h1 {
-    margin-top: 0;
-  }
-}
-
-.portal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.9rem;
-}
-
-.portal-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 0.9rem;
-  display: grid;
-  gap: 0.55rem;
-
-  input,
-  select,
-  textarea,
-  button {
-    width: 100%;
-    font: inherit;
-  }
-
-  input,
-  select,
-  textarea {
-    padding: 0.55rem 0.65rem;
-    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.85rem;
     border-radius: 8px;
-  }
-
-  textarea {
-    min-height: 96px;
-    resize: vertical;
-  }
-
-  button {
-    border: none;
-    border-radius: 8px;
-    background: #0f172a;
-    color: #fff;
-    padding: 0.6rem 0.75rem;
     cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  }
+
+  .admin-content {
+    .portal-page {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+
+      .portal-link-card {
+        text-decoration: none;
+        color: #0f172a;
+        font-weight: 600;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+        &:hover {
+          border-color: var(--color-accent, #3b82f6);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 1.65rem;
+        color: #1e293b;
+      }
+    }
+
+    .portal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .portal-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem;
+      display: grid;
+      gap: 0.65rem;
+      background: #fff;
+
+      h3 {
+        margin: 0 0 0.25rem;
+        color: #1e293b;
+        font-size: 1.05rem;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        padding: 0.55rem 0.65rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+      }
+
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+
+      button {
+        border: none;
+        border-radius: 8px;
+        padding: 0.65rem 0.85rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: #fff;
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 5px 15px rgba(var(--color-accent-rgb), 0.35);
+        }
+      }
+    }
   }
 }
 
-// =============================================================================
-// RESPONSIVE – PortalLayout
-// =============================================================================
-
-// ≤ 900px (tablet landscape and below): collapse sidebar above content.
-// Uses $bp-tablet-landscape-min (900px) — the point where the sidebar + content
-// side-by-side layout becomes too cramped on tablets.
 @media (max-width: $bp-tablet-landscape-min) {
-  .portal-layout {
-    grid-template-columns: 1fr; // stack sidebar on top of content
-  }
+  .admin-dashboard.portal-dashboard {
+    .admin-content {
+      padding: 1rem;
 
-  .portal-content {
-    padding: 0.75rem; // tighter padding on smaller screens
-  }
+      .portal-page {
+        padding: 1.1rem;
+      }
+    }
 
-  .portal-page {
-    padding: 0.85rem;
+    .portal-lms-preview-banner {
+      padding: 0.65rem 1rem;
+    }
   }
 }

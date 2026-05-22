@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
-import './PortalLayout.scss';
 
 const AccountantPortal = () => {
   const [summary, setSummary] = useState({ payments: 0, completed: 0, pending: 0, refunded: 0 });

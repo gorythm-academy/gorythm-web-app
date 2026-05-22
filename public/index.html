@@ -5,11 +5,8 @@
     <link rel="icon" type="image/png" sizes="48x48" href="%PUBLIC_URL%/favicon-48.png" />
     <link rel="icon" type="image/x-icon" href="%PUBLIC_URL%/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/favicon.png" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;550;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Homepage hero LCP — AVIF matches first `<source>` in `Hero.jsx`. UAs that skip AVIF still get WebP/PNG from `<picture>`. -->
+    <!-- LCP: small center mark + hero backdrop (see `npm run optimize-images` + `Hero.jsx`). Nunito is bundled via `@fontsource/nunito` in `src/index.js`. -->
+    <link rel="preload" as="image" href="%PUBLIC_URL%/images/hero/center-logo-240.avif" type="image/avif" />
     <link rel="preload" as="image" href="%PUBLIC_URL%/preload/lcp-hero.avif" type="image/avif" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />

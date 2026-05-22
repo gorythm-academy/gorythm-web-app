@@ -22,6 +22,8 @@ const contactRoutes = require('./routes/contact');
 const subscriberRoutes = require('./routes/subscribers');
 const userRoutes = require('./routes/users');
 const portalRoutes = require('./routes/portal');
+const lmsAdminRoutes = require('./routes/lmsAdmin');
+const uploadRoutes = require('./routes/upload');
 const payrollRoutes = require('./routes/payroll');
 const { authRateLimiter } = require('./middleware/security');
 const requestContext = require('./middleware/requestContext');
@@ -93,7 +95,8 @@ app.use(cors({
         if (allowedOrigins.has(origin)) return callback(null, true);
         return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
-    credentials: true
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Portal-Preview-Role'],
 }));
 app.use(helmet());
 app.use(requestContext);
@@ -158,6 +161,9 @@ app.post(
 
 app.use(express.json());
 
+const uploadsDir = path.join(__dirname, 'uploads');
+app.use('/api/uploads', express.static(uploadsDir));
+
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -171,6 +177,8 @@ app.use('/api/blog', blogCommentRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/lms-admin', lmsAdminRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/payroll', payrollRoutes);
 
 // Health check

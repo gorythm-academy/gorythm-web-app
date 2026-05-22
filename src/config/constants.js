@@ -1,5 +1,8 @@
 // Centralized project constants
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://gorythmacademy.com';
+/** In dev, default to same-origin + setupProxy → localhost:5000 when unset. */
+export const API_BASE_URL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === 'development' ? '' : 'https://gorythmacademy.com');
 /** Public site URL for UI placeholders and links (override in .env). */
 export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythmacademy.com';
 export const CONTACT_EMAIL = 'support@gorythmacademy.com';

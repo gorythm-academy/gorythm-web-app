@@ -190,7 +190,7 @@
         /* Formula: clamp(min-size-mobile, base + viewport-scale, max-size-desktop) */
         /* Scales from 1.5rem (small phones) up to 5rem on large screens */
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
-        font-family: 'Nunito', var(--font-primary), sans-serif;
+        font-family: var(--font-primary), sans-serif;
         font-weight: 550;
         color: rgba(255, 255, 255, 0.9); // match title color with description color
         line-height: 1;
@@ -227,7 +227,7 @@
         /* UPDATED: Using clamp() for smooth responsive scaling - matches hero-title-word */
         /* Matches .hero-title-word fluid scale */
         font-size: clamp(1rem, 0.55rem + 2.5vw, 3.2rem);
-        font-family: 'Nunito', var(--font-primary), sans-serif;
+        font-family: var(--font-primary), sans-serif;
         font-weight: 550;
         color: rgba(255, 255, 255, 0.9); // match title color with description color
         margin: 0;
@@ -310,7 +310,7 @@
 
     .hero-description {
       font-size: clamp(0.78rem, 0.62rem + 0.35vw, 1.08rem); // naturally smaller on mobile
-      font-family: 'Nunito', var(--font-primary), sans-serif;
+      font-family: var(--font-primary), sans-serif;
       line-height: 1.42;
       color: rgba(255, 255, 255, 0.9);
       margin: 0;

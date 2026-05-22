@@ -5,6 +5,7 @@ const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
 
 module.exports = async (req, res) => {
     if (!stripe) {
@@ -55,13 +56,17 @@ module.exports = async (req, res) => {
                     .populate('user')
                     .populate('course');
 
-                if (payment?.user?._id && payment?.course?._id) {
-                    await User.findByIdAndUpdate(payment.user._id, {
-                        $addToSet: { enrolledCourses: payment.course._id },
-                    });
-                    await Course.findByIdAndUpdate(payment.course._id, {
-                        $addToSet: { students: payment.user._id },
-                    });
+                if (payment?.course?._id) {
+                    const userId = payment.user?._id;
+                    if (userId) {
+                        await User.findByIdAndUpdate(userId, {
+                            $addToSet: { enrolledCourses: payment.course._id },
+                        });
+                        await Course.findByIdAndUpdate(payment.course._id, {
+                            $addToSet: { students: userId },
+                        });
+                    }
+                    await syncEnrollmentFromPayment(payment);
                 }
                 break;
             }
@@ -101,13 +106,17 @@ module.exports = async (req, res) => {
                         : undefined;
 
                 if (paymentIntentId) {
-                    await Payment.findOneAndUpdate(
+                    const payment = await Payment.findOneAndUpdate(
                         { stripePaymentIntentId: paymentIntentId },
                         {
                             status: 'refunded',
                             ...(latestRefundId ? { refundId: latestRefundId } : {}),
-                        }
-                    );
+                        },
+                        { new: true }
+                    )
+                        .populate('user')
+                        .populate('course');
+                    if (payment) await syncEnrollmentFromPayment(payment);
                 }
                 break;
             }
@@ -119,13 +128,17 @@ module.exports = async (req, res) => {
                         : refund.payment_intent?.id;
 
                 if (paymentIntentId) {
-                    await Payment.findOneAndUpdate(
+                    const payment = await Payment.findOneAndUpdate(
                         { stripePaymentIntentId: paymentIntentId },
                         {
                             status: 'refunded',
                             ...(refund.id ? { refundId: refund.id } : {}),
-                        }
-                    );
+                        },
+                        { new: true }
+                    )
+                        .populate('user')
+                        .populate('course');
+                    if (payment) await syncEnrollmentFromPayment(payment);
                 }
                 break;
             }

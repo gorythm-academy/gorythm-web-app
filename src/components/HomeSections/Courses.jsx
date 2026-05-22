@@ -255,7 +255,7 @@ const CoursesSection = ({
                         loading="lazy"
                         width={400}
                         height={250}
-                        sizes="(min-width: 993px) 50vw, 100vw"
+                        sizes="(min-width: 1280px) 33vw, (min-width: 768px) 48vw, 100vw"
                       />
                     </div>
                     <div className="courses-section-item-caption">

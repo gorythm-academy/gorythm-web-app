@@ -1,0 +1,20 @@
+// LMS portal routes: same chrome treatment as admin (no marketing header / social strip).
+// Selectors are scoped under `.academy-app.portal-lms-route` so they win over looser rules
+// without a forced cascade override.
+.academy-app.portal-lms-route {
+  .header {
+    display: none;
+  }
+
+  .social-sidebar-panel,
+  .sidebar-overlay {
+    display: none;
+  }
+
+  // Do not hide `.custom-cursor`: `Cursor.jsx` sets `body { cursor: none }`, so hiding the dot
+  // would leave no visible pointer on desktop.
+
+  .scroll-to-top {
+    display: none;
+  }
+}

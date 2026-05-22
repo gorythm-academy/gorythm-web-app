@@ -4,6 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { enrichEnrollmentsWithPaymentStatus } = require('../services/enrollmentPaymentStatus');
 const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive';
 const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
 
@@ -66,11 +67,26 @@ router.get('/', authMiddleware, async (req, res) => {
             .populate('student', STUDENT_POPULATE)
             .populate(coursePopulate())
             .sort({ enrollmentDate: -1 });
-        
+
+        const enriched = [];
+        for (const enr of enrollments) {
+            const student = enr.student;
+            if (!student?._id || !enr.course) {
+                enriched.push({ ...(enr.toObject ? enr.toObject() : enr), paymentStatus: 'pending' });
+                continue;
+            }
+            const [one] = await enrichEnrollmentsWithPaymentStatus(
+                [enr],
+                student._id,
+                student.email || student.personalEmail
+            );
+            enriched.push(one);
+        }
+
         res.json({
             success: true,
-            enrollments,
-            count: enrollments.length
+            enrollments: enriched,
+            count: enriched.length
         });
     } catch (error) {
         req.log.error('Error fetching enrollments', { err: error });
@@ -85,7 +101,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // Assign a course to an existing student (reuses placeholder row when course is null)
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const { studentUserId, courseId, status, progress, grade, enrollmentDate } = req.body;
+        const { studentUserId, courseId, status, progress, grade, enrollmentDate, paymentStatus } = req.body;
 
         if (!studentUserId || !courseId) {
             return res.status(400).json({
@@ -131,10 +147,16 @@ router.post('/', authMiddleware, async (req, res) => {
             placeholder.grade = grade || null;
             placeholder.enrollmentDate = enrollmentDate ? new Date(enrollmentDate) : new Date();
             placeholder.lastAccessed = new Date();
-            placeholder.paymentStatus = 'paid';
+            const feeStatus = ['paid', 'pending', 'failed', 'refunded'].includes(paymentStatus)
+                ? paymentStatus
+                : 'pending';
+            placeholder.paymentStatus = feeStatus;
             await placeholder.save();
             enrollment = placeholder;
         } else {
+            const feeStatus = ['paid', 'pending', 'failed', 'refunded'].includes(paymentStatus)
+                ? paymentStatus
+                : 'pending';
             enrollment = await Enrollment.create({
                 student: student._id,
                 course: courseId,
@@ -143,7 +165,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 grade: grade || null,
                 enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : new Date(),
                 lastAccessed: new Date(),
-                paymentStatus: 'paid'
+                paymentStatus: feeStatus,
             });
         }
 
@@ -172,7 +194,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Update enrollment (status, progress, grade, course change, enrollmentDate)
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const { status, progress, grade, lastAccessed, courseId, enrollmentDate } = req.body;
+        const { status, progress, grade, lastAccessed, courseId, enrollmentDate, paymentStatus } = req.body;
 
         const enrollment = await Enrollment.findById(req.params.id)
             .populate('student', STUDENT_POPULATE_WITH_ENROLLED)
@@ -207,6 +229,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
 
         if (status !== undefined) enrollment.status = status;
+        if (paymentStatus !== undefined) {
+            const allowed = ['paid', 'pending', 'failed', 'refunded'];
+            if (allowed.includes(paymentStatus)) enrollment.paymentStatus = paymentStatus;
+        }
         if (progress !== undefined) enrollment.progress = progress;
         if (grade !== undefined) enrollment.grade = grade;
         if (enrollmentDate) enrollment.enrollmentDate = new Date(enrollmentDate);
