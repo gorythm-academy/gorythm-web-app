@@ -2,10 +2,9 @@ const stripe = process.env.STRIPE_SECRET_KEY
     ? require('stripe')(process.env.STRIPE_SECRET_KEY)
     : null;
 const Payment = require('../models/Payment');
-const Course = require('../models/Course');
-const User = require('../models/User');
 const logger = require('../utils/logger');
 const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
+const { onPaymentPaid } = require('../services/onPaymentPaid');
 
 module.exports = async (req, res) => {
     if (!stripe) {
@@ -44,7 +43,7 @@ module.exports = async (req, res) => {
                     (stripePhone && String(stripePhone).trim()) || metaPhone || undefined;
 
                 const update = {
-                    status: 'completed',
+                    status: 'paid',
                     paymentMethod: session.payment_method_types?.[0] || 'card',
                 };
                 if (piId) update.stripePaymentIntentId = piId;
@@ -57,16 +56,7 @@ module.exports = async (req, res) => {
                     .populate('course');
 
                 if (payment?.course?._id) {
-                    const userId = payment.user?._id;
-                    if (userId) {
-                        await User.findByIdAndUpdate(userId, {
-                            $addToSet: { enrolledCourses: payment.course._id },
-                        });
-                        await Course.findByIdAndUpdate(payment.course._id, {
-                            $addToSet: { students: userId },
-                        });
-                    }
-                    await syncEnrollmentFromPayment(payment);
+                    await onPaymentPaid(payment);
                 }
                 break;
             }

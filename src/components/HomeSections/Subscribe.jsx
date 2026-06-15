@@ -126,7 +126,7 @@ const SubscribeSection = () => {
         ) : (
           <form className="subscribe-row" onSubmit={handleSubmit} noValidate>
             <div className="subscribe-headline-wrap">
-              <h2 className="subscribe-headline subscribe_anim">Stay updated with our latest courses.</h2>
+              <h2 className="subscribe-headline subscribe_anim">Stay updated with our latest courses</h2>
             </div>
 
             <div className="subscribe-form-wrap subscribe_anim">

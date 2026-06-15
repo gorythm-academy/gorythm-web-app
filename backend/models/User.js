@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema({
     isSystemAccount: { type: Boolean, default: false },
     enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     lastLogin: { type: Date },
+    deletedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 });

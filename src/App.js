@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import HeroSection from './components/HomeSections/Hero';
-import SubscribePopup from './components/HomeSections/SubscribePopup';
+// Newsletter popup disabled for now
+// import SubscribePopup from './components/HomeSections/SubscribePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
@@ -56,6 +57,7 @@ const PaymentCancel = lazy(() =>
 );
 const ContactMessages = lazy(() => import('./components/Admin/pages/ContactMessages'));
 const Subscribers = lazy(() => import('./components/Admin/pages/Subscribers'));
+const PromoVideosManagement = lazy(() => import('./components/Admin/pages/PromoVideosManagement'));
 const DashboardLayout = lazy(() => import('./components/Admin/DashboardLayout'));
 const DashboardHome = lazy(() => import('./components/Admin/DashboardHome'));
 const PortfolioPage = lazy(() =>
@@ -82,7 +84,7 @@ const TeacherDashboard = lazy(() => import('./components/Portals/teacher/Teacher
 const TeacherClasses = lazy(() => import('./components/Portals/teacher/TeacherClasses'));
 const TeacherAttendance = lazy(() => import('./components/Portals/teacher/TeacherAttendance'));
 const TeacherContent = lazy(() => import('./components/Portals/teacher/TeacherContent'));
-const TeacherSchedule = lazy(() => import('./components/Portals/teacher/TeacherSchedule'));
+const TeacherResources = lazy(() => import('./components/Portals/teacher/TeacherResources'));
 const TeacherMyAttendance = lazy(() => import('./components/Portals/teacher/TeacherMyAttendance'));
 const TeacherQuizzes = lazy(() => import('./components/Portals/teacher/TeacherQuizzes'));
 const ParentDashboard = lazy(() => import('./components/Portals/parent/ParentDashboard'));
@@ -116,14 +118,14 @@ function RouteFallback() {
 const Home = () => {
   return (
     <div className="front_page">
-      <SubscribePopup />
+      {/* <SubscribePopup /> */}
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
 
       {/* Other sections */}
       <MissionSection />
       <CoursesSection />
-      <VideoSection />
+      <VideoSection placement="home" />
       {/* <MarqueeSection /> */}
       <AboutSection />
       <StudentTestimonialsSection />
@@ -143,6 +145,7 @@ function AppLayout() {
   const isPortalLmsRoute = /^\/(student|teacher|parent|accountant)(\/|$)/.test(location.pathname);
   const isPublicLoginRoute = location.pathname === '/login';
   const hideSiteFooter = isAdminRoute || isPublicLoginRoute || isPortalLmsRoute;
+  const showCustomCursor = !isAdminRoute && !isPortalLmsRoute;
 
   return (
     <SmoothScroll>
@@ -156,7 +159,7 @@ function AppLayout() {
           .filter(Boolean)
           .join(' ')}
       >
-        <Cursor />
+        {showCustomCursor ? <Cursor /> : null}
 
         {/* Header is already correctly positioned here */}
         <Header toggleSidebar={toggleSidebar} />
@@ -229,8 +232,9 @@ function AppLayout() {
                   <Route path="teachers" element={<UsersManagement key="teachers-tab" variant="teachers" />} />
                   <Route path="parents" element={<UsersManagement key="parents-tab" variant="parents" />} />
                   <Route path="courses" element={<CoursesManagement />} />
-                  <Route path="assignments" element={<ResourcesManagement />} />
-                  <Route path="resources" element={<Navigate to="/admin/assignments" replace />} />
+                  <Route path="assignments" element={<ResourcesManagement defaultTab="assignments" />} />
+                  <Route path="resources" element={<ResourcesManagement defaultTab="resources" />} />
+                  <Route path="submissions" element={<ResourcesManagement defaultTab="submissions" />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="payments" element={<PaymentsManagement />} />
@@ -238,6 +242,7 @@ function AppLayout() {
                   <Route path="enrollments" element={<Navigate to="/admin/students" replace />} />
                   <Route path="contact-messages" element={<ContactMessages />} />
                   <Route path="subscribers" element={<Subscribers />} />
+                  <Route path="promo-videos" element={<PromoVideosManagement />} />
                 </Route>
               </Route>
 
@@ -278,7 +283,8 @@ function AppLayout() {
                   <Route path="classes" element={<TeacherClasses />} />
                   <Route path="attendance" element={<TeacherAttendance />} />
                   <Route path="content" element={<TeacherContent />} />
-                  <Route path="schedule" element={<TeacherSchedule />} />
+                  <Route path="resources" element={<TeacherResources />} />
+                  <Route path="schedule" element={<Navigate to="/teacher/classes" replace />} />
                   <Route path="my-attendance" element={<TeacherMyAttendance />} />
                   <Route path="quizzes" element={<TeacherQuizzes />} />
                 </Route>

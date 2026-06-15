@@ -11,9 +11,6 @@
     display: none;
   }
 
-  // Do not hide `.custom-cursor`: `Cursor.jsx` sets `body { cursor: none }`, so hiding the dot
-  // would leave no visible pointer on desktop.
-
   .scroll-to-top {
     display: none;
   }

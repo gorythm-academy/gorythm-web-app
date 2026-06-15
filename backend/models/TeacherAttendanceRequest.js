@@ -22,6 +22,8 @@ const teacherAttendanceRequestSchema = new mongoose.Schema(
         },
         reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         reviewedAt: { type: Date, default: null },
+        /** Set when month is approved but auto-payroll failed (e.g. missing salary profile). */
+        payrollMissingReason: { type: String, default: null },
     },
     { timestamps: true }
 );

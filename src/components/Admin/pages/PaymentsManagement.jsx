@@ -1,10 +1,27 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
+import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
 import { useAdminDialog } from '../AdminDialogContext';
 import './PaymentsManagement.scss';
+
+const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
+
+const formatPaymentStatus = (status) => {
+    if (status === 'completed') return 'paid';
+    if (status === 'awaiting_review') return 'awaiting review';
+    return status || '—';
+};
+
+const canOpenStudentFromPayment = (payment) => {
+    if (!isPaymentPaid(payment.status)) return false;
+    if (payment.paymentMethod === 'bank' && !payment.proofUrl) return false;
+    return !!(payment.email || payment.user?.email);
+};
 
 const COLUMN_DEFS = [
     'checkbox',
@@ -24,12 +41,38 @@ const COLUMN_MIN_WIDTHS = [50, 88, 140, 140, 90, 140, 96, 100, 100, 130, 120];
 const COLUMN_MAX_WIDTHS = [90, 280, 360, 360, 220, 420, 220, 220, 220, 320, 260];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const EMPTY_BANK_FORM = {
+    bankAccountName: '',
+    bankName: '',
+    bankAccountNumber: '',
+    bankIban: '',
+    bankSwift: '',
+    bankExtraNote: '',
+};
+
+const bankDetailsToForm = (details = {}) => ({
+    bankAccountName: details.accountName || '',
+    bankName: details.bankName || '',
+    bankAccountNumber: details.accountNumber || '',
+    bankIban: details.iban || '',
+    bankSwift: details.swift || '',
+    bankExtraNote: details.extraNote || '',
+});
+
 const PaymentsManagement = () => {
     const { showAlert, showConfirm } = useAdminDialog();
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [bankForm, setBankForm] = useState(EMPTY_BANK_FORM);
+    const [bankConfigOpen, setBankConfigOpen] = useState(false);
+    const [listTab, setListTab] = useState('active');
+    const [trashCount, setTrashCount] = useState(0);
+    const [trashBusy, setTrashBusy] = useState(false);
+    const [bankSaving, setBankSaving] = useState(false);
+    const [bankMessage, setBankMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('completed');
+    const [filterStatus, setFilterStatus] = useState('paid');
+    const [receiptModal, setReceiptModal] = useState(null);
     const [dateRange, setDateRange] = useState('all');
     const [stats, setStats] = useState({
         totalRevenue: 0,
@@ -51,33 +94,80 @@ const PaymentsManagement = () => {
     const [selectedPayments, setSelectedPayments] = useState([]);
     const selectAllRef = useRef(null);
 
+    const fetchBankDetails = useCallback(async () => {
+        try {
+            const response = await axios.get(`${API_BASE_URL}/api/payments/bank-details`);
+            if (response.data?.success) {
+                setBankForm(bankDetailsToForm(response.data.bankDetails));
+            }
+        } catch (error) {
+            console.error('Error fetching bank details:', error);
+        }
+    }, []);
+
+    const saveBankDetails = async () => {
+        setBankSaving(true);
+        setBankMessage('');
+        try {
+            const token = getAuthToken();
+            const response = await axios.put(`${API_BASE_URL}/api/payments/admin/bank-details`, bankForm, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.data?.success) {
+                throw new Error(response.data?.error || 'Failed to save');
+            }
+            setBankForm(bankDetailsToForm(response.data.bankDetails));
+            setBankMessage('Bank transfer details saved.');
+            await showAlert('Bank transfer details saved.');
+        } catch (error) {
+            const msg = error.response?.data?.error || error.message || 'Failed to save bank details';
+            setBankMessage(msg);
+            await showAlert(msg, { type: 'error' });
+        } finally {
+            setBankSaving(false);
+        }
+    };
+
     const fetchPayments = useCallback(async () => {
         try {
             setLoading(true);
 
-            // Try backend first
             try {
                 const token = getAuthToken();
                 const response = await axios.get(`${API_BASE_URL}/api/payments`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: listTab === 'trash' ? { trash: '1' } : {},
                 });
                 const fetchedPayments = Array.isArray(response.data.payments) ? response.data.payments : [];
                 setPayments(fetchedPayments);
-                calculateStats(fetchedPayments);
+                if (typeof response.data.trashCount === 'number') {
+                    setTrashCount(response.data.trashCount);
+                }
+                if (listTab === 'active') {
+                    calculateStats(fetchedPayments);
+                }
             } catch {
                 setPayments([]);
-                calculateStats([]);
+                if (listTab === 'active') calculateStats([]);
             }
             setLoading(false);
         } catch (error) {
             console.error('Error fetching payments:', error);
             setLoading(false);
         }
-    }, []);
+    }, [listTab]);
 
     useEffect(() => {
         fetchPayments();
-    }, [fetchPayments]);
+        fetchBankDetails();
+    }, [fetchPayments, fetchBankDetails]);
+
+    useEffect(() => {
+        setSelectedPayments([]);
+        if (listTab === 'trash') {
+            setFilterStatus('all');
+        }
+    }, [listTab]);
 
     const startTableDragScroll = (e) => {
         if (e.button !== 0) return;
@@ -178,10 +268,10 @@ const PaymentsManagement = () => {
         };
 
         paymentData.forEach(payment => {
-            if (payment.status === 'completed') {
+            if (isPaymentPaid(payment.status)) {
                 stats.totalRevenue += payment.amount;
                 stats.successfulPayments++;
-            } else if (payment.status === 'pending') {
+            } else if (payment.status === 'pending' || payment.status === 'awaiting_review') {
                 stats.pendingPayments++;
             } else if (payment.status === 'failed') {
                 stats.failedPayments++;
@@ -196,12 +286,15 @@ const PaymentsManagement = () => {
     const filteredPayments = payments.filter(payment => {
         const matchesSearch = 
             (payment.user?.name || payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (payment.user?.email || payment.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (paymentRegistrationEmail(payment) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (payment.course?.title || payment.courseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (payment.transactionId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (payment.phone || '').toLowerCase().includes(searchTerm.toLowerCase());
         
-        const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
+        const matchesStatus =
+            filterStatus === 'all' ||
+            payment.status === filterStatus ||
+            (filterStatus === 'paid' && payment.status === 'completed');
         
         // Date filtering (simplified)
         const paymentDate = new Date(payment.createdAt);
@@ -236,7 +329,7 @@ const PaymentsManagement = () => {
             if (key === 'student') return (p.user?.name || p.studentName || '').toLowerCase();
             if (key === 'course') return (p.course?.title || p.courseName || '').toLowerCase();
             if (key === 'amount') return Number(p.amount) || 0;
-            if (key === 'email') return (p.user?.email || p.email || '').toLowerCase();
+            if (key === 'email') return paymentRegistrationEmail(p).toLowerCase();
             if (key === 'phone') return (p.phone || '').toLowerCase();
             if (key === 'status') return (p.status || '').toLowerCase();
             if (key === 'method') return (p.paymentMethod || '').toLowerCase();
@@ -260,11 +353,11 @@ const PaymentsManagement = () => {
     };
 
     const handleDeleteSelectedPayments = async () => {
-        if (!selectedPayments.length) return;
+        if (!selectedPayments.length || listTab !== 'active') return;
         const confirmed = await showConfirm({
-            title: 'Delete Payments?',
-            message: `Delete ${selectedPayments.length} selected payment record(s)? This action cannot be undone.`,
-            confirmLabel: 'Delete Selected',
+            title: 'Move to trash?',
+            message: `Move ${selectedPayments.length} selected payment record(s) to trash? You can restore them from the Trash tab.`,
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) return;
 
@@ -274,22 +367,107 @@ const PaymentsManagement = () => {
             selectedPayments.map(async (paymentId) => {
                 try {
                     await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
+                        headers: { Authorization: `Bearer ${token}` },
                     });
                 } catch (error) {
-                    console.warn('Backend delete failed for payment, removing locally instead:', paymentId, error);
+                    console.warn('Backend delete failed for payment:', paymentId, error);
                 }
             })
         );
 
-        setPayments((prev) => {
-            const selectedSet = new Set(selectedPayments);
-            const nextPayments = prev.filter((payment) => !selectedSet.has(payment._id));
-            calculateStats(nextPayments);
-            return nextPayments;
-        });
         setSelectedPayments([]);
-        showAlert(`${selectedPayments.length} payment record(s) deleted.`, 'success');
+        await fetchPayments();
+        showAlert(`${selectedPayments.length} payment record(s) moved to trash.`, 'success');
+    };
+
+    const handleRestorePayment = async (paymentId) => {
+        if (listTab !== 'trash' || trashBusy) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.patch(`${API_BASE_URL}/api/payments/${paymentId}/restore`, null, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchPayments();
+            showAlert('Payment restored.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to restore payment.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const handleRestoreSelected = async () => {
+        if (listTab !== 'trash' || !selectedPayments.length || trashBusy) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await Promise.all(
+                selectedPayments.map((id) =>
+                    axios.patch(`${API_BASE_URL}/api/payments/${id}/restore`, null, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    })
+                )
+            );
+            setSelectedPayments([]);
+            await fetchPayments();
+            showAlert('Selected payments restored.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to restore payments.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const handlePermanentDelete = async (paymentId) => {
+        if (listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: 'This payment record will be removed forever. This cannot be undone.',
+            confirmLabel: 'Delete permanently',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}/permanent`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchPayments();
+            showAlert('Payment permanently deleted.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to delete permanently.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const handlePermanentDeleteSelected = async () => {
+        if (listTab !== 'trash' || !selectedPayments.length || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: `Permanently delete ${selectedPayments.length} selected payment record(s)? This cannot be undone.`,
+            confirmLabel: 'Delete permanently',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await Promise.all(
+                selectedPayments.map((id) =>
+                    axios.delete(`${API_BASE_URL}/api/payments/${id}/permanent`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    })
+                )
+            );
+            setSelectedPayments([]);
+            await fetchPayments();
+            showAlert('Selected payments permanently deleted.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to delete permanently.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
     };
 
     const selectedVisibleCount = sortedPayments.filter((payment) => selectedPayments.includes(payment._id)).length;
@@ -304,29 +482,25 @@ const PaymentsManagement = () => {
     }, [selectedVisibleCount, sortedPayments.length]);
 
     const handleDeletePayment = async (paymentId) => {
+        if (listTab !== 'active') return;
         const confirmed = await showConfirm({
-            title: 'Delete Payment?',
-            message: 'Delete this payment record? This action cannot be undone.',
-            confirmLabel: 'Delete Payment',
+            title: 'Move to trash?',
+            message: 'Move this payment record to trash? You can restore it from the Trash tab.',
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) return;
 
         try {
             const token = getAuthToken();
             await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
             });
+            setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
+            await fetchPayments();
+            showAlert('Payment moved to trash.', 'success');
         } catch (error) {
-            console.warn('Backend delete failed, removing locally instead:', error);
+            showAlert(error.response?.data?.error || 'Failed to move payment to trash.', 'error');
         }
-
-        setPayments((prev) => {
-            const nextPayments = prev.filter((payment) => payment._id !== paymentId);
-            calculateStats(nextPayments);
-            return nextPayments;
-        });
-        setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
-        showAlert('Payment record deleted.', 'success');
     };
 
     const triggerDownload = (blob, fileName) => {
@@ -372,7 +546,7 @@ const PaymentsManagement = () => {
         const invoiceRows = [
             ['Transaction ID', payment.transactionId || 'N/A'],
             ['Student', payment.user?.name || payment.studentName || 'Unknown'],
-            ['Email', payment.user?.email || payment.email || 'N/A'],
+            ['Email', paymentRegistrationEmail(payment) || 'N/A'],
             ['Phone', payment.phone || 'N/A'],
             ['Course', payment.course?.title || payment.courseName || 'Unknown Course'],
             ['Amount', `$${Number(payment.amount || 0).toFixed(2)} ${payment.currency || ''}`.trim()],
@@ -436,7 +610,7 @@ const PaymentsManagement = () => {
         const csvData = filteredPayments.map((p) => ({
             'Transaction ID': p.transactionId,
             Student: p.user?.name || p.studentName || 'Unknown',
-            Email: p.user?.email || p.email || '',
+            Email: paymentRegistrationEmail(p),
             Phone: p.phone || '',
             Course: p.course?.title || p.courseName || 'Unknown Course',
             Amount: `$${p.amount}`,
@@ -491,7 +665,118 @@ const PaymentsManagement = () => {
                 </div>
             </div>
 
+            <div className="payments-list-tabs">
+                <button
+                    type="button"
+                    className={`payments-list-tab ${listTab === 'active' ? 'active' : ''}`}
+                    onClick={() => setListTab('active')}
+                >
+                    <i className="fas fa-list" /> Payments
+                </button>
+                <button
+                    type="button"
+                    className={`payments-list-tab ${listTab === 'trash' ? 'active' : ''}`}
+                    onClick={() => setListTab('trash')}
+                >
+                    <i className="fas fa-trash-alt" /> Trash
+                    {trashCount > 0 ? <span className="payments-tab-badge">{trashCount}</span> : null}
+                </button>
+            </div>
+
+            {listTab === 'active' ? (
+            <div className="payments-bank-config">
+                <button
+                    type="button"
+                    className="payments-bank-config__toggle"
+                    onClick={() => setBankConfigOpen((open) => !open)}
+                    aria-expanded={bankConfigOpen}
+                >
+                    <span>
+                        <i className="fas fa-university" /> Bank transfer details
+                    </span>
+                    <i className={`fas fa-chevron-${bankConfigOpen ? 'up' : 'down'}`} />
+                </button>
+                {bankConfigOpen ? (
+                    <div className="payments-bank-config__body">
+                        <p className="payments-bank-config__lead">
+                            Shown to users on the course registration page when they choose bank transfer. Stripe
+                            checkout uses your server <code>STRIPE_SECRET_KEY</code> (unchanged).
+                        </p>
+                        <div className="payments-bank-config__grid">
+                            <div className="form-group">
+                                <label>Account holder name</label>
+                                <input
+                                    type="text"
+                                    value={bankForm.bankAccountName}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankAccountName: e.target.value }))}
+                                    placeholder="Gorythm Academy"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Bank name</label>
+                                <input
+                                    type="text"
+                                    value={bankForm.bankName}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
+                                    placeholder="Bank name"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Account number</label>
+                                <input
+                                    type="text"
+                                    value={bankForm.bankAccountNumber}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
+                                    placeholder="Account number"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>IBAN</label>
+                                <input
+                                    type="text"
+                                    value={bankForm.bankIban}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankIban: e.target.value }))}
+                                    placeholder="IBAN"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>SWIFT / BIC</label>
+                                <input
+                                    type="text"
+                                    value={bankForm.bankSwift}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankSwift: e.target.value }))}
+                                    placeholder="SWIFT code"
+                                />
+                            </div>
+                            <div className="form-group form-group-wide">
+                                <label>Extra note (optional)</label>
+                                <textarea
+                                    rows={2}
+                                    value={bankForm.bankExtraNote}
+                                    onChange={(e) => setBankForm((f) => ({ ...f, bankExtraNote: e.target.value }))}
+                                    placeholder="e.g. Include the payment reference in the transfer description."
+                                />
+                            </div>
+                        </div>
+                        <div className="payments-bank-config__actions">
+                            {bankMessage ? <span className="payments-bank-config__msg">{bankMessage}</span> : null}
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={saveBankDetails}
+                                disabled={bankSaving}
+                            >
+                                <i className={`fas ${bankSaving ? 'fa-spinner fa-spin' : 'fa-save'}`} />{' '}
+                                {bankSaving ? 'Saving…' : 'Save bank details'}
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+            ) : null}
+
             {/* Stats Cards */}
+            {listTab === 'active' ? (
             <div className="stats-grid">
                 <div
                     className={`stat-card revenue ${filterStatus === 'all' ? 'filter-active' : ''}`}
@@ -510,19 +795,19 @@ const PaymentsManagement = () => {
                     </div>
                 </div>
                 <div
-                    className={`stat-card success ${filterStatus === 'completed' ? 'filter-active' : ''}`}
+                    className={`stat-card success ${filterStatus === 'paid' ? 'filter-active' : ''}`}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setFilterStatus('completed')}
-                    onKeyDown={(e) => onStatCardKeyDown(e, 'completed')}
-                    title="Show successful payments"
+                    onClick={() => setFilterStatus('paid')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'paid')}
+                    title="Show paid payments"
                 >
                     <div className="stat-icon success">
                         <i className="fas fa-check-circle"></i>
                     </div>
                     <div className="stat-info">
                         <h3>{stats.successfulPayments}</h3>
-                        <p>Successful</p>
+                        <p>Paid</p>
                     </div>
                 </div>
                 <div
@@ -574,6 +859,7 @@ const PaymentsManagement = () => {
                     </div>
                 </div>
             </div>
+            ) : null}
 
             {/* Controls Bar */}
             <div className="controls-bar">
@@ -594,8 +880,10 @@ const PaymentsManagement = () => {
                         onChange={(e) => setFilterStatus(e.target.value)}
                     >
                         <option value="all">All Status</option>
-                        <option value="completed">Completed</option>
+                        <option value="paid">Paid</option>
+                        <option value="awaiting_review">Awaiting review</option>
                         <option value="pending">Pending</option>
+                        <option value="rejected">Rejected</option>
                         <option value="failed">Failed</option>
                         <option value="refunded">Refunded</option>
                     </select>
@@ -631,13 +919,34 @@ const PaymentsManagement = () => {
                         >
                             <i className="fas fa-times"></i> Clear selection
                         </button>
-                        <button
-                            type="button"
-                            className="bulk-btn delete-btn"
-                            onClick={handleDeleteSelectedPayments}
-                        >
-                            <i className="fas fa-trash"></i> Delete selected
-                        </button>
+                        {listTab === 'active' ? (
+                            <button
+                                type="button"
+                                className="bulk-btn delete-btn"
+                                onClick={handleDeleteSelectedPayments}
+                            >
+                                <i className="fas fa-trash"></i> Move to trash
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    className="bulk-btn restore-btn"
+                                    onClick={handleRestoreSelected}
+                                    disabled={trashBusy}
+                                >
+                                    <i className="fas fa-undo" /> Restore selected
+                                </button>
+                                <button
+                                    type="button"
+                                    className="bulk-btn delete-btn"
+                                    onClick={handlePermanentDeleteSelected}
+                                    disabled={trashBusy}
+                                >
+                                    <i className="fas fa-trash-alt" /> Delete permanently
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -776,13 +1085,13 @@ const PaymentsManagement = () => {
                                     </span>
                                 </td>
                                 <td>
-                                    {payment.user?.email || payment.email || 'No email'}
+                                    {paymentRegistrationEmail(payment) || 'No email'}
                                 </td>
                                 <td className="phone-cell">{payment.phone || '—'}</td>
                                 <td>
-                                    <span className={`status-badge ${payment.status}`}>
+                                    <span className={`status-badge ${payment.status === 'completed' ? 'paid' : payment.status}`}>
                                         <i className={`fas fa-${getStatusIcon(payment.status)}`}></i>
-                                        {payment.status}
+                                        {formatPaymentStatus(payment.status)}
                                     </span>
                                 </td>
                                 <td>
@@ -792,24 +1101,69 @@ const PaymentsManagement = () => {
                                     </span>
                                 </td>
                                 <td>
-                                    {new Date(payment.createdAt).toLocaleString()}
+                                    {listTab === 'trash'
+                                        ? payment.deletedAt
+                                            ? new Date(payment.deletedAt).toLocaleString()
+                                            : '—'
+                                        : new Date(payment.createdAt).toLocaleString()}
                                 </td>
                                 <td>
                                     <div className="action-buttons">
-                                        <button 
-                                            className="action-btn invoice-btn"
-                                            title="Download Invoice"
-                                            onClick={() => downloadInvoice(payment)}
-                                        >
-                                            <i className="fas fa-file-invoice"></i>
-                                        </button>
-                                        <button
-                                            className="action-btn delete-btn"
-                                            title="Delete Payment"
-                                            onClick={() => handleDeletePayment(payment._id)}
-                                        >
-                                            <i className="fas fa-trash"></i>
-                                        </button>
+                                        {listTab === 'active' ? (
+                                            <>
+                                                {payment.proofUrl ? (
+                                                    <button
+                                                        className="action-btn receipt-btn"
+                                                        title="View receipt"
+                                                        onClick={() => setReceiptModal(payment)}
+                                                    >
+                                                        <i className="fas fa-receipt"></i>
+                                                    </button>
+                                                ) : null}
+                                                {canOpenStudentFromPayment(payment) ? (
+                                                    <Link
+                                                        className="action-btn students-btn"
+                                                        title="Open in Students"
+                                                        to={`/admin/students?email=${encodeURIComponent(paymentRegistrationEmail(payment) || '')}`}
+                                                    >
+                                                        <i className="fas fa-user-graduate"></i>
+                                                    </Link>
+                                                ) : null}
+                                                <button
+                                                    className="action-btn invoice-btn"
+                                                    title="Download Invoice"
+                                                    onClick={() => downloadInvoice(payment)}
+                                                >
+                                                    <i className="fas fa-file-invoice"></i>
+                                                </button>
+                                                <button
+                                                    className="action-btn delete-btn"
+                                                    title="Move to trash"
+                                                    onClick={() => handleDeletePayment(payment._id)}
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    className="action-btn restore-btn"
+                                                    title="Restore"
+                                                    disabled={trashBusy}
+                                                    onClick={() => handleRestorePayment(payment._id)}
+                                                >
+                                                    <i className="fas fa-undo"></i>
+                                                </button>
+                                                <button
+                                                    className="action-btn delete-btn"
+                                                    title="Delete permanently"
+                                                    disabled={trashBusy}
+                                                    onClick={() => handlePermanentDelete(payment._id)}
+                                                >
+                                                    <i className="fas fa-trash-alt"></i>
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -836,7 +1190,7 @@ const PaymentsManagement = () => {
                     <span className="summary-label">Filtered Revenue</span>
                     <span className="summary-value">
                         ${filteredPayments
-                            .filter(p => p.status === 'completed')
+                            .filter((p) => isPaymentPaid(p.status))
                             .reduce((sum, p) => sum + p.amount, 0)
                             .toFixed(2)}
                     </span>
@@ -846,6 +1200,40 @@ const PaymentsManagement = () => {
                     <span className="summary-value">{new Date().toLocaleTimeString()}</span>
                 </div>
             </div>
+
+            {receiptModal?.proofUrl ? (
+                <div className="payment-receipt-modal" role="dialog" aria-modal="true">
+                    <div className="payment-receipt-modal__backdrop" onClick={() => setReceiptModal(null)} />
+                    <div className="payment-receipt-modal__panel">
+                        <div className="payment-receipt-modal__head">
+                            <h3>Payment receipt</h3>
+                            <button type="button" className="payment-receipt-modal__close" onClick={() => setReceiptModal(null)}>
+                                <i className="fas fa-times" />
+                            </button>
+                        </div>
+                        <p>
+                            {receiptModal.studentName || receiptModal.user?.name || 'Student'} —{' '}
+                            {receiptModal.course?.title || receiptModal.courseName || 'Course'}
+                        </p>
+                        {String(receiptModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
+                            <a
+                                href={resolveMediaUrl(receiptModal.proofUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="payment-receipt-modal__pdf-link"
+                            >
+                                <i className="fas fa-file-pdf" /> Open PDF receipt
+                            </a>
+                        ) : (
+                            <img
+                                src={resolveMediaUrl(receiptModal.proofUrl)}
+                                alt="Payment proof"
+                                className="payment-receipt-modal__image"
+                            />
+                        )}
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };
@@ -897,8 +1285,11 @@ const methodIconClass = (method) => {
 // Helper function for status icons
 const getStatusIcon = (status) => {
     switch(status) {
+        case 'paid':
         case 'completed': return 'check-circle';
+        case 'awaiting_review': return 'hourglass-half';
         case 'pending': return 'clock';
+        case 'rejected': return 'ban';
         case 'failed': return 'times-circle';
         case 'refunded': return 'undo';
         default: return 'question-circle';

@@ -72,6 +72,69 @@
   }
 }
 
+// Ring navigation (PhQ → IQ → EQ → PhQ)
+.mission-ring-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 44px;
+  padding-bottom: 44px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mission-ring-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 46%;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  transition: color 0.25s ease;
+
+  &--prev {
+    justify-content: flex-start;
+  }
+
+  &--next {
+    justify-content: flex-end;
+  }
+
+  &:hover {
+    color: #fff;
+  }
+
+  .mission-ring-nav-arrow {
+    transition: transform 0.25s ease;
+  }
+
+  &--prev:hover .mission-ring-nav-arrow {
+    transform: translateX(-4px);
+  }
+
+  &--next:hover .mission-ring-nav-arrow {
+    transform: translateX(4px);
+  }
+}
+
+.mission-ring-nav-label {
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.mission-ring-nav-link--prev .mission-ring-nav-label {
+  text-align: left;
+}
+
+.mission-ring-nav-link--next .mission-ring-nav-label {
+  text-align: right;
+}
+
 // CTA
 .mission-page-cta-row {
   display: flex;
@@ -164,6 +227,15 @@
 @media (max-width: $bp-section-sm) {
   .mission-page {
     padding: 96px 0 60px;
+  }
+
+  .mission-ring-nav {
+    gap: 16px;
+  }
+
+  .mission-ring-nav-link {
+    font-size: 0.72rem;
+    max-width: 48%;
   }
 
   .mission-page-description {

@@ -182,30 +182,6 @@ const HeroSection = () => {
                   {heroData.caption}
                 </motion.span>
 
-                {/* ===== CENTER IMAGE ===== */}
-                <motion.div
-                  ref={centerImageRef}
-                  className="hero-center-image"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.8, delay: 0.4 }}
-                >
-                  {/* Decorative mark — small files in /public/images/hero (see npm run optimize-images) */}
-                  <picture className="optimized-picture hero-center-logo-picture">
-                    <source srcSet={HERO_CENTER_LOGO_AVIF} type="image/avif" />
-                    <source srcSet={HERO_CENTER_LOGO_WEBP} type="image/webp" />
-                    <img
-                      src={HERO_CENTER_LOGO_WEBP}
-                      alt=""
-                      width={240}
-                      height={264}
-                      sizes="(max-width: 768px) 12vw, 96px"
-                      fetchPriority="high"
-                      decoding="async"
-                    />
-                  </picture>
-                </motion.div>
-
                 <motion.span
                   className="hero-title-word"
                   initial={{ opacity: 0, x: 30 }}
@@ -226,6 +202,28 @@ const HeroSection = () => {
                 <h2 className="hero-subtitle">
                   {heroData.caption3}
                 </h2>
+
+                <motion.div
+                  ref={centerImageRef}
+                  className="hero-center-image"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8, delay: 0.4 }}
+                >
+                  <picture className="optimized-picture hero-center-logo-picture">
+                    <source srcSet={HERO_CENTER_LOGO_AVIF} type="image/avif" />
+                    <source srcSet={HERO_CENTER_LOGO_WEBP} type="image/webp" />
+                    <img
+                      src={HERO_CENTER_LOGO_WEBP}
+                      alt=""
+                      width={240}
+                      height={264}
+                      sizes="(max-width: 768px) 12vw, 96px"
+                      fetchPriority="high"
+                      decoding="async"
+                    />
+                  </picture>
+                </motion.div>
               </motion.div>
             </div>
 

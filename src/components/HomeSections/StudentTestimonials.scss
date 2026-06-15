@@ -74,18 +74,6 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
-.student-testimonials-cursor-dot {
-  position: absolute;
-  z-index: 6;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #fff;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
-}
-
 .student-testimonials-content {
   max-width: 980px;
   margin: 0 auto;
@@ -118,11 +106,6 @@
   position: relative;
   margin: 0 auto;
   max-width: 740px;
-  cursor: none;
-}
-
-.student-testimonials-section--dragging .student-testimonials-quote-wrap {
-  cursor: none;
 }
 
 .student-testimonials-quote {
@@ -319,19 +302,11 @@
     width: 54px;
     height: 54px;
   }
-
-  .student-testimonials-quote-wrap {
-    cursor: default;
-  }
 }
 
 /* Hide side arrows only on mobile portrait screens */
 @media (max-width: ($bp-section-sm - 1)) and (orientation: portrait) {
   .student-testimonials-side-arrow {
-    display: none;
-  }
-
-  .student-testimonials-cursor-dot {
     display: none;
   }
 }

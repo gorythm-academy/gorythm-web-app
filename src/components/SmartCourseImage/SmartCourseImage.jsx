@@ -9,7 +9,7 @@ import { getCourseImageCandidates } from '../../utils/courseImages';
  * if a selected source 404s, we can still continue to the next candidate.
  */
 export default function SmartCourseImage({ course, ...imgProps }) {
-  const slugKey = `${course?.slug || ''}:${course?._id || ''}`;
+  const slugKey = `${course?.slug || ''}:${course?._id || ''}:${course?.homepageImage || ''}`;
   const candidates = getCourseImageCandidates(course);
   const [candidateIndex, setCandidateIndex] = useState(0);
 

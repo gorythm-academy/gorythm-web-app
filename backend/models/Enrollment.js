@@ -41,7 +41,14 @@ const enrollmentSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'paid', 'failed', 'refunded'],
         default: 'pending'
-    }
+    },
+    /** Class schedule row this student attends (day/time/teacher). */
+    assignedSchedule: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ClassSchedule',
+        default: null,
+    },
+    deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Enrollment', enrollmentSchema);

@@ -1,0 +1,339 @@
+@import '../../../styles/breakpoints';
+
+.teacher-assignments {
+  .teacher-assignments__layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .teacher-assignments__form-panel {
+    background: linear-gradient(145deg, #ffffff 0%, #eff6ff 42%, #dbeafe 100%);
+    border: 1px solid rgba(59, 130, 246, 0.28);
+    border-radius: 16px;
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 12px 36px rgba(37, 99, 235, 0.1);
+    width: 100%;
+    max-width: 720px;
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+
+      button[type='submit'] {
+        padding: 0.65rem 1rem;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+
+        &:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+
+  .teacher-assignments__form-head {
+    display: flex;
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+    align-items: flex-start;
+
+    .teacher-assignments__form-close {
+      margin-left: auto;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.25rem;
+      line-height: 1;
+
+      &:hover {
+        color: #0f172a;
+      }
+    }
+
+    .teacher-assignments__form-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    h2 {
+      margin: 0 0 0.2rem;
+      font-size: 1.1rem;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+  }
+
+  .teacher-assignments__main {
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .teacher-assignments__course-row td {
+    background: #f8fafc;
+    padding-top: 0.85rem;
+    padding-bottom: 0.35rem;
+    border-bottom: none;
+  }
+
+  .teacher-assignments__panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  }
+
+  .teacher-assignments__panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .teacher-assignments__panel-lead {
+    margin: 0.25rem 0 0;
+    font-size: 0.82rem;
+    color: #64748b;
+    line-height: 1.4;
+  }
+
+  .teacher-assignments__make-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+
+    &:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+  }
+
+  .teacher-assignments__panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .teacher-assignments__filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 200px;
+
+    select {
+      width: 100%;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      background: #fff;
+    }
+  }
+
+  .teacher-assignments__filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .teacher-assignments__filter-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+  }
+
+  .teacher-assignments__bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #fef2f2, #fff7ed);
+    border: 1px solid #fecaca;
+
+    span {
+      font-weight: 600;
+      color: #b91c1c;
+      font-size: 0.9rem;
+    }
+  }
+
+  .teacher-assignments__btn {
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+
+    &--ghost {
+      background: #fff;
+      border-color: #cbd5e1;
+      color: #475569;
+    }
+
+    &--danger {
+      background: #dc2626;
+      color: #fff;
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+
+    &--small {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.78rem;
+    }
+  }
+
+  .teacher-assignments__list-wrap {
+    overflow-x: auto;
+  }
+
+  .teacher-assignments__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+
+    thead th {
+      background: #f8fafc;
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tbody td {
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover {
+      background: #fafafa;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr.teacher-assignments__row--pending {
+      background: #fffbeb;
+    }
+
+    tbody tr.teacher-assignments__row--selected {
+      background: #eff6ff;
+    }
+  }
+
+  .teacher-assignments__check-col {
+    width: 40px;
+    text-align: center;
+
+    input {
+      width: 1.05rem;
+      height: 1.05rem;
+      accent-color: #3b82f6;
+    }
+  }
+
+  .teacher-assignments__badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+
+    &--submitted {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    &--graded {
+      background: #d1fae5;
+      color: #047857;
+    }
+  }
+
+  .teacher-assignments__empty {
+    text-align: center;
+    padding: 1.5rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .teacher-assignments__toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 100;
+    padding: 0.85rem 1.1rem;
+    border-radius: 12px;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
+  }
+
+  .teacher-assignments__modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+  }
+}

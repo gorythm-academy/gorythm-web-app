@@ -23,6 +23,11 @@
   position: relative;         // needed for absolute-positioned PLAY button
   width: 100%;
   min-height: 420px;
+
+  &.video-section--loading {
+    min-height: 420px;
+    background: #111;
+  }
   height: 50vw;
   max-height: 680px;
   // `hidden` can break touch hit-testing for cross-origin iframes on iOS/WebKit.
@@ -219,6 +224,46 @@
     // Promote compositing so the iframe receives taps reliably on mobile WebKit.
     transform: translateZ(0);
     touch-action: manipulation;
+
+    &--ended iframe {
+      pointer-events: none;
+    }
+  }
+
+  .video-section-replay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.94);
+    color: #fff;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.97);
+
+      .video-section-replay-icon {
+        transform: scale(1.06);
+        border-color: rgba(255, 255, 255, 0.95);
+      }
+    }
+  }
+
+  .video-section-replay-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    font-size: 1.35rem;
+    transition: transform 0.2s ease, border-color 0.2s ease;
   }
 
   iframe {

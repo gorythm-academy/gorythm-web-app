@@ -61,10 +61,11 @@ const DashboardLayout = () => {
         { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
         { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments' },
         { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS' },
-        { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources' },
+        { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources & Submissions' },
         { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
         { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
         { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
+        { path: '/admin/promo-videos', icon: 'fas fa-video', label: 'Video Controls' },
         { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
     ].filter((item) => ADMIN_SETTINGS_PAGE_ENABLED || item.path !== '/admin/settings');
 

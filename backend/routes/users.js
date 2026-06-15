@@ -7,6 +7,9 @@ const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
 const { validate, rules } = require('../middleware/validate');
+const { activeUserFilter, trashedUserFilter } = require('../utils/userQuery');
+const { softTrashUser, restoreTrashedUser } = require('../services/softTrashUser');
+const { cleanupTeacherOnTrash } = require('../services/cleanupTeacherOnTrash');
 // NOTE: studentId is now manual-entry only (no auto-generation).
 
 router.use(authMiddleware);
@@ -81,9 +84,15 @@ router.get('/', async (req, res) => {
         
         // Build filter
         const filter = {};
-        // Prefer explicit segment (People vs Users tabs) — avoids query-string comma issues
+        // Prefer explicit segment (role tabs) — avoids query-string comma issues
         if (segment === 'people') {
             filter.role = { $in: PEOPLE_ROLES };
+        } else if (segment === 'students') {
+            filter.role = 'student';
+        } else if (segment === 'teachers') {
+            filter.role = 'teacher';
+        } else if (segment === 'parents') {
+            filter.role = 'parent';
         } else if (segment === 'staff') {
             filter.role = { $in: STAFF_ROLES };
         } else if (roles) {
@@ -107,6 +116,9 @@ router.get('/', async (req, res) => {
             ];
         }
 
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        Object.assign(filter, trash ? trashedUserFilter() : activeUserFilter());
+
         const users = await User.find(filter)
             .select('-password')
             .sort({ createdAt: -1 })
@@ -114,6 +126,21 @@ router.get('/', async (req, res) => {
             .skip((page - 1) * limit);
 
         const total = await User.countDocuments(filter);
+        const trashCountFilter = { ...trashedUserFilter() };
+        if (segment === 'people') {
+            trashCountFilter.role = { $in: PEOPLE_ROLES };
+        } else if (segment === 'students') {
+            trashCountFilter.role = 'student';
+        } else if (segment === 'teachers') {
+            trashCountFilter.role = 'teacher';
+        } else if (segment === 'parents') {
+            trashCountFilter.role = 'parent';
+        } else if (segment === 'staff') {
+            trashCountFilter.role = { $in: STAFF_ROLES };
+        } else if (filter.role) {
+            trashCountFilter.role = filter.role;
+        }
+        const trashCount = await User.countDocuments(trashCountFilter);
 
         res.json({
             success: true,
@@ -134,9 +161,11 @@ router.get('/', async (req, res) => {
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null,
                 createdAt: user.createdAt,
-                updatedAt: user.updatedAt
+                updatedAt: user.updatedAt,
+                deletedAt: user.deletedAt || null,
             })),
             total,
+            trashCount,
             page: parseInt(page),
             pages: Math.ceil(total / limit)
         });
@@ -357,9 +386,12 @@ router.put(
         if (status !== undefined) {
             const normalizedStatus = normalizeUserStatus(status, isUserActive(user));
             user.status = normalizedStatus;
-            user.isActive = isLoginAllowedFromStatus(normalizedStatus);
+            const loginAllowed = isLoginAllowedFromStatus(normalizedStatus);
+            user.isActive = loginAllowed;
+            user.canLogin = loginAllowed;
         } else if (isActive !== undefined) {
             user.isActive = isActive;
+            user.canLogin = !!isActive;
             user.status = isActive ? 'active' : 'inactive';
         }
 
@@ -516,10 +548,10 @@ router.patch('/:id/status', async (req, res) => {
     }
 });
 
-// Delete user
+// Soft-delete user (move to trash)
 router.delete('/:id', async (req, res) => {
     try {
-        const existing = await User.findById(req.params.id);
+        const existing = await User.findOne({ _id: req.params.id, ...activeUserFilter() });
         if (!existing) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
@@ -529,15 +561,66 @@ router.delete('/:id', async (req, res) => {
         if (existing.role === 'super-admin' && req.user?.role !== 'super-admin') {
             return res.status(403).json({ success: false, error: 'Only super-admin can delete super-admin accounts' });
         }
+
+        await softTrashUser(existing);
+        await logAudit({
+            actor: req.user.userId || req.user.id,
+            action: 'user.trash',
+            targetType: 'User',
+            targetId: req.params.id,
+            details: { role: existing.role },
+        });
+
+        res.json({
+            success: true,
+            message: 'User moved to trash',
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to move user to trash' });
+    }
+});
+
+// Restore user from trash
+router.patch('/:id/restore', async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id, ...trashedUserFilter() });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found in trash' });
+        }
+        await restoreTrashedUser(user);
+        res.json({ success: true, message: 'User restored' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore user' });
+    }
+});
+
+// Permanently delete user (must be in trash)
+router.delete('/:id/permanent', async (req, res) => {
+    try {
+        const existing = await User.findOne({ _id: req.params.id, ...trashedUserFilter() });
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'User must be in trash before permanent delete' });
+        }
+        if (existing.isSystemAccount) {
+            return res.status(403).json({ success: false, error: 'System account cannot be deleted' });
+        }
+        if (existing.role === 'super-admin' && req.user?.role !== 'super-admin') {
+            return res.status(403).json({ success: false, error: 'Only super-admin can delete super-admin accounts' });
+        }
+
+        if (existing.role === 'teacher') {
+            await cleanupTeacherOnTrash(existing._id);
+        }
+
         const user = await User.findByIdAndDelete(req.params.id);
         await logAudit({
             actor: req.user.userId || req.user.id,
             action: 'user.delete',
             targetType: 'User',
             targetId: req.params.id,
-            details: {}
+            details: {},
         });
-        
+
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
@@ -546,10 +629,10 @@ router.delete('/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'User deleted successfully'
+            message: 'User permanently deleted',
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to delete user' });
+        res.status(500).json({ success: false, error: 'Failed to permanently delete user' });
     }
 });
 
@@ -625,7 +708,9 @@ router.get('/:id/child-links', async (req, res) => {
         const links = await ParentStudentLink.find({ parent: user._id })
             .populate('student', 'name email studentId')
             .sort({ createdAt: -1 });
-        const students = await User.find({ role: 'student' }).select('name email studentId').sort({ name: 1 });
+        const students = await User.find({ role: 'student', ...activeUserFilter() })
+            .select('name email studentId')
+            .sort({ name: 1 });
         res.json({ success: true, links, students });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load child links' });
@@ -695,15 +780,18 @@ router.post('/bulk-delete', async (req, res) => {
             }
         }
 
-        const usersToDelete = await User.find({ _id: { $in: ids } }).select('_id');
-        const userIdsToDelete = usersToDelete.map((u) => String(u._id));
-
-        const result = await User.deleteMany({ _id: { $in: ids } });
-        await cleanupStudentDataForUserIds(userIdsToDelete);
+        const usersToTrash = await User.find({ _id: { $in: ids }, ...activeUserFilter() });
+        let trashed = 0;
+        for (const user of usersToTrash) {
+            if (user.isSystemAccount) continue;
+            if (user.role === 'super-admin' && req.user?.role !== 'super-admin') continue;
+            await softTrashUser(user);
+            trashed += 1;
+        }
 
         res.json({
             success: true,
-            message: `${result.deletedCount} user(s) deleted successfully`
+            message: `${trashed} user(s) moved to trash`,
         });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete users' });

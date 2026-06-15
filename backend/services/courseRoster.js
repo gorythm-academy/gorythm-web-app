@@ -48,4 +48,20 @@ async function getCourseRosterStudents(courseId) {
     return [...byId.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
-module.exports = { getCourseRosterStudents, ROSTER_STATUSES };
+/** Students with an active enrollment on the course. */
+async function getActiveCourseRosterStudents(courseId) {
+    const students = await getCourseRosterStudents(courseId);
+    return students.filter((s) => s.enrollmentStatus === 'active');
+}
+
+async function getActiveCourseRosterStudentIds(courseId) {
+    const students = await getActiveCourseRosterStudents(courseId);
+    return students.map((s) => s._id);
+}
+
+module.exports = {
+    getCourseRosterStudents,
+    getActiveCourseRosterStudents,
+    getActiveCourseRosterStudentIds,
+    ROSTER_STATUSES,
+};

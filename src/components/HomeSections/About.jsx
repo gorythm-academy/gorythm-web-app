@@ -1,7 +1,7 @@
 // About Section Component – Stargaze-style layout
 
 import React, { useRef, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import './About.scss';
 
@@ -13,8 +13,9 @@ import aboutRightPng from '../../assets/images/home/about-right.png';
 import aboutRightWebp from '../../assets/images/home/about-right.webp';
 import aboutRightAvif from '../../assets/images/home/about-right.avif';
 
+const ABOUT_PAGE_PATH = '/about';
+
 const AboutSection = () => {
-  const navigate = useNavigate();
   const sectionRef = useRef(null);
   const paragraphRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
@@ -52,7 +53,8 @@ const AboutSection = () => {
     label: 'About Gorythm',
     title: 'Knowledge Connected To Identity',
     paragraph:
-      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding grounded in a single conviction: that truth is coherent, self-knowledge is the root of real growth, and the signs pointing toward both are already within you. Our courses develop the whole person. Thought. Character. Purpose`,
+      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding grounded in a single conviction: that truth is coherent, self-knowledge is the root of real growth, and the signs pointing toward both are already within you. 
+      Our courses develop the whole person Thought, Character and Purpose`,
 
   };
 
@@ -63,13 +65,7 @@ const AboutSection = () => {
     <section
       ref={sectionRef}
       className={`front_page_section front_page_section_about scheme_dark ${inviewClass}`}
-      role="link"
-      tabIndex={0}
-      aria-label="About Gorythm. Open About Us page."
-      onClick={() => navigate('/about')}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') navigate('/about');
-      }}
+      aria-labelledby="about-section-title"
     >
       <div className="front_page_section_inner front_page_section_about_inner">
         <div className="about_content_wrap">
@@ -81,8 +77,14 @@ const AboutSection = () => {
           <div className="about_layout">
             <div className="about_left">
               <p className="about_label about_anim">{sectionData.label}</p>
-              <h2 className="about_title about_anim">{sectionData.title}</h2>
-              <div className="about_image_wrap about_image_left about_anim">
+              <h2 id="about-section-title" className="about_title about_anim">
+                {sectionData.title}
+              </h2>
+              <Link
+                to={ABOUT_PAGE_PATH}
+                className="about_image_wrap about_image_left about_anim about_clickable"
+                aria-label="View About Us page"
+              >
                 <OptimizedPicture
                   avifSrc={aboutLeftAvif}
                   webpSrc={aboutLeftWebp}
@@ -93,10 +95,14 @@ const AboutSection = () => {
                   height={300}
                   sizes="(max-width: 768px) 90vw, 400px"
                 />
-              </div>
+              </Link>
             </div>
             <div className="about_right">
-              <div className="about_image_wrap about_image_right about_anim">
+              <Link
+                to={ABOUT_PAGE_PATH}
+                className="about_image_wrap about_image_right about_anim about_clickable"
+                aria-label="View About Us page"
+              >
                 <OptimizedPicture
                   avifSrc={aboutRightAvif}
                   webpSrc={aboutRightWebp}
@@ -107,13 +113,15 @@ const AboutSection = () => {
                   height={300}
                   sizes="(max-width: 768px) 90vw, 400px"
                 />
-              </div>
-              <p
+              </Link>
+              <Link
                 ref={paragraphRef}
-                className={`about_paragraph about_anim ${paragraphInviewClass}`}
+                to={ABOUT_PAGE_PATH}
+                className={`about_paragraph about_anim about_clickable ${paragraphInviewClass}`}
+                aria-label="Read more on About Us page"
               >
                 {sectionData.paragraph}
-              </p>
+              </Link>
             </div>
           </div>
         </div>

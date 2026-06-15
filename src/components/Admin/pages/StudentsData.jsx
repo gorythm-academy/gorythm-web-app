@@ -1,19 +1,50 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import AddStudentUnifiedModal from './AddStudentUnifiedModal';
 import { useAdminDialog } from '../AdminDialogContext';
+import { formatTime12h } from '../../../utils/formatTime12h';
+import {
+    displayPortalEmail,
+    isUnsetPortalEmail,
+    localFromPortalEmail as portalEmailLocalPart,
+} from '../../../utils/studentPortalEmail';
 import './StudentsData.scss';
 
-const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'phone', 'course', 'enrollmentDate', 'paymentStatus', 'status', 'action'];
-const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 150, 220, 130, 140, 120];
-const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 110, 120, 100, 100, 90];
-const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 240, 400, 220, 260, 180];
-const ENROLLMENT_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const formatScheduleLabel = (slot) => {
+    if (!slot) return '';
+    const day = DAY_LABELS[slot.dayOfWeek] ?? `Day ${slot.dayOfWeek}`;
+    const teacher = slot.teacher?.name || 'Teacher';
+    return `${day} ${formatTime12h(slot.startTime)}–${formatTime12h(slot.endTime)} · ${teacher}`;
+};
+
+const COLUMN_DEFS = ['checkbox', 'studentId', 'student', 'personalEmail', 'phone', 'course', 'teachers', 'enrollmentDate', 'addedAt', 'paymentStatus', 'status', 'action'];
+const DEFAULT_COLUMN_WIDTHS = [60, 120, 180, 220, 150, 200, 180, 130, 150, 140, 120, 130];
+const COLUMN_MIN_WIDTHS = [50, 70, 120, 160, 110, 120, 120, 100, 110, 100, 90, 90];
+const COLUMN_MAX_WIDTHS = [90, 180, 280, 320, 240, 400, 280, 220, 240, 260, 180, 200];
+const ENROLLMENT_STATUS_OPTIONS = ['active', 'inactive', 'completed'];
+const GORYTHM_EMAIL_DOMAIN = '@gorythmacademy.com';
+const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythmacademy\.com$/i;
+
+const sanitizePortalEmailLocal = (raw) => {
+    const value = String(raw ?? '');
+    const beforeAt = value.includes('@') ? value.split('@')[0] : value;
+    return beforeAt.replace(/\s+/g, '');
+};
+
+const normalizeEnrollmentStatus = (status) => {
+    if (!status || status === 'pending') return 'inactive';
+    return ENROLLMENT_STATUS_OPTIONS.includes(status) ? status : 'inactive';
+};
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const StudentsData = () => {
+    const [searchParams] = useSearchParams();
     const { showAlert, showConfirm } = useAdminDialog();
     const [enrollments, setEnrollments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -27,8 +58,7 @@ const StudentsData = () => {
         totalEnrollments: 0,
         activeEnrollments: 0,
         completedEnrollments: 0,
-        pendingEnrollments: 0,
-	inactiveEnrollments: 0
+        inactiveEnrollments: 0
     });
     
     // Modal state
@@ -36,6 +66,9 @@ const StudentsData = () => {
     const [courses, setCourses] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const [listTab, setListTab] = useState('active');
+    const [trashCount, setTrashCount] = useState(0);
+    const [trashBusy, setTrashBusy] = useState(false);
     const tableContainerRef = useRef(null);
     const dragStateRef = useRef({
         isDragging: false,
@@ -49,14 +82,12 @@ const StudentsData = () => {
 
     const calculateStats = useCallback((data = []) => {
         const uniqueStudents = new Map();
-        const statusPriority = ['active', 'pending', 'inactive', 'completed'];
+        const statusPriority = ['active', 'inactive', 'completed'];
         data.forEach((enrollment) => {
             const student = enrollment?.student || {};
             const key = student._id || student.email || `${student.name || ''}-${student.studentId || ''}`;
             if (!key) return;
-            const normalizedEnrollmentStatus = ENROLLMENT_STATUS_OPTIONS.includes(enrollment?.status)
-                ? enrollment.status
-                : 'pending';
+            const normalizedEnrollmentStatus = normalizeEnrollmentStatus(enrollment?.status);
             if (!uniqueStudents.has(key)) {
                 uniqueStudents.set(key, { statuses: new Set([normalizedEnrollmentStatus]) });
                 return;
@@ -66,20 +97,18 @@ const StudentsData = () => {
 
         const resolvedStatuses = [...uniqueStudents.values()].map((entry) => {
             const statuses = [...entry.statuses];
-            return statusPriority.find((status) => statuses.includes(status)) || 'pending';
+            return statusPriority.find((status) => statuses.includes(status)) || 'inactive';
         });
         const total = resolvedStatuses.length;
         const active = resolvedStatuses.filter((status) => status === 'active').length;
-        const pending = resolvedStatuses.filter((status) => status === 'pending').length;
         const inactive = resolvedStatuses.filter((status) => status === 'inactive').length;
         const completed = resolvedStatuses.filter((status) => status === 'completed').length;
-            
+
         setStats({
             totalEnrollments: total,
             activeEnrollments: active,
             completedEnrollments: completed,
-            pendingEnrollments: pending,
-            inactiveEnrollments: inactive
+            inactiveEnrollments: inactive,
         });
     }, []);
 
@@ -94,12 +123,18 @@ const StudentsData = () => {
             }
 
             const response = await axios.get(`${API_BASE_URL}/api/enrollments`, {
-                headers: { Authorization: `Bearer ${token}` }
+                params: listTab === 'trash' ? { trash: '1' } : {},
+                headers: { Authorization: `Bearer ${token}` },
             });
-            
+
             if (response.data.success) {
                 setEnrollments(response.data.enrollments || []);
-                calculateStats(response.data.enrollments || []);
+                if (typeof response.data.trashCount === 'number') {
+                    setTrashCount(response.data.trashCount);
+                }
+                if (listTab !== 'trash') {
+                    calculateStats(response.data.enrollments || []);
+                }
                 setLoading(false);
             } else {
                 throw new Error(response.data.message || 'Failed to fetch enrollments');
@@ -117,7 +152,7 @@ const StudentsData = () => {
             calculateStats([]);
             setLoading(false);
         }
-    }, [calculateStats]);
+    }, [calculateStats, listTab]);
 
     const fetchCourses = useCallback(async () => {
         try {
@@ -141,12 +176,13 @@ const StudentsData = () => {
             return {
                 studentId: s.studentId || '',
                 name: s.name || '',
-                portalEmail: s.email || '',
+                portalEmail: displayPortalEmail(s.email),
                 personalEmail: s.personalEmail || '',
                 phone: s.phone || '',
                 course: c.title || '',
                 enrollmentDate: enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10) : '',
-                status: enrollment.status || 'pending',
+                addedAt: s.createdAt ? new Date(s.createdAt).toISOString() : '',
+                status: normalizeEnrollmentStatus(enrollment.status),
             };
         });
 
@@ -158,6 +194,7 @@ const StudentsData = () => {
             ['phone', 'Phone'],
             ['course', 'Course'],
             ['enrollmentDate', 'Enrollment date'],
+            ['addedAt', 'Added'],
             ['status', 'Status'],
         ];
 
@@ -186,6 +223,13 @@ const StudentsData = () => {
         fetchEnrollments();
         fetchCourses();
     }, [fetchEnrollments, fetchCourses]);
+
+    useEffect(() => {
+        const emailFromQuery = searchParams.get('email');
+        if (emailFromQuery) {
+            setSearchTerm(emailFromQuery);
+        }
+    }, [searchParams]);
 
     // 👇 ADD THIS NEW useEffect HERE 👇
     useEffect(() => {
@@ -387,6 +431,144 @@ const handleEditEnrollment = (enrollment) => {
     setShowEditModal(true);
 };
 
+    const handleDeleteEnrollment = async (enrollment) => {
+        const studentName = enrollment.student?.name || 'this student';
+        const courseTitle = enrollment.course?.title || 'this course';
+        const confirmed = await showConfirm({
+            title: 'Move to trash?',
+            message: `Move ${studentName} — "${courseTitle}" to trash? You can restore or permanently delete from the Trash tab.`,
+            confirmLabel: 'Move to trash',
+        });
+        if (!confirmed) return;
+
+        try {
+            const token = getAuthToken();
+            await axios.delete(`${API_BASE_URL}/api/enrollments/${enrollment._id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchEnrollments();
+            setSelectedEnrollments((prev) => prev.filter((id) => id !== enrollment._id));
+            setSuccessMessage('Moved to trash');
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (error) {
+            const message = error.response?.data?.message || error.response?.data?.error || 'Failed to move to trash';
+            setErrorMessage(message);
+            showAlert(message, 'error');
+        }
+    };
+
+    const handleDeleteSelected = async () => {
+        if (!selectedEnrollments.length) return;
+        const confirmed = await showConfirm({
+            title: 'Move to trash?',
+            message: `Move ${selectedEnrollments.length} enrollment row(s) to trash?`,
+            confirmLabel: 'Move to trash',
+        });
+        if (!confirmed) return;
+
+        try {
+            const token = getAuthToken();
+            const idsToDelete = [...selectedEnrollments];
+            await Promise.all(
+                idsToDelete.map((id) =>
+                    axios.delete(`${API_BASE_URL}/api/enrollments/${id}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    })
+                )
+            );
+            setSelectedEnrollments([]);
+            await fetchEnrollments();
+            setSuccessMessage(`${idsToDelete.length} enrollment(s) moved to trash`);
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (error) {
+            const message = error.response?.data?.message || error.response?.data?.error || 'Failed to move to trash';
+            setErrorMessage(message);
+            showAlert(message, 'error');
+        }
+    };
+
+    const handleRestoreEnrollment = async (enrollmentId) => {
+        if (trashBusy) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.patch(`${API_BASE_URL}/api/enrollments/${enrollmentId}/restore`, null, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchEnrollments();
+            showAlert('Enrollment restored.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.message || 'Failed to restore enrollment.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const handlePermanentDelete = async (enrollmentId) => {
+        if (listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message:
+                'This cannot be undone. The enrollment row will be removed. If this is the student\'s only record, their portal account will be deleted from the database too.',
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            const res = await axios.delete(`${API_BASE_URL}/api/enrollments/${enrollmentId}/permanent`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchEnrollments();
+            showAlert(
+                res.data?.userDeleted
+                    ? 'Student enrollment and account permanently deleted.'
+                    : 'Enrollment permanently deleted.',
+                'success'
+            );
+        } catch (error) {
+            showAlert(error.response?.data?.message || 'Failed to delete permanently.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const handlePermanentDeleteSelected = async () => {
+        if (listTab !== 'trash' || !selectedEnrollments.length || trashBusy) return;
+        const count = selectedEnrollments.length;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: `Permanently delete ${count} selected enrollment row(s)? If a student has no other records, their portal account will be removed too. This cannot be undone.`,
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            const ids = [...selectedEnrollments];
+            const results = await Promise.all(
+                ids.map((id) =>
+                    axios.delete(`${API_BASE_URL}/api/enrollments/${id}/permanent`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    })
+                )
+            );
+            const usersDeleted = results.filter((res) => res.data?.userDeleted).length;
+            setSelectedEnrollments([]);
+            await fetchEnrollments();
+            showAlert(
+                usersDeleted > 0
+                    ? `${count} enrollment(s) permanently deleted (${usersDeleted} student account(s) removed).`
+                    : `${count} enrollment(s) permanently deleted.`,
+                'success'
+            );
+        } catch (error) {
+            showAlert(error.response?.data?.message || 'Failed to delete permanently.', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
     // Open modal
     const handleAddStudent = () => {
         setShowAddModal(true);
@@ -425,9 +607,7 @@ const handleEditEnrollment = (enrollment) => {
             (student.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.title?.toLowerCase().includes(searchTerm.toLowerCase());
         
-        const enrollmentStatus = ENROLLMENT_STATUS_OPTIONS.includes(enrollment.status)
-            ? enrollment.status
-            : 'pending';
+        const enrollmentStatus = normalizeEnrollmentStatus(enrollment.status);
         const matchesStatus = filterStatus === 'all' || enrollmentStatus === filterStatus;
         
         return matchesSearch && matchesStatus;
@@ -441,7 +621,8 @@ const handleEditEnrollment = (enrollment) => {
             if (key === 'phone') return (enrollment.student?.phone || '').toLowerCase();
             if (key === 'course') return (enrollment.course?.title || '').toLowerCase();
             if (key === 'enrollmentDate') return new Date(enrollment.enrollmentDate || 0).getTime();
-            if (key === 'status') return (enrollment.status || 'pending');
+            if (key === 'addedAt') return new Date(enrollment.student?.createdAt || 0).getTime();
+            if (key === 'status') return normalizeEnrollmentStatus(enrollment.status);
             return 0;
         };
         const va = getVal(a, sortBy);
@@ -476,13 +657,21 @@ const EditEnrollmentModal = () => {
     const [loading, setLoading] = useState(false);
     const [formError, setFormError] = useState('');
     const [availableCourses, setAvailableCourses] = useState([]);
+    const [courseSchedules, setCourseSchedules] = useState([]);
+    const [schedulesLoading, setSchedulesLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formData, setFormData] = useState(() => ({
         studentName: editingEnrollment?.student?.name || '',
         studentId: editingEnrollment?.student?.studentId || '',
+        portalEmailLocal: portalEmailLocalPart(editingEnrollment?.student?.email),
         personalEmail: editingEnrollment?.student?.personalEmail || '',
         phone: editingEnrollment?.student?.phone || '',
+        password: '',
+        confirmPassword: '',
         courseId: editingEnrollment?.course?._id || '',
-        status: editingEnrollment?.status || 'pending',
+        assignedScheduleId: editingEnrollment?.assignedSchedule?._id || editingEnrollment?.assignedSchedule || '',
+        status: normalizeEnrollmentStatus(editingEnrollment?.status),
         paymentStatus: editingEnrollment?.paymentStatus || 'pending',
         enrollmentDate: editingEnrollment?.enrollmentDate
             ? new Date(editingEnrollment.enrollmentDate).toISOString().split('T')[0]
@@ -516,6 +705,36 @@ const EditEnrollmentModal = () => {
         
         fetchCourses();
     }, []);
+
+    useEffect(() => {
+        if (!formData.courseId) {
+            setCourseSchedules([]);
+            return undefined;
+        }
+        let cancelled = false;
+        const loadSchedules = async () => {
+            setSchedulesLoading(true);
+            try {
+                const token = getAuthToken();
+                const response = await axios.get(
+                    `${API_BASE_URL}/api/enrollments/course-schedules/${formData.courseId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                if (!cancelled && response.data.success) {
+                    setCourseSchedules(response.data.schedules || []);
+                }
+            } catch (err) {
+                if (!cancelled) setCourseSchedules([]);
+                console.error('Error fetching course schedules:', err);
+            } finally {
+                if (!cancelled) setSchedulesLoading(false);
+            }
+        };
+        loadSchedules();
+        return () => {
+            cancelled = true;
+        };
+    }, [formData.courseId]);
 
     const sortedActiveCourses = useMemo(() => {
         const list = Array.isArray(availableCourses)
@@ -560,17 +779,45 @@ const EditEnrollmentModal = () => {
         }
 
         const phoneTrim = (formData.phone || '').trim();
+        const portalLocal = sanitizePortalEmailLocal(formData.portalEmailLocal);
+        const portalEmail = portalLocal ? `${portalLocal}${GORYTHM_EMAIL_DOMAIN}`.toLowerCase() : '';
+        if (portalLocal && !GORYTHM_EMAIL_REGEX.test(portalEmail)) {
+            setFormError('Portal email must be a valid @gorythmacademy.com address.');
+            setLoading(false);
+            return;
+        }
+
+        if (!portalLocal && (formData.password || formData.status === 'active')) {
+            setFormError('Assign a portal email before activating the student or setting a password.');
+            setLoading(false);
+            return;
+        }
+
+        if (formData.password || formData.confirmPassword) {
+            if ((formData.password || '').length < 6) {
+                setFormError('Password must be at least 6 characters.');
+                setLoading(false);
+                return;
+            }
+            if (formData.password !== formData.confirmPassword) {
+                setFormError('Password and confirmation do not match.');
+                setLoading(false);
+                return;
+            }
+        }
 
         if (editingEnrollment.student?._id) {
             const currentStudentId = String(editingEnrollment.student?.studentId || '').trim();
             const trimmedName = (formData.studentName || '').trim();
             const currentName = (editingEnrollment.student?.name || '').trim();
-            const currentEmail = (editingEnrollment.student?.email || '').trim();
+            const currentEmail = (editingEnrollment.student?.email || '').trim().toLowerCase();
             const currentPersonal = String(editingEnrollment.student?.personalEmail || '').trim();
             const currentPhone = String(editingEnrollment.student?.phone || '').trim();
 
             const shouldUpdateStudentId = !!studentIdTrim && studentIdTrim !== currentStudentId;
             const shouldUpdateName = !!trimmedName && trimmedName !== currentName;
+            const shouldUpdatePortalEmail =
+                portalLocal && portalEmail !== currentEmail;
             const shouldUpdatePersonalEmail = currentPersonal !== personalTrim;
             const shouldUpdatePhone = currentPhone !== phoneTrim;
 
@@ -580,19 +827,34 @@ const EditEnrollmentModal = () => {
                 return;
             }
 
-            if (shouldUpdateName || shouldUpdatePersonalEmail || shouldUpdateStudentId || shouldUpdatePhone) {
-                // Backend PUT /api/users/:id requires name + email — always send them.
+            if (
+                shouldUpdateName ||
+                shouldUpdatePortalEmail ||
+                shouldUpdatePersonalEmail ||
+                shouldUpdateStudentId ||
+                shouldUpdatePhone
+            ) {
                 const userUpdatePayload = {
                     name: trimmedName,
-                    email: currentEmail,
                     personalEmail: personalTrim,
                     phone: phoneTrim,
                 };
+                if (shouldUpdatePortalEmail) {
+                    userUpdatePayload.email = portalEmail;
+                }
                 if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
 
                 await axios.put(
                     `${API_BASE_URL}/api/users/${editingEnrollment.student._id}`,
                     userUpdatePayload,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+            }
+
+            if (formData.password) {
+                await axios.patch(
+                    `${API_BASE_URL}/api/users/${editingEnrollment.student._id}/password`,
+                    { password: formData.password },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
             }
@@ -602,6 +864,7 @@ const EditEnrollmentModal = () => {
         const updateData = {
             enrollmentDate: formData.enrollmentDate,
             courseId: formData.courseId || undefined,
+            assignedScheduleId: formData.assignedScheduleId || null,
             status: formData.status,
             paymentStatus: formData.paymentStatus,
         };
@@ -625,6 +888,7 @@ const EditEnrollmentModal = () => {
                         student: {
                             ...enrollment.student,
                             name: formData.studentName,
+                            email: portalLocal ? portalEmail : enrollment.student?.email,
                             studentId: studentIdTrim || enrollment.student?.studentId,
                             personalEmail: personalTrim,
                             phone: phoneTrim,
@@ -637,7 +901,8 @@ const EditEnrollmentModal = () => {
             );
             setEnrollments(updated);
             calculateStats(updated);
-            
+            fetchEnrollments();
+
             setSuccessMessage('Enrollment updated successfully');
             setTimeout(() => setSuccessMessage(''), 3000);
             handleClose();
@@ -664,8 +929,8 @@ const EditEnrollmentModal = () => {
                 <div className="modal-header">
                     <h2><i className="fas fa-edit"></i> Edit Enrollment</h2>
                     <div className="header-subtitle">
-                        <span className={`status-badge ${formData.status || editingEnrollment?.status || 'pending'}`}>
-                            {formData.status || editingEnrollment?.status || 'pending'}
+                        <span className={`status-badge ${formData.status || normalizeEnrollmentStatus(editingEnrollment?.status)}`}>
+                            {formData.status || normalizeEnrollmentStatus(editingEnrollment?.status)}
                         </span>
                     </div>
                     <button className="close-btn" onClick={handleClose}>
@@ -684,6 +949,10 @@ const EditEnrollmentModal = () => {
                         {/* Student Section */}
                         <div className="form-section">
                             <h3><i className="fas fa-user"></i> Student Information</h3>
+                            <p className="form-hint-muted form-section-note">
+                                Name, portal email, personal email, and phone apply to this student on{' '}
+                                <strong>all courses</strong> (one shared account).
+                            </p>
                             <div className="form-group">
                                 <label>Full Name</label>
                                 <input
@@ -709,12 +978,73 @@ const EditEnrollmentModal = () => {
                             </div>
                             <div className="form-group">
                                 <label>
-                                    <i className="fas fa-key"></i> Portal login email (Students)
+                                    <i className="fas fa-envelope"></i> Portal email
                                 </label>
-                                <div className="portal-email-readonly-edit">
-                                    {editingEnrollment.student?.email || '—'}
+                                <div className="email-input-group">
+                                    <input
+                                        type="text"
+                                        className="email-input-group__local form-input"
+                                        value={sanitizePortalEmailLocal(formData.portalEmailLocal)}
+                                        onChange={(e) => {
+                                            const local = sanitizePortalEmailLocal(e.target.value);
+                                            setFormData({ ...formData, portalEmailLocal: local });
+                                        }}
+                                        placeholder="Assign when ready"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        aria-label="Portal email ID"
+                                    />
+                                    <span className="email-input-group__suffix" aria-hidden="true">
+                                        {GORYTHM_EMAIL_DOMAIN}
+                                    </span>
                                 </div>
-                                <small className="form-hint-muted">Student portal sign-in. Change account email in Students tab if required.</small>
+                                <small className="form-hint-muted">
+                                    Leave blank for payment-created students until you assign portal login. Only enter the ID — <strong>@gorythmacademy.com</strong> is added automatically.
+                                </small>
+                            </div>
+                            <div className="form-group">
+                                <label>
+                                    <i className="fas fa-lock"></i> New password (optional)
+                                </label>
+                                <div className="password-field">
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Leave blank to keep current password"
+                                        autoComplete="new-password"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-field__toggle"
+                                        onClick={() => setShowPassword((v) => !v)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <i className={`fas fa-eye${showPassword ? '-slash' : ''}`} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Confirm new password</label>
+                                <div className="password-field">
+                                    <input
+                                        type={showConfirmPassword ? 'text' : 'password'}
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Repeat new password"
+                                        autoComplete="new-password"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-field__toggle"
+                                        onClick={() => setShowConfirmPassword((v) => !v)}
+                                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <i className={`fas fa-eye${showConfirmPassword ? '-slash' : ''}`} />
+                                    </button>
+                                </div>
                             </div>
                             <div className="form-group">
                                 <label>
@@ -742,7 +1072,7 @@ const EditEnrollmentModal = () => {
                                     placeholder="+1 (123) 456-7890"
                                     autoComplete="tel"
                                 />
-                                <small className="form-hint-muted">Shown in Students data and People.</small>
+                                <small className="form-hint-muted">Shown in Students data.</small>
                             </div>
                         </div>
 
@@ -753,7 +1083,11 @@ const EditEnrollmentModal = () => {
         <label>Select Course</label>
         <select
             value={formData.courseId}
-            onChange={(e) => setFormData({...formData, courseId: e.target.value})}
+            onChange={(e) => setFormData({
+                ...formData,
+                courseId: e.target.value,
+                assignedScheduleId: '',
+            })}
             className="form-select"
         >
             <option value="">Select a course...</option>
@@ -764,14 +1098,41 @@ const EditEnrollmentModal = () => {
             ))}
         </select>
     </div>
-    {formData.courseId && (
+    {formData.courseId ? (
         <div className="form-group">
-            <label>Current Course</label>
+            <label>
+                <i className="fas fa-clock" /> Class timeslot (teacher + schedule)
+            </label>
+            <select
+                value={formData.assignedScheduleId}
+                onChange={(e) => setFormData({ ...formData, assignedScheduleId: e.target.value })}
+                className="form-select"
+                disabled={schedulesLoading}
+            >
+                <option value="">Select a timeslot…</option>
+                {courseSchedules.map((slot) => (
+                    <option key={slot._id} value={slot._id}>
+                        {formatScheduleLabel(slot)}
+                    </option>
+                ))}
+            </select>
+            <small className="form-hint-muted">
+                {schedulesLoading
+                    ? 'Loading schedule slots…'
+                    : courseSchedules.length
+                      ? 'Student portal shows only this assigned slot.'
+                      : 'No schedule slots for this course yet — add them in LMS → Schedule.'}
+            </small>
+        </div>
+    ) : null}
+    {formData.courseId && formData.courseId !== editingEnrollment.course?._id && (
+        <div className="form-group">
+            <label>Course change</label>
             <div className="current-course-info">
-                <strong>{editingEnrollment.course?.title}</strong>
-                <small>Will be changed to: {
-                    sortedActiveCourses.find(c => c._id === formData.courseId)?.title || 'New course'
-                }</small>
+                <small>
+                    From <strong>{editingEnrollment.course?.title || '—'}</strong> to{' '}
+                    <strong>{sortedActiveCourses.find(c => c._id === formData.courseId)?.title || 'New course'}</strong>
+                </small>
             </div>
         </div>
     )}
@@ -797,10 +1158,12 @@ const EditEnrollmentModal = () => {
                                         className="form-select"
                                     >
                                         <option value="active">Active</option>
-                                        <option value="pending">Pending</option>
                                         <option value="inactive">Inactive</option>
                                         <option value="completed">Completed</option>
                                     </select>
+                                    <small className="form-hint-muted">
+                                        Setting <strong>Active</strong> enables portal login. Set a portal password above if the student cannot sign in yet.
+                                    </small>
                                 </div>
                             </div>
                             <div className="form-group">
@@ -831,7 +1194,11 @@ const EditEnrollmentModal = () => {
                                 </div>
                                 <div className="preview-row">
                                     <span className="preview-label">Portal email:</span>
-                                    <span className="preview-value">{editingEnrollment.student?.email || '—'}</span>
+                                    <span className="preview-value">
+                                        {formData.portalEmailLocal
+                                            ? `${sanitizePortalEmailLocal(formData.portalEmailLocal)}${GORYTHM_EMAIL_DOMAIN}`
+                                            : '—'}
+                                    </span>
                                 </div>
                                 <div className="preview-row">
                                     <span className="preview-label">Personal email:</span>
@@ -853,6 +1220,18 @@ const EditEnrollmentModal = () => {
                                         {sortedActiveCourses.find(c => c._id === formData.courseId)?.title || editingEnrollment.course?.title}
                                     </span>
                                 </div>
+                                {formData.assignedScheduleId ? (
+                                    <div className="preview-row">
+                                        <span className="preview-label">Timeslot:</span>
+                                        <span className="preview-value">
+                                            {formatScheduleLabel(
+                                                courseSchedules.find(
+                                                    (s) => String(s._id) === String(formData.assignedScheduleId)
+                                                ) || editingEnrollment?.assignedSchedule
+                                            ) || '—'}
+                                        </span>
+                                    </div>
+                                ) : null}
                                 <div className="preview-row">
                                     <span className="preview-label">Status:</span>
                                     <span className={`status-badge ${formData.status}`}>{formData.status}</span>
@@ -940,19 +1319,46 @@ const EditEnrollmentModal = () => {
                         {selectedEnrollments.length} row(s) selected
                     </div>
                     <div className="bulk-buttons">
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('active')}>
-                            <i className="fas fa-play"></i> Set Active
-                        </button>
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('pending')}>
-                            <i className="fas fa-clock"></i> Set Pending
-                        </button>
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('inactive')}>
-                            <i className="fas fa-pause"></i> Set Inactive
-                        </button>
-                        <button className="bulk-btn" onClick={() => updateSelectedStatus('completed')}>
-                            <i className="fas fa-flag-checkered"></i> Set Completed
-                        </button>
-{/* 👇 ADD THIS LINE AFTER INACTIVE BUTTON 👇 */}
+                        {listTab === 'active' ? (
+                            <>
+                                <button className="bulk-btn" onClick={() => updateSelectedStatus('active')}>
+                                    <i className="fas fa-play"></i> Set Active
+                                </button>
+                                <button className="bulk-btn" onClick={() => updateSelectedStatus('inactive')}>
+                                    <i className="fas fa-pause"></i> Set Inactive
+                                </button>
+                                <button className="bulk-btn" onClick={() => updateSelectedStatus('completed')}>
+                                    <i className="fas fa-flag-checkered"></i> Set Completed
+                                </button>
+                            </>
+                        ) : null}
+                        {listTab === 'active' ? (
+                            <button className="bulk-btn delete" onClick={handleDeleteSelected}>
+                                <i className="fas fa-trash"></i> Move to Trash
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    className="bulk-btn"
+                                    disabled={trashBusy}
+                                    onClick={async () => {
+                                        for (const id of selectedEnrollments) {
+                                            await handleRestoreEnrollment(id);
+                                        }
+                                        setSelectedEnrollments([]);
+                                    }}
+                                >
+                                    <i className="fas fa-undo" /> Restore Selected
+                                </button>
+                                <button
+                                    className="bulk-btn delete"
+                                    disabled={trashBusy || !selectedEnrollments.length}
+                                    onClick={handlePermanentDeleteSelected}
+                                >
+                                    <i className="fas fa-times-circle" /> Delete Forever
+                                </button>
+                            </>
+                        )}
 <button 
     className="bulk-btn edit"
     onClick={() => {
@@ -993,15 +1399,6 @@ const EditEnrollmentModal = () => {
                         <p>Active Students</p>
                     </div>
                 </div>
-                <div className="stat-card pending">
-                    <div className="stat-icon">
-                        <i className="fas fa-clock"></i>
-                    </div>
-                    <div className="stat-info">
-                        <h3>{stats.pendingEnrollments}</h3>
-                        <p>Pending</p>
-                    </div>
-                </div>
                 <div className="stat-card inactive">
                     <div className="stat-icon">
                         <i className="fas fa-pause-circle"></i>
@@ -1020,6 +1417,30 @@ const EditEnrollmentModal = () => {
                         <p>Completed</p>
                     </div>
                 </div>
+            </div>
+
+            <div className="students-list-tabs">
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'active' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('active');
+                        setSelectedEnrollments([]);
+                    }}
+                >
+                    <i className="fas fa-list" /> Active records
+                </button>
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'trash' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('trash');
+                        setSelectedEnrollments([]);
+                    }}
+                >
+                    <i className="fas fa-trash-alt" /> Trash
+                    {trashCount > 0 ? ` (${trashCount})` : ''}
+                </button>
             </div>
 
             {/* Controls Bar */}
@@ -1042,7 +1463,6 @@ const EditEnrollmentModal = () => {
                     >
                         <option value="all">All Status</option>
                         <option value="active">Active</option>
-                        <option value="pending">Pending</option>
                         <option value="inactive">Inactive</option>
                         <option value="completed">Completed</option>
                     </select>
@@ -1050,9 +1470,11 @@ const EditEnrollmentModal = () => {
                     <button className="refresh-btn" onClick={fetchEnrollments}>
                         <i className="fas fa-sync-alt"></i> Refresh
                     </button>
-                    <button className="btn-primary enroll-btn" onClick={handleAddStudent}>
-                        <i className="fas fa-user-plus"></i> Add Student
-                    </button>
+                    {listTab === 'active' ? (
+                        <button className="btn-primary enroll-btn" onClick={handleAddStudent}>
+                            <i className="fas fa-user-plus"></i> Add Student
+                        </button>
+                    ) : null}
                     <button className="btn-secondary download-btn" onClick={downloadStudentsDataCsv}>
                         <i className="fas fa-file-export"></i> Download Excel
                     </button>
@@ -1104,17 +1526,22 @@ const EditEnrollmentModal = () => {
                                 {sortBy === 'course' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 5)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(5); }} />
                             </th>
+                            <th>Teacher(s)</th>
                             <th className="sortable" onClick={() => handleSort('enrollmentDate')}>Enrollment Date
                                 {sortBy === 'enrollmentDate' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 6)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(6); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                            </th>
+                            <th className="sortable" onClick={() => handleSort('addedAt')}>Added
+                                {sortBy === 'addedAt' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
                             </th>
                             <th>Fee status</th>
                             <th className="sortable" onClick={() => handleSort('status')}>Status
                                 {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 7)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(7); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 10)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(10); }} />
                             </th>
                             <th className="action-col">Action
-                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 8)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(8); }} />
+                                <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 11)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(11); }} />
                             </th>
                         </tr>
                     </thead>
@@ -1123,12 +1550,16 @@ const EditEnrollmentModal = () => {
                             sortedEnrollments.map((enrollment) => {
                                 const student = enrollment.student || {};
                                 const course = enrollment.course || {};
-                                const courseInstructorLabel =
-                                    course.instructorName ||
-                                    (typeof course.instructor === 'object' && course.instructor?.name
-                                        ? course.instructor.name
-                                        : '') ||
-                                    '';
+                                const teachersLabel = (() => {
+                                    if (enrollment.assignedSchedule) {
+                                        const label = formatScheduleLabel(enrollment.assignedSchedule);
+                                        return label ? [label] : [];
+                                    }
+                                    if (Array.isArray(enrollment.courseTeachers) && enrollment.courseTeachers.length) {
+                                        return enrollment.courseTeachers.map((t) => t.name).filter(Boolean);
+                                    }
+                                    return [];
+                                })();
 
                                 return (
                                     <tr key={enrollment._id} className={selectedEnrollments.includes(enrollment._id) ? 'selected' : ''}>
@@ -1152,7 +1583,9 @@ const EditEnrollmentModal = () => {
                                             <div className="student-info no-avatar">
                                                 <div className="student-details">
                                                     <strong>{student.name || 'Unknown Student'}</strong>
-                                                    <span className="student-email">{student.email || 'No portal email'}</span>
+                                                    <span className="student-email">
+                                                        {displayPortalEmail(student.email) || '—'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </td>
@@ -1176,15 +1609,23 @@ const EditEnrollmentModal = () => {
                                                     <div className="course-title">{course.title || 'Unknown Course'}</div>
                                                     <div className="course-meta">
                                                         <span className="course-category">{course.category || 'General'}</span>
-                                                        {courseInstructorLabel ? (
-                                                            <span className="course-instructor">By {courseInstructorLabel}</span>
-                                                        ) : null}
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="no-course-assigned">
                                                     <i className="fas fa-book-open"></i> No course assigned
                                                 </div>
+                                            )}
+                                        </td>
+                                        <td>
+                                            {teachersLabel.length > 0 ? (
+                                                <ul className="teachers-list-cell">
+                                                    {teachersLabel.map((name) => (
+                                                        <li key={name}>{name}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <span className="teachers-list-cell teachers-list-cell--empty">—</span>
                                             )}
                                         </td>
                                         <td>
@@ -1198,6 +1639,21 @@ const EditEnrollmentModal = () => {
                                             }
                                         </td>
                                         <td>
+                                            {student.createdAt ? (
+                                                <span className="student-added-at" title={new Date(student.createdAt).toLocaleString()}>
+                                                    {new Date(student.createdAt).toLocaleString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        hour: 'numeric',
+                                                        minute: '2-digit',
+                                                    })}
+                                                </span>
+                                            ) : (
+                                                '—'
+                                            )}
+                                        </td>
+                                        <td>
                                             <span className={`status-badge payment-${enrollment.paymentStatus || 'pending'}`}>
                                                 {(enrollment.paymentStatus || 'pending').charAt(0).toUpperCase() +
                                                     (enrollment.paymentStatus || 'pending').slice(1)}
@@ -1205,18 +1661,18 @@ const EditEnrollmentModal = () => {
                                         </td>
                                         <td>
                                             <div className="status-cell">
-                                                <span className={`status-badge ${enrollment.status || 'pending'}`}>
-                                                    <i className={`fas fa-${getEnrollmentStatusIcon(enrollment.status || 'pending')}`}></i>
-                                                    {(enrollment.status || 'pending').charAt(0).toUpperCase() + (enrollment.status || 'pending').slice(1)}
+                                                <span className={`status-badge ${normalizeEnrollmentStatus(enrollment.status)}`}>
+                                                    <i className={`fas fa-${getEnrollmentStatusIcon(normalizeEnrollmentStatus(enrollment.status))}`}></i>
+                                                    {normalizeEnrollmentStatus(enrollment.status).charAt(0).toUpperCase() +
+                                                        normalizeEnrollmentStatus(enrollment.status).slice(1)}
                                                 </span>
                                                 <select
                                                     className="status-select-inline"
-                                                    value={enrollment.status || 'pending'}
+                                                    value={normalizeEnrollmentStatus(enrollment.status)}
                                                     onChange={(e) => updateEnrollmentStatus(enrollment, e.target.value)}
                                                     title="Change status"
                                                 >
                                                     <option value="active">Active</option>
-                                                    <option value="pending">Pending</option>
                                                     <option value="inactive">Inactive</option>
                                                     <option value="completed">Completed</option>
                                                 </select>
@@ -1224,14 +1680,47 @@ const EditEnrollmentModal = () => {
                                         </td>
                                         <td className="action-cell">
                                             <div className="action-buttons">
-                                                <button
-                                                    type="button"
-                                                    className="action-btn edit-btn"
-                                                    title="Edit"
-                                                    onClick={() => handleEditEnrollment(enrollment)}
-                                                >
-                                                    <i className="fas fa-edit"></i> Edit
-                                                </button>
+                                                {listTab === 'active' ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className="action-btn edit-btn"
+                                                            title="Edit"
+                                                            onClick={() => handleEditEnrollment(enrollment)}
+                                                        >
+                                                            <i className="fas fa-edit"></i> Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="action-btn delete-btn"
+                                                            title="Move to trash"
+                                                            onClick={() => handleDeleteEnrollment(enrollment)}
+                                                        >
+                                                            <i className="fas fa-trash"></i> Delete
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className="action-btn edit-btn"
+                                                            title="Restore"
+                                                            disabled={trashBusy}
+                                                            onClick={() => handleRestoreEnrollment(enrollment._id)}
+                                                        >
+                                                            <i className="fas fa-undo" /> Restore
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="action-btn delete-btn"
+                                                            title="Delete permanently"
+                                                            disabled={trashBusy}
+                                                            onClick={() => handlePermanentDelete(enrollment._id)}
+                                                        >
+                                                            <i className="fas fa-times-circle" /> Delete forever
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -1239,7 +1728,7 @@ const EditEnrollmentModal = () => {
                             })
                         ) : (
                             <tr>
-                                <td colSpan="9" className="no-data-row">
+                                <td colSpan="12" className="no-data-row">
                                     <div className="no-data-message">
                                         <i className="fas fa-user-graduate"></i>
                                         <p><strong>No course enrollments yet.</strong></p>

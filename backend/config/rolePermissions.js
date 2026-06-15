@@ -13,7 +13,9 @@ const ROLE_PERMISSIONS = {
         'courses.read',
         'courses.write',
         'payments.read',
+        'payments.write',
         'enrollments.read',
+        'enrollments.write',
     ],
     accountant: [
         'settings.payment.read',

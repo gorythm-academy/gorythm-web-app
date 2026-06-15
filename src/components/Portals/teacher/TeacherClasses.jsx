@@ -1,35 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SimpleTable } from '../shared/PortalUi';
-import { portalDocId } from '../../../utils/portalDocId';
+import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { formatTime12h } from '../../../utils/formatTime12h';
+import ScheduleRoomOrLink from '../shared/ScheduleRoomOrLink';
+import './TeacherClasses.scss';
 
 const TeacherClasses = () => {
-  const [courses, setCourses] = useState(null);
-  const [roster, setRoster] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [schedules, setSchedules] = useState(null);
+  const [dayLabels, setDayLabels] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    portalGet('/teacher/courses')
+    portalGet('/teacher/schedule')
       .then((res) => {
-        if (res.success) setCourses(res.courses || []);
-        else setError(res.error || 'Failed to load');
+        if (res.success) {
+          setSchedules(res.schedules || []);
+          setDayLabels(res.dayLabels || []);
+        } else setError(res.error || 'Failed to load schedule');
       })
       .catch((err) => setError(err.message));
   }, []);
-
-  useEffect(() => {
-    if (!selectedCourse) {
-      setRoster([]);
-      return;
-    }
-    portalGet(`/teacher/courses/${selectedCourse}/roster`)
-      .then((res) => {
-        if (res.success) setRoster(res.enrollments || []);
-      })
-      .catch(() => setRoster([]));
-  }, [selectedCourse]);
 
   if (error) {
     return (
@@ -38,7 +28,7 @@ const TeacherClasses = () => {
       </div>
     );
   }
-  if (courses === null) {
+  if (schedules === null) {
     return (
       <div className="portal-page">
         <PortalLoading />
@@ -47,51 +37,74 @@ const TeacherClasses = () => {
   }
 
   return (
-    <div className="portal-page">
+    <div className="portal-page teacher-classes">
       <PortalPageHeader
         title="My classes"
-        subtitle="See which courses you teach and who is enrolled. Use the roster link to jump to daily attendance for that class."
+        subtitle="View your class schedule for assigned courses."
       />
-      <PortalAlert type="info">
-        <strong>What is this tab for?</strong> Admin assigns you as the instructor on each course. Here you see those
-        courses and the student list (roster). To mark attendance, open the link below or use the Attendance tab. To
-        post homework or quizzes, use Content or Quizzes.
-      </PortalAlert>
-      <SimpleTable
-        columns={[
-          { key: 'title', label: 'Course' },
-          { key: 'category', label: 'Category' },
-          { key: 'level', label: 'Level' },
-        ]}
-        rows={courses}
-        emptyLabel="No courses assigned. Ask admin to set you as instructor."
-      />
-      <div className="portal-card" style={{ marginTop: '1rem' }}>
-        <h3>Class roster</h3>
-        {selectedCourse ? (
-          <p style={{ marginBottom: '0.75rem' }}>
-            <Link to={`/teacher/attendance?course=${portalDocId({ _id: selectedCourse })}`}>
-              Mark daily attendance for this class →
-            </Link>
+
+      <div className="portal-hero portal-hero--teacher">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-chalkboard" />
+        </div>
+        <div>
+          <h2>Weekly class schedule</h2>
+          <p>
+            Admin sets your course timings here. Use Attendance to mark students, Assignments and Resources for
+            homework, and Quizzes for assessments.
           </p>
-        ) : null}
-        <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-          <option value="">Select course</option>
-          {courses.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
-        <SimpleTable
-          columns={[
-            { key: 'name', label: 'Student', render: (r) => r.student?.name },
-            { key: 'id', label: 'Student ID', render: (r) => r.student?.studentId || '—' },
-            { key: 'status', label: 'Status', render: (r) => r.status },
-          ]}
-          rows={roster}
-          emptyLabel={selectedCourse ? 'No active students.' : 'Select a course.'}
-        />
+        </div>
+      </div>
+
+      <div className="portal-panel">
+        <div className="portal-panel__head">
+          <div>
+            <h2>Class schedule</h2>
+            <p>
+              {schedules.length
+                ? `${schedules.length} class${schedules.length === 1 ? '' : 'es'} this week`
+                : 'No timings set yet'}
+            </p>
+          </div>
+        </div>
+        <div className="portal-panel__body">
+          {schedules.length === 0 ? (
+            <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
+              No class timings set yet. Ask admin to add schedules in LMS.
+            </p>
+          ) : (
+            <div className="portal-data-table-wrap">
+              <table className="portal-data-table teacher-classes__table">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Time</th>
+                    <th>Course</th>
+                    <th>Room / link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {schedules.map((r) => (
+                    <tr key={r._id}>
+                      <td>
+                        <span className="teacher-classes__day-badge">
+                          {dayLabels[r.dayOfWeek] || r.dayOfWeek}
+                        </span>
+                      </td>
+                      <td className="teacher-classes__time">
+                        {formatTime12h(r.startTime)} – {formatTime12h(r.endTime)}
+                      </td>
+                      <td className="teacher-classes__course">{r.course?.title || '—'}</td>
+                      <td>
+                        <ScheduleRoomOrLink value={r.roomOrLink} className="teacher-classes__join" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

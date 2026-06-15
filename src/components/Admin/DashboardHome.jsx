@@ -35,11 +35,11 @@ function filterActivitiesAfterClear(activities) {
 }
 
 const DASHBOARD_ACCENT_PRESETS = [
+    { hex: '#ef4444', label: 'Red' },
     { hex: '#3b82f6', label: 'Blue' },
     { hex: '#10b981', label: 'Green' },
     { hex: '#f59e0b', label: 'Amber' },
     { hex: '#8b5cf6', label: 'Purple' },
-    { hex: '#ef4444', label: 'Red' },
     { hex: '#06b6d4', label: 'Cyan' },
 ];
 
@@ -186,14 +186,14 @@ const DashboardHome = () => {
             value: loading ? '...' : stats.totalTeachers,
             icon: 'fas fa-chalkboard-teacher',
             color: '#06b6d4',
-            onClick: () => navigate('/admin/people')
+            onClick: () => navigate('/admin/teachers')
         },
         {
             title: 'Parents',
             value: loading ? '...' : stats.totalParents,
             icon: 'fas fa-people-roof',
             color: '#f97316',
-            onClick: () => navigate('/admin/people')
+            onClick: () => navigate('/admin/parents')
         },
     ];
 

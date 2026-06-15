@@ -275,11 +275,6 @@ const AboutPage = () => {
                   height={500}
                 />
               </div>
-              <div className="about-page-dark__intro-badge">
-              Research first<br />
-              Teaching second<br />
-              Always
-              </div>
             </div>
 
             <div className="about-page-dark__intro-copy">
@@ -382,7 +377,7 @@ const AboutPage = () => {
         </div>
       </section>
 
-      <VideoSection />
+      <VideoSection placement="about" />
 
       <section className="about-page-team" aria-label="Our team">
         <div className="about-page-team__container">

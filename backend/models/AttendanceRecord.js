@@ -16,4 +16,6 @@ const attendanceRecordSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+attendanceRecordSchema.index({ course: 1, date: -1 });
+
 module.exports = mongoose.model('AttendanceRecord', attendanceRecordSchema);

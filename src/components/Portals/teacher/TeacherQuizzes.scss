@@ -1,0 +1,340 @@
+@import '../../../styles/breakpoints';
+
+.teacher-quizzes {
+  .teacher-quizzes__layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .teacher-quizzes__form-panel {
+    background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 42%, #ede9fe 100%);
+    border: 1px solid rgba(139, 92, 246, 0.28);
+    border-radius: 16px;
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 12px 36px rgba(109, 40, 217, 0.1);
+    width: 100%;
+    max-width: 720px;
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+
+      > button[type='submit'] {
+        padding: 0.65rem 1rem;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    }
+  }
+
+  .teacher-quizzes__form-head {
+    display: flex;
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+    align-items: flex-start;
+
+    .teacher-quizzes__form-close {
+      margin-left: auto;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.25rem;
+      line-height: 1;
+
+      &:hover {
+        color: #0f172a;
+      }
+    }
+
+    .teacher-quizzes__form-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    h2 {
+      margin: 0 0 0.2rem;
+      font-size: 1.1rem;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+  }
+
+  .teacher-quizzes__question-card {
+    padding: 1rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #e9d5ff;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.06);
+
+    &--locked {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+  }
+
+  .teacher-quizzes__question-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #7c3aed;
+    margin-bottom: 0.5rem;
+  }
+
+  .portal-quiz-correct-pick {
+    margin: 0.5rem 0 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #e9d5ff;
+    background: #faf5ff;
+
+    legend {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #6b21a8;
+      padding: 0 0.25rem;
+    }
+
+    label {
+      font-size: 0.88rem;
+      margin-right: 1rem;
+      cursor: pointer;
+    }
+  }
+
+  .teacher-quizzes__add-q {
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    border: 1px dashed #c4b5fd;
+    background: #faf5ff;
+    color: #7c3aed;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .teacher-quizzes__library,
+  .teacher-quizzes__submissions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .teacher-quizzes__submissions {
+    margin-top: 0.25rem;
+  }
+
+  .teacher-quizzes__submissions-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+  }
+
+  .teacher-quizzes__course-row td {
+    background: #f8fafc;
+    padding-top: 0.85rem;
+    padding-bottom: 0.35rem;
+    border-bottom: none;
+  }
+
+  .teacher-quizzes__library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .teacher-quizzes__course-filter,
+  .teacher-quizzes__quiz-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 200px;
+
+    select {
+      width: 100%;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      background: #fff;
+    }
+  }
+
+  .teacher-quizzes__course-filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .teacher-quizzes__course-filter-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+  }
+
+  .teacher-quizzes__submissions-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .teacher-quizzes__library-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: 1rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+  }
+
+  .teacher-quizzes__make-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+
+    &:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+  }
+
+  .teacher-quizzes__list-wrap {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    overflow-x: auto;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  }
+
+  .teacher-quizzes__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+
+    thead th {
+      background: #faf5ff;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tbody td {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover {
+      background: #fafafa;
+    }
+  }
+
+  .teacher-quizzes__pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f3e8ff;
+    color: #7c3aed;
+  }
+
+  .teacher-quizzes__btn {
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+
+    &--primary {
+      background: #8b5cf6;
+      border-color: transparent;
+      color: #fff;
+    }
+
+    &--danger {
+      background: #dc2626;
+      border-color: transparent;
+      color: #fff;
+    }
+  }
+
+  .teacher-quizzes__empty {
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .teacher-quizzes__toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 100;
+    padding: 0.85rem 1.1rem;
+    border-radius: 12px;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
+  }
+
+  .teacher-quizzes__attempts-table {
+    margin-top: 0.5rem;
+  }
+}

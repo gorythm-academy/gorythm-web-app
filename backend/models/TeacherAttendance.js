@@ -6,6 +6,12 @@ const teacherAttendanceSchema = new mongoose.Schema(
     monthKey: { type: String, required: true }, // YYYY-MM
     presentDays: { type: Number, default: 0 },
     leaveDays: { type: Number, default: 0 },
+    absentDays: { type: Number, default: 0 },
+    lateDays: { type: Number, default: 0 },
+    holidayDays: { type: Number, default: 0 },
+    weekendDays: { type: Number, default: 0 },
+    reportAbsentDays: { type: Number, default: 0 },
+    expectedWorkingDays: { type: Number, default: 0 },
     notes: { type: String, default: '' },
   },
   { timestamps: true }

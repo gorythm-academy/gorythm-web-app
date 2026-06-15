@@ -9,17 +9,24 @@ const paymentSchema = new mongoose.Schema({
     courseName: { type: String, trim: true },
     amount: { type: Number, required: true },
     currency: { type: String, default: 'USD' },
-    status: { 
-        type: String, 
-        enum: ['pending', 'completed', 'failed', 'refunded'], 
-        default: 'pending' 
+    status: {
+        type: String,
+        enum: ['pending', 'awaiting_review', 'paid', 'rejected', 'failed', 'refunded', 'completed'],
+        default: 'pending',
     },
     paymentMethod: { type: String, default: 'stripe' },
     transactionId: { type: String },
     stripePaymentIntentId: { type: String },
     refundId: { type: String },
     failureReason: { type: String },
-    createdAt: { type: Date, default: Date.now }
+    proofUrl: { type: String, default: '' },
+    proofSubmittedAt: { type: Date },
+    uploadToken: { type: String },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedAt: { type: Date },
+    rejectionReason: { type: String, default: '' },
+    deletedAt: { type: Date, default: null },
+    createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model('Payment', paymentSchema);

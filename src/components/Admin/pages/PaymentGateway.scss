@@ -432,6 +432,314 @@
   line-height: 1.6;
 }
 
+.bank-timeline {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 4px 0 8px;
+}
+
+.bank-timeline__step {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+
+  &.is-active {
+    color: #c5a45c;
+    font-weight: 600;
+  }
+
+  &.is-done {
+    color: rgba(255, 255, 255, 0.75);
+  }
+}
+
+.bank-timeline__dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+
+  .is-active & {
+    border-color: #c5a45c;
+    background: rgba(197, 164, 92, 0.15);
+    color: #c5a45c;
+  }
+
+  .is-done & {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+  }
+}
+
+.bank-details-card,
+.bank-upload-required {
+  margin: 0 0 10px;
+  color: #fbbf24;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.bank-upload-card,
+.bank-success-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 22px 24px;
+
+  h3 {
+    margin: 0 0 12px;
+    color: #c5a45c;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  p {
+    margin: 0 0 12px;
+    color: rgba(255, 255, 255, 0.68);
+    line-height: 1.55;
+    font-size: 0.92rem;
+  }
+}
+
+.bank-details-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bank-details-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: center;
+
+  dt {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+  }
+
+  dd {
+    margin: 0;
+    color: #fff;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    code {
+      background: rgba(197, 164, 92, 0.12);
+      border: 1px solid rgba(197, 164, 92, 0.25);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      word-break: break-all;
+    }
+  }
+
+  &--highlight dd strong,
+  &--highlight dd code {
+    color: #c5a45c;
+  }
+}
+
+.bank-copy-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #c5a45c;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(197, 164, 92, 0.2);
+  }
+}
+
+.bank-details-note {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.88rem;
+}
+
+.bank-details-empty {
+  color: #f59e0b !important;
+}
+
+.bank-upload-dropzone {
+  border: 2px dashed rgba(197, 164, 92, 0.35);
+  border-radius: 14px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  color: rgba(255, 255, 255, 0.65);
+
+  i.fa-image {
+    font-size: 2rem;
+    color: #c5a45c;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  small {
+    display: block;
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  &:hover,
+  &.has-file {
+    border-color: #c5a45c;
+    background: rgba(197, 164, 92, 0.06);
+  }
+}
+
+.bank-upload-preview {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.bank-upload-pdf {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #c5a45c;
+
+  i {
+    font-size: 2rem;
+  }
+}
+
+.bank-success-card {
+  text-align: center;
+  padding: 40px 28px;
+
+  i {
+    font-size: 3rem;
+    color: #10b981;
+    margin-bottom: 16px;
+  }
+
+  h3 {
+    justify-content: center;
+    color: #fff;
+    font-size: 1.4rem;
+  }
+}
+
+.bank-done-panel {
+  padding: 0 32px 32px;
+  scroll-margin-top: 120px;
+}
+
+.payment-notice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+  }
+
+  &__panel {
+    position: relative;
+    z-index: 1;
+    width: min(400px, 100%);
+    padding: 28px 24px 22px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #1a1a1a;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+
+    h3 {
+      margin: 0 0 10px;
+      color: #fff;
+      font-size: 1.15rem;
+    }
+
+    p {
+      margin: 0 0 20px;
+      color: rgba(255, 255, 255, 0.72);
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+
+    &--error .payment-notice-modal__icon {
+      color: #f87171;
+      background: rgba(248, 113, 113, 0.15);
+    }
+
+    &--success .payment-notice-modal__icon {
+      color: #34d399;
+      background: rgba(52, 211, 153, 0.15);
+    }
+
+    &--info .payment-notice-modal__icon {
+      color: #c5a45c;
+      background: rgba(197, 164, 92, 0.15);
+    }
+  }
+
+  &__icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+  }
+
+  &__btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 28px;
+    background: #c5a45c;
+    color: #111;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #d4b56e;
+    }
+  }
+}
+
 // =============================================================================
 // RESPONSIVE – PaymentGateway admin page
 // =============================================================================

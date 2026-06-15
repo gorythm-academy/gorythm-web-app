@@ -12,6 +12,7 @@ if (!process.env.VERCEL) {
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const courseRoutes = require('./routes/courses');
+const courseImageRoutes = require('./routes/courseImages');
 const enrollmentsRoute = require('./routes/enrollments');
 const paymentRoutes = require('./routes/payments');
 const stripeWebhookHandler = require('./routes/stripeWebhook');
@@ -24,6 +25,8 @@ const userRoutes = require('./routes/users');
 const portalRoutes = require('./routes/portal');
 const lmsAdminRoutes = require('./routes/lmsAdmin');
 const uploadRoutes = require('./routes/upload');
+const promoVideoRoutes = require('./routes/promoVideos');
+const promoVideoAdminRoutes = require('./routes/promoVideos').adminRouter;
 const payrollRoutes = require('./routes/payroll');
 const { authRateLimiter } = require('./middleware/security');
 const requestContext = require('./middleware/requestContext');
@@ -98,7 +101,11 @@ app.use(cors({
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Portal-Preview-Role'],
 }));
-app.use(helmet());
+app.use(
+    helmet({
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+);
 app.use(requestContext);
 
 // MongoDB Connection — cached for Vercel serverless warm reuse
@@ -162,10 +169,22 @@ app.post(
 app.use(express.json());
 
 const uploadsDir = path.join(__dirname, 'uploads');
-app.use('/api/uploads', express.static(uploadsDir));
+app.use(
+    '/api/uploads',
+    express.static(uploadsDir, {
+        setHeaders(res, filePath) {
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            if (filePath.endsWith('.avif')) res.type('image/avif');
+            else if (filePath.endsWith('.webp')) res.type('image/webp');
+        },
+    })
+);
 
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
+app.use('/api/admin/promo-videos', promoVideoAdminRoutes);
+app.use('/api/admin/course-images', courseImageRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
@@ -179,6 +198,7 @@ app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/lms-admin', lmsAdminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/promo-videos', promoVideoRoutes);
 app.use('/api/payroll', payrollRoutes);
 
 // Health check

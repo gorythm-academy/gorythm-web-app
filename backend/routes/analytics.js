@@ -5,6 +5,11 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
+const authMiddleware = require('../middleware/auth');
+const { allowRoles } = require('../middleware/authorize');
+
+router.use(authMiddleware);
+router.use(allowRoles('super-admin', 'admin'));
 
 // Get comprehensive analytics data
 router.get('/overview', async (req, res) => {

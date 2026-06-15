@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import './PortalUi.scss';
+import './PortalPages.scss';
 
 export function PortalLoading({ label = 'Loading…' }) {
   return <p className="portal-ui-loading">{label}</p>;
@@ -53,6 +54,51 @@ export function SummaryGrid({ items }) {
 export function FeeBadge({ status }) {
   const s = status || 'pending';
   return <span className={`portal-fee-badge portal-fee-badge--${s}`}>{s}</span>;
+}
+
+export function PortalCourseToolbar({ value, onChange, courses, label = 'Course', count }) {
+  return (
+    <div className="portal-course-toolbar">
+      <label className="portal-course-toolbar__field">
+        <span>{label}</span>
+        <select value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="all">All courses</option>
+          {courses.map((c) => (
+            <option key={c._id} value={c._id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {value && count != null ? (
+        <span className="portal-course-toolbar__meta">
+          {count} item{count === 1 ? '' : 's'}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+export function PortalNewBanner({ title, items, itemLabel, onDismiss }) {
+  if (!items?.length) return null;
+  return (
+    <div className="portal-new-banner" role="status">
+      <div className="portal-new-banner__body">
+        <strong>{title}</strong>
+        <ul>
+          {items.map((item) => (
+            <li key={item._id}>
+              {itemLabel(item)}
+              {item.course?.title ? ` — ${item.course.title}` : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <button type="button" onClick={onDismiss}>
+        Got it
+      </button>
+    </div>
+  );
 }
 
 export function SimpleTable({

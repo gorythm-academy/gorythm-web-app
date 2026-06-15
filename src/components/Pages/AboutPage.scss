@@ -96,7 +96,6 @@
 }
 
 .about-page-dark__intro-media {
-  position: relative;
   max-width: 560px;
   align-self: start;
 }
@@ -110,23 +109,6 @@
     aspect-ratio: 11 / 13;
     object-fit: cover;
   }
-}
-
-.about-page-dark__intro-badge {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: auto;
-  width: 320px;
-  height: 220px;
-  padding: 46px 28px;
-  box-sizing: border-box;
-  background: #1b1b1b;
-  color: #fff;
-  font-size: 2.08rem;
-  font-weight: 500;
-  line-height: 1.18;
-  text-align: left;
 }
 
 .about-page-dark__intro-copy {
@@ -1029,13 +1011,6 @@
     max-width: 520px;
   }
 
-  .about-page-dark__intro-badge {
-    width: 280px;
-    height: 190px;
-    padding: 34px 22px;
-    font-size: 1.7rem;
-  }
-
   .about-page-dark__intro-copy h2 {
     font-size: clamp(2.2rem, 3.4vw, 3.5rem);
   }
@@ -1068,13 +1043,6 @@
     max-width: 470px;
   }
 
-  .about-page-dark__intro-badge {
-    width: 220px;
-    height: 156px;
-    padding: 24px 16px;
-    font-size: 1.25rem;
-  }
-
   .about-page-dark__intro-copy {
     max-width: 560px;
   }
@@ -1098,19 +1066,12 @@
     max-width: 420px;
   }
 
-  .about-page-dark__intro-badge {
-    width: 190px;
-    height: 138px;
-    padding: 20px 12px;
-    font-size: 1rem;
-  }
-
   .about-page-dark__intro-copy h2 {
     font-size: clamp(1.9rem, 3vw, 2.6rem);
   }
 }
 
-/* Phone portrait: stacked layout + full-bleed intro image + compact badge */
+/* Phone portrait: stacked layout + full-bleed intro image */
 @media (max-width: $bp-section-phone-max) and (orientation: portrait) {
   .about-page-dark__intro,
   .about-page-dark__value-grid,
@@ -1185,14 +1146,6 @@
     width: 100vw;
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
-  }
-
-  .about-page-dark__intro-badge {
-    width: min(172px, 46vw);
-    height: auto;
-    min-height: 0;
-    padding: 18px 10px;
-    font-size: 0.9rem;
   }
 
   .about-page-dark__intro-copy,

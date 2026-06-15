@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const ClassSchedule = require('../models/ClassSchedule');
+const Enrollment = require('../models/Enrollment');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const TeacherAttendanceRequest = require('../models/TeacherAttendanceRequest');
 const TeacherAttendance = require('../models/TeacherAttendance');
@@ -12,10 +13,27 @@ const {
     monthBounds,
     isoDateKey,
 } = require('../services/teacherAttendanceCalendar');
+const {
+    aggregateFromApprovedDays,
+    monthNeedsReapproval,
+    syncMonthlyRequestFromDaily,
+} = require('../services/teacherAttendanceSync');
+const {
+    assertMonthEndedForApproval,
+    autoGeneratePayrollForApprovedMonth,
+} = require('../services/payrollCalculation');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
+const AssignmentSubmission = require('../models/AssignmentSubmission');
+const Quiz = require('../models/Quiz');
+const QuizAttempt = require('../models/QuizAttempt');
 const Resource = require('../models/Resource');
+const PayrollRun = require('../models/PayrollRun');
+const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
+const { getTeacherPayrollAttendanceDetail } = require('../services/teacherPayrollAttendance');
+const { getTeachersForCourse } = require('../services/courseTeachers');
+const { activeUserFilter } = require('../utils/userQuery');
 
 router.use(authMiddleware);
 router.use(allowRoles('super-admin', 'admin'));
@@ -31,7 +49,14 @@ router.get('/schedules', async (req, res) => {
             .populate('course', 'title')
             .populate('teacher', 'name email')
             .sort({ dayOfWeek: 1, startTime: 1 });
-        const teachers = await User.find({ role: 'teacher' }).select('name email').sort({ name: 1 });
+        let teachers;
+        if (req.query.courseId) {
+            teachers = await getTeachersForCourse(req.query.courseId);
+        } else {
+            teachers = await User.find({ role: 'teacher', ...activeUserFilter() })
+                .select('name email')
+                .sort({ name: 1 });
+        }
         res.json({ success: true, schedules, dayLabels: DAY_LABELS, teachers });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load schedules' });
@@ -92,10 +117,40 @@ router.patch('/schedules/:id', async (req, res) => {
 
 router.delete('/schedules/:id', async (req, res) => {
     try {
-        await ClassSchedule.findByIdAndDelete(req.params.id);
+        const schedule = await ClassSchedule.findByIdAndDelete(req.params.id);
+        if (!schedule) {
+            return res.status(404).json({ success: false, error: 'Schedule not found' });
+        }
+        await Enrollment.updateMany(
+            { assignedSchedule: schedule._id },
+            { $set: { assignedSchedule: null } }
+        );
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete schedule' });
+    }
+});
+
+router.post('/schedules/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ success: false, error: 'No schedule IDs provided' });
+        }
+
+        await Enrollment.updateMany(
+            { assignedSchedule: { $in: ids } },
+            { $set: { assignedSchedule: null } }
+        );
+        const result = await ClassSchedule.deleteMany({ _id: { $in: ids } });
+
+        res.json({
+            success: true,
+            message: `${result.deletedCount} schedule(s) removed`,
+            deletedCount: result.deletedCount,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to bulk delete schedules' });
     }
 });
 
@@ -106,8 +161,12 @@ router.get('/parent-links', async (req, res) => {
             .populate('parent', 'name email')
             .populate('student', 'name email studentId')
             .sort({ createdAt: -1 });
-        const parents = await User.find({ role: 'parent' }).select('name email').sort({ name: 1 });
-        const students = await User.find({ role: 'student' }).select('name email studentId').sort({ name: 1 });
+        const parents = await User.find({ role: 'parent', ...activeUserFilter() })
+            .select('name email')
+            .sort({ name: 1 });
+        const students = await User.find({ role: 'student', ...activeUserFilter() })
+            .select('name email studentId')
+            .sort({ name: 1 });
         res.json({ success: true, links, parents, students });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load parent links' });
@@ -140,6 +199,83 @@ router.delete('/parent-links/:id', async (req, res) => {
 });
 
 // ——— Teacher attendance approval ———
+router.get('/teacher-attendance-daily', async (req, res) => {
+    try {
+        const { month, status, teacherId } = req.query;
+        const filter = {};
+        if (month) {
+            const key = String(month).trim();
+            const { start, end } = monthBounds(key);
+            filter.date = { $gte: start, $lte: end };
+        }
+        if (status && status !== 'all') {
+            filter.approvalStatus = status;
+        }
+        if (teacherId) {
+            filter.teacher = teacherId;
+        }
+        const days = await TeacherSelfAttendanceDay.find(filter)
+            .populate('teacher', 'name email')
+            .populate('reviewedBy', 'name email')
+            .sort({ date: -1, submittedAt: -1 });
+        const workingDays = days.filter((d) => {
+            const dow = new Date(d.date).getDay();
+            return dow !== 0;
+        });
+        res.json({
+            success: true,
+            days: workingDays.map((d) => ({
+                _id: d._id,
+                date: isoDateKey(d.date),
+                status: d.status,
+                notes: d.notes || '',
+                approvalStatus: d.approvalStatus || 'pending',
+                submittedAt: d.submittedAt,
+                reviewedAt: d.reviewedAt,
+                teacher: d.teacher,
+                reviewedBy: d.reviewedBy,
+            })),
+            count: workingDays.length,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load daily attendance' });
+    }
+});
+
+router.patch('/teacher-attendance-daily/:id', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ success: false, error: 'status must be approved or rejected' });
+        }
+        const reviewerId = req.user?.userId || req.user?.id;
+        if (!reviewerId) {
+            return res.status(401).json({ success: false, error: 'Reviewer not authenticated' });
+        }
+        const day = await TeacherSelfAttendanceDay.findByIdAndUpdate(
+            req.params.id,
+            {
+                approvalStatus: status,
+                reviewedBy: reviewerId,
+                reviewedAt: new Date(),
+            },
+            { new: true, runValidators: true }
+        )
+            .populate('teacher', 'name email')
+            .populate('reviewedBy', 'name email');
+        if (!day) {
+            return res.status(404).json({ success: false, error: 'Daily record not found' });
+        }
+        const teacherId = day.teacher?._id || day.teacher;
+        if (teacherId) {
+            await syncMonthlyRequestFromDaily(teacherId, day.date);
+        }
+        res.json({ success: true, day });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to update daily attendance' });
+    }
+});
+
 router.get('/teacher-attendance-requests', async (req, res) => {
     try {
         const filter = {};
@@ -213,33 +349,100 @@ router.patch('/teacher-attendance-requests/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Request not found' });
         }
 
+        const teacherId = existing.teacher?._id || existing.teacher;
+        const monthKey = existing.monthKey;
+        const { start, end } = monthBounds(monthKey);
+        const monthDays = await TeacherSelfAttendanceDay.find({
+            teacher: teacherId,
+            date: { $gte: start, $lte: end },
+        });
+        const calendar = await buildMonthCalendar(monthKey);
+
+        if (status === 'approved') {
+            assertMonthEndedForApproval(monthKey);
+            const workingMonthDays = monthDays.filter((d) => {
+                const key = isoDateKey(d.date);
+                const calDay = calendar.days.find((cd) => cd.date === key);
+                return calDay?.dayType !== 'weekend';
+            });
+            const submitted = workingMonthDays.filter((d) => d.submittedAt);
+            if (!submitted.length) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot approve month: no daily attendance submissions for this month.',
+                });
+            }
+            if (monthNeedsReapproval(monthDays, calendar.days)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot approve month: one or more submitted days are still pending or rejected.',
+                });
+            }
+        }
+
+        const agg = aggregateFromApprovedDays(monthDays, calendar.days);
+        const countFields = {
+            presentDays: agg.presentDays ?? 0,
+            leaveDays: agg.leaveDays ?? 0,
+            absentDays: agg.absentDays ?? 0,
+            lateDays: agg.lateDays ?? 0,
+            holidayDays: agg.holidayDays ?? 0,
+            weekendDays: agg.weekendDays ?? 0,
+            reportAbsentDays: agg.reportAbsentDays ?? 0,
+            daysMarked: agg.daysMarked ?? 0,
+            expectedWorkingDays: agg.expectedWorkingDays ?? calendar.expectedWorkingDays,
+        };
+
         const request = await TeacherAttendanceRequest.findByIdAndUpdate(
             req.params.id,
             {
+                ...countFields,
                 status,
                 reviewedBy: reviewerId,
                 reviewedAt: new Date(),
+                payrollMissingReason: null,
             },
             { new: true, runValidators: true }
         )
             .populate('teacher', 'name email')
             .populate('reviewedBy', 'name email');
 
-        const teacherId = request.teacher?._id || request.teacher;
-
         if (status === 'approved' && teacherId) {
             await TeacherAttendance.findOneAndUpdate(
-                { teacher: teacherId, monthKey: request.monthKey },
+                { teacher: teacherId, monthKey },
                 {
-                    presentDays: request.presentDays ?? 0,
-                    leaveDays: request.leaveDays ?? 0,
+                    ...countFields,
                     notes: request.notes || '',
                 },
                 { upsert: true, new: true }
             );
         }
 
-        res.json({ success: true, request });
+        let payroll = null;
+        let payrollError = null;
+        if (status === 'approved' && teacherId) {
+            try {
+                const result = await autoGeneratePayrollForApprovedMonth(
+                    teacherId,
+                    monthKey,
+                    reviewerId
+                );
+                payroll = result.payroll;
+            } catch (err) {
+                payrollError = err.message || 'Payroll could not be auto-generated';
+                await TeacherAttendanceRequest.findByIdAndUpdate(req.params.id, {
+                    payrollMissingReason: payrollError,
+                });
+                request.payrollMissingReason = payrollError;
+                req.log?.warn?.('Auto payroll failed after month approval', {
+                    teacherId,
+                    monthKey,
+                    err: payrollError,
+                });
+            }
+        }
+
+        res.json({ success: true, request, payroll, payrollError });
     } catch (error) {
         req.log?.error?.('Teacher attendance request review failed', { err: error });
         res.status(500).json({
@@ -317,6 +520,19 @@ router.patch('/resources/:id', async (req, res) => {
     }
 });
 
+router.post('/resources/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const result = await Resource.deleteMany({ _id: { $in: ids } });
+        res.json({ success: true, deletedCount: result.deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to delete resources' });
+    }
+});
+
 router.delete('/resources/:id', async (req, res) => {
     try {
         await Resource.findByIdAndDelete(req.params.id);
@@ -339,7 +555,9 @@ router.get('/assignments', async (req, res) => {
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
             .sort({ title: 1 });
-        const teachers = await User.find({ role: 'teacher' }).select('name email').sort({ name: 1 });
+        const teachers = await User.find({ role: 'teacher', ...activeUserFilter() })
+            .select('name email')
+            .sort({ name: 1 });
         res.json({ success: true, assignments, courses, teachers });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load assignments' });
@@ -404,12 +622,200 @@ router.patch('/assignments/:id', async (req, res) => {
     }
 });
 
+router.post('/assignments/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        await AssignmentSubmission.deleteMany({ assignment: { $in: ids } });
+        const result = await Assignment.deleteMany({ _id: { $in: ids } });
+        res.json({ success: true, deletedCount: result.deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to delete assignments' });
+    }
+});
+
 router.delete('/assignments/:id', async (req, res) => {
     try {
+        await AssignmentSubmission.deleteMany({ assignment: req.params.id });
         await Assignment.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete assignment' });
+    }
+});
+
+function formatScoreDisplay(score, maxPoints) {
+    if (score == null) return '—';
+    if (maxPoints != null && maxPoints > 0) return `${score} / ${maxPoints}`;
+    return String(score);
+}
+
+function buildQuizReviewPayload(quiz, answers) {
+    const questions = quiz?.questions || [];
+    const items = questions.map((q, idx) => {
+        const picked = answers[idx];
+        const correct = Number(q.correctAnswer);
+        const isCorrect = picked != null && Number(picked) === correct;
+        return {
+            question: q.question,
+            options: q.options || [],
+            pickedIndex: picked,
+            correctIndex: correct,
+            isCorrect,
+        };
+    });
+    const correctCount = items.filter((i) => i.isCorrect).length;
+    const total = items.length;
+    const normalizedScore =
+        quiz?.totalMarks != null && quiz.totalMarks > 0 && total
+            ? Math.round((correctCount / total) * quiz.totalMarks)
+            : correctCount;
+    return {
+        items,
+        correctCount,
+        totalQuestions: total,
+        score: normalizedScore,
+        scoreDisplay: formatScoreDisplay(normalizedScore, quiz?.totalMarks),
+    };
+}
+
+// ——— Assignment submissions (admin view by course) ———
+router.get('/submissions', async (req, res) => {
+    try {
+        const filter = {};
+        if (req.query.courseId) {
+            const assignmentIds = await Assignment.find({ course: req.query.courseId }).distinct('_id');
+            filter.assignment = { $in: assignmentIds };
+        }
+        const submissions = await AssignmentSubmission.find(filter)
+            .populate('student', 'name email studentId')
+            .populate({
+                path: 'assignment',
+                select: 'title maxPoints dueDate course teacher',
+                populate: [
+                    { path: 'course', select: 'title instructorName' },
+                    { path: 'teacher', select: 'name email' },
+                ],
+            })
+            .sort({ submittedAt: -1 })
+            .limit(500);
+        const courses = await Course.find().select('title instructorName').sort({ title: 1 });
+        res.json({ success: true, submissions, courses });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load submissions' });
+    }
+});
+
+router.get('/quiz-attempts', async (req, res) => {
+    try {
+        const filter = {};
+        if (req.query.courseId) {
+            const quizIds = await Quiz.find({ course: req.query.courseId }).distinct('_id');
+            filter.quiz = { $in: quizIds };
+        }
+        const attempts = await QuizAttempt.find(filter)
+            .populate('student', 'name email studentId')
+            .populate({
+                path: 'quiz',
+                select: 'title totalMarks course teacher',
+                populate: [
+                    { path: 'course', select: 'title instructorName' },
+                    { path: 'teacher', select: 'name email' },
+                ],
+            })
+            .sort({ createdAt: -1 })
+            .limit(500);
+        const quizIds = [...new Set(attempts.map((a) => String(a.quiz?._id || a.quiz)).filter(Boolean))];
+        const fullQuizzes = await Quiz.find({ _id: { $in: quizIds } }).select('questions totalMarks title');
+        const quizById = Object.fromEntries(fullQuizzes.map((q) => [String(q._id), q]));
+        res.json({
+            success: true,
+            attempts: attempts.map((a) => {
+                const o = a.toObject();
+                const fullQuiz = quizById[String(a.quiz?._id || a.quiz)];
+                o.scoreDisplay = formatScoreDisplay(o.score, a.quiz?.totalMarks);
+                o.review = fullQuiz ? buildQuizReviewPayload(fullQuiz, o.answers || []) : null;
+                return o;
+            }),
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load quiz attempts' });
+    }
+});
+
+// ——— Teacher payroll (paid records for admin) ———
+router.get('/payroll-missing-alerts', async (req, res) => {
+    try {
+        const alerts = await TeacherAttendanceRequest.find({
+            status: 'approved',
+            payrollMissingReason: { $nin: [null, ''] },
+        })
+            .populate('teacher', 'name email')
+            .sort({ monthKey: -1 })
+            .limit(50);
+        res.json({ success: true, alerts });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load payroll alerts' });
+    }
+});
+
+router.get('/payroll-runs/:id/attendance', async (req, res) => {
+    try {
+        const run = await PayrollRun.findById(req.params.id).populate('teacher', 'name email');
+        if (!run) {
+            return res.status(404).json({ success: false, error: 'Payroll run not found' });
+        }
+        const attendance = await getTeacherPayrollAttendanceDetail(
+            run.teacher._id || run.teacher,
+            run.monthKey
+        );
+        res.json({
+            success: true,
+            run: {
+                _id: run._id,
+                monthKey: run.monthKey,
+                teacher: run.teacher,
+                status: run.status,
+                finalSalary: run.finalSalary,
+            },
+            attendance,
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({
+            success: false,
+            error: error.message || 'Failed to load attendance',
+        });
+    }
+});
+
+router.get('/payroll-runs', async (req, res) => {
+    try {
+        const filter = {};
+        if (req.query.status && req.query.status !== 'all') {
+            filter.status = req.query.status;
+        }
+        const runs = await PayrollRun.find(filter)
+            .populate('teacher', 'name email')
+            .populate('paidBy', 'name email')
+            .sort({ monthKey: -1, paidAt: -1, updatedAt: -1 })
+            .limit(300);
+        const teacherIds = runs.map((r) => r.teacher?._id || r.teacher).filter(Boolean);
+        const profiles = await TeacherSalaryProfile.find({ teacher: { $in: teacherIds } });
+        const profileByTeacher = new Map(profiles.map((p) => [String(p.teacher), p]));
+        const rows = runs.map((r) => {
+            const plain = r.toObject();
+            const tid = String(r.teacher?._id || r.teacher);
+            const profile = profileByTeacher.get(tid);
+            return {
+                ...plain,
+                profileSalary: profile?.monthlySalary ?? null,
+            };
+        });
+        res.json({ success: true, runs: rows });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load payroll runs' });
     }
 });
 

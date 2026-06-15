@@ -1,0 +1,70 @@
+.student-content {
+  .student-content__resources-panel {
+    margin-bottom: 1.25rem;
+  }
+
+  .student-content__modules-panel {
+    margin-top: 0.5rem;
+  }
+
+  .student-content__course-group {
+    margin-bottom: 1.35rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .student-content__course-heading {
+    margin: 0 0 0.65rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1d4ed8;
+    padding: 0.35rem 0.65rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    display: inline-block;
+  }
+
+  .student-content__note {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #475569;
+    line-height: 1.45;
+  }
+
+  .student-content__module-list {
+    margin: 0;
+    padding-left: 1rem;
+    font-size: 0.88rem;
+
+    > li {
+      margin-bottom: 0.65rem;
+
+      ul {
+        margin: 0.35rem 0 0;
+        padding-left: 1rem;
+        color: #475569;
+
+        a {
+          color: var(--color-accent, #3b82f6);
+          font-weight: 600;
+          text-decoration: none;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    }
+  }
+
+  .student-content__module-empty {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.82rem;
+    color: #94a3b8;
+  }
+}

@@ -1,15 +1,15 @@
 const InstituteHoliday = require('../models/InstituteHoliday');
 
-/** JS getDay(): 0=Sun … 6=Sat. Default weekend: Saturday + Sunday. */
-const DEFAULT_WEEKEND_DAYS = [0, 6];
+/** JS getDay(): 0=Sun … 6=Sat. Academy weekend: Sunday only. */
+const ACADEMY_WEEKEND_DAYS = [0];
 
 function parseWeekendDays() {
-    const raw = process.env.ACADEMY_WEEKEND_DAYS;
-    if (!raw) return DEFAULT_WEEKEND_DAYS;
-    return raw
-        .split(',')
-        .map((n) => Number(n.trim()))
-        .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+    return ACADEMY_WEEKEND_DAYS;
+}
+
+function isAcademyWeekendDate(dateInput) {
+    const dow = startOfDay(dateInput).getDay();
+    return parseWeekendDays().includes(dow);
 }
 
 function startOfDay(d) {
@@ -25,9 +25,13 @@ function monthBounds(monthKey) {
     return { start, end };
 }
 
+/** Local calendar date YYYY-MM-DD (never UTC — avoids weekend showing on wrong weekday). */
 function isoDateKey(d) {
     const x = startOfDay(d);
-    return x.toISOString().slice(0, 10);
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const day = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 /**
@@ -61,6 +65,7 @@ async function buildMonthCalendar(monthKey) {
         const dayType = classifyDay(cursor, holidaySet, weekendDays);
         days.push({
             date: isoDateKey(cursor),
+            dayOfWeek: cursor.getDay(),
             dayType,
             isWorking: dayType === 'working',
             label: dayType === 'weekend' ? 'Weekend' : dayType === 'holiday' ? 'Official holiday' : 'Working day',
@@ -72,41 +77,42 @@ async function buildMonthCalendar(monthKey) {
 }
 
 /**
- * Aggregate teacher daily marks. Holiday/weekend count for reports but not salary deduction.
+ * Aggregate teacher daily marks. Present and late are separate counts.
+ * Holiday/weekend count for reports but not salary deduction.
  */
 function aggregateWorkingDaysOnly(dailyDocs, calendarDays) {
     const expectedWorkingDays = calendarDays.filter((d) => d.isWorking).length;
+    const calendarWeekendDays = calendarDays.filter((d) => d.dayType === 'weekend').length;
     const stats = {
         presentDays: 0,
         leaveDays: 0,
         absentDays: 0,
         lateDays: 0,
         holidayDays: 0,
-        weekendDays: 0,
+        weekendDays: calendarWeekendDays,
         reportAbsentDays: 0,
         daysMarked: 0,
         expectedWorkingDays,
         markedOnNonWorking: 0,
     };
     for (const doc of dailyDocs) {
+        const docKey = isoDateKey(doc.date);
+        const calDay = calendarDays.find((d) => d.date === docKey);
+        if (calDay?.dayType === 'weekend') continue;
         stats.daysMarked += 1;
         const st = doc.status;
         if (st === 'present') stats.presentDays += 1;
-        else if (st === 'late') {
-            stats.lateDays += 1;
-            stats.presentDays += 1;
-        } else if (st === 'leave') stats.leaveDays += 1;
+        else if (st === 'late') stats.lateDays += 1;
+        else if (st === 'leave') stats.leaveDays += 1;
         else if (st === 'absent') {
             stats.absentDays += 1;
             stats.reportAbsentDays += 1;
         } else if (st === 'holiday') {
             stats.holidayDays += 1;
             stats.reportAbsentDays += 1;
-        } else if (st === 'weekend') {
-            stats.weekendDays += 1;
-            stats.reportAbsentDays += 1;
         }
     }
+    stats.reportAbsentDays += calendarWeekendDays;
     return stats;
 }
 
@@ -145,6 +151,7 @@ module.exports = {
     isoDateKey,
     monthBounds,
     classifyDay,
+    isAcademyWeekendDate,
     buildMonthCalendar,
     aggregateWorkingDaysOnly,
     aggregateTeacherMonthlyFromDays,

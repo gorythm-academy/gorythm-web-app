@@ -82,24 +82,8 @@ export async function payrollPost(path, body) {
   return request('post', `${apiBase()}/api/portal/accountant/payroll${path}`, body);
 }
 
-export async function paymentsGet(path = '') {
-  return request('get', `${apiBase()}/api/payments${path}`);
-}
-
-export async function lmsAdminGet(path) {
-  return request('get', `${apiBase()}/api/lms-admin${path}`);
-}
-
-export async function lmsAdminPost(path, body) {
-  return request('post', `${apiBase()}/api/lms-admin${path}`, body);
-}
-
-export async function lmsAdminPatch(path, body) {
-  return request('patch', `${apiBase()}/api/lms-admin${path}`, body);
-}
-
-export async function lmsAdminDelete(path) {
-  return request('delete', `${apiBase()}/api/lms-admin${path}`);
+export async function payrollPatch(path, body) {
+  return request('patch', `${apiBase()}/api/portal/accountant/payroll${path}`, body);
 }
 
 export const FEE_LABELS = {

@@ -53,6 +53,7 @@ const courseSchema = new mongoose.Schema({
     masonryColumn: { type: Number, enum: [1, 2, 3], default: null },
     slug: { type: String },
     isPublished: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now }
 });
 

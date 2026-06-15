@@ -64,7 +64,6 @@ const StudentTestimonialsSection = () => {
   const [slideDir, setSlideDir] = useState(null);
   const [isInView, setIsInView] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [cursorDot, setCursorDot] = useState({ x: 0, y: 0, visible: false });
   const navLockRef = useRef(false);
   const sectionRef = useRef(null);
   const dragActiveRef = useRef(false);
@@ -153,24 +152,7 @@ const StudentTestimonialsSection = () => {
     touchAxisLockedRef.current = null;
   };
 
-  const onSectionMouseMove = (e) => {
-    if (typeof window !== 'undefined' && !window.matchMedia('(pointer: fine)').matches) return;
-    const sectionEl = sectionRef.current;
-    if (!sectionEl) return;
-    const rect = sectionEl.getBoundingClientRect();
-    setCursorDot({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      visible: true,
-    });
-  };
-
-  const onSectionMouseEnter = (e) => {
-    onSectionMouseMove(e);
-  };
-
   const onSectionMouseLeave = () => {
-    setCursorDot((prev) => ({ ...prev, visible: false }));
     dragActiveRef.current = false;
     setIsDragging(false);
   };
@@ -225,8 +207,6 @@ const StudentTestimonialsSection = () => {
       aria-label="Student testimonials"
       aria-roledescription="carousel"
       onMouseDown={onSectionMouseDown}
-      onMouseMove={onSectionMouseMove}
-      onMouseEnter={onSectionMouseEnter}
       onMouseLeave={onSectionMouseLeave}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -236,14 +216,6 @@ const StudentTestimonialsSection = () => {
       <div className="student-testimonials-rule-wrap" aria-hidden="true">
         <hr className="student-testimonials-rule" />
       </div>
-
-      {cursorDot.visible ? (
-        <span
-          className="student-testimonials-cursor-dot"
-          style={{ left: `${cursorDot.x}px`, top: `${cursorDot.y}px` }}
-          aria-hidden="true"
-        />
-      ) : null}
 
       <button
         type="button"

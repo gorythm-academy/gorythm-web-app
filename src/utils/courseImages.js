@@ -1,32 +1,26 @@
+import { resolveMediaUrl } from './resolveMediaUrl';
+
 const DEFAULT_PLACEHOLDER = '/images/courses/placeholder.png';
 
 /**
- * One-source-of-truth course card image:
- * - Put files in `public/images/courses/`
- * - Name them by course slug: `<slug>.png` (or `.webp`)
- *
- * We return a `.png` path by default (simple + compatible) and provide helpers
- * to swap to a fallback if the file is missing.
- */
-export function getCourseImageSrc(course) {
-  const slug = (course?.slug || course?._id || '').toString().trim();
-  if (!slug) return DEFAULT_PLACEHOLDER;
-  return `/images/courses/${encodeURIComponent(slug)}.png`;
-}
-
-/**
- * Build ordered course image candidates:
- * 1) AVIF (smallest, modern browsers)
- * 2) WebP (widely supported modern fallback)
- * 3) PNG (legacy-safe fallback)
- * 4) Placeholder (last-resort if course image files are missing)
+ * Course card image: prefer admin-uploaded path (homepageImage), else static slug files.
  */
 export function getCourseImageCandidates(course) {
+  const uploaded = (course?.homepageImage || '').trim();
+  if (uploaded) {
+    return [resolveMediaUrl(uploaded), DEFAULT_PLACEHOLDER];
+  }
+
   const slug = (course?.slug || course?._id || '').toString().trim();
   if (!slug) return [DEFAULT_PLACEHOLDER];
   const encoded = encodeURIComponent(slug);
   const base = `/images/courses/${encoded}`;
   return [`${base}.avif`, `${base}.webp`, `${base}.png`, DEFAULT_PLACEHOLDER];
+}
+
+export function getCourseImageSrc(course) {
+  const candidates = getCourseImageCandidates(course);
+  return candidates[0] || DEFAULT_PLACEHOLDER;
 }
 
 export function setImageFallbackToPlaceholder(e) {
