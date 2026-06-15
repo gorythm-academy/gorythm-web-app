@@ -10,6 +10,9 @@ import {
   ADMIN_DASHBOARD_ACCENT_STORAGE_KEY,
 } from '../../utils/adminDashboardTheme';
 import BrandLogo from '../BrandLogo/BrandLogo';
+import { useStudentPortalBadges } from '../../hooks/useStudentPortalBadges';
+import { useTeacherPortalBadges } from '../../hooks/useTeacherPortalBadges';
+import { useAccountantPortalBadges } from '../../hooks/useAccountantPortalBadges';
 import './PortalLayout.scss';
 
 const MOBILE_MAX_WIDTH = 1024;
@@ -18,21 +21,20 @@ const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
 const NAV_BY_ROLE = {
   student: [
     { to: '/student', label: 'Dashboard', icon: 'fas fa-home', end: true },
-    { to: '/student/courses', label: 'My Courses', icon: 'fas fa-book' },
+    { to: '/student/schedule', label: 'Classes schedules', icon: 'fas fa-clock' },
     { to: '/student/fees', label: 'Fees', icon: 'fas fa-file-invoice-dollar' },
-    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks' },
+    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments' },
+    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes' },
+    { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open', badgeKey: 'content' },
     { to: '/student/attendance', label: 'Attendance', icon: 'fas fa-user-check' },
-    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle' },
-    { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open' },
-    { to: '/student/schedule', label: 'Schedule', icon: 'fas fa-clock' },
   ],
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/teacher/classes', label: 'Classes', icon: 'fas fa-chalkboard' },
     { to: '/teacher/attendance', label: 'Students attendance', icon: 'fas fa-user-check' },
-    { to: '/teacher/content', label: 'Content', icon: 'fas fa-folder-open' },
-    { to: '/teacher/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle' },
-    { to: '/teacher/schedule', label: 'Schedule', icon: 'fas fa-clock' },
+    { to: '/teacher/content', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'submissions' },
+    { to: '/teacher/resources', label: 'Resources', icon: 'fas fa-folder-open' },
+    { to: '/teacher/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizAttempts' },
     { to: '/teacher/my-attendance', label: 'My Attendance', icon: 'fas fa-calendar-check' },
   ],
   parent: [
@@ -42,7 +44,7 @@ const NAV_BY_ROLE = {
   ],
   accountant: [
     { to: '/accountant', label: 'Dashboard', icon: 'fas fa-home', end: true },
-    { to: '/accountant/payments', label: 'Payments', icon: 'fas fa-credit-card' },
+    { to: '/accountant/payments', label: 'Payments', icon: 'fas fa-credit-card', badgeKey: 'payments' },
     { to: '/accountant/payroll', label: 'Payroll', icon: 'fas fa-money-bill-wave' },
     { to: '/accountant/reports', label: 'Reports', icon: 'fas fa-file-alt' },
   ],
@@ -59,6 +61,17 @@ const PortalLayout = ({ role, title }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const adminPreview = isViewingPortalAsAdmin();
+  const studentBadges = useStudentPortalBadges(role === 'student');
+  const teacherBadges = useTeacherPortalBadges(role === 'teacher');
+  const accountantBadges = useAccountantPortalBadges(role === 'accountant');
+  const navBadges =
+    role === 'student'
+      ? studentBadges
+      : role === 'teacher'
+        ? teacherBadges
+        : role === 'accountant'
+          ? accountantBadges
+          : {};
 
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -142,19 +155,36 @@ const PortalLayout = ({ role, title }) => {
         {sidebarOpen ? <p className="portal-dashboard-title">{title}</p> : null}
 
         <nav className="sidebar-menu" aria-label="Portal navigation">
-          {nav.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`menu-item ${
-                navItemIsActive(location.pathname, item.to, item.end) ? 'active' : ''
-              }`}
-              title={!sidebarOpen ? item.label : undefined}
-            >
-              <i className={item.icon} />
-              {sidebarOpen && <span>{item.label}</span>}
-            </Link>
-          ))}
+          {nav.map((item) => {
+            const badgeCount = item.badgeKey ? navBadges[item.badgeKey] || 0 : 0;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`menu-item ${
+                  navItemIsActive(location.pathname, item.to, item.end) ? 'active' : ''
+                }`}
+                title={!sidebarOpen ? item.label : undefined}
+              >
+                <i className={item.icon} />
+                {sidebarOpen && (
+                  <span className="menu-item__label">
+                    {item.label}
+                    {badgeCount > 0 ? (
+                      <span className="menu-item__badge" aria-label={`${badgeCount} new`}>
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+                {!sidebarOpen && badgeCount > 0 ? (
+                  <span className="menu-item__badge menu-item__badge--collapsed" aria-label={`${badgeCount} new`}>
+                    {badgeCount > 9 ? '9+' : badgeCount}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
           {adminPreview ? (
             <Link
               to="/admin"

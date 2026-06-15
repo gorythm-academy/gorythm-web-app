@@ -67,7 +67,7 @@ export function PaymentSuccess() {
         ) : (
           <>
             <h1>Payment pending</h1>
-            <p>We could not confirm a completed payment yet. If you were charged, contact support with your receipt.</p>
+            <p>We could not confirm a paid payment yet. If you were charged, contact support with your receipt.</p>
             <Link to="/contact" className="payment-result-link">
               Contact support
             </Link>

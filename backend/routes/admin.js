@@ -25,7 +25,11 @@ router.get('/dashboard', async (req, res) => {
         const totalCourses = await Course.countDocuments({ isPublished: true });
         
         // Calculate total revenue
-        const payments = await Payment.find({ status: 'completed' });
+        const { activePaymentFilter } = require('../utils/paymentQuery');
+        const payments = await Payment.find({
+            ...activePaymentFilter(),
+            status: { $in: ['paid', 'completed'] },
+        });
         const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
         
         const activeUsers = await User.countDocuments({
@@ -163,7 +167,7 @@ async function buildCrossTabRecentActivities() {
         const who = p.user?.name || p.studentName || p.email || 'Customer';
         const courseTitle = p.course?.title || p.courseName || 'a course';
         let line;
-        if (p.status === 'completed') line = `completed payment for ${courseTitle}`;
+        if (p.status === 'paid' || p.status === 'completed') line = `paid for ${courseTitle}`;
         else if (p.status === 'failed') line = `payment failed for ${courseTitle}`;
         else if (p.status === 'refunded') line = `refund recorded for ${courseTitle}`;
         else line = `payment ${p.status || 'updated'} for ${courseTitle}`;

@@ -1,0 +1,403 @@
+@import '../../../styles/breakpoints';
+
+.accountant-payments-page {
+  .accountant-payments-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .accountant-payments-filter {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.78);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+
+    &.is-active {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      font-weight: 600;
+    }
+  }
+
+  .accountant-payments-empty {
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .accountant-payments-num {
+    width: 2.5rem;
+    text-align: center;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .accountant-payments-sub {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 2px;
+  }
+
+  .accountant-payments-ss-cell {
+    width: 88px;
+    vertical-align: middle;
+  }
+
+  .accountant-payments-ss-none {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .accountant-payments-ss-thumb {
+    display: block;
+    width: 72px;
+    height: 54px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &:hover {
+      border-color: #f59e0b;
+      transform: scale(1.03);
+    }
+  }
+
+  .accountant-payments-ss-pdf {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #fca5a5;
+
+    i {
+      font-size: 1.1rem;
+    }
+  }
+
+  .accountant-pay-status {
+    display: inline-flex;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: capitalize;
+
+    &--paid {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+    }
+
+    &--awaiting_review {
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+    }
+
+    &--pending {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+    }
+
+    &--rejected {
+      background: rgba(244, 63, 94, 0.18);
+      color: #fb7185;
+    }
+  }
+
+  .accountant-payments-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .accountant-pay-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+
+    &--view {
+      background: #6366f1;
+    }
+
+    &--approve {
+      background: #10b981;
+    }
+
+    &--reject {
+      background: #ef4444;
+    }
+
+    &--full {
+      width: 100%;
+      justify-content: center;
+      margin-top: 12px;
+      padding: 10px;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.accountant-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+
+  strong {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  span {
+    font-size: 0.88rem;
+    opacity: 0.9;
+  }
+
+  button {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  &--success {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(52, 211, 153, 0.35);
+    color: #6ee7b7;
+  }
+}
+
+.accountant-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+  }
+
+  &__panel {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    padding: 26px 22px 20px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #1c1c1c;
+    text-align: center;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.45);
+
+    h3 {
+      margin: 0 0 10px;
+      color: #fff;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: rgba(255, 255, 255, 0.72);
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+  }
+
+  &__icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+
+    &--error {
+      color: #f87171;
+      background: rgba(248, 113, 113, 0.15);
+    }
+
+    &--success {
+      color: #34d399;
+      background: rgba(52, 211, 153, 0.15);
+    }
+
+    &--info {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    &--primary {
+      background: #10b981;
+      color: #fff;
+    }
+
+    &--danger {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    &--ghost {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+  }
+
+  &__inline-error {
+    margin: -8px 0 12px;
+    color: #fca5a5;
+    font-size: 0.85rem;
+    text-align: left;
+  }
+}
+
+.accountant-receipt-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  &__panel {
+    position: relative;
+    z-index: 1;
+    width: min(680px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 20px;
+
+    h3 {
+      margin: 0;
+      color: #fff;
+    }
+
+    p {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    img {
+      width: 100%;
+      max-height: 60vh;
+      object-fit: contain;
+      border-radius: 12px;
+      margin-top: 12px;
+    }
+
+    a {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+
+    textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      padding: 10px 12px;
+      resize: vertical;
+    }
+
+    &--form {
+      max-width: 420px;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+
+    button {
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  }
+}
+
+@media (max-width: $bp-admin-table-max) {
+  .accountant-payments-table {
+    min-width: 760px;
+  }
+}

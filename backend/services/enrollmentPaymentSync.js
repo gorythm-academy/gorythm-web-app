@@ -44,11 +44,11 @@ async function syncEnrollmentFromPayment(payment) {
     if (!userId) return null;
 
     let paymentStatus = 'pending';
-    if (payment.status === 'completed') paymentStatus = 'paid';
+    if (payment.status === 'paid' || payment.status === 'completed') paymentStatus = 'paid';
     else if (payment.status === 'refunded') paymentStatus = 'refunded';
     else if (payment.status === 'failed') paymentStatus = 'failed';
 
-    const enrollmentStatus = paymentStatus === 'paid' ? 'active' : 'pending';
+    const enrollmentStatus = paymentStatus === 'paid' ? 'pending' : 'pending';
 
     return syncEnrollmentPaymentStatus({
         userId,

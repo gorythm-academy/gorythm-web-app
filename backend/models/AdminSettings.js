@@ -24,6 +24,12 @@ const adminSettingsSchema = new mongoose.Schema(
             paypalClientId: { type: String, default: '' },
             taxRate: { type: Number, default: 0 },
             invoicePrefix: { type: String, default: 'GORYTHM' },
+            bankAccountName: { type: String, default: '' },
+            bankName: { type: String, default: '' },
+            bankAccountNumber: { type: String, default: '' },
+            bankIban: { type: String, default: '' },
+            bankSwift: { type: String, default: '' },
+            bankExtraNote: { type: String, default: '' },
         },
         email: {
             smtpHost: { type: String, default: 'smtp.gmail.com' },

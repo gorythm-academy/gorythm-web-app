@@ -35,7 +35,18 @@ const ParentDashboard = () => {
   return (
     <div className="portal-page">
       {data.previewMode ? <PortalAlert type="info">{data.message}</PortalAlert> : null}
-      <PortalPageHeader title="Parent Dashboard" />
+      <PortalPageHeader title="Parent Dashboard" subtitle="Overview of your linked children" />
+
+      <div className="portal-hero portal-hero--parent">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-users" />
+        </div>
+        <div>
+          <h2>Family learning hub</h2>
+          <p>View enrollments, attendance, assignments, quiz results, and fees for each linked child.</p>
+        </div>
+      </div>
+
       <SummaryGrid
         items={[
           { label: 'Children linked', value: s.childrenCount ?? 0, to: '/parent/children' },
@@ -44,7 +55,8 @@ const ParentDashboard = () => {
           { label: 'Pending fees', value: s.pendingFees ?? 0, to: '/parent/progress' },
         ]}
       />
-      <div className="portal-grid" style={{ marginTop: '1rem' }}>
+
+      <div className="portal-quick-links">
         <Link to="/parent/children" className="portal-card portal-link-card">
           My children →
         </Link>

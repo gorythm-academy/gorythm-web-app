@@ -10,6 +10,14 @@ const teacherSelfAttendanceDaySchema = new mongoose.Schema(
             default: 'present',
         },
         notes: { type: String, default: '' },
+        approvalStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'pending',
+        },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        reviewedAt: { type: Date, default: null },
+        submittedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

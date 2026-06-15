@@ -74,6 +74,7 @@ const WhyGorythmSection = () => {
                     sizes="(min-width: 768px) 300px, 100vw"
                   />
                 </div>
+                {/* Plus icons hidden per request
                 <button
                   type="button"
                   className="why-gorythm-plus"
@@ -86,6 +87,7 @@ const WhyGorythmSection = () => {
                     +
                   </span>
                 </button>
+                */}
                 {popupId === item.id && (
                   <div
                     className="why-gorythm-popup"

@@ -144,6 +144,19 @@
   margin: 0 0 100px 0;
  }
 
+// Links to /about — images and paragraph only (not the whole section)
+.about_clickable {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.65);
+    outline-offset: 3px;
+  }
+}
+
 .about_image_wrap {
   overflow: hidden;
   border-radius: 4px;
@@ -581,15 +594,51 @@
   }
 }
 
-// Very short landscape phones (SE/S8+ class): tighter sizing + visible "02".
+// Very short landscape phones (SE/S8+ class): typography + "02" only (no fixed image heights).
 @media (orientation: landscape) and (max-height: 380px) {
   .front_page_section_about {
     --about-content-offset: 52px;
     --about-bn-top: 0;
     --about-right-img-w: 90%;
-    --about-right-img-h: clamp(250px, 70vh, 340px);
-    --about-left-img-h: clamp(250px, 70vh, 340px);
     --about-para-size: 0.9rem;
     --about-para-lh: 1.55;
+  }
+}
+
+// =============================================================================
+// Phone landscape — full images, no crop (minimal tier)
+// Targets short rotated phones (e.g. 740×360 S8+): landscape + height ≤500px + width ≤1024px.
+// - contain on BOTH images, sized by column width (height: auto), no vh max-height caps
+// - overflow visible so columns do not clip (fixes cover/crop in .about_right)
+// - layout unchanged: two columns, bottom alignment from alignment contract above
+// Section may scroll vertically; images stay full and as large as width allows.
+// =============================================================================
+@media (orientation: landscape) and (max-height: $bp-landscape-short-max) and (max-width: $bp-section-md) {
+  .front_page_section_about {
+    --about-right-img-h: auto;
+    --about-left-img-h: auto;
+  }
+
+  .front_page_section_about .about_right,
+  .front_page_section_about .about_image_wrap {
+    overflow: visible;
+  }
+
+  .front_page_section_about .about_image_right {
+    height: auto;
+  }
+
+  .front_page_section_about .about_image_wrap img,
+  .front_page_section_about .about_image_right img {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    object-fit: contain;
+    object-position: bottom center;
+  }
+
+  .front_page_section_about .about_paragraph {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }

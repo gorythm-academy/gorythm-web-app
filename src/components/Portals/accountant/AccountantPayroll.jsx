@@ -1,99 +1,138 @@
-import React, { useEffect, useState } from 'react';
-import { payrollGet, payrollPost, currentMonthKey } from '../shared/portalApi';
-import { PortalAlert, PortalPageHeader, SimpleTable } from '../shared/PortalUi';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  payrollGet,
+  payrollPost,
+  payrollPatch,
+} from '../shared/portalApi';
+import { PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { statusCalendarLabel } from '../../../constants/attendanceStatuses';
+import './AccountantPayroll.scss';
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'pending_review', label: 'Pending review' },
+  { value: 'stale', label: 'Out of date' },
+  { value: 'paid', label: 'Paid' },
+];
+
+const statusLabel = (status) => {
+  if (status === 'pending_review') return 'Pending review';
+  if (status === 'stale') return 'Out of date';
+  if (status === 'paid') return 'Paid';
+  return status || '—';
+};
+
+const formatMonth = (monthKey) => {
+  const [y, m] = String(monthKey || '').split('-');
+  if (!y || !m) return monthKey || '';
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const weekdayShort = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { weekday: 'short' });
+};
 
 const AccountantPayroll = () => {
-  const [teachers, setTeachers] = useState([]);
   const [runs, setRuns] = useState([]);
-  const [salaryForm, setSalaryForm] = useState({ teacherId: '', monthlySalary: '', workingDays: 26 });
-  const [attendanceForm, setAttendanceForm] = useState({
+  const [salaryRows, setSalaryRows] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('pending_review');
+  const [profileForm, setProfileForm] = useState({ name: '', monthlySalary: '' });
+  const [editingProfile, setEditingProfile] = useState(null);
+  const [attendanceModal, setAttendanceModal] = useState(null);
+  const [editPayrollModal, setEditPayrollModal] = useState(null);
+  const [showExceptions, setShowExceptions] = useState(false);
+  const [exceptionForm, setExceptionForm] = useState({
     teacherId: '',
-    monthKey: currentMonthKey(),
+    monthKey: new Date().toISOString().slice(0, 7),
     presentDays: 0,
     leaveDays: 0,
+    absentDays: 0,
   });
-  const [runForm, setRunForm] = useState({ teacherId: '', monthKey: currentMonthKey() });
-  const [preview, setPreview] = useState(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
-  const loadRuns = () => {
-    payrollGet('/runs')
+  const loadRuns = useCallback(() => {
+    return payrollGet('/runs')
       .then((res) => setRuns(res.runs || []))
       .catch((err) => setError(err.message));
-  };
-
-  useEffect(() => {
-    payrollGet('/teachers')
-      .then((res) => setTeachers(res.teachers || []))
-      .catch((err) => setError(err.message));
-    loadRuns();
   }, []);
 
-  const loadPreview = async (teacherId, monthKey) => {
-    if (!teacherId || !monthKey) {
-      setPreview(null);
-      return;
-    }
-    try {
-      const res = await payrollGet(
-        `/preview?teacherId=${encodeURIComponent(teacherId)}&monthKey=${encodeURIComponent(monthKey)}`
-      );
-      if (res.success) setPreview(res.preview);
-    } catch {
-      setPreview(null);
-    }
-  };
+  const loadSalaryProfiles = useCallback(() => {
+    payrollGet('/salary-profiles')
+      .then((res) => setSalaryRows(res.rows || []))
+      .catch(() => setSalaryRows([]));
+  }, []);
 
   useEffect(() => {
-    if (runForm.teacherId && runForm.monthKey) {
-      loadPreview(runForm.teacherId, runForm.monthKey);
-    }
-  }, [runForm.teacherId, runForm.monthKey]);
+    loadRuns();
+    loadSalaryProfiles();
+  }, [loadRuns, loadSalaryProfiles]);
 
-  const saveSalary = async (e) => {
+  const filteredRuns = useMemo(() => {
+    if (statusFilter === 'all') return runs;
+    return runs.filter((r) => r.status === statusFilter);
+  }, [runs, statusFilter]);
+
+  const profileRows = useMemo(
+    () => salaryRows.filter((row) => row.profile),
+    [salaryRows]
+  );
+
+  const stats = useMemo(
+    () => ({
+      pending: runs.filter((r) => r.status === 'pending_review').length,
+      stale: runs.filter((r) => r.status === 'stale').length,
+      paid: runs.filter((r) => r.status === 'paid').length,
+    }),
+    [runs]
+  );
+
+  const teachersMissingSalary = useMemo(
+    () => salaryRows.filter((row) => !row.profile).length,
+    [salaryRows]
+  );
+
+  const saveNewProfile = async (e) => {
     e.preventDefault();
     setMsg('');
     setError('');
     try {
       const res = await payrollPost('/salary-profile', {
-        ...salaryForm,
-        monthlySalary: Number(salaryForm.monthlySalary),
-        workingDays: Number(salaryForm.workingDays),
+        name: profileForm.name.trim(),
+        monthlySalary: Number(profileForm.monthlySalary),
+        workingDays: 26,
       });
-      setMsg(res.success ? 'Salary profile saved.' : res.error || 'Failed');
-    } catch (err) {
-      setMsg(err.message);
-    }
-  };
-
-  const saveAttendance = async (e) => {
-    e.preventDefault();
-    setMsg('');
-    try {
-      const res = await payrollPost('/attendance', {
-        ...attendanceForm,
-        presentDays: Number(attendanceForm.presentDays),
-        leaveDays: Number(attendanceForm.leaveDays),
-      });
-      setMsg(res.success ? 'Attendance saved (or use approved teacher submission).' : res.error || 'Failed');
-      if (runForm.teacherId === attendanceForm.teacherId) {
-        loadPreview(runForm.teacherId, runForm.monthKey);
-      }
-    } catch (err) {
-      setMsg(err.message);
-    }
-  };
-
-  const runPayroll = async (e) => {
-    e.preventDefault();
-    setMsg('');
-    try {
-      const res = await payrollPost('/run', runForm);
       if (res.success) {
-        setMsg(
-          `Payroll generated: $${Number(res.calculation?.finalSalary ?? res.payroll?.finalSalary).toFixed(2)} (deduction $${Number(res.calculation?.deduction ?? 0).toFixed(2)}, source: ${res.calculation?.attendanceSource || 'n/a'})`
-        );
+        setMsg(res.created ? 'Teacher profile added.' : 'Teacher profile saved.');
+        loadSalaryProfiles();
+        loadRuns();
+        setProfileForm({ name: '', monthlySalary: '' });
+      } else setMsg(res.error || 'Failed');
+    } catch (err) {
+      setMsg(err.message);
+    }
+  };
+
+  const saveEditedProfile = async (e) => {
+    e.preventDefault();
+    if (!editingProfile) return;
+    setMsg('');
+    try {
+      const res = await payrollPatch(`/teacher-profile/${editingProfile.teacherId}`, {
+        name: editingProfile.name.trim(),
+        monthlySalary: Number(editingProfile.monthlySalary),
+        workingDays: 26,
+      });
+      if (res.success) {
+        setMsg('Teacher profile updated.');
+        setEditingProfile(null);
+        loadSalaryProfiles();
         loadRuns();
       } else setMsg(res.error || 'Failed');
     } catch (err) {
@@ -101,138 +140,609 @@ const AccountantPayroll = () => {
     }
   };
 
+  const saveException = async (e) => {
+    e.preventDefault();
+    setMsg('');
+    try {
+      const res = await payrollPost('/attendance', {
+        ...exceptionForm,
+        presentDays: Number(exceptionForm.presentDays),
+        leaveDays: Number(exceptionForm.leaveDays),
+        absentDays: Number(exceptionForm.absentDays),
+      });
+      setMsg(
+        res.success
+          ? 'Manual attendance saved (exception path — prefer admin-approved attendance).'
+          : res.error || 'Failed'
+      );
+    } catch (err) {
+      setMsg(err.message);
+    }
+  };
+
+  const markPaid = async (runId) => {
+    setBusyId(runId);
+    setMsg('');
+    try {
+      const res = await payrollPatch(`/runs/${runId}/mark-paid`, {});
+      if (res.success) {
+        setMsg(`Marked paid: ${res.payroll?.teacher?.name || 'teacher'} — ${res.payroll?.monthKey}`);
+        loadRuns();
+      } else setMsg(res.error || 'Failed');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const regenerate = async (runId) => {
+    setBusyId(runId);
+    setMsg('');
+    try {
+      const res = await payrollPost(`/runs/${runId}/regenerate`, {});
+      if (res.success) {
+        setMsg(
+          `Payroll updated: $${Number(res.payroll?.finalSalary || 0).toFixed(2)} (deduction $${Number(res.payroll?.deduction || 0).toFixed(2)})`
+        );
+        loadRuns();
+      } else setMsg(res.error || 'Failed');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openAttendance = async (runId) => {
+    setBusyId(runId);
+    setMsg('');
+    try {
+      const res = await payrollGet(`/runs/${runId}/attendance`);
+      if (res.success) setAttendanceModal(res);
+      else setMsg(res.error || 'Failed to load attendance');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openEditPayroll = (run) => {
+    setEditPayrollModal({
+      runId: run._id,
+      teacherName: run.teacher?.name || 'Teacher',
+      monthKey: run.monthKey,
+      monthlySalary: run.monthlySalary,
+      absentDays: run.absentDays ?? 0,
+      deduction: run.deduction ?? 0,
+      finalSalary: run.finalSalary ?? 0,
+      accountantNotes: run.accountantNotes || '',
+    });
+  };
+
+  const savePayrollEdit = async (e) => {
+    e.preventDefault();
+    if (!editPayrollModal) return;
+    setBusyId(editPayrollModal.runId);
+    setMsg('');
+    try {
+      const res = await payrollPatch(`/runs/${editPayrollModal.runId}`, {
+        absentDays: Number(editPayrollModal.absentDays),
+        deduction: Number(editPayrollModal.deduction),
+        finalSalary: Number(editPayrollModal.finalSalary),
+        accountantNotes: editPayrollModal.accountantNotes,
+      });
+      if (res.success) {
+        setMsg('Payroll updated.');
+        setEditPayrollModal(null);
+        loadRuns();
+      } else setMsg(res.error || 'Failed');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <div className="portal-page">
+    <div className="portal-page accountant-payroll">
       <PortalPageHeader
-        title="Payroll"
-        subtitle="Salary is based on monthly rate, working days, and attendance (approved teacher submission or manual entry)"
+        title="Teacher payroll"
+        subtitle="Add teacher profiles (name and salary), review auto-generated payroll after admin approval, view full attendance, edit amounts, then mark paid."
       />
+
       {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
-      <div className="portal-grid">
-        <form className="portal-card portal-form-card" onSubmit={saveSalary}>
-          <h3>Salary profile</h3>
-          <select
-            value={salaryForm.teacherId}
-            onChange={(e) => setSalaryForm({ ...salaryForm, teacherId: e.target.value })}
-            required
-          >
-            <option value="">Teacher</option>
-            {teachers.map((t) => (
-              <option key={t._id} value={t._id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            placeholder="Monthly salary"
-            value={salaryForm.monthlySalary}
-            onChange={(e) => setSalaryForm({ ...salaryForm, monthlySalary: e.target.value })}
-            required
-          />
-          <input
-            type="number"
-            placeholder="Working days per month"
-            value={salaryForm.workingDays}
-            onChange={(e) => setSalaryForm({ ...salaryForm, workingDays: e.target.value })}
-          />
-          <button type="submit">Save profile</button>
-        </form>
-        <form className="portal-card portal-form-card" onSubmit={saveAttendance}>
-          <h3>Teacher attendance (manual)</h3>
-          <select
-            value={attendanceForm.teacherId}
-            onChange={(e) => setAttendanceForm({ ...attendanceForm, teacherId: e.target.value })}
-            required
-          >
-            <option value="">Teacher</option>
-            {teachers.map((t) => (
-              <option key={t._id} value={t._id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <label className="portal-field-label">
-            Month
-            <input
-              type="month"
-              value={attendanceForm.monthKey}
-              onChange={(e) => setAttendanceForm({ ...attendanceForm, monthKey: e.target.value })}
-              required
-            />
-          </label>
-          <input
-            type="number"
-            min="0"
-            placeholder="Present days"
-            value={attendanceForm.presentDays}
-            onChange={(e) => setAttendanceForm({ ...attendanceForm, presentDays: e.target.value })}
-          />
-          <input
-            type="number"
-            min="0"
-            placeholder="Leave days"
-            value={attendanceForm.leaveDays}
-            onChange={(e) => setAttendanceForm({ ...attendanceForm, leaveDays: e.target.value })}
-          />
-          <button type="submit">Save attendance</button>
-        </form>
-        <form className="portal-card portal-form-card" onSubmit={runPayroll}>
-          <h3>Generate monthly payroll</h3>
-          <select
-            value={runForm.teacherId}
-            onChange={(e) => setRunForm({ ...runForm, teacherId: e.target.value })}
-            required
-          >
-            <option value="">Teacher</option>
-            {teachers.map((t) => (
-              <option key={t._id} value={t._id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <label className="portal-field-label">
-            Month
-            <input
-              type="month"
-              value={runForm.monthKey}
-              onChange={(e) => setRunForm({ ...runForm, monthKey: e.target.value })}
-              required
-            />
-          </label>
-          {preview ? (
-            <div className="portal-payroll-preview">
-              <p>
-                <strong>Preview</strong> (attendance: {preview.attendanceSource})
-              </p>
-              <p>Present: {preview.presentDays} / {preview.workingDays} working days</p>
-              <p>
-                Absent (deduct): {preview.absentDays ?? 0} · Holiday: {preview.holidayDays ?? 0} · Weekend:{' '}
-                {preview.weekendDays ?? 0}
-              </p>
-              <p>Report absent (incl. holiday/weekend): {preview.reportAbsentDays ?? 0}</p>
-              <p>Leave: {preview.leaveDays} · Deduction days: {preview.deductionDays} (holiday/weekend excluded)</p>
-              <p>
-                Deduction: ${preview.deduction?.toFixed(2)} → <strong>Final: ${preview.finalSalary?.toFixed(2)}</strong>
-              </p>
-            </div>
-          ) : null}
-          <button type="submit">Generate salary slip</button>
-        </form>
-      </div>
       {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
-      <h3 style={{ marginTop: '1rem' }}>Payroll runs</h3>
-      <SimpleTable
-        columns={[
-          { key: 'teacher', label: 'Teacher', render: (r) => r.teacher?.name || '—' },
-          { key: 'month', label: 'Month', render: (r) => r.monthKey },
-          { key: 'present', label: 'Present', render: (r) => r.presentDays },
-          { key: 'deduction', label: 'Deduction', render: (r) => `$${Number(r.deduction || 0).toFixed(2)}` },
-          { key: 'final', label: 'Final salary', render: (r) => `$${Number(r.finalSalary || 0).toFixed(2)}` },
-        ]}
-        rows={runs}
-        emptyLabel="No payroll runs yet."
-      />
+
+      <div className="accountant-payroll-stats">
+        <div className="accountant-payroll-stat accountant-payroll-stat--pending">
+          <span className="accountant-payroll-stat__value">{stats.pending}</span>
+          <span className="accountant-payroll-stat__label">Pending review</span>
+        </div>
+        <div className="accountant-payroll-stat accountant-payroll-stat--stale">
+          <span className="accountant-payroll-stat__value">{stats.stale}</span>
+          <span className="accountant-payroll-stat__label">Out of date</span>
+        </div>
+        <div className="accountant-payroll-stat accountant-payroll-stat--paid">
+          <span className="accountant-payroll-stat__value">{stats.paid}</span>
+          <span className="accountant-payroll-stat__label">Paid</span>
+        </div>
+        <div className="accountant-payroll-stat accountant-payroll-stat--warn">
+          <span className="accountant-payroll-stat__value">{profileRows.length}</span>
+          <span className="accountant-payroll-stat__label">Teacher profiles</span>
+        </div>
+      </div>
+
+      <section className="accountant-payroll-section">
+        <div className="accountant-payroll-section__head">
+          <h2>Teacher profiles</h2>
+        </div>
+        <p className="accountant-payroll-hint">
+          Name and monthly salary are used in the payroll table. Profiles are required before auto-payroll
+          runs when admin approves a month.
+        </p>
+
+        <form className="accountant-payroll-form accountant-payroll-form--inline" onSubmit={saveNewProfile}>
+          <input
+            type="text"
+            placeholder="Teacher name"
+            value={profileForm.name}
+            onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+            required
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Monthly salary"
+            value={profileForm.monthlySalary}
+            onChange={(e) => setProfileForm({ ...profileForm, monthlySalary: e.target.value })}
+            required
+          />
+          <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--primary">
+            Add teacher
+          </button>
+        </form>
+
+        <div className="accountant-payroll-table-wrap accountant-payroll-table-wrap--compact">
+          <table className="accountant-payroll-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Monthly salary</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profileRows.length === 0 ? (
+                <tr>
+                  <td colSpan={3}>No teacher profiles yet. Add one above.</td>
+                </tr>
+              ) : (
+                profileRows.map((row) => (
+                  <tr key={row.teacher._id}>
+                    <td>
+                      <strong>{row.teacher.name}</strong>
+                      <small>{row.teacher.email}</small>
+                    </td>
+                    <td>${Number(row.profile.monthlySalary).toFixed(2)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="accountant-payroll-btn accountant-payroll-btn--secondary"
+                        onClick={() =>
+                          setEditingProfile({
+                            teacherId: row.teacher._id,
+                            name: row.teacher.name,
+                            monthlySalary: row.profile.monthlySalary,
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {teachersMissingSalary > 0 ? (
+          <p className="accountant-payroll-hint">
+            {teachersMissingSalary} existing teacher account(s) without a salary profile — add salary via
+            Edit on payroll or create a new profile above.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="accountant-payroll-section">
+        <div className="accountant-payroll-section__head">
+          <h2>Payroll queue</h2>
+          <div className="accountant-payroll-filters" role="tablist" aria-label="Payroll status">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === f.value}
+                className={statusFilter === f.value ? 'is-active' : ''}
+                onClick={() => setStatusFilter(f.value)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredRuns.length === 0 ? (
+          <div className="accountant-payroll-empty">
+            <i className="fas fa-file-invoice-dollar" aria-hidden="true" />
+            <p>No payroll runs for this filter.</p>
+            <small>Runs appear automatically when admin approves a month after it ends.</small>
+          </div>
+        ) : (
+          <div className="accountant-payroll-table-wrap">
+            <table className="accountant-payroll-table">
+              <thead>
+                <tr>
+                  <th>Teacher</th>
+                  <th>Profile salary</th>
+                  <th>Month</th>
+                  <th>Present</th>
+                  <th>Absent</th>
+                  <th>Deduction</th>
+                  <th>Final salary</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRuns.map((r) => (
+                  <tr key={r._id} className={`accountant-payroll-row accountant-payroll-row--${r.status}`}>
+                    <td>
+                      <strong>{r.teacher?.name || '—'}</strong>
+                      <small>{r.teacher?.email || ''}</small>
+                    </td>
+                    <td>
+                      {r.profileSalary != null ? (
+                        <strong>${Number(r.profileSalary).toFixed(2)}</strong>
+                      ) : (
+                        '—'
+                      )}
+                      {r.editedByAccountant ? (
+                        <small className="accountant-payroll-meta">Edited by accountant</small>
+                      ) : null}
+                    </td>
+                    <td>
+                      <strong>{r.monthKey}</strong>
+                      <small>{formatMonth(r.monthKey)}</small>
+                    </td>
+                    <td>{r.presentDays ?? 0}</td>
+                    <td>{r.absentDays ?? 0}</td>
+                    <td>${Number(r.deduction || 0).toFixed(2)}</td>
+                    <td>
+                      <strong>${Number(r.finalSalary || 0).toFixed(2)}</strong>
+                    </td>
+                    <td>
+                      <span className={`accountant-payroll-pill accountant-payroll-pill--${r.status}`}>
+                        {statusLabel(r.status)}
+                      </span>
+                      {r.autoGenerated ? (
+                        <small className="accountant-payroll-meta">Auto-generated</small>
+                      ) : null}
+                      {r.staleReason ? (
+                        <small className="accountant-payroll-meta accountant-payroll-meta--warn">
+                          {r.staleReason}
+                        </small>
+                      ) : null}
+                      {r.status === 'paid' && r.paidAt ? (
+                        <small className="accountant-payroll-meta">
+                          Paid {new Date(r.paidAt).toLocaleDateString()}
+                          {r.paidBy?.name ? ` by ${r.paidBy.name}` : ''}
+                        </small>
+                      ) : null}
+                    </td>
+                    <td className="accountant-payroll-actions">
+                      <div className="accountant-payroll-action-group">
+                        <button
+                          type="button"
+                          className="accountant-payroll-btn accountant-payroll-btn--secondary"
+                          disabled={busyId === r._id}
+                          onClick={() => openAttendance(r._id)}
+                        >
+                          Attendance
+                        </button>
+                        {r.status !== 'paid' ? (
+                          <button
+                            type="button"
+                            className="accountant-payroll-btn accountant-payroll-btn--secondary"
+                            onClick={() => openEditPayroll(r)}
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                        {r.status === 'pending_review' ? (
+                          <button
+                            type="button"
+                            className="accountant-payroll-btn accountant-payroll-btn--paid"
+                            disabled={busyId === r._id}
+                            onClick={() => markPaid(r._id)}
+                          >
+                            Mark paid
+                          </button>
+                        ) : null}
+                        {r.status === 'stale' ? (
+                          <button
+                            type="button"
+                            className="accountant-payroll-btn accountant-payroll-btn--regen"
+                            disabled={busyId === r._id}
+                            onClick={() => regenerate(r._id)}
+                          >
+                            Regenerate
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <button
+        type="button"
+        className="accountant-payroll-collapse-toggle"
+        onClick={() => setShowExceptions((v) => !v)}
+        aria-expanded={showExceptions}
+      >
+        <i className="fas fa-exclamation-circle" aria-hidden="true" /> Manual exceptions
+      </button>
+
+      {showExceptions ? (
+        <section className="accountant-payroll-section accountant-payroll-section--nested">
+          <form className="accountant-payroll-form" onSubmit={saveException}>
+            <h3>Manual attendance (exception only)</h3>
+            <p className="accountant-payroll-hint">
+              Use only when admin-approved attendance is unavailable.
+            </p>
+            <select
+              value={exceptionForm.teacherId}
+              onChange={(e) => setExceptionForm({ ...exceptionForm, teacherId: e.target.value })}
+              required
+            >
+              <option value="">Teacher</option>
+              {salaryRows.map((row) => (
+                <option key={row.teacher._id} value={row.teacher._id}>
+                  {row.teacher.name}
+                </option>
+              ))}
+            </select>
+            <label className="portal-field-label">
+              Month
+              <input
+                type="month"
+                value={exceptionForm.monthKey}
+                onChange={(e) => setExceptionForm({ ...exceptionForm, monthKey: e.target.value })}
+                required
+              />
+            </label>
+            <div className="accountant-payroll-form__row">
+              <input
+                type="number"
+                min="0"
+                placeholder="Present"
+                value={exceptionForm.presentDays}
+                onChange={(e) => setExceptionForm({ ...exceptionForm, presentDays: e.target.value })}
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Leave"
+                value={exceptionForm.leaveDays}
+                onChange={(e) => setExceptionForm({ ...exceptionForm, leaveDays: e.target.value })}
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Absent (deducts)"
+                value={exceptionForm.absentDays}
+                onChange={(e) => setExceptionForm({ ...exceptionForm, absentDays: e.target.value })}
+              />
+            </div>
+            <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--secondary">
+              Save manual attendance
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      {editingProfile ? (
+        <div className="accountant-payroll-modal-backdrop" role="presentation" onClick={() => setEditingProfile(null)}>
+          <div
+            className="accountant-payroll-modal"
+            role="dialog"
+            aria-labelledby="edit-profile-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="edit-profile-title">Edit teacher profile</h3>
+            <form onSubmit={saveEditedProfile}>
+              <label className="portal-field-label">
+                Name
+                <input
+                  type="text"
+                  value={editingProfile.name}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="portal-field-label">
+                Monthly salary
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editingProfile.monthlySalary}
+                  onChange={(e) =>
+                    setEditingProfile({ ...editingProfile, monthlySalary: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <div className="accountant-payroll-modal__actions">
+                <button type="button" className="accountant-payroll-btn accountant-payroll-btn--secondary" onClick={() => setEditingProfile(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--primary">
+                  Save profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {editPayrollModal ? (
+        <div className="accountant-payroll-modal-backdrop" role="presentation" onClick={() => setEditPayrollModal(null)}>
+          <div
+            className="accountant-payroll-modal"
+            role="dialog"
+            aria-labelledby="edit-payroll-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="edit-payroll-title">
+              Edit payroll — {editPayrollModal.teacherName} ({editPayrollModal.monthKey})
+            </h3>
+            <p className="accountant-payroll-hint">
+              Base salary for this run: ${Number(editPayrollModal.monthlySalary).toFixed(2)}. Changing absent
+              days recalculates deduction; you can also override deduction and final salary directly.
+            </p>
+            <form onSubmit={savePayrollEdit}>
+              <label className="portal-field-label">
+                Absent days
+                <input
+                  type="number"
+                  min="0"
+                  value={editPayrollModal.absentDays}
+                  onChange={(e) =>
+                    setEditPayrollModal({ ...editPayrollModal, absentDays: e.target.value })
+                  }
+                />
+              </label>
+              <label className="portal-field-label">
+                Deduction ($)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editPayrollModal.deduction}
+                  onChange={(e) =>
+                    setEditPayrollModal({ ...editPayrollModal, deduction: e.target.value })
+                  }
+                />
+              </label>
+              <label className="portal-field-label">
+                Final salary ($)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editPayrollModal.finalSalary}
+                  onChange={(e) =>
+                    setEditPayrollModal({ ...editPayrollModal, finalSalary: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label className="portal-field-label">
+                Notes
+                <textarea
+                  rows={2}
+                  value={editPayrollModal.accountantNotes}
+                  onChange={(e) =>
+                    setEditPayrollModal({ ...editPayrollModal, accountantNotes: e.target.value })
+                  }
+                />
+              </label>
+              <div className="accountant-payroll-modal__actions">
+                <button type="button" className="accountant-payroll-btn accountant-payroll-btn--secondary" onClick={() => setEditPayrollModal(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="accountant-payroll-btn accountant-payroll-btn--primary"
+                  disabled={busyId === editPayrollModal.runId}
+                >
+                  Save payroll
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {attendanceModal ? (
+        <div className="accountant-payroll-modal-backdrop" role="presentation" onClick={() => setAttendanceModal(null)}>
+          <div
+            className="accountant-payroll-modal accountant-payroll-modal--wide"
+            role="dialog"
+            aria-labelledby="attendance-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="attendance-title">
+              Attendance — {attendanceModal.run?.teacher?.name} ({formatMonth(attendanceModal.run?.monthKey)})
+            </h3>
+            {attendanceModal.attendance?.monthlyRequest ? (
+              <div className="accountant-payroll-attendance-summary">
+                <span>Present: {attendanceModal.attendance.monthlyRequest.presentDays ?? 0}</span>
+                <span>Late: {attendanceModal.attendance.monthlyRequest.lateDays ?? 0}</span>
+                <span>Leave: {attendanceModal.attendance.monthlyRequest.leaveDays ?? 0}</span>
+                <span>Absent: {attendanceModal.attendance.monthlyRequest.absentDays ?? 0}</span>
+                <span>Status: {attendanceModal.attendance.monthlyRequest.status}</span>
+              </div>
+            ) : (
+              <p className="accountant-payroll-hint">No monthly rollup on file for this month.</p>
+            )}
+            <div className="accountant-payroll-table-wrap">
+              <table className="accountant-payroll-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Status</th>
+                    <th>Admin approval</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(attendanceModal.attendance?.dailyRows || []).map((row) => (
+                    <tr key={row.date}>
+                      <td>{row.date}</td>
+                      <td>{weekdayShort(row.date)}</td>
+                      <td>
+                        {row.mark ? statusCalendarLabel(row.mark.status) : row.label || '—'}
+                      </td>
+                      <td>{row.mark?.approvalStatus || '—'}</td>
+                      <td>{row.mark?.notes || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="accountant-payroll-modal__actions">
+              <button
+                type="button"
+                className="accountant-payroll-btn accountant-payroll-btn--primary"
+                onClick={() => setAttendanceModal(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

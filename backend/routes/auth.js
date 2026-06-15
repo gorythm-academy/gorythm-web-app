@@ -58,6 +58,10 @@ router.post(
             return res.status(403).json({ error: 'Login access is disabled for this account' });
         }
 
+        if (user.deletedAt) {
+            return res.status(403).json({ error: 'Account has been removed' });
+        }
+
         await touchLastLogin(user._id);
         
         const token = createToken(user, !!rememberMe);
@@ -105,6 +109,10 @@ router.post(
 
         if (user.isActive === false || user.canLogin === false) {
             return res.status(403).json({ error: 'Account cannot access admin login' });
+        }
+
+        if (user.deletedAt) {
+            return res.status(403).json({ error: 'Account has been removed' });
         }
 
         if (!['super-admin', 'admin'].includes(user.role)) {

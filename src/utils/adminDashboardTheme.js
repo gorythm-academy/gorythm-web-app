@@ -7,12 +7,12 @@ export const ADMIN_SETTINGS_PAGE_ENABLED = false;
 
 export const ADMIN_DASHBOARD_ACCENT_STORAGE_KEY = 'gorythm-admin-dashboard-accent';
 
-/** Default matches src/styles/_variables.scss legacy blue */
-export const DEFAULT_ADMIN_DASHBOARD_ACCENT = '#3b82f6';
+/** Default dashboard accent (red) */
+export const DEFAULT_ADMIN_DASHBOARD_ACCENT = '#ef4444';
 
 function hexToRgb(hex) {
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || '').trim());
-    if (!m) return { r: 59, g: 130, b: 246 };
+    if (!m) return { r: 239, g: 68, b: 68 };
     return {
         r: parseInt(m[1], 16),
         g: parseInt(m[2], 16),

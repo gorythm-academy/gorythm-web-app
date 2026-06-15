@@ -17,7 +17,20 @@ const SECTION_CONFIG = {
     },
     payment: {
         roles: ['super-admin', 'admin', 'accountant'],
-        fields: ['currency', 'stripePublicKey', 'stripeSecretKey', 'paypalClientId', 'taxRate', 'invoicePrefix'],
+        fields: [
+            'currency',
+            'stripePublicKey',
+            'stripeSecretKey',
+            'paypalClientId',
+            'taxRate',
+            'invoicePrefix',
+            'bankAccountName',
+            'bankName',
+            'bankAccountNumber',
+            'bankIban',
+            'bankSwift',
+            'bankExtraNote',
+        ],
     },
 };
 

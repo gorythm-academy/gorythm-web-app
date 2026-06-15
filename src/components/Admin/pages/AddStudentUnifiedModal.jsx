@@ -15,9 +15,8 @@ const sanitizePortalEmailLocal = (raw) => {
 
 const ENROLLMENT_STATUS_VALUES = [
     { value: 'active', label: 'Active', color: '#10b981' },
-    { value: 'pending', label: 'Pending', color: '#f59e0b' },
-    { value: 'completed', label: 'Completed', color: 'var(--color-accent)' },
     { value: 'inactive', label: 'Inactive', color: '#64748b' },
+    { value: 'completed', label: 'Completed', color: 'var(--color-accent)' },
 ];
 
 const FEE_STATUS_VALUES = [

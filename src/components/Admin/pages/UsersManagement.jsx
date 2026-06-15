@@ -22,7 +22,7 @@ const VARIANT_CONFIG = {
     },
     students: {
         roles: ['student'],
-        segment: 'people',
+        segment: 'students',
         pageTitle: 'Students',
         addLabel: 'Add student',
         icon: 'fa-user-graduate',
@@ -32,7 +32,7 @@ const VARIANT_CONFIG = {
     },
     teachers: {
         roles: ['teacher'],
-        segment: 'people',
+        segment: 'teachers',
         pageTitle: 'Teachers',
         addLabel: 'Add teacher',
         icon: 'fa-chalkboard-teacher',
@@ -42,7 +42,7 @@ const VARIANT_CONFIG = {
     },
     parents: {
         roles: ['parent'],
-        segment: 'people',
+        segment: 'parents',
         pageTitle: 'Parents',
         addLabel: 'Add parent',
         icon: 'fa-people-roof',
@@ -138,6 +138,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('all');
     const [selectedUsers, setSelectedUsers] = useState([]);
+    const [listTab, setListTab] = useState('active');
+    const [trashCount, setTrashCount] = useState(0);
+    const [trashBusy, setTrashBusy] = useState(false);
     
     // Modal states
     const [showUserModal, setShowUserModal] = useState(false);
@@ -309,13 +312,20 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
-                params: { segment, limit: 500 },
+                params: {
+                    segment,
+                    limit: 500,
+                    ...(listTab === 'trash' ? { trash: '1' } : {}),
+                },
             });
 
             if (response.data.success) {
                 const raw = response.data.users || [];
                 const allowed = variantConfig.roles;
                 setUsers(raw.filter((u) => allowed.includes(u.role)));
+                if (typeof response.data.trashCount === 'number') {
+                    setTrashCount(response.data.trashCount);
+                }
             } else {
                 showAlert('Failed to load users', 'error');
                 setUsers([]);
@@ -327,7 +337,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             setUsers([]);
             setLoading(false);
         }
-    }, [showAlert, variant]);
+    }, [showAlert, variant, listTab]);
 
     const loadTeacherCourseMap = useCallback(async (token) => {
         const res = await axios.get(`${API_BASE_URL}/api/courses`, {
@@ -820,9 +830,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (user && isRowActionsLocked(user)) return;
 
         const confirmed = await showConfirm({
-            title: 'Delete User?',
-            message: `Delete "${user?.name || 'this user'}"? This action cannot be undone.`,
-            confirmLabel: 'Delete User',
+            title: 'Move to trash?',
+            message: `Move "${user?.name || 'this user'}" to trash? They will lose portal and login access. Restore from the Trash tab.`,
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) {
             return;
@@ -834,14 +844,54 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // Remove from list
-            setUsers(prev => prev.filter(user => user._id !== userId));
+            await fetchUsers();
             setSelectedUsers(prev => prev.filter(id => id !== userId));
             
-            showAlert('User deleted successfully!', 'success');
+            showAlert('User moved to trash.', 'success');
         } catch (error) {
-            console.error('Error deleting user:', error);
-            showAlert('Failed to delete user', 'error');
+            console.error('Error moving user to trash:', error);
+            showAlert(error.response?.data?.error || 'Failed to move user to trash', 'error');
+        }
+    };
+
+    const restoreUser = async (userId) => {
+        if (trashBusy) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.patch(`${API_BASE_URL}/api/users/${userId}/restore`, null, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchUsers();
+            showAlert('User restored.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to restore user', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const permanentDeleteUser = async (userId) => {
+        if (listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: 'This cannot be undone. The user account will be removed from the database.',
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.delete(`${API_BASE_URL}/api/users/${userId}/permanent`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchUsers();
+            setSelectedUsers((prev) => prev.filter((id) => id !== userId));
+            showAlert('User permanently deleted.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to permanently delete user', 'error');
+        } finally {
+            setTrashBusy(false);
         }
     };
 
@@ -852,9 +902,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
         
         const confirmed = await showConfirm({
-            title: 'Delete Users?',
-            message: `Delete ${selectedUsers.length} selected user(s)? This action cannot be undone.`,
-            confirmLabel: 'Delete Selected',
+            title: 'Move to trash?',
+            message: `Move ${selectedUsers.length} selected user(s) to trash? They will lose portal and login access.`,
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) {
             return;
@@ -872,7 +922,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             await fetchUsers();
             setSelectedUsers([]);
             
-            showAlert(response.data.message || `${selectedUsers.length} user(s) deleted successfully!`, 'success');
+            showAlert(response.data.message || `${selectedUsers.length} user(s) moved to trash.`, 'success');
         } catch (error) {
             console.error('Error deleting selected users:', error);
             showAlert('Failed to delete users', 'error');
@@ -1020,7 +1070,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     return (
         <div className="users-management">
-            {/* Enroll Student Modal (People tab) */}
+            {/* Enroll Student Modal */}
             {showEnrollModal && enrollingStudent && (
                 <EnrollStudentModal
                     isOpen={showEnrollModal}
@@ -1478,13 +1528,37 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     </p>
                 </div>
                 <div className="header-right">
-                    {showAddButton && (
+                    {showAddButton && listTab === 'active' && (
                         <button className="btn-primary" onClick={openCreateModal}>
                             <i className="fas fa-user-plus"></i>{' '}
                             {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
                         </button>
                     )}
                 </div>
+            </div>
+
+            <div className="students-list-tabs users-list-tabs">
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'active' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('active');
+                        setSelectedUsers([]);
+                    }}
+                >
+                    <i className="fas fa-list" /> Active
+                </button>
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'trash' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('trash');
+                        setSelectedUsers([]);
+                    }}
+                >
+                    <i className="fas fa-trash-alt" /> Trash
+                    {trashCount > 0 ? ` (${trashCount})` : ''}
+                </button>
             </div>
 
             {/* Bulk Actions Bar */}
@@ -1495,24 +1569,61 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         {selectedUsers.length} user(s) selected
                     </div>
                     <div className="bulk-buttons">
-                        <button 
-                            className="bulk-btn" 
-                            onClick={() => updateSelectedStatus('active')}
-                        >
-                            <i className="fas fa-check"></i> Activate All
-                        </button>
-                        <button 
-                            className="bulk-btn" 
-                            onClick={() => updateSelectedStatus('inactive')}
-                        >
-                            <i className="fas fa-ban"></i> Deactivate All
-                        </button>
-                        <button 
-                            className="bulk-btn delete" 
-                            onClick={deleteSelectedUsers}
-                        >
-                            <i className="fas fa-trash"></i> Delete Selected
-                        </button>
+                        {listTab === 'active' ? (
+                            <>
+                                <button 
+                                    className="bulk-btn" 
+                                    onClick={() => updateSelectedStatus('active')}
+                                >
+                                    <i className="fas fa-check"></i> Activate All
+                                </button>
+                                <button 
+                                    className="bulk-btn" 
+                                    onClick={() => updateSelectedStatus('inactive')}
+                                >
+                                    <i className="fas fa-ban"></i> Deactivate All
+                                </button>
+                                <button 
+                                    className="bulk-btn delete" 
+                                    onClick={deleteSelectedUsers}
+                                >
+                                    <i className="fas fa-trash"></i> Move to trash
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    className="bulk-btn"
+                                    disabled={trashBusy}
+                                    onClick={async () => {
+                                        for (const id of selectedUsers) {
+                                            await restoreUser(id);
+                                        }
+                                        setSelectedUsers([]);
+                                    }}
+                                >
+                                    <i className="fas fa-undo"></i> Restore selected
+                                </button>
+                                <button
+                                    className="bulk-btn delete"
+                                    disabled={trashBusy}
+                                    onClick={async () => {
+                                        const confirmed = await showConfirm({
+                                            title: 'Delete permanently?',
+                                            message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
+                                            confirmLabel: 'Delete forever',
+                                        });
+                                        if (!confirmed) return;
+                                        for (const id of selectedUsers) {
+                                            await permanentDeleteUser(id);
+                                        }
+                                        setSelectedUsers([]);
+                                    }}
+                                >
+                                    <i className="fas fa-trash-alt"></i> Delete permanently
+                                </button>
+                            </>
+                        )}
                         <button 
                             className="bulk-btn cancel" 
                             onClick={() => setSelectedUsers([])}
@@ -1863,6 +1974,25 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             >
                                                 <i className="fas fa-eye"></i>
                                             </button>
+                                        ) : listTab === 'trash' ? (
+                                            <>
+                                                <button
+                                                    className="action-btn status-btn"
+                                                    title="Restore user"
+                                                    disabled={trashBusy}
+                                                    onClick={() => restoreUser(user._id)}
+                                                >
+                                                    <i className="fas fa-undo"></i>
+                                                </button>
+                                                <button
+                                                    className="action-btn delete-btn"
+                                                    title="Delete permanently"
+                                                    disabled={trashBusy}
+                                                    onClick={() => permanentDeleteUser(user._id)}
+                                                >
+                                                    <i className="fas fa-trash-alt"></i>
+                                                </button>
+                                            </>
                                         ) : (
                                             <>
                                                 <button 
@@ -1890,7 +2020,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 </button>
                                                 <button 
                                                     className="action-btn delete-btn"
-                                                    title="Delete User"
+                                                    title="Move to trash"
                                                     onClick={() => deleteUser(user._id)}
                                                 >
                                                     <i className="fas fa-trash"></i>

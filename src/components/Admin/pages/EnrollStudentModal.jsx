@@ -99,7 +99,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             }
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
-                params: { segment: 'people', limit: 500 }
+                params: { segment: 'students', limit: 500 }
             });
             if (response.data.success) {
                 // All learner accounts with role student — include pending/inactive.
@@ -115,7 +115,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             setError(
                 err.response?.data?.error ||
                     err.message ||
-                    'Failed to load students. Check People tab and API connection.'
+                    'Failed to load students. Check the Students tab and API connection.'
             );
             setStudents([]);
         } finally {
@@ -348,7 +348,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                             >
                                                 <option value="">
                                                     {students.length === 0
-                                                        ? 'No students — add a learner with role “Student” in People'
+                                                        ? 'No students — add a student from the Students tab'
                                                         : 'Choose a student...'}
                                                 </option>
                                                 {students.map(s => (
@@ -360,7 +360,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                         )}
                                         {students.length === 0 && !studentsLoading && (
                                             <small className="form-error">
-                                                This list only includes users with role <strong>Student</strong> in People.
+                                                This list only includes student accounts from the Students tab.
                                                 Teachers and parents do not appear here.
                                             </small>
                                         )}
@@ -382,12 +382,12 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                     <>
                                         <div className="form-group">
                                             <label>
-                                                <i className="fas fa-key"></i> Portal login email (People)
+                                                <i className="fas fa-key"></i> Portal login email
                                             </label>
                                             <div className="portal-email-readonly">
                                                 {selectedStudent.email || '—'}
                                             </div>
-                                            <small className="form-hint">Used to sign in to the Gorythm student portal. Edit this in People if needed.</small>
+                                            <small className="form-hint">Used to sign in to the Gorythm student portal. Edit this in Students if needed.</small>
                                         </div>
                                         <div className="form-group">
                                             <label htmlFor="enroll-student-id">
@@ -437,7 +437,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                                 autoComplete="tel"
                                                 disabled={loading || success}
                                             />
-                                            <small className="form-hint">Shown in Students data and People.</small>
+                                            <small className="form-hint">Shown in Students data.</small>
                                         </div>
                                     </>
                                 )}
@@ -479,7 +479,7 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                     </label>
                                     <small className="form-hint enrollment-status-hint">
                                         Applies only to this course row in Students data. To change the learner’s
-                                        account / portal status, edit them in <strong>People</strong>.
+                                        account / portal status, edit them in <strong>Students</strong>.
                                     </small>
                                     <div className="status-buttons">
                                         {statusOptions.map((status) => (

@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import ScheduleRoomOrLink from './ScheduleRoomOrLink';
+import { formatTime12h } from '../../../utils/formatTime12h';
 import './ScheduleWeekView.scss';
 
 const DEFAULT_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -6,7 +8,12 @@ const DEFAULT_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 /**
  * Weekly schedule grid grouped by day (0 = Sunday).
  */
-export function ScheduleWeekView({ schedules = [], dayLabels = DEFAULT_DAYS }) {
+export function ScheduleWeekView({
+  schedules = [],
+  dayLabels = DEFAULT_DAYS,
+  showTeacher = false,
+  linkClassName = 'portal-schedule-link',
+}) {
   const labels = dayLabels.length >= 7 ? dayLabels : DEFAULT_DAYS;
 
   const byDay = useMemo(() => {
@@ -46,14 +53,16 @@ export function ScheduleWeekView({ schedules = [], dayLabels = DEFAULT_DAYS }) {
               {items.map((s) => (
                 <li key={s._id} className="schedule-week-item">
                   <span className="schedule-week-time">
-                    {s.startTime} – {s.endTime}
+                    {formatTime12h(s.startTime)} – {formatTime12h(s.endTime)}
                   </span>
                   <span className="schedule-week-course">{s.course?.title || 'Course'}</span>
-                  {s.teacher?.name ? (
+                  {showTeacher && s.teacher?.name ? (
                     <span className="schedule-week-meta">{s.teacher.name}</span>
                   ) : null}
                   {s.roomOrLink ? (
-                    <span className="schedule-week-room">{s.roomOrLink}</span>
+                    <span className="schedule-week-room">
+                      <ScheduleRoomOrLink value={s.roomOrLink} className={linkClassName} />
+                    </span>
                   ) : null}
                 </li>
               ))}

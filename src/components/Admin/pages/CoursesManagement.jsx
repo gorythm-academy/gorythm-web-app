@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { CATEGORY_ORDER } from '../../HomeSections/Courses';
 import { API_BASE_URL } from '../../../config/constants';
+import {
+    cleanupCourseImage,
+    deleteCourseGalleryImage,
+    uploadCourseImage,
+} from '../../../utils/fileUploadApi';
+import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { useAdminDialog } from '../AdminDialogContext';
 import './CoursesManagement.scss';
 
@@ -35,6 +41,21 @@ const COLUMN_MAX_WIDTHS = [90, 360, 440, 300, 380, 180, 180, 220, 280, 220, 240,
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const EMPTY_COURSE_FORM = {
+    title: '',
+    description: '',
+    category: 'Quranic Arabic',
+    price: '',
+    duration: '8 weeks',
+    status: 'draft',
+    level: 'beginner',
+    instructorId: '',
+    instructorName: '',
+    displayOrder: '',
+    masonryColumn: '',
+    homepageImage: '',
+};
+
 const CoursesManagement = () => {
     const { showAlert, showConfirm, showChoice } = useAdminDialog();
     const [courses, setCourses] = useState([]);
@@ -44,22 +65,18 @@ const CoursesManagement = () => {
     const [filterStatus, setFilterStatus] = useState('all');
     const [selectedCourses, setSelectedCourses] = useState([]);
     const [totalUniqueStudents, setTotalUniqueStudents] = useState(0);
+    const [listTab, setListTab] = useState('active');
+    const [trashCount, setTrashCount] = useState(0);
+    const [trashBusy, setTrashBusy] = useState(false);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        category: 'Quranic Arabic',
-        price: '',
-        duration: '8 weeks',
-        status: 'draft',
-        level: 'beginner',
-        instructorId: '',
-        instructorName: '',
-        displayOrder: '',
-        masonryColumn: '',
-    });
+    const [formData, setFormData] = useState({ ...EMPTY_COURSE_FORM });
+    const [galleryImages, setGalleryImages] = useState([]);
+    const [galleryLoading, setGalleryLoading] = useState(false);
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const savedImageOnEditRef = useRef('');
+    const imageUploadLockRef = useRef(false);
     const [sortBy, setSortBy] = useState('');
     const [sortOrder, setSortOrder] = useState('asc');
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -164,6 +181,9 @@ const CoursesManagement = () => {
 
     useEffect(() => {
         fetchCourses();
+    }, [listTab]);
+
+    useEffect(() => {
         const token = getAuthToken();
         if (token) {
             axios
@@ -195,16 +215,108 @@ const CoursesManagement = () => {
         };
     }, [isFormOpen]);
 
+    const fetchGalleryImages = useCallback(async () => {
+        const token = getAuthToken();
+        if (!token) return;
+        setGalleryLoading(true);
+        try {
+            const res = await axios.get(`${API_BASE_URL}/api/admin/course-images`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setGalleryImages(res.data?.images || []);
+        } catch {
+            setGalleryImages([]);
+        } finally {
+            setGalleryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isFormOpen) {
+            fetchGalleryImages();
+        }
+    }, [isFormOpen, fetchGalleryImages]);
+
+    const closeCourseForm = () => {
+        const pendingImage = formData.homepageImage;
+        const savedImage = savedImageOnEditRef.current;
+        setIsFormOpen(false);
+        setEditingCourse(null);
+        setSelectedCourses([]);
+        setFormData({ ...EMPTY_COURSE_FORM });
+        savedImageOnEditRef.current = '';
+        if (pendingImage && pendingImage !== savedImage) {
+            cleanupCourseImage(pendingImage);
+        }
+    };
+
+    const onCourseImageFile = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file || imageUploadLockRef.current) return;
+
+        imageUploadLockRef.current = true;
+        const replacePath = formData.homepageImage;
+        setUploadingImage(true);
+        try {
+            const path = await uploadCourseImage(file, replacePath);
+            setFormData((prev) => ({ ...prev, homepageImage: path }));
+            await fetchGalleryImages();
+        } catch (err) {
+            showAlert(err.message || 'Could not upload image', 'error');
+        } finally {
+            setUploadingImage(false);
+            imageUploadLockRef.current = false;
+        }
+    };
+
+    const selectGalleryImage = (imagePath) => {
+        setFormData((prev) => ({ ...prev, homepageImage: imagePath }));
+    };
+
+    const handleDeleteGalleryImage = async (image) => {
+        if (!image?.path) return;
+        if (image.usedBy > 0) {
+            showAlert(
+                `This image is used by ${image.usedBy} course(s). Remove it from those courses first.`,
+                'warning'
+            );
+            return;
+        }
+        const confirmed = await showConfirm({
+            title: 'Delete image?',
+            message: 'This will permanently remove the file from the server.',
+            confirmLabel: 'Delete',
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        try {
+            await deleteCourseGalleryImage(image.path);
+            if (formData.homepageImage === image.path) {
+                setFormData((prev) => ({ ...prev, homepageImage: '' }));
+            }
+            await fetchGalleryImages();
+            showConfirmation('Image deleted.');
+        } catch (err) {
+            showAlert(err.message || 'Could not delete image', 'error');
+        }
+    };
+
     const fetchCourses = async () => {
         try {
             setLoading(true);
             const token = getAuthToken();
             
             const response = await axios.get(`${API_BASE_URL}/api/courses`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                params: listTab === 'trash' ? { trash: '1' } : {},
             });
 
             const raw = response.data?.courses || [];
+            if (typeof response.data?.trashCount === 'number') {
+                setTrashCount(response.data.trashCount);
+            }
             const coursesFromDb = raw.map((c) => ({
                 ...c,
                 status: c.status === 'published' || c.status === 'draft'
@@ -225,19 +337,8 @@ const CoursesManagement = () => {
 
     const openCreateForm = () => {
         setEditingCourse(null);
-        setFormData({
-            title: '',
-            description: '',
-            category: 'Quranic Arabic',
-            price: '',
-            duration: '8 weeks',
-            status: 'draft',
-            level: 'beginner',
-            instructorId: '',
-            instructorName: '',
-            displayOrder: '',
-            masonryColumn: '',
-        });
+        savedImageOnEditRef.current = '';
+        setFormData({ ...EMPTY_COURSE_FORM });
         setIsFormOpen(true);
         
         setTimeout(() => {
@@ -262,6 +363,7 @@ const CoursesManagement = () => {
         }
         
         setEditingCourse(course);
+        savedImageOnEditRef.current = course.homepageImage || '';
         setFormData({
             title: course.title || '',
             description: course.description || '',
@@ -274,6 +376,7 @@ const CoursesManagement = () => {
             instructorName: course.instructorName || course.instructor?.name || '',
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
+            homepageImage: course.homepageImage || '',
         });
         setIsFormOpen(true);
         
@@ -351,6 +454,7 @@ const CoursesManagement = () => {
             instructorName: (formData.instructorName || '').trim(),
             displayOrder: formData.displayOrder === '' ? 9999 : Number(formData.displayOrder),
             masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
+            homepageImage: (formData.homepageImage || '').trim(),
         };
 
         try {
@@ -403,21 +507,11 @@ const CoursesManagement = () => {
                 showConfirmation('Course created successfully!');
             }
 
+            savedImageOnEditRef.current = payload.homepageImage;
             setIsFormOpen(false);
             setEditingCourse(null);
             setSelectedCourses([]);
-setFormData({
-            title: '',
-            description: '',
-            category: 'Quranic Arabic',
-            price: '',
-            duration: '8 weeks',
-            status: 'draft',
-            level: 'beginner',
-            instructorName: '',
-            displayOrder: '',
-            masonryColumn: '',
-        });
+            setFormData({ ...EMPTY_COURSE_FORM });
         
             await fetchCourses();
         } catch (error) {
@@ -470,9 +564,9 @@ setFormData({
 
     const deleteCourse = async (courseId) => {
         const confirmed = await showConfirm({
-            title: 'Delete Course?',
-            message: 'This course will be permanently deleted.',
-            confirmLabel: 'Delete Course',
+            title: 'Move to trash?',
+            message: 'This course will be unpublished and hidden from the website. Restore from the Trash tab.',
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) return;
 
@@ -484,11 +578,52 @@ setFormData({
             
             setSelectedCourses(prev => prev.filter(id => id !== courseId));
             await fetchCourses();
-            showConfirmation('Course deleted successfully!');
+            showConfirmation('Course moved to trash.');
         } catch (error) {
-            console.error('Error deleting course:', error);
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to delete course';
-            showAlert(`Failed to delete course: ${errorMessage}. Please try again.`, 'error');
+            console.error('Error moving course to trash:', error);
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to move course to trash';
+            showAlert(`Failed to move course to trash: ${errorMessage}. Please try again.`, 'error');
+        }
+    };
+
+    const restoreCourse = async (courseId) => {
+        if (trashBusy) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.patch(`${API_BASE_URL}/api/courses/${courseId}/restore`, null, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchCourses();
+            showConfirmation('Course restored.');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to restore course', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const permanentDeleteCourse = async (courseId) => {
+        if (listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: 'This cannot be undone. The course will be removed from the database.',
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            await axios.delete(`${API_BASE_URL}/api/courses/${courseId}/permanent`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await fetchCourses();
+            setSelectedCourses((prev) => prev.filter((id) => id !== courseId));
+            showConfirmation('Course permanently deleted.');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to permanently delete course', 'error');
+        } finally {
+            setTrashBusy(false);
         }
     };
 
@@ -498,9 +633,9 @@ setFormData({
             return;
         }
         const confirmed = await showConfirm({
-            title: 'Delete Courses?',
-            message: `Delete ${selectedCourses.length} selected course(s)? This cannot be undone.`,
-            confirmLabel: 'Delete Selected',
+            title: 'Move to trash?',
+            message: `Move ${selectedCourses.length} selected course(s) to trash? They will be hidden from the website.`,
+            confirmLabel: 'Move to trash',
         });
         if (!confirmed) {
             return;
@@ -517,7 +652,7 @@ setFormData({
 
             await fetchCourses();
             setSelectedCourses([]);
-            showConfirmation(response.data.message || `${selectedCourses.length} course(s) deleted successfully!`);
+            showConfirmation(response.data.message || `${selectedCourses.length} course(s) moved to trash.`);
         } catch (error) {
             console.error('Error deleting selected courses:', error);
             console.error('Error details:', error.response?.data);
@@ -634,9 +769,11 @@ setFormData({
                     <p>Create, edit, and manage academy courses</p>
                 </div>
                 <div className="header-right">
-                    <button type="button" className="btn-primary" onClick={openCreateForm}>
-                        <i className="fas fa-plus"></i> Add Course
-                    </button>
+                    {listTab === 'active' ? (
+                        <button type="button" className="btn-primary" onClick={openCreateForm}>
+                            <i className="fas fa-plus"></i> Add Course
+                        </button>
+                    ) : null}
                 </div>
             </div>
 
@@ -677,6 +814,30 @@ setFormData({
                         <p>Total Value</p>
                     </div>
                 </div>
+            </div>
+
+            <div className="students-list-tabs courses-list-tabs">
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'active' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('active');
+                        setSelectedCourses([]);
+                    }}
+                >
+                    <i className="fas fa-list" /> Active courses
+                </button>
+                <button
+                    type="button"
+                    className={`students-list-tab ${listTab === 'trash' ? 'active' : ''}`}
+                    onClick={() => {
+                        setListTab('trash');
+                        setSelectedCourses([]);
+                    }}
+                >
+                    <i className="fas fa-trash-alt" /> Trash
+                    {trashCount > 0 ? ` (${trashCount})` : ''}
+                </button>
             </div>
 
             <div className="controls-bar">
@@ -732,11 +893,7 @@ setFormData({
                         <button
                             type="button"
                             className="modal-close-btn"
-                            onClick={() => {
-                                setIsFormOpen(false);
-                                setEditingCourse(null);
-                                setSelectedCourses([]);
-                            }}
+                            onClick={closeCourseForm}
                             aria-label="Close"
                         >
                             <i className="fas fa-times"></i>
@@ -898,11 +1055,112 @@ setFormData({
                                 </select>
                             </div>
                         </div>
+                        <div className="course-image-section">
+                            <div className="course-image-section__header">
+                                <label>Course image</label>
+                                <span className="course-image-section__hint">
+                                    Upload a new image or pick one from the gallery
+                                </span>
+                            </div>
+                            <div className="course-image-section__preview-row">
+                                <div className="course-image-section__preview">
+                                    {formData.homepageImage ? (
+                                        <img
+                                            src={resolveMediaUrl(formData.homepageImage)}
+                                            alt="Selected course"
+                                        />
+                                    ) : (
+                                        <div className="course-image-section__preview-empty">
+                                            <i className="fas fa-image" aria-hidden="true" />
+                                            <span>No image selected</span>
+                                        </div>
+                                    )}
+                                    {formData.homepageImage && (
+                                        <button
+                                            type="button"
+                                            className="course-image-section__clear"
+                                            onClick={() => setFormData((prev) => ({ ...prev, homepageImage: '' }))}
+                                            title="Clear selection"
+                                        >
+                                            <i className="fas fa-times" aria-hidden="true" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="course-image-section__upload">
+                                    <label className="course-image-section__upload-btn">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif"
+                                            onChange={onCourseImageFile}
+                                            disabled={uploadingImage}
+                                        />
+                                        <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`} aria-hidden="true" />
+                                        {uploadingImage ? 'Uploading…' : 'Upload image'}
+                                    </label>
+                                    <span className="course-image-section__upload-note">
+                                        JPEG, PNG, WebP, or AVIF · max 8 MB
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="course-image-section__gallery-head">
+                                <span>Image gallery</span>
+                                {galleryLoading && (
+                                    <span className="course-image-section__gallery-loading">
+                                        <i className="fas fa-spinner fa-spin" aria-hidden="true" /> Loading…
+                                    </span>
+                                )}
+                            </div>
+                            {galleryImages.length === 0 && !galleryLoading ? (
+                                <p className="course-image-section__gallery-empty">
+                                    No images yet. Upload one above — it will appear here for all courses.
+                                </p>
+                            ) : (
+                                <div className="course-image-section__gallery">
+                                    {galleryImages.map((img) => {
+                                        const isSelected = formData.homepageImage === img.path;
+                                        return (
+                                            <div
+                                                key={img.path}
+                                                className={`course-image-section__tile${isSelected ? ' is-selected' : ''}`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="course-image-section__tile-select"
+                                                    onClick={() => selectGalleryImage(img.path)}
+                                                    title={img.usedByTitles?.join(', ') || 'Select image'}
+                                                >
+                                                    <img src={resolveMediaUrl(img.path)} alt="" loading="lazy" />
+                                                    {isSelected && (
+                                                        <span className="course-image-section__tile-badge">
+                                                            <i className="fas fa-check" aria-hidden="true" />
+                                                        </span>
+                                                    )}
+                                                    {img.usedBy > 0 && (
+                                                        <span className="course-image-section__tile-used">
+                                                            {img.usedBy} in use
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="course-image-section__tile-delete"
+                                                    onClick={() => handleDeleteGalleryImage(img)}
+                                                    disabled={img.usedBy > 0}
+                                                    title={img.usedBy > 0 ? 'In use by a course' : 'Delete image'}
+                                                >
+                                                    <i className="fas fa-trash-alt" aria-hidden="true" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                         <div className="form-actions">
                             <button 
                                 type="submit" 
                                 className="btn-primary"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || uploadingImage}
                             >
                                 {isSubmitting ? (
                                     <>
@@ -918,23 +1176,7 @@ setFormData({
                             <button
                                 type="button"
                                 className="btn-secondary"
-                                onClick={() => {
-                                    setIsFormOpen(false);
-                                    setEditingCourse(null);
-                                    setSelectedCourses([]);
-                                    setFormData({
-                                        title: '',
-                                        description: '',
-                                        category: 'Quranic Arabic',
-                                        price: '',
-                                        duration: '8 weeks',
-                                        status: 'draft',
-                                        level: 'beginner',
-                                        instructorName: '',
-                                        displayOrder: '',
-                                        masonryColumn: '',
-                                    });
-                                }}
+                                onClick={closeCourseForm}
                                 disabled={isSubmitting}
                             >
                                 Cancel
@@ -960,7 +1202,7 @@ setFormData({
                             <i className="fas fa-eye"></i> Set Status
                         </button>
                         <button className="bulk-btn delete" onClick={deleteSelectedCourses}>
-                            <i className="fas fa-trash"></i> Delete Selected
+                            <i className="fas fa-trash"></i> Move to trash
                         </button>
                         <button
                             className="bulk-btn cancel"
@@ -1265,39 +1507,70 @@ setFormData({
                                     </td>
                                     <td>
                                         <div className="action-buttons">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openEditForm(course);
-                                                }}
-                                                className="action-btn edit-btn"
-                                                title="Edit Course"
-                                            >
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleStatus(courseId, course.status);
-                                                }}
-                                                className={`action-btn status-btn ${course.status}`}
-                                                title={course.status === 'published' ? 'Set to Draft' : 'Publish'}
-                                            >
-                                                <i className={`fas fa-${course.status === 'published' ? 'eye-slash' : 'eye'}`}></i>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    deleteCourse(courseId);
-                                                }}
-                                                className="action-btn delete-btn"
-                                                title="Delete Course"
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
+                                            {listTab === 'trash' ? (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            restoreCourse(courseId);
+                                                        }}
+                                                        className="action-btn status-btn"
+                                                        title="Restore course"
+                                                        disabled={trashBusy}
+                                                    >
+                                                        <i className="fas fa-undo"></i>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            permanentDeleteCourse(courseId);
+                                                        }}
+                                                        className="action-btn delete-btn"
+                                                        title="Delete permanently"
+                                                        disabled={trashBusy}
+                                                    >
+                                                        <i className="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openEditForm(course);
+                                                        }}
+                                                        className="action-btn edit-btn"
+                                                        title="Edit Course"
+                                                    >
+                                                        <i className="fas fa-edit"></i>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleStatus(courseId, course.status);
+                                                        }}
+                                                        className={`action-btn status-btn ${course.status}`}
+                                                        title={course.status === 'published' ? 'Set to Draft' : 'Publish'}
+                                                    >
+                                                        <i className={`fas fa-${course.status === 'published' ? 'eye-slash' : 'eye'}`}></i>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteCourse(courseId);
+                                                        }}
+                                                        className="action-btn delete-btn"
+                                                        title="Move to trash"
+                                                    >
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

@@ -3,15 +3,27 @@ import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader, SummaryGrid } from '../shared/PortalUi';
 
+const formatMonth = (monthKey) => {
+  const [y, m] = String(monthKey || '').split('-');
+  if (!y || !m) return monthKey || '';
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 const AccountantDashboard = () => {
   const [summary, setSummary] = useState(null);
+  const [payrollMissingAlerts, setPayrollMissingAlerts] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     portalGet('/accountant/dashboard')
       .then((res) => {
-        if (res.success) setSummary(res.summary);
-        else setError(res.error || 'Failed');
+        if (res.success) {
+          setSummary(res.summary);
+          setPayrollMissingAlerts(res.payrollMissingAlerts || []);
+        } else setError(res.error || 'Failed');
       })
       .catch((err) => setError(err.message));
   }, []);
@@ -33,17 +45,49 @@ const AccountantDashboard = () => {
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Accountant Dashboard" />
+      <PortalPageHeader title="Accountant Dashboard" subtitle="Payments, payroll, and financial reports" />
+
+      <div className="portal-hero portal-hero--accountant">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-calculator" />
+        </div>
+        <div>
+          <h2>Finance overview</h2>
+          <p>Review student payments, teacher payroll, and export summary reports.</p>
+        </div>
+      </div>
+
+      {payrollMissingAlerts.length > 0 ? (
+        <PortalAlert type="warning">
+          <strong>
+            {payrollMissingAlerts.length} approved month{payrollMissingAlerts.length === 1 ? '' : 's'}{' '}
+            without payroll
+          </strong>
+          <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem' }}>
+            {payrollMissingAlerts.map((a) => (
+              <li key={a._id}>
+                {a.teacher?.name || 'Teacher'} — {formatMonth(a.monthKey)}: {a.reason}
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: '0.5rem 0 0' }}>
+            <Link to="/accountant/payroll">Add salary profile or generate payroll →</Link>
+          </p>
+        </PortalAlert>
+      ) : null}
+
       <SummaryGrid
         items={[
-          { label: 'Total payments', value: summary.payments, to: '/accountant/payments' },
-          { label: 'Completed', value: summary.completed, to: '/accountant/payments' },
-          { label: 'Pending', value: summary.pending, to: '/accountant/payments' },
-          { label: 'Failed', value: summary.failed ?? 0, to: '/accountant/payments' },
-          { label: 'Refunded', value: summary.refunded, to: '/accountant/payments' },
+          { label: 'Payroll to review', value: summary.payrollPendingReview ?? 0, to: '/accountant/payroll' },
+          { label: 'Payroll out of date', value: summary.payrollStale ?? 0, to: '/accountant/payroll' },
+          { label: 'Missing payroll', value: summary.payrollMissing ?? 0, to: '/accountant/payroll' },
+          { label: 'Payroll paid', value: summary.payrollPaid ?? 0, to: '/accountant/payroll' },
+          { label: 'Student payments', value: summary.payments, to: '/accountant/payments' },
+          { label: 'Pending payments', value: summary.pending, to: '/accountant/payments' },
         ]}
       />
-      <div className="portal-grid" style={{ marginTop: '1rem' }}>
+
+      <div className="portal-quick-links">
         <Link to="/accountant/payments" className="portal-card portal-link-card">
           Student payments →
         </Link>

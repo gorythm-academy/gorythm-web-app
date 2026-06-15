@@ -1,24 +1,49 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { portalGet, portalPost } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SimpleTable } from '../shared/PortalUi';
+import {
+  PortalLoading,
+  PortalAlert,
+  PortalPageHeader,
+  PortalCourseToolbar,
+  PortalNewBanner,
+} from '../shared/PortalUi';
 import QuizReviewPanel from '../shared/QuizReviewPanel';
 import { absFileUrl } from '../../../utils/fileUrl';
 import { formatScore } from '../../../utils/formatScore';
 import { portalDocId } from '../../../utils/portalDocId';
+import {
+  filterPortalItemsByCourse,
+  getItemsNewSinceLastVisit,
+  markPortalPageVisited,
+} from '../../../utils/portalNewItems';
+
+const SEEN_KEY = 'student_quizzes';
 
 const StudentQuizzes = () => {
   const [quizzes, setQuizzes] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [courseFilter, setCourseFilter] = useState('all');
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [review, setReview] = useState(null);
   const [answers, setAnswers] = useState({});
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [newItems, setNewItems] = useState([]);
 
   const load = () => {
-    portalGet('/student/quizzes')
-      .then((res) => {
-        if (res.success) setQuizzes(res.quizzes || []);
-        else setError(res.error || 'Failed to load');
+    Promise.all([portalGet('/student/quizzes'), portalGet('/student/courses')])
+      .then(([qRes, cRes]) => {
+        if (qRes.success) {
+          const list = qRes.quizzes || [];
+          setQuizzes(list);
+          setNewItems(getItemsNewSinceLastVisit(SEEN_KEY, list));
+        } else setError(qRes.error || 'Failed to load');
+        if (cRes.success) {
+          const active = (cRes.enrollments || [])
+            .filter((e) => e.course && e.status === 'active')
+            .map((e) => ({ _id: e.course._id, title: e.course.title }));
+          setCourses(active);
+        }
       })
       .catch((err) => setError(err.message));
   };
@@ -26,6 +51,16 @@ const StudentQuizzes = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    markPortalPageVisited(SEEN_KEY);
+    setNewItems([]);
+  }, []);
+
+  const filtered = useMemo(
+    () => filterPortalItemsByCourse(quizzes || [], courseFilter),
+    [quizzes, courseFilter]
+  );
 
   const openQuiz = async (quizId) => {
     setMsg('');
@@ -68,6 +103,11 @@ const StudentQuizzes = () => {
     }
   };
 
+  const dismissNew = () => {
+    markPortalPageVisited(SEEN_KEY);
+    setNewItems([]);
+  };
+
   if (error) {
     return (
       <div className="portal-page">
@@ -85,57 +125,112 @@ const StudentQuizzes = () => {
 
   const q = activeQuiz?.quiz;
   const taking = q && !activeQuiz?.attempt && !review;
+  const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Quizzes" subtitle="Choose one answer per question (A, B, or C). Results show after you submit." />
-      <SimpleTable
-        columns={[
-          { key: 'title', label: 'Quiz', render: (r) => r.title },
-          { key: 'course', label: 'Course', render: (r) => r.course?.title },
-          {
-            key: 'due',
-            label: 'Due',
-            render: (r) => (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'),
-          },
-          {
-            key: 'score',
-            label: 'Your score',
-            render: (r) => (r.attempt ? formatScore(r.attempt.score, r.totalMarks) : 'Not attempted'),
-          },
-          {
-            key: 'action',
-            label: '',
-            render: (r) => (
-              <button type="button" onClick={() => openQuiz(portalDocId(r))}>
-                {r.attempt ? 'View result' : 'Take quiz'}
-              </button>
-            ),
-          },
-        ]}
-        rows={quizzes}
-        emptyLabel="No quizzes available."
+      <PortalPageHeader
+        title="Quizzes"
+        subtitle="Choose one answer per question (A, B, or C). Results show after you submit."
       />
 
+      <div className="portal-hero portal-hero--student">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-question-circle" />
+        </div>
+        <div>
+          <h2>Course quizzes</h2>
+          <p>Filter by course, take quizzes once, and review your scores when results are ready.</p>
+        </div>
+      </div>
+
+      <PortalNewBanner
+        title={`${visibleNew.length} new quiz${visibleNew.length === 1 ? '' : 'zes'} available`}
+        items={visibleNew}
+        itemLabel={(quiz) => quiz.title}
+        onDismiss={dismissNew}
+      />
+
+      <PortalCourseToolbar
+        value={courseFilter}
+        onChange={setCourseFilter}
+        courses={courses}
+        label="Filter by course"
+        count={courseFilter ? filtered.length : null}
+      />
+
+      <div className="portal-panel">
+          <div className="portal-panel__head">
+            <div>
+              <h2>Quiz list</h2>
+              <p>Due dates, scores, and actions</p>
+            </div>
+          </div>
+          <div className="portal-panel__body">
+            {filtered.length === 0 ? (
+              <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
+                No quizzes for this selection.
+              </p>
+            ) : (
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--purple">
+                  <thead>
+                    <tr>
+                      <th>Quiz</th>
+                      <th>Course</th>
+                      <th>Due</th>
+                      <th>Your score</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => (
+                      <tr key={r._id}>
+                        <td>
+                          <strong>{r.title}</strong>
+                        </td>
+                        <td>{r.course?.title || '—'}</td>
+                        <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
+                        <td>{r.attempt ? formatScore(r.attempt.score, r.totalMarks) : 'Not attempted'}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="portal-action-btn portal-action-btn--purple"
+                            onClick={() => openQuiz(portalDocId(r))}
+                          >
+                            {r.attempt ? 'View result' : 'Take quiz'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
       {review ? (
-        <div className="portal-card" style={{ marginTop: '1rem' }}>
-          <QuizReviewPanel review={review} title={q?.title ? `Results — ${q.title}` : 'Your results'} />
-          <button
-            type="button"
-            className="portal-btn-secondary"
-            style={{ marginTop: '1rem' }}
-            onClick={() => {
-              setActiveQuiz(null);
-              setReview(null);
-            }}
-          >
-            Close
-          </button>
+        <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
+          <div className="portal-panel__body portal-panel__body--padded">
+            <QuizReviewPanel review={review} title={q?.title ? `Results — ${q.title}` : 'Your results'} />
+            <button
+              type="button"
+              className="portal-btn-secondary"
+              style={{ marginTop: '1rem' }}
+              onClick={() => {
+                setActiveQuiz(null);
+                setReview(null);
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
       ) : null}
 
       {taking ? (
-        <form className="portal-card portal-form-card" onSubmit={submit} style={{ marginTop: '1rem' }}>
+        <form className="portal-quiz-take-panel" onSubmit={submit}>
           <h3>{q.title}</h3>
           {q.resourceLink ? (
             <p>

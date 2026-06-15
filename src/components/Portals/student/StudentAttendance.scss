@@ -1,0 +1,232 @@
+@import '../../../styles/breakpoints';
+
+.student-attendance {
+  .student-attendance__hero {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.35rem;
+    margin-bottom: 1.25rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    box-shadow: 0 8px 28px rgba(37, 99, 235, 0.08);
+
+    .student-attendance__hero-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    h2 {
+      margin: 0 0 0.25rem;
+      font-size: 1.1rem;
+      color: #0f172a;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.88rem;
+      color: #64748b;
+    }
+  }
+
+  .student-attendance__panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  }
+
+  .student-attendance__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+
+  .student-attendance__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 180px;
+
+    span {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    select,
+    input {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: #fff;
+    }
+  }
+
+  .student-attendance__kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .student-attendance__rate {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+    color: #1d4ed8;
+    font-weight: 700;
+    font-size: 0.88rem;
+    margin-bottom: 1rem;
+  }
+
+  .student-attendance__calendar {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .student-attendance__day {
+    padding: 0.65rem 0.5rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    background: #fafafa;
+    min-height: 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+
+    &--present {
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+
+    &--absent {
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    &--late {
+      background: #faf5ff;
+      border-color: #e9d5ff;
+    }
+
+    &--leave {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    &--holiday {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    &--weekend {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+      opacity: 0.85;
+    }
+
+    &--empty {
+      opacity: 0.55;
+    }
+  }
+
+  .student-attendance__day-date {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .student-attendance__day-status {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    color: #0f172a;
+  }
+
+  .student-attendance__list-wrap {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+
+  .student-attendance__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+
+    thead th {
+      background: #f8fafc;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tbody td {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+  }
+
+  .student-attendance__status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+
+  .student-attendance__empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .student-attendance__week-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-end;
+
+    select {
+      padding: 0.5rem 0.65rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.88rem;
+    }
+  }
+}

@@ -9,7 +9,7 @@ function statusFromPaymentList(payments) {
         (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
     );
     const latest = sorted[0];
-    if (latest.status === 'completed') return 'paid';
+    if (latest.status === 'paid' || latest.status === 'completed') return 'paid';
     if (latest.status === 'refunded') return 'refunded';
     if (latest.status === 'failed') return 'failed';
     return 'pending';

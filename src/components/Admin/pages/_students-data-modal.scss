@@ -243,6 +243,63 @@
                 color: #334155;
                 word-break: break-all;
             }
+
+            .email-input-group {
+                display: flex;
+                align-items: stretch;
+                width: 100%;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+                background: #f8fafc;
+                overflow: hidden;
+
+                &:focus-within {
+                    border-color: var(--color-accent);
+                    background: #fff;
+                    box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.15);
+                }
+
+                .email-input-group__local {
+                    flex: 1 1 auto;
+                    min-width: 0;
+                    border: none;
+                    outline: none;
+                    background: transparent;
+                    box-shadow: none;
+                }
+
+                .email-input-group__suffix {
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 0 0.85rem;
+                    background: #f1f5f9;
+                    color: var(--color-accent-dark, var(--color-accent));
+                    font-weight: 600;
+                    font-size: 0.88rem;
+                    white-space: nowrap;
+                    border-left: 1px solid #e2e8f0;
+                }
+            }
+
+            .password-field {
+                position: relative;
+
+                .form-input {
+                    padding-right: 2.75rem;
+                }
+
+                .password-field__toggle {
+                    position: absolute;
+                    right: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 2.5rem;
+                    border: none;
+                    background: transparent;
+                    color: #64748b;
+                    cursor: pointer;
+                }
+            }
         }
         
         .form-row {

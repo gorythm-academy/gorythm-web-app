@@ -1,0 +1,49 @@
+.teacher-classes {
+  .teacher-classes__table thead {
+    background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+
+    th {
+      background: transparent;
+      color: #0369a1;
+    }
+  }
+
+  .teacher-classes__day-badge {
+    display: inline-flex;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0369a1;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    white-space: nowrap;
+  }
+
+  .teacher-classes__time {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .teacher-classes__course {
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .teacher-classes__join {
+    display: inline-flex;
+    padding: 0.35rem 0.7rem;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: #fff !important;
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      opacity: 0.92;
+      text-decoration: none;
+    }
+  }
+}

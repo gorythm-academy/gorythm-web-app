@@ -1,39 +1,52 @@
 .schedule-week {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
 .schedule-week-empty {
   color: #64748b;
   margin: 0.5rem 0;
+  padding: 1.25rem;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
 }
 
 .schedule-week-day {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .schedule-week-day--today {
   border-color: var(--color-accent, #3b82f6);
-  box-shadow: 0 0 0 1px var(--color-accent, #3b82f6);
+  box-shadow: 0 0 0 1px var(--color-accent, #3b82f6), 0 8px 22px rgba(59, 130, 246, 0.12);
 }
 
 .schedule-week-day-title {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.65rem;
   font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .schedule-week-today {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--color-accent, #3b82f6);
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--color-accent, #3b82f6);
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
 }
 
 .schedule-week-list {
@@ -45,8 +58,8 @@
 .schedule-week-item {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0;
+  gap: 0.2rem;
+  padding: 0.65rem 0;
   border-top: 1px solid #f1f5f9;
 
   &:first-child {
@@ -56,16 +69,23 @@
 }
 
 .schedule-week-time {
-  font-weight: 600;
-  font-size: 0.85rem;
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: #0f172a;
 }
 
 .schedule-week-course {
   font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
 }
 
-.schedule-week-meta,
-.schedule-week-room {
+.schedule-week-meta {
   font-size: 0.8rem;
   color: #64748b;
+}
+
+.schedule-week-room {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
 }

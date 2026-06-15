@@ -1,7 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
-import { API_BASE_URL, INFO_EMAIL, WHATSAPP_URL, CONTACT_PHONE, CONTACT_ADDRESS } from '../../config/constants';
+import {
+  API_BASE_URL,
+  INFO_EMAIL,
+  CONTACT_PHONE,
+  CONTACT_ADDRESS,
+  getWhatsAppDirectUrl,
+  onWhatsAppAnchorClick,
+} from '../../config/constants';
 import { navigateToMailto } from '../../utils/mailto';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
 import './ContactPage.scss';
@@ -170,9 +177,10 @@ const ContactPage = () => {
               </li>
               <li>
                 <a
-                  href={WHATSAPP_URL}
+                  href={getWhatsAppDirectUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={onWhatsAppAnchorClick}
                   aria-label={`WhatsApp ${contactInfo.phone}`}
                 >
                   <span className="contact-page__icon-wrap" aria-hidden="true">

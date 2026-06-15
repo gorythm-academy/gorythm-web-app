@@ -172,20 +172,24 @@
     color: #991b1b;
   }
   &--late {
+    background: #f3e8ff;
+    color: #6b21a8;
+  }
+  &--leave {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+  &--holiday {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  &--weekend {
     background: #fef9c3;
     color: #854d0e;
   }
-  &--leave {
-    background: #e0e7ff;
-    color: #3730a3;
-  }
-  &--holiday {
-    background: #ffedd5;
-    color: #c2410c;
-  }
-  &--weekend {
+  &--muted {
     background: #f1f5f9;
-    color: #475569;
+    color: #64748b;
   }
 }
 
@@ -292,6 +296,174 @@
   margin-bottom: 0.75rem;
 }
 
+.portal-attendance-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  .portal-field-label {
+    margin: 0;
+    min-width: 180px;
+  }
+}
+
+.portal-attendance-period-tabs {
+  display: inline-flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+
+  button {
+    padding: 0.45rem 0.85rem;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &.is-active {
+      background: var(--color-accent, #3b82f6);
+      color: #fff;
+    }
+
+    &:not(.is-active):hover {
+      background: #f8fafc;
+    }
+  }
+}
+
+.portal-attendance-report-section {
+  margin-top: 1.5rem;
+}
+
+.portal-attendance-save-success {
+  margin: 0.5rem 0 0;
+  color: #15803d;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.portal-attendance-report-hint {
+  margin: -0.25rem 0 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+
+  &--sub {
+    margin-top: -0.5rem;
+    font-size: 0.85rem;
+  }
+}
+
+.portal-attendance-period-kpis {
+  margin-bottom: 1rem;
+}
+
+.portal-week-picker-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+
+  .portal-field-label {
+    margin: 0;
+    min-width: 180px;
+  }
+}
+
+.portal-attendance-details-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: #dbeafe;
+    border-color: #60a5fa;
+  }
+
+  &.is-expanded {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #fff;
+  }
+}
+
+.portal-attendance-detail-row {
+  background: #f8fafc;
+
+  td {
+    padding-top: 0.35rem;
+    padding-bottom: 0.85rem;
+  }
+}
+
+.portal-attendance-detail-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.portal-attendance-detail-list-header,
+.portal-attendance-detail-list--compact li {
+  display: grid;
+  grid-template-columns: 40px minmax(140px, 1.2fr) minmax(90px, 0.8fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.portal-attendance-detail-list-header {
+  padding: 0.5rem 0.75rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.portal-attendance-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+
+  &--compact li {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.88rem;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.portal-attendance-detail-date {
+  font-weight: 500;
+  color: #334155;
+}
+
+.portal-attendance-detail-actions {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
 .portal-btn-danger {
   display: inline-flex;
   align-items: center;
@@ -342,8 +514,15 @@
     color: #64748b;
   }
 
-  tr.is-selected {
+  tr.is-selected,
+  li.is-selected {
     background: rgba(59, 130, 246, 0.06);
+  }
+
+  &__check {
+    width: 2.75rem;
+    text-align: center;
+    vertical-align: middle;
   }
 
   .portal-empty-cell {
@@ -548,6 +727,12 @@
     background: #eff6ff;
     color: #1e40af;
   }
+
+  &--warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+  }
 }
 
 .portal-fee-badge {
@@ -604,6 +789,16 @@
     &:hover {
       background: #f8fafc;
     }
+  }
+}
+
+.portal-schedule-link {
+  color: var(--color-accent, #3b82f6);
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 

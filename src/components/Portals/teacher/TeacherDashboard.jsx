@@ -44,7 +44,7 @@ const TeacherDashboard = () => {
           {
             label: 'Pending submissions',
             value: s.pendingSubmissions ?? 0,
-            to: '/teacher/content?filter=ungraded',
+            to: '/teacher/content',
           },
         ]}
       />
@@ -56,13 +56,13 @@ const TeacherDashboard = () => {
           Students attendance →
         </Link>
         <Link to="/teacher/content" className="portal-card portal-link-card">
-          Content & assignments →
+          Assignments →
+        </Link>
+        <Link to="/teacher/resources" className="portal-card portal-link-card">
+          Resources →
         </Link>
         <Link to="/teacher/my-attendance" className="portal-card portal-link-card">
           My attendance →
-        </Link>
-        <Link to="/teacher/schedule" className="portal-card portal-link-card">
-          Class schedule →
         </Link>
       </div>
     </div>

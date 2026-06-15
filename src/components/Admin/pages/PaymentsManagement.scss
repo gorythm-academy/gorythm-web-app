@@ -547,9 +547,20 @@
                 font-size: 0.85rem;
                 font-weight: 500;
                 
+                &.paid,
                 &.completed {
                     background: #dcfce7;
                     color: #16a34a;
+                }
+
+                &.awaiting_review {
+                    background: #e0f2fe;
+                    color: #0369a1;
+                }
+
+                &.rejected {
+                    background: #ffe4e6;
+                    color: #be123c;
                 }
                 
                 &.pending {
@@ -616,11 +627,36 @@
                         transform: translateY(-2px);
                     }
                     
+                    &.receipt-btn {
+                        background: #6366f1;
+
+                        &:hover {
+                            background: #4f46e5;
+                        }
+                    }
+
+                    &.students-btn {
+                        background: #c5a45c;
+                        text-decoration: none;
+
+                        &:hover {
+                            background: #a88a45;
+                        }
+                    }
+
                     &.invoice-btn {
                         background: #10b981;
                         
                         &:hover {
                             background: #059669;
+                        }
+                    }
+
+                    &.restore-btn {
+                        background: #6366f1;
+
+                        &:hover {
+                            background: #4f46e5;
                         }
                     }
 
@@ -633,6 +669,11 @@
                     }
                 }
             }
+        }
+
+        .bulk-btn.restore-btn {
+            background: #6366f1;
+            color: #fff;
         }
         
         .no-results {
@@ -737,5 +778,223 @@
             display: block;
             overflow-x: auto; // allow horizontal scroll for wide payment tables on small phones
         }
+    }
+}
+
+.payments-list-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1rem;
+
+    .payments-list-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &.active {
+            border-color: var(--color-accent);
+            background: rgba(var(--color-accent-rgb), 0.1);
+            color: #1e293b;
+        }
+    }
+
+    .payments-tab-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+.payments-bank-config {
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+
+    &__toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px;
+        border: none;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        color: #1e293b;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+
+        span {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        i.fa-university {
+            color: #15803d;
+        }
+    }
+
+    &__body {
+        padding: 16px 18px 18px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    &__lead {
+        margin: 0 0 14px;
+        color: #64748b;
+        font-size: 0.9rem;
+        line-height: 1.5;
+
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.82rem;
+        }
+    }
+
+    &__grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 16px;
+
+        .form-group-wide {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #475569;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            color: #1e293b;
+            background: #fff;
+
+            &:focus {
+                outline: none;
+                border-color: #6366f1;
+                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+            }
+        }
+    }
+
+    &__actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+
+    &__msg {
+        color: #16a34a;
+        font-size: 0.88rem;
+        font-weight: 500;
+    }
+}
+
+@media (max-width: 768px) {
+    .payments-bank-config__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.payment-receipt-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    &__panel {
+        position: relative;
+        z-index: 1;
+        width: min(720px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px 22px 24px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+    }
+
+    &__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+
+        h3 {
+            margin: 0;
+            color: #1e293b;
+        }
+    }
+
+    &__close {
+        border: none;
+        background: #f1f5f9;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    &__image {
+        width: 100%;
+        max-height: 65vh;
+        object-fit: contain;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        margin-top: 12px;
+    }
+
+    &__pdf-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: #fef2f2;
+        color: #b91c1c;
+        text-decoration: none;
+        font-weight: 600;
     }
 }

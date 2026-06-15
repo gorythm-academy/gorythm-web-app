@@ -38,33 +38,50 @@ const StudentDashboard = () => {
     <div className="portal-page">
       {data.previewMode ? <PortalAlert type="info">{data.message}</PortalAlert> : null}
       <PortalPageHeader title="Student Dashboard" subtitle="Your learning overview" />
+
+      <div className="portal-hero portal-hero--student">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-graduation-cap" />
+        </div>
+        <div>
+          <h2>Welcome back</h2>
+          <p>Track courses, assignments, quizzes, fees, and your class schedule from one place.</p>
+        </div>
+      </div>
+
       <SummaryGrid
         items={[
-          { label: 'Enrolled courses', value: s.enrolledCourses ?? 0, to: '/student/courses' },
+          { label: 'Enrolled courses', value: s.enrolledCourses ?? 0, to: '/student/schedule' },
           { label: 'Attendance', value: `${s.attendanceRate ?? 0}%`, to: '/student/attendance' },
           { label: 'Assignments due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
           { label: 'Pending fees', value: s.pendingFees ?? 0, to: '/student/fees' },
         ]}
       />
+
       {due.length ? (
-        <section className="portal-content-section" style={{ borderTop: 'none', paddingTop: 0 }}>
-          <h2 className="portal-content-section-title">Assignments due</h2>
-          <ul>
-            {due.map((a) => (
-              <li key={a._id}>
-                <Link to="/student/assignments">
-                  {a.title}
-                  {a.course?.title ? ` (${a.course.title})` : ''} — due{' '}
-                  {new Date(a.dueDate).toLocaleDateString()}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
+          <div className="portal-panel__head">
+            <h2>Assignments due</h2>
+          </div>
+          <div className="portal-panel__body portal-panel__body--padded">
+            <ul className="portal-due-list">
+              {due.map((a) => (
+                <li key={a._id}>
+                  <Link to="/student/assignments">
+                    {a.title}
+                    {a.course?.title ? ` (${a.course.title})` : ''} — due{' '}
+                    {new Date(a.dueDate).toLocaleDateString()}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       ) : null}
-      <div className="portal-grid" style={{ marginTop: '1rem' }}>
-        <Link to="/student/courses" className="portal-card portal-link-card">
-          My courses →
+
+      <div className="portal-quick-links">
+        <Link to="/student/schedule" className="portal-card portal-link-card">
+          Classes schedules →
         </Link>
         <Link to="/student/assignments" className="portal-card portal-link-card">
           Assignments →

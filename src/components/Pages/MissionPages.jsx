@@ -4,8 +4,51 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import './MissionPages.scss';
 
+// Ring order: PhQ → IQ → EQ → PhQ (paths match Mission.jsx cards)
+const MISSION_RING = [
+  { key: 'phq', label: 'Physical Health Quotient', path: '/mission/research-and-observation' },
+  { key: 'iq', label: 'Intellectual Quotient', path: '/mission/satellite-maintenance' },
+  { key: 'eq', label: 'Emotional Quotient', path: '/mission/exploration-missions' },
+];
+
+const getRingNeighbors = (currentKey) => {
+  const index = MISSION_RING.findIndex((item) => item.key === currentKey);
+  if (index < 0) return { prev: null, next: null };
+  const len = MISSION_RING.length;
+  return {
+    prev: MISSION_RING[(index - 1 + len) % len],
+    next: MISSION_RING[(index + 1) % len],
+  };
+};
+
+const MissionRingNav = ({ currentKey }) => {
+  const { prev, next } = getRingNeighbors(currentKey);
+  if (!prev || !next) return null;
+
+  return (
+    <nav className="mission-ring-nav" aria-label="Other mission sections">
+      <Link
+        to={prev.path}
+        className="mission-ring-nav-link mission-ring-nav-link--prev"
+        aria-label={`Previous section: ${prev.label}`}
+      >
+        <span className="mission-ring-nav-arrow" aria-hidden="true">←</span>
+        <span className="mission-ring-nav-label">{prev.label}</span>
+      </Link>
+      <Link
+        to={next.path}
+        className="mission-ring-nav-link mission-ring-nav-link--next"
+        aria-label={`Next section: ${next.label}`}
+      >
+        <span className="mission-ring-nav-label">{next.label}</span>
+        <span className="mission-ring-nav-arrow" aria-hidden="true">→</span>
+      </Link>
+    </nav>
+  );
+};
+
 // Shared layout for all mission pages
-const MissionPageLayout = ({ title, subtitle, description, points }) => (
+const MissionPageLayout = ({ ringKey, title, subtitle, description, points }) => (
   <div className="mission-page scheme_dark">
     <div className="mission-page-inner">
       <div className="mission-page-header">
@@ -22,6 +65,7 @@ const MissionPageLayout = ({ title, subtitle, description, points }) => (
           </ul>
         )}
       </div>
+      <MissionRingNav currentKey={ringKey} />
       <div className="mission-page-cta-row">
         <Link to="/courses" className="mission-page-cta" aria-label="Explore all courses">
           <span className="mission-page-cta-text">Explore all courses</span>
@@ -40,6 +84,7 @@ const MissionPageLayout = ({ title, subtitle, description, points }) => (
 // Page 1 – Satellite Maintenance
 export const SatelliteMaintenancePage = () => (
   <MissionPageLayout
+    ringKey="iq"
     subtitle="How We Support Growth"
     title="IQ — Intellectual Quotient: How you think, learn, and grow"
     description="Intelligence is not what you know, it is how you engage with what you do not know yet. We develop intellectual creativity, critical thinking, logical reasoning, pattern recognition, and the capacity to learn independently. We build curiosity, adaptability of thought, and the courage to question what you think you know. Real intelligence is not fixed. It is forged."
@@ -55,6 +100,7 @@ export const SatelliteMaintenancePage = () => (
 // Page 2 – Exploration Missions
 export const ExplorationMissionsPage = () => (
   <MissionPageLayout
+    ringKey="eq"
     subtitle="How We Support Growth"
     title="EQ — Emotional Quotient: How you feel, connect, and lead."
     description="At GoRythm, education is not limited to academics. We nurture emotional awareness, discipline, leadership, and empathy through Islamic teachings so learners grow in both mindset and manners."
@@ -70,6 +116,7 @@ export const ExplorationMissionsPage = () => (
 // Page 3 – Research and Observation
 export const ResearchObservationPage = () => (
   <MissionPageLayout
+    ringKey="phq"
     subtitle="How We Support Growth"
     title="PhQ — Physical Health Quotient: How you move, recover, and sustain."
     description="Our online model combines qualified teachers, structured curriculum, and flexible scheduling so families can stay consistent in Islamic learning from anywhere in the world."

@@ -4,13 +4,24 @@ const router = express.Router();
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 const { validate, rules } = require('../middleware/validate');
+const { activeCourseFilter, trashedCourseFilter } = require('../utils/courseQuery');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const authMiddleware = require('../middleware/auth');
+const { allowRoles } = require('../middleware/authorize');
+
+const adminOnly = [authMiddleware, allowRoles('super-admin', 'admin')];
 
 // Get all courses (admin)
-router.get('/', async (req, res) => {
+router.get('/', adminOnly, async (req, res) => {
     try {
-        const courses = await Course.find()
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const courseFilter = trash ? trashedCourseFilter() : activeCourseFilter();
+
+        const courses = await Course.find(courseFilter)
             .populate('instructor', 'name email')
-            .sort({ createdAt: -1 });
+            .sort(trash ? { deletedAt: -1 } : { createdAt: -1 });
+
+        const trashCount = await Course.countDocuments(trashedCourseFilter());
 
         // Source of truth for membership: enrollments linked to People students.
         const enrollmentStats = await Enrollment.aggregate([
@@ -18,6 +29,7 @@ router.get('/', async (req, res) => {
                 $match: {
                     course: { $ne: null },
                     student: { $ne: null },
+                    ...activeEnrollmentFilter(),
                 },
             },
             {
@@ -63,14 +75,16 @@ router.get('/', async (req, res) => {
                 displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
                 masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
                 slug: course.slug || '',
-                createdAt: course.createdAt
+                createdAt: course.createdAt,
+                deletedAt: course.deletedAt || null,
             };
         });
 
         res.json({
             success: true,
             courses: mappedCourses,
-            totalUniqueStudents: uniqueStudentIdSet.size
+            totalUniqueStudents: uniqueStudentIdSet.size,
+            trashCount,
         });
     } catch (error) {
         req.log.error('Error fetching courses', { err: error });
@@ -94,7 +108,7 @@ router.get('/public', async (req, res) => {
         // Short CDN/browser cache for public catalog to improve page load on Vercel.
         res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
 
-        const raw = await Course.find({ isPublished: true })
+        const raw = await Course.find({ isPublished: true, ...activeCourseFilter() })
             .select('title description category price duration level homepageImage displayOrder masonryColumn slug _id');
         const courses = raw
             .map(course => ({
@@ -137,7 +151,7 @@ router.get('/:id', async (req, res) => {
         if (!course && param) {
             course = await Course.findOne({ slug: param, isPublished: true }).populate('instructor', 'name email');
         }
-        if (!course) {
+        if (!course || course.deletedAt) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
         if (course.isPublished) {
@@ -199,6 +213,7 @@ async function buildUniqueSlug(raw, excludeId = null) {
 // Create new course
 router.post(
     '/',
+    adminOnly,
     validate([
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
@@ -250,6 +265,7 @@ router.post(
 // Update entire course
 router.put(
     '/:id',
+    adminOnly,
     validate([
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
@@ -313,6 +329,7 @@ router.put(
 // Update course status only
 router.patch(
     '/:id/status',
+    adminOnly,
     validate([rules.enum('status', 'Status', ['published', 'draft'])]),
     async (req, res) => {
     try {
@@ -333,30 +350,76 @@ router.patch(
     }
 });
 
-// Delete course
-router.delete('/:id', async (req, res) => {
+// Soft-delete course (move to trash)
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
-        req.log.info('Deleting course', { courseId: req.params.id });
+        req.log.info('Trashing course', { courseId: req.params.id });
 
-        const course = await Course.findByIdAndDelete(req.params.id);
-        
+        const course = await Course.findOneAndUpdate(
+            { _id: req.params.id, ...activeCourseFilter() },
+            { $set: { deletedAt: new Date(), isPublished: false } },
+            { new: true }
+        );
+
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
 
         res.json({
             success: true,
-            message: 'Course deleted successfully'
+            message: 'Course moved to trash',
         });
     } catch (error) {
-        req.log.error('Error deleting course', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to delete course' });
+        req.log.error('Error trashing course', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to move course to trash' });
+    }
+});
+
+// Restore course from trash
+router.patch('/:id/restore', adminOnly, async (req, res) => {
+    try {
+        const course = await Course.findOneAndUpdate(
+            { _id: req.params.id, ...trashedCourseFilter() },
+            { $set: { deletedAt: null } },
+            { new: true }
+        );
+        if (!course) {
+            return res.status(404).json({ success: false, error: 'Course not found in trash' });
+        }
+        res.json({ success: true, message: 'Course restored' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore course' });
+    }
+});
+
+// Permanently delete course (must be in trash)
+router.delete('/:id/permanent', adminOnly, async (req, res) => {
+    try {
+        const course = await Course.findOneAndDelete({
+            _id: req.params.id,
+            ...trashedCourseFilter(),
+        });
+
+        if (!course) {
+            return res.status(404).json({
+                success: false,
+                error: 'Course must be in trash before permanent delete',
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Course permanently deleted',
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete course' });
     }
 });
 
 // FIXED: Bulk delete courses - ADD THIS ROUTE
 router.post(
     '/bulk-delete',
+    adminOnly,
     validate([rules.arrayNonEmpty('ids', 'Course IDs')]),
     async (req, res) => {
     try {
@@ -367,13 +430,16 @@ router.post(
             return res.status(400).json({ success: false, error: 'No course IDs provided' });
         }
 
-        const result = await Course.deleteMany({ _id: { $in: ids } });
+        const result = await Course.updateMany(
+            { _id: { $in: ids }, ...activeCourseFilter() },
+            { $set: { deletedAt: new Date(), isPublished: false } }
+        );
 
-        req.log.info('Bulk delete courses completed', { deletedCount: result.deletedCount });
+        req.log.info('Bulk trash courses completed', { modifiedCount: result.modifiedCount });
 
         res.json({
             success: true,
-            message: `${result.deletedCount} course(s) deleted successfully`
+            message: `${result.modifiedCount} course(s) moved to trash`,
         });
     } catch (error) {
         req.log.error('Error bulk deleting courses', { err: error });
@@ -384,6 +450,7 @@ router.post(
 // Bulk update status
 router.patch(
     '/bulk-status',
+    adminOnly,
     validate([
         rules.arrayNonEmpty('courseIds', 'Course IDs'),
         rules.enum('status', 'Status', ['published', 'draft']),

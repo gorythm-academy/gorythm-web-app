@@ -304,7 +304,7 @@ const Analytics = () => {
         change: cardTrends.teachers.value,
         secondaryValue: cardTrends.teachers.secondaryValue,
         direction: cardTrends.teachers.direction,
-        link: '/admin/people'
+        link: '/admin/teachers'
     },
     {
         title: 'Parents',
@@ -314,7 +314,7 @@ const Analytics = () => {
         change: cardTrends.parents.value,
         secondaryValue: cardTrends.parents.secondaryValue,
         direction: cardTrends.parents.direction,
-        link: '/admin/people'
+        link: '/admin/parents'
     },
 ];
 

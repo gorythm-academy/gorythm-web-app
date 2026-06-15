@@ -5,7 +5,6 @@ import {
   PortalAlert,
   PortalPageHeader,
   FeeBadge,
-  SimpleTable,
 } from '../shared/PortalUi';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import { formatScore } from '../../../utils/formatScore';
@@ -58,9 +57,26 @@ const ParentProgress = () => {
     );
   }
 
+  const selectedChild = children.find((c) => c.student?._id === selectedId);
+
   return (
     <div className="portal-page">
       <PortalPageHeader title="Child progress" subtitle="Same records your child sees in the student portal" />
+
+      <div className="portal-hero portal-hero--parent">
+        <div className="portal-hero__icon" aria-hidden="true">
+          <i className="fa-solid fa-chart-line" />
+        </div>
+        <div>
+          <h2>Progress & results</h2>
+          <p>
+            {selectedChild?.student?.name
+              ? `Viewing records for ${selectedChild.student.name}.`
+              : 'Select a linked child to view their academy records.'}
+          </p>
+        </div>
+      </div>
+
       <div className="portal-child-tabs">
         {children.map((link) => {
           const id = link.student?._id;
@@ -77,103 +93,192 @@ const ParentProgress = () => {
           );
         })}
       </div>
+
       {!detail ? (
-        <p className="portal-empty">Select a child or ask admin to link your account.</p>
+        <p className="portal-select-hint">Select a child or ask admin to link your account.</p>
       ) : (
         <>
-          <section className="portal-content-section" style={{ borderTop: 'none', paddingTop: 0 }}>
-            <h2 className="portal-content-section-title">Enrollments & fees</h2>
-            <SimpleTable
-              columns={[
-                { key: 'course', label: 'Course', render: (r) => r.course?.title },
-                {
-                  key: 'price',
-                  label: 'Price',
-                  render: (r) =>
-                    r.course?.price != null ? `$${Number(r.course.price).toFixed(2)}` : '—',
-                },
-                { key: 'fee', label: 'Fee status', render: (r) => <FeeBadge status={r.paymentStatus} /> },
-                { key: 'status', label: 'Enrollment' },
-              ]}
-              rows={detail.enrollments || []}
-              emptyLabel="No enrollments."
-            />
-          </section>
-          <section className="portal-content-section">
-            <h2 className="portal-content-section-title">Attendance</h2>
-            <SimpleTable
-              columns={[
-                { key: 'course', label: 'Course', render: (r) => r.course?.title },
-                { key: 'status', label: 'Status' },
-                { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
-                { key: 'notes', label: 'Notes', render: (r) => r.notes || '—' },
-              ]}
-              rows={detail.attendance || []}
-              emptyLabel="No attendance records."
-            />
-          </section>
-          <section className="portal-content-section">
-            <h2 className="portal-content-section-title">Assignments</h2>
-            <SimpleTable
-              columns={[
-                { key: 'assignment', label: 'Assignment', render: (r) => r.assignment?.title },
-                {
-                  key: 'score',
-                  label: 'Score',
-                  render: (r) => r.scoreDisplay || formatScore(r.score, r.assignment?.maxPoints),
-                },
-                { key: 'status', label: 'Status' },
-                {
-                  key: 'feedback',
-                  label: 'Feedback',
-                  render: (r) => r.feedback || '—',
-                },
-                {
-                  key: 'files',
-                  label: 'Files',
-                  render: (r) => <SubmissionFiles attachments={r.attachments} />,
-                },
-              ]}
-              rows={detail.submissions || []}
-              emptyLabel="No submissions."
-            />
-          </section>
-          <section className="portal-content-section">
-            <h2 className="portal-content-section-title">Quiz results</h2>
-            <SimpleTable
-              columns={[
-                { key: 'quiz', label: 'Quiz', render: (r) => r.quiz?.title },
-                {
-                  key: 'score',
-                  label: 'Score',
-                  render: (r) => r.scoreDisplay || formatScore(r.score, r.quiz?.totalMarks),
-                },
-              ]}
-              rows={detail.quizAttempts || []}
-              emptyLabel="No quiz attempts."
-            />
-          </section>
-          <section className="portal-content-section">
-            <h2 className="portal-content-section-title">Payments</h2>
-            <SimpleTable
-              columns={[
-                { key: 'course', label: 'Course', render: (r) => r.course?.title || r.courseName },
-                {
-                  key: 'amount',
-                  label: 'Amount',
-                  render: (r) => `$${Number(r.amount || 0).toFixed(2)}`,
-                },
-                { key: 'status', label: 'Status' },
-                {
-                  key: 'date',
-                  label: 'Date',
-                  render: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'),
-                },
-              ]}
-              rows={detail.payments || []}
-              emptyLabel="No payments."
-            />
-          </section>
+          <div className="portal-panel">
+            <div className="portal-panel__head">
+              <h2>Enrollments & fees</h2>
+            </div>
+            <div className="portal-panel__body">
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--green">
+                  <thead>
+                    <tr>
+                      <th>Course</th>
+                      <th>Price</th>
+                      <th>Fee status</th>
+                      <th>Enrollment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.enrollments || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>No enrollments.</td>
+                      </tr>
+                    ) : (
+                      (detail.enrollments || []).map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.course?.title || '—'}</td>
+                          <td>{r.course?.price != null ? `$${Number(r.course.price).toFixed(2)}` : '—'}</td>
+                          <td>
+                            <FeeBadge status={r.paymentStatus} />
+                          </td>
+                          <td>{r.status}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="portal-panel">
+            <div className="portal-panel__head">
+              <h2>Attendance</h2>
+            </div>
+            <div className="portal-panel__body">
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--green">
+                  <thead>
+                    <tr>
+                      <th>Course</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.attendance || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>No attendance records.</td>
+                      </tr>
+                    ) : (
+                      (detail.attendance || []).map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.course?.title || '—'}</td>
+                          <td>{r.status}</td>
+                          <td>{new Date(r.date).toLocaleDateString()}</td>
+                          <td>{r.notes || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="portal-panel">
+            <div className="portal-panel__head">
+              <h2>Assignments</h2>
+            </div>
+            <div className="portal-panel__body">
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--green">
+                  <thead>
+                    <tr>
+                      <th>Assignment</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                      <th>Feedback</th>
+                      <th>Files</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.submissions || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={5}>No submissions.</td>
+                      </tr>
+                    ) : (
+                      (detail.submissions || []).map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.assignment?.title || '—'}</td>
+                          <td>{r.scoreDisplay || formatScore(r.score, r.assignment?.maxPoints)}</td>
+                          <td>{r.status}</td>
+                          <td>{r.feedback || '—'}</td>
+                          <td>
+                            <SubmissionFiles attachments={r.attachments} />
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="portal-panel">
+            <div className="portal-panel__head">
+              <h2>Quiz results</h2>
+            </div>
+            <div className="portal-panel__body">
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--green">
+                  <thead>
+                    <tr>
+                      <th>Quiz</th>
+                      <th>Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.quizAttempts || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={2}>No quiz attempts.</td>
+                      </tr>
+                    ) : (
+                      (detail.quizAttempts || []).map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.quiz?.title || '—'}</td>
+                          <td>{r.scoreDisplay || formatScore(r.score, r.quiz?.totalMarks)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="portal-panel">
+            <div className="portal-panel__head">
+              <h2>Payments</h2>
+            </div>
+            <div className="portal-panel__body">
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table portal-data-table--green">
+                  <thead>
+                    <tr>
+                      <th>Course</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.payments || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>No payments.</td>
+                      </tr>
+                    ) : (
+                      (detail.payments || []).map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.course?.title || r.courseName || '—'}</td>
+                          <td>${Number(r.amount || 0).toFixed(2)}</td>
+                          <td>{r.status}</td>
+                          <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>
