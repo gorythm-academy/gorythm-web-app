@@ -34,7 +34,6 @@ const ParentDashboard = () => {
   const s = data.summary || {};
   return (
     <div className="portal-page">
-      {data.previewMode ? <PortalAlert type="info">{data.message}</PortalAlert> : null}
       <PortalPageHeader title="Parent Dashboard" subtitle="Overview of your linked children" />
 
       <div className="portal-hero portal-hero--parent">

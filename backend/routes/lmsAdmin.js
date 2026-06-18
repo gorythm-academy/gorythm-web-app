@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const ClassSchedule = require('../models/ClassSchedule');
 const Enrollment = require('../models/Enrollment');
@@ -16,11 +17,16 @@ const {
 const {
     aggregateFromApprovedDays,
     monthNeedsReapproval,
+    getUnmarkedWorkingDays,
+    formatUnmarkedWorkingDaysError,
+    computeMonthlyApprovalBlock,
     syncMonthlyRequestFromDaily,
 } = require('../services/teacherAttendanceSync');
 const {
     assertMonthEndedForApproval,
     autoGeneratePayrollForApprovedMonth,
+    payrollRunTeacherId,
+    payrollRunTeacherDisplay,
 } = require('../services/payrollCalculation');
 const User = require('../models/User');
 const Course = require('../models/Course');
@@ -34,9 +40,11 @@ const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const { getTeacherPayrollAttendanceDetail } = require('../services/teacherPayrollAttendance');
 const { getTeachersForCourse } = require('../services/courseTeachers');
 const { activeUserFilter } = require('../utils/userQuery');
+const { activeCourseFilter } = require('../utils/courseQuery');
 
 router.use(authMiddleware);
-router.use(allowRoles('super-admin', 'admin'));
+router.use(validateSessionUser);
+router.use(allowRoles('super-admin', 'manager'));
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -66,7 +74,7 @@ router.get('/schedules', async (req, res) => {
 router.post('/schedules', async (req, res) => {
     try {
         const { courseId, teacherId, dayOfWeek, startTime, endTime, timezone, roomOrLink } = req.body;
-        const course = await Course.findById(courseId);
+        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
         const schedule = await ClassSchedule.create({
             course: courseId,
@@ -93,7 +101,7 @@ router.patch('/schedules/:id', async (req, res) => {
         if (!schedule) return res.status(404).json({ success: false, error: 'Schedule not found' });
 
         if (courseId) {
-            const course = await Course.findById(courseId);
+            const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
             schedule.course = courseId;
             if (!teacherId) schedule.teacher = course.instructor;
@@ -157,10 +165,11 @@ router.post('/schedules/bulk-delete', async (req, res) => {
 // ——— Parent ↔ student links ———
 router.get('/parent-links', async (req, res) => {
     try {
-        const links = await ParentStudentLink.find()
-            .populate('parent', 'name email')
-            .populate('student', 'name email studentId')
+        const linksRaw = await ParentStudentLink.find()
+            .populate('parent', 'name email deletedAt')
+            .populate('student', 'name email studentId deletedAt')
             .sort({ createdAt: -1 });
+        const links = linksRaw.filter((l) => l.parent && !l.parent.deletedAt && l.student && !l.student.deletedAt);
         const parents = await User.find({ role: 'parent', ...activeUserFilter() })
             .select('name email')
             .sort({ name: 1 });
@@ -176,6 +185,14 @@ router.get('/parent-links', async (req, res) => {
 router.post('/parent-links', async (req, res) => {
     try {
         const { parentId, studentId, relation = 'guardian' } = req.body;
+        if (!parentId || !studentId) {
+            return res.status(400).json({ success: false, error: 'parentId and studentId are required' });
+        }
+        const parent = await User.findOne({ _id: parentId, role: 'parent', ...activeUserFilter() });
+        const student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() });
+        if (!parent || !student) {
+            return res.status(400).json({ success: false, error: 'Invalid or removed parent/student' });
+        }
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parentId, student: studentId },
             { relation },
@@ -214,6 +231,7 @@ router.get('/teacher-attendance-daily', async (req, res) => {
         if (teacherId) {
             filter.teacher = teacherId;
         }
+        filter.submittedAt = { $ne: null };
         const days = await TeacherSelfAttendanceDay.find(filter)
             .populate('teacher', 'name email')
             .populate('reviewedBy', 'name email')
@@ -242,23 +260,102 @@ router.get('/teacher-attendance-daily', async (req, res) => {
     }
 });
 
+router.get('/teacher-attendance-daily/teachers', async (req, res) => {
+    try {
+        const { month } = req.query;
+        const match = { submittedAt: { $ne: null } };
+        if (month) {
+            const key = String(month).trim();
+            const { start, end } = monthBounds(key);
+            match.date = { $gte: start, $lte: end };
+        }
+        const rows = await TeacherSelfAttendanceDay.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: '$teacher',
+                    pendingCount: {
+                        $sum: {
+                            $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0],
+                        },
+                    },
+                    totalCount: { $sum: 1 },
+                },
+            },
+        ]);
+        const teacherIds = rows.map((r) => r._id).filter(Boolean);
+        const users = await User.find({ _id: { $in: teacherIds } }).select('name email');
+        const userById = new Map(users.map((u) => [String(u._id), u]));
+        const teachers = rows
+            .map((r) => {
+                const u = userById.get(String(r._id));
+                return {
+                    _id: r._id,
+                    name: u?.name || 'Teacher',
+                    email: u?.email || '',
+                    pendingCount: r.pendingCount,
+                    totalCount: r.totalCount,
+                };
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
+        res.json({ success: true, teachers });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load attendance teachers' });
+    }
+});
+
+router.get('/teacher-attendance-daily/pending-summary', async (req, res) => {
+    try {
+        const days = await TeacherSelfAttendanceDay.find({
+            approvalStatus: 'pending',
+            submittedAt: { $ne: null },
+        }).populate('teacher', 'name email');
+        const map = new Map();
+        days.forEach((d) => {
+            const monthKey = isoDateKey(d.date).slice(0, 7);
+            const teacherId = d.teacher?._id || d.teacher;
+            const key = `${monthKey}|${teacherId}`;
+            if (!map.has(key)) {
+                map.set(key, {
+                    monthKey,
+                    teacherId,
+                    teacher: d.teacher,
+                    pendingCount: 0,
+                });
+            }
+            map.get(key).pendingCount += 1;
+        });
+        const items = Array.from(map.values()).sort((a, b) => {
+            if (a.monthKey !== b.monthKey) return a.monthKey.localeCompare(b.monthKey);
+            return (a.teacher?.name || '').localeCompare(b.teacher?.name || '');
+        });
+        res.json({ success: true, items });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load pending attendance summary' });
+    }
+});
+
 router.patch('/teacher-attendance-daily/:id', async (req, res) => {
     try {
         const { status } = req.body;
-        if (!['approved', 'rejected'].includes(status)) {
-            return res.status(400).json({ success: false, error: 'status must be approved or rejected' });
+        if (!['approved', 'rejected', 'pending'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                error: 'status must be approved, rejected, or pending',
+            });
         }
         const reviewerId = req.user?.userId || req.user?.id;
         if (!reviewerId) {
             return res.status(401).json({ success: false, error: 'Reviewer not authenticated' });
         }
+        const updates = {
+            approvalStatus: status,
+            reviewedBy: status === 'pending' ? null : reviewerId,
+            reviewedAt: status === 'pending' ? null : new Date(),
+        };
         const day = await TeacherSelfAttendanceDay.findByIdAndUpdate(
             req.params.id,
-            {
-                approvalStatus: status,
-                reviewedBy: reviewerId,
-                reviewedAt: new Date(),
-            },
+            updates,
             { new: true, runValidators: true }
         )
             .populate('teacher', 'name email')
@@ -286,7 +383,21 @@ router.get('/teacher-attendance-requests', async (req, res) => {
             .populate('teacher', 'name email')
             .populate('reviewedBy', 'name email')
             .sort({ submittedAt: -1, updatedAt: -1 });
-        res.json({ success: true, requests });
+        const enriched = await Promise.all(
+            requests.map(async (req) => {
+                const plain = req.toObject();
+                if (plain.status !== 'pending') {
+                    return { ...plain, approvalBlockReason: null, unmarkedDates: [] };
+                }
+                const block = await computeMonthlyApprovalBlock(req.teacher, req.monthKey);
+                return {
+                    ...plain,
+                    approvalBlockReason: block?.reason || null,
+                    unmarkedDates: block?.unmarkedDates || [],
+                };
+            })
+        );
+        res.json({ success: true, requests: enriched });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load requests' });
     }
@@ -336,8 +447,11 @@ router.get('/teacher-attendance-requests/:id/daily', async (req, res) => {
 router.patch('/teacher-attendance-requests/:id', async (req, res) => {
     try {
         const { status } = req.body;
-        if (!['approved', 'rejected'].includes(status)) {
-            return res.status(400).json({ success: false, error: 'status must be approved or rejected' });
+        if (!['approved', 'rejected', 'pending'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                error: 'status must be approved, rejected, or pending',
+            });
         }
         const reviewerId = req.user?.userId || req.user?.id;
         if (!reviewerId) {
@@ -360,6 +474,14 @@ router.patch('/teacher-attendance-requests/:id', async (req, res) => {
 
         if (status === 'approved') {
             assertMonthEndedForApproval(monthKey);
+            const unmarked = getUnmarkedWorkingDays(monthDays, calendar.days);
+            if (unmarked.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Cannot approve month: ${formatUnmarkedWorkingDaysError(unmarked)}`,
+                    unmarkedDates: unmarked,
+                });
+            }
             const workingMonthDays = monthDays.filter((d) => {
                 const key = isoDateKey(d.date);
                 const calDay = calendar.days.find((cd) => cd.date === key);
@@ -398,9 +520,9 @@ router.patch('/teacher-attendance-requests/:id', async (req, res) => {
             {
                 ...countFields,
                 status,
-                reviewedBy: reviewerId,
-                reviewedAt: new Date(),
-                payrollMissingReason: null,
+                reviewedBy: status === 'pending' ? null : reviewerId,
+                reviewedAt: status === 'pending' ? null : new Date(),
+                payrollMissingReason: status === 'approved' || status === 'pending' ? null : existing.payrollMissingReason,
             },
             { new: true, runValidators: true }
         )
@@ -452,6 +574,100 @@ router.patch('/teacher-attendance-requests/:id', async (req, res) => {
     }
 });
 
+router.post('/teacher-attendance-requests/:id/retry-payroll', async (req, res) => {
+    try {
+        const existing = await TeacherAttendanceRequest.findById(req.params.id);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+        if (existing.status !== 'approved') {
+            return res.status(400).json({
+                success: false,
+                error: 'Payroll can only be generated for approved monthly attendance.',
+            });
+        }
+        const teacherId = existing.teacher?._id || existing.teacher;
+        const reviewerId = req.user?.userId || req.user?.id;
+        const result = await autoGeneratePayrollForApprovedMonth(
+            teacherId,
+            existing.monthKey,
+            reviewerId
+        );
+        await TeacherAttendanceRequest.findByIdAndUpdate(existing._id, {
+            payrollMissingReason: null,
+        });
+        res.json({ success: true, payroll: result.payroll });
+    } catch (error) {
+        const payrollError = error.message || 'Payroll could not be auto-generated';
+        await TeacherAttendanceRequest.findByIdAndUpdate(req.params.id, {
+            payrollMissingReason: payrollError,
+        });
+        res.status(error.status || 500).json({ success: false, error: payrollError });
+    }
+});
+
+router.get('/lms-tab-badges', async (req, res) => {
+    try {
+        const [
+            dailyPending,
+            monthlyPending,
+            payrollPendingReview,
+            payrollStale,
+            payrollRejected,
+            payrollMissing,
+        ] = await Promise.all([
+            TeacherSelfAttendanceDay.countDocuments({
+                approvalStatus: 'pending',
+                submittedAt: { $ne: null },
+            }),
+            TeacherAttendanceRequest.countDocuments({ status: 'pending' }),
+            PayrollRun.countDocuments({ status: 'pending_review' }),
+            PayrollRun.countDocuments({ status: 'stale' }),
+            PayrollRun.countDocuments({ status: 'rejected' }),
+            TeacherAttendanceRequest.countDocuments({
+                status: 'approved',
+                payrollMissingReason: { $nin: [null, ''] },
+            }),
+        ]);
+        const attendanceCount = dailyPending + monthlyPending;
+        const payrollCount =
+            payrollPendingReview + payrollStale + payrollRejected + payrollMissing;
+        res.json({
+            success: true,
+            attendanceCount,
+            payrollCount,
+            dailyPending,
+            monthlyPending,
+            payrollPendingReview,
+            payrollStale,
+            payrollRejected,
+            payrollMissing,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load LMS tab badges' });
+    }
+});
+
+router.get('/attendance-pending-count', async (req, res) => {
+    try {
+        const [dailyPending, monthlyPending] = await Promise.all([
+            TeacherSelfAttendanceDay.countDocuments({
+                approvalStatus: 'pending',
+                submittedAt: { $ne: null },
+            }),
+            TeacherAttendanceRequest.countDocuments({ status: 'pending' }),
+        ]);
+        res.json({
+            success: true,
+            count: dailyPending + monthlyPending,
+            dailyPending,
+            monthlyPending,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load attendance badge count' });
+    }
+});
+
 // ——— Course resources (books, files, links) ———
 router.get('/resources', async (req, res) => {
     try {
@@ -461,7 +677,7 @@ router.get('/resources', async (req, res) => {
             .populate('course', 'title instructorName')
             .populate('uploadedBy', 'name email role')
             .sort({ createdAt: -1 });
-        const courses = await Course.find()
+        const courses = await Course.find({ ...activeCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
             .sort({ title: 1 });
@@ -477,7 +693,7 @@ router.post('/resources', async (req, res) => {
         if (!courseId || !title) {
             return res.status(400).json({ success: false, error: 'courseId and title are required' });
         }
-        const course = await Course.findById(courseId);
+        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
         const resource = await Resource.create({
             title: String(title).trim(),
@@ -502,7 +718,7 @@ router.patch('/resources/:id', async (req, res) => {
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
         const { courseId, title, description, fileUrl, type } = req.body;
         if (courseId) {
-            const course = await Course.findById(courseId);
+            const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
             resource.course = courseId;
         }
@@ -551,7 +767,7 @@ router.get('/assignments', async (req, res) => {
             .populate('course', 'title instructorName')
             .populate('teacher', 'name email')
             .sort({ dueDate: -1 });
-        const courses = await Course.find()
+        const courses = await Course.find({ ...activeCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
             .sort({ title: 1 });
@@ -566,11 +782,11 @@ router.get('/assignments', async (req, res) => {
 
 router.post('/assignments', async (req, res) => {
     try {
-        const { courseId, teacherId, title, description, dueDate, maxPoints, status, attachments } = req.body;
+        const { courseId, teacherId, title, description, dueDate, status, attachments } = req.body;
         if (!courseId || !title || !dueDate) {
             return res.status(400).json({ success: false, error: 'courseId, title, and dueDate are required' });
         }
-        const course = await Course.findById(courseId);
+        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
         const teacher = teacherId || course.instructor;
         const assignment = await Assignment.create({
@@ -579,7 +795,6 @@ router.post('/assignments', async (req, res) => {
             course: courseId,
             teacher,
             dueDate: new Date(dueDate),
-            maxPoints: maxPoints != null && maxPoints !== '' ? Number(maxPoints) : null,
             attachments: Array.isArray(attachments) ? attachments : [],
             status: status || 'published',
         });
@@ -596,9 +811,9 @@ router.patch('/assignments/:id', async (req, res) => {
     try {
         const assignment = await Assignment.findById(req.params.id);
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
-        const { courseId, teacherId, title, description, dueDate, maxPoints, status, attachments } = req.body;
+        const { courseId, teacherId, title, description, dueDate, status, attachments } = req.body;
         if (courseId) {
-            const course = await Course.findById(courseId);
+            const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
             assignment.course = courseId;
             if (!teacherId) assignment.teacher = course.instructor;
@@ -607,9 +822,6 @@ router.patch('/assignments/:id', async (req, res) => {
         if (title !== undefined) assignment.title = String(title).trim();
         if (description !== undefined) assignment.description = description || '';
         if (dueDate) assignment.dueDate = new Date(dueDate);
-        if (maxPoints !== undefined) {
-            assignment.maxPoints = maxPoints != null && maxPoints !== '' ? Number(maxPoints) : null;
-        }
         if (status !== undefined) assignment.status = status;
         if (attachments !== undefined) assignment.attachments = Array.isArray(attachments) ? attachments : [];
         await assignment.save();
@@ -689,19 +901,26 @@ router.get('/submissions', async (req, res) => {
             const assignmentIds = await Assignment.find({ course: req.query.courseId }).distinct('_id');
             filter.assignment = { $in: assignmentIds };
         }
-        const submissions = await AssignmentSubmission.find(filter)
-            .populate('student', 'name email studentId')
+        const submissionsRaw = await AssignmentSubmission.find(filter)
+            .populate('student', 'name email studentId deletedAt')
             .populate({
                 path: 'assignment',
-                select: 'title maxPoints dueDate course teacher',
+                select: 'title dueDate course teacher',
                 populate: [
-                    { path: 'course', select: 'title instructorName' },
+                    { path: 'course', select: 'title instructorName deletedAt' },
                     { path: 'teacher', select: 'name email' },
                 ],
             })
             .sort({ submittedAt: -1 })
             .limit(500);
-        const courses = await Course.find().select('title instructorName').sort({ title: 1 });
+        const submissions = submissionsRaw.filter(
+            (s) =>
+                s.student &&
+                !s.student.deletedAt &&
+                s.assignment?.course &&
+                !s.assignment.course.deletedAt
+        );
+        const courses = await Course.find({ ...activeCourseFilter() }).select('title instructorName').sort({ title: 1 });
         res.json({ success: true, submissions, courses });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load submissions' });
@@ -715,18 +934,25 @@ router.get('/quiz-attempts', async (req, res) => {
             const quizIds = await Quiz.find({ course: req.query.courseId }).distinct('_id');
             filter.quiz = { $in: quizIds };
         }
-        const attempts = await QuizAttempt.find(filter)
-            .populate('student', 'name email studentId')
+        const attemptsRaw = await QuizAttempt.find(filter)
+            .populate('student', 'name email studentId deletedAt')
             .populate({
                 path: 'quiz',
                 select: 'title totalMarks course teacher',
                 populate: [
-                    { path: 'course', select: 'title instructorName' },
+                    { path: 'course', select: 'title instructorName deletedAt' },
                     { path: 'teacher', select: 'name email' },
                 ],
             })
             .sort({ createdAt: -1 })
             .limit(500);
+        const attempts = attemptsRaw.filter(
+            (a) =>
+                a.student &&
+                !a.student.deletedAt &&
+                a.quiz?.course &&
+                !a.quiz.course.deletedAt
+        );
         const quizIds = [...new Set(attempts.map((a) => String(a.quiz?._id || a.quiz)).filter(Boolean))];
         const fullQuizzes = await Quiz.find({ _id: { $in: quizIds } }).select('questions totalMarks title');
         const quizById = Object.fromEntries(fullQuizzes.map((q) => [String(q._id), q]));
@@ -767,16 +993,22 @@ router.get('/payroll-runs/:id/attendance', async (req, res) => {
         if (!run) {
             return res.status(404).json({ success: false, error: 'Payroll run not found' });
         }
-        const attendance = await getTeacherPayrollAttendanceDetail(
-            run.teacher._id || run.teacher,
-            run.monthKey
-        );
+        const teacherId = payrollRunTeacherId(run);
+        if (!teacherId) {
+            return res.status(404).json({
+                success: false,
+                error: 'Teacher account no longer exists for this payroll run.',
+            });
+        }
+        const attendance = await getTeacherPayrollAttendanceDetail(teacherId, run.monthKey);
+        const teacher = payrollRunTeacherDisplay(run);
         res.json({
             success: true,
             run: {
                 _id: run._id,
                 monthKey: run.monthKey,
-                teacher: run.teacher,
+                teacher,
+                teacherName: run.teacherName,
                 status: run.status,
                 finalSalary: run.finalSalary,
             },
@@ -790,6 +1022,19 @@ router.get('/payroll-runs/:id/attendance', async (req, res) => {
     }
 });
 
+router.delete('/payroll-runs/:id', async (req, res) => {
+    try {
+        const run = await PayrollRun.findById(req.params.id);
+        if (!run) {
+            return res.status(404).json({ success: false, error: 'Payroll run not found' });
+        }
+        await PayrollRun.deleteOne({ _id: run._id });
+        res.json({ success: true, message: 'Payroll run deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to delete payroll run' });
+    }
+});
+
 router.get('/payroll-runs', async (req, res) => {
     try {
         const filter = {};
@@ -799,6 +1044,7 @@ router.get('/payroll-runs', async (req, res) => {
         const runs = await PayrollRun.find(filter)
             .populate('teacher', 'name email')
             .populate('paidBy', 'name email')
+            .populate('rejectedBy', 'name email')
             .sort({ monthKey: -1, paidAt: -1, updatedAt: -1 })
             .limit(300);
         const teacherIds = runs.map((r) => r.teacher?._id || r.teacher).filter(Boolean);
@@ -810,6 +1056,7 @@ router.get('/payroll-runs', async (req, res) => {
             const profile = profileByTeacher.get(tid);
             return {
                 ...plain,
+                teacher: payrollRunTeacherDisplay(r),
                 profileSalary: profile?.monthlySalary ?? null,
             };
         });

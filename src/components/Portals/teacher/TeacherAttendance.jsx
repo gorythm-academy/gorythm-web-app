@@ -218,6 +218,7 @@ const TeacherAttendance = () => {
   const [msg, setMsg] = useState('');
   const [saveNotice, setSaveNotice] = useState('');
   const [viewError, setViewError] = useState('');
+  const [rosterError, setRosterError] = useState('');
   const [loading, setLoading] = useState(true);
   const [editRecord, setEditRecord] = useState(null);
   const [editForm, setEditForm] = useState({ status: 'present', notes: '' });
@@ -257,6 +258,7 @@ const TeacherAttendance = () => {
           const students = res.students || [];
           setRoster(students);
           setRosterCount(res.count ?? students.length);
+          setRosterError('');
           const statusInit = {};
           const notesInit = {};
           students.forEach((s) => {
@@ -267,11 +269,16 @@ const TeacherAttendance = () => {
           });
           setMarks(statusInit);
           setNotes(notesInit);
+        } else {
+          setRoster([]);
+          setRosterCount(0);
+          setRosterError(res.error || 'Failed to load class roster');
         }
       })
-      .catch(() => {
+      .catch((err) => {
         setRoster([]);
         setRosterCount(0);
+        setRosterError(err.message || 'Failed to load class roster');
       });
   }, [courseId, date]);
 
@@ -777,6 +784,7 @@ const TeacherAttendance = () => {
               ? 'Select a date to view attendance for that day.'
               : periodLabel || 'Select a course to view attendance records.'}
         </p>
+        {rosterError ? <PortalAlert type="error">{rosterError}</PortalAlert> : null}
         {viewError ? <PortalAlert type="error">{viewError}</PortalAlert> : null}
 
         <div className="portal-attendance-filter-bar">

@@ -53,8 +53,7 @@ const AboutSection = () => {
     label: 'About Gorythm',
     title: 'Knowledge Connected To Identity',
     paragraph:
-      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding grounded in a single conviction: that truth is coherent, self-knowledge is the root of real growth, and the signs pointing toward both are already within you. 
-      Our courses develop the whole person Thought, Character and Purpose`,
+      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding. Grounded in a single conviction that truth is coherent, self-knowledge is the root of growth & the signs pointing towards both are already within you. Our courses develop thoughts, character & purpose`,
 
   };
 

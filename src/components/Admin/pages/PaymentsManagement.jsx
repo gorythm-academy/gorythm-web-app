@@ -71,7 +71,7 @@ const PaymentsManagement = () => {
     const [bankSaving, setBankSaving] = useState(false);
     const [bankMessage, setBankMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('paid');
+    const [filterStatus, setFilterStatus] = useState('all');
     const [receiptModal, setReceiptModal] = useState(null);
     const [dateRange, setDateRange] = useState('all');
     const [stats, setStats] = useState({
@@ -362,13 +362,16 @@ const PaymentsManagement = () => {
         if (!confirmed) return;
 
         const token = getAuthToken();
+        const ids = [...selectedPayments];
+        let moved = 0;
 
         await Promise.all(
-            selectedPayments.map(async (paymentId) => {
+            ids.map(async (paymentId) => {
                 try {
                     await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
                         headers: { Authorization: `Bearer ${token}` },
                     });
+                    moved += 1;
                 } catch (error) {
                     console.warn('Backend delete failed for payment:', paymentId, error);
                 }
@@ -377,7 +380,13 @@ const PaymentsManagement = () => {
 
         setSelectedPayments([]);
         await fetchPayments();
-        showAlert(`${selectedPayments.length} payment record(s) moved to trash.`, 'success');
+        if (moved === ids.length) {
+            showAlert(`${moved} payment record(s) moved to trash.`, 'success');
+        } else if (moved > 0) {
+            showAlert(`${moved} of ${ids.length} payment record(s) moved to trash.`, 'warning');
+        } else {
+            showAlert('Failed to move selected payments to trash.', 'error');
+        }
     };
 
     const handleRestorePayment = async (paymentId) => {
@@ -423,8 +432,9 @@ const PaymentsManagement = () => {
         if (listTab !== 'trash' || trashBusy) return;
         const confirmed = await showConfirm({
             title: 'Delete permanently?',
-            message: 'This payment record will be removed forever. This cannot be undone.',
+            message: 'Are you sure? This payment cannot be restored later.',
             confirmLabel: 'Delete permanently',
+            destructive: true,
         });
         if (!confirmed) return;
         setTrashBusy(true);
@@ -446,23 +456,34 @@ const PaymentsManagement = () => {
         if (listTab !== 'trash' || !selectedPayments.length || trashBusy) return;
         const confirmed = await showConfirm({
             title: 'Delete permanently?',
-            message: `Permanently delete ${selectedPayments.length} selected payment record(s)? This cannot be undone.`,
+            message: `Are you sure you want to permanently delete ${selectedPayments.length} selected payment(s)? They cannot be restored later.`,
             confirmLabel: 'Delete permanently',
+            destructive: true,
         });
         if (!confirmed) return;
         setTrashBusy(true);
         try {
             const token = getAuthToken();
-            await Promise.all(
+            const results = await Promise.allSettled(
                 selectedPayments.map((id) =>
                     axios.delete(`${API_BASE_URL}/api/payments/${id}/permanent`, {
                         headers: { Authorization: `Bearer ${token}` },
                     })
                 )
             );
+            const failed = results.filter((r) => r.status === 'rejected');
             setSelectedPayments([]);
             await fetchPayments();
-            showAlert('Selected payments permanently deleted.', 'success');
+            if (failed.length === 0) {
+                showAlert('Selected payments permanently deleted.', 'success');
+            } else if (failed.length < results.length) {
+                showAlert(
+                    `${results.length - failed.length} deleted, ${failed.length} failed.`,
+                    'warning'
+                );
+            } else {
+                showAlert('Failed to delete selected payments.', 'error');
+            }
         } catch (error) {
             showAlert(error.response?.data?.error || 'Failed to delete permanently.', 'error');
         } finally {
@@ -675,11 +696,11 @@ const PaymentsManagement = () => {
                 </button>
                 <button
                     type="button"
-                    className={`payments-list-tab ${listTab === 'trash' ? 'active' : ''}`}
+                    className={`payments-list-tab payments-list-tab--trash ${listTab === 'trash' ? 'active' : ''}`}
                     onClick={() => setListTab('trash')}
                 >
                     <i className="fas fa-trash-alt" /> Trash
-                    {trashCount > 0 ? <span className="payments-tab-badge">{trashCount}</span> : null}
+                    {trashCount > 0 ? <span className="admin-list-tab-badge">{trashCount}</span> : null}
                 </button>
             </div>
 

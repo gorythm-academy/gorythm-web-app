@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { uploadLmsFile } from '../../../utils/fileUploadApi';
 import { PortalAlert } from './PortalUi';
 
-export default function FileUploadField({ label, value, onChange, accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp', realm }) {
+export default function FileUploadField({
+  label,
+  value,
+  onChange,
+  accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp',
+  realm,
+  category = 'assignments',
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -12,7 +19,7 @@ export default function FileUploadField({ label, value, onChange, accept = '.pdf
     setErr('');
     setBusy(true);
     try {
-      const url = await uploadLmsFile(file, realm);
+      const url = await uploadLmsFile(file, category, realm);
       onChange(url);
     } catch (ex) {
       setErr(ex.message || 'Upload failed');

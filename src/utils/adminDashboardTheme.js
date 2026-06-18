@@ -3,8 +3,6 @@
  * Accent overrides --color-accent* inside `.admin-dashboard` only.
  */
 
-export const ADMIN_SETTINGS_PAGE_ENABLED = false;
-
 export const ADMIN_DASHBOARD_ACCENT_STORAGE_KEY = 'gorythm-admin-dashboard-accent';
 
 /** Default dashboard accent (red) */

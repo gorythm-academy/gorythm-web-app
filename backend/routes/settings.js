@@ -1,20 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowPermission } = require('../middleware/authorize');
 const { getOrCreateSettings, applySettingsUpdateForRole } = require('../services/settingsService');
+const { sanitizeSettingsForApi } = require('../utils/sanitizeSettings');
+
+router.use(authMiddleware);
+router.use(validateSessionUser);
 
 // Get all settings
-router.get('/', authMiddleware, allowPermission('settings.general.read'), async (req, res) => {
+router.get('/', allowPermission('settings.general.read'), async (req, res) => {
     try {
         const settings = await getOrCreateSettings();
         res.json({
             success: true,
-            general: settings.general,
-            payment: settings.payment,
-            email: settings.email,
-            security: settings.security,
-            updatedAt: settings.updatedAt,
+            ...sanitizeSettingsForApi(settings),
         });
     } catch (error) {
         req.log.error('Error fetching settings', { err: error });
@@ -26,7 +27,7 @@ router.get('/', authMiddleware, allowPermission('settings.general.read'), async 
 });
 
 // Save all settings
-router.post('/', authMiddleware, allowPermission('settings.general.write'), async (req, res) => {
+router.post('/', allowPermission('settings.general.write'), async (req, res) => {
     try {
         const role = req.user.role;
         const userId = req.user?.userId || req.user?.id || null;

@@ -9,21 +9,21 @@ const missionCards = [
     id: 1,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-1.svg',
     title: "IQ — Intellectual Quotient",
-    description: "Intellectual Creativity, critical thinking, logical reasoning, pattern recognition, and the capacity to learn independently, Curiosity, adaptability of thought, and the courage to question what you think you know ",
+    description: "Intellectual creativity, critical thinking, logical reasoning, pattern recognition, the capacity to learn independently, curiosity, adaptability of thought & the courage to question what you think is correct",
     path: '/mission/satellite-maintenance',
   },
   {
     id: 2,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-2.svg',
     title: 'EQ — Emotional Quotient',
-    description: 'Emotional Self-awareness, empathy, emotional regulation, and the ability to act with clarity under pressure, Resilience in adversity, moral integrity, and the inner sense of purpose that guides your decisions',
+    description: 'Emotional self-awareness, empathy, emotional regulation, the ability to act with clarity under pressure, resilience in adversity, moral integrity & the inner sense of purpose that guides your decisions',
     path: '/mission/exploration-missions',
   },
   {
     id: 3,
     bgSvg: 'https://stargaze.themerex.net/wp-content/uploads/2023/11/new-space-inverse-3.svg',
     title: 'PhQ — Physical  Quotient',
-    description: 'Physical Discipline, vitality, and the habits that sustain the energy to pursue meaningful goals over time, Body awareness, rest as a practice, and the connection between physical state and mental performance',
+    description: 'Physical discipline, vitality, the habits that sustain the energy to pursue goals effectively over time, body awareness, rest as a practice & the connection between physical state & mental performance',
     path: '/mission/research-and-observation',
   },
 ];
@@ -50,7 +50,7 @@ const MissionSection = () => {
     >
       <div className="mission-inner">
         <h2 className="mission-section-heading mission-section-heading--sr-only">
-          Mission — IQ, EQ, and PhQ
+          Mission — IQ, EQ & PhQ
         </h2>
         <div className="mission-cards">
           {missionCards.map((card, idx) => (

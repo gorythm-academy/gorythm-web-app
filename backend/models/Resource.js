@@ -8,6 +8,7 @@ const resourceSchema = new mongoose.Schema(
         fileUrl: { type: String, default: '' },
         type: { type: String, enum: ['note', 'file', 'link'], default: 'note' },
         description: { type: String, default: '' },
+        deletedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

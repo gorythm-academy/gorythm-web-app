@@ -170,6 +170,38 @@
         }
     }
 
+    &__input-wrap--password .auth-login__input {
+        padding-right: 2.75rem;
+    }
+
+    &__password-toggle {
+        position: absolute;
+        right: 0.55rem;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--color-text);
+        cursor: pointer;
+
+        &:hover {
+            color: var(--color-primary);
+            background: rgba(153, 134, 117, 0.1);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 1px;
+        }
+    }
+
     &__options {
         display: flex;
         flex-wrap: wrap;

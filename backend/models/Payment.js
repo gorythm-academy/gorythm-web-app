@@ -11,7 +11,7 @@ const paymentSchema = new mongoose.Schema({
     currency: { type: String, default: 'USD' },
     status: {
         type: String,
-        enum: ['pending', 'awaiting_review', 'paid', 'rejected', 'failed', 'refunded', 'completed'],
+        enum: ['pending', 'awaiting_review', 'processing', 'paid', 'rejected', 'failed', 'refunded', 'completed'],
         default: 'pending',
     },
     paymentMethod: { type: String, default: 'stripe' },

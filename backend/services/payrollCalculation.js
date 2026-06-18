@@ -2,6 +2,7 @@ const TeacherAttendance = require('../models/TeacherAttendance');
 const TeacherAttendanceRequest = require('../models/TeacherAttendanceRequest');
 const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const PayrollRun = require('../models/PayrollRun');
+const User = require('../models/User');
 const { buildMonthCalendar } = require('./teacherAttendanceCalendar');
 
 /** True when today is after the last calendar day of monthKey (local time). */
@@ -177,9 +178,12 @@ async function buildPayrollRun(teacherId, monthKey, generatedBy) {
 async function persistPayrollRun(teacherId, monthKey, generatedBy, options = {}) {
     const built = await buildPayrollRun(teacherId, monthKey, generatedBy);
     const { amounts, attendance, monthKey: key } = built;
+    const teacher = await User.findById(teacherId).select('name email');
     const payroll = await PayrollRun.findOneAndUpdate(
         { teacher: teacherId, monthKey: key },
         {
+            teacherName: teacher?.name || '',
+            teacherEmail: teacher?.email || '',
             monthlySalary: amounts.monthlySalary,
             workingDays: amounts.workingDays,
             presentDays: amounts.presentDays,
@@ -236,6 +240,31 @@ async function markPayrollStale(teacherId, monthKey, reason) {
     );
 }
 
+function payrollRunTeacherId(run) {
+    if (!run) return null;
+    if (run.teacher?._id) return run.teacher._id;
+    if (run.teacher) return run.teacher;
+    if (typeof run.get === 'function') {
+        const raw = run.get('teacher');
+        if (raw) return raw;
+    }
+    return null;
+}
+
+function payrollRunTeacherDisplay(run) {
+    if (run?.teacher && typeof run.teacher === 'object' && run.teacher.name) {
+        return run.teacher;
+    }
+    if (run?.teacherName) {
+        return {
+            _id: payrollRunTeacherId(run),
+            name: run.teacherName,
+            email: run.teacherEmail || '',
+        };
+    }
+    return null;
+}
+
 module.exports = {
     normalizeMonthKey,
     isMonthEnded,
@@ -246,4 +275,6 @@ module.exports = {
     persistPayrollRun,
     autoGeneratePayrollForApprovedMonth,
     markPayrollStale,
+    payrollRunTeacherId,
+    payrollRunTeacherDisplay,
 };

@@ -1,6 +1,8 @@
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { activeUserFilter } = require('../utils/userQuery');
 
 const ROSTER_STATUSES = ['active', 'pending', 'completed'];
 
@@ -14,11 +16,12 @@ async function getCourseRosterStudents(courseId) {
     const enrollments = await Enrollment.find({
         course: courseId,
         status: { $in: ROSTER_STATUSES },
-    }).populate('student', 'name email studentId');
+        ...activeEnrollmentFilter(),
+    }).populate('student', 'name email studentId deletedAt');
 
     const byId = new Map();
     for (const enr of enrollments) {
-        if (!enr.student?._id) continue;
+        if (!enr.student?._id || enr.student.deletedAt) continue;
         byId.set(String(enr.student._id), {
             _id: enr.student._id,
             name: enr.student.name,
@@ -31,9 +34,11 @@ async function getCourseRosterStudents(courseId) {
     const courseStudentIds = (course.students || []).map(String).filter(Boolean);
     const missingIds = courseStudentIds.filter((id) => !byId.has(id));
     if (missingIds.length) {
-        const users = await User.find({ _id: { $in: missingIds }, role: 'student' }).select(
-            'name email studentId'
-        );
+        const users = await User.find({
+            _id: { $in: missingIds },
+            role: 'student',
+            ...activeUserFilter(),
+        }).select('name email studentId');
         for (const u of users) {
             byId.set(String(u._id), {
                 _id: u._id,

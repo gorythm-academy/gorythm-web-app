@@ -6,10 +6,9 @@ const assignmentSubmissionSchema = new mongoose.Schema(
         student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         text: { type: String, default: '' },
         attachments: [{ type: String }],
-        status: { type: String, enum: ['submitted', 'graded'], default: 'submitted' },
-        score: { type: Number, default: null },
-        feedback: { type: String, default: '' },
+        status: { type: String, enum: ['submitted'], default: 'submitted' },
         submittedAt: { type: Date, default: Date.now },
+        deletedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

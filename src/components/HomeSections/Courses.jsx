@@ -144,6 +144,7 @@ const CoursesSection = ({
       title: c.title || '',
       category: c.category || '',
       description: c.description || '',
+      homepageImage: c.homepageImage || '',
       priceDisplay: priceParts.amount,
       priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
@@ -197,13 +198,13 @@ const CoursesSection = ({
             <div className="courses-section-left-content">
               <span className="courses-section-big-number" aria-hidden="true">01</span>
               <h2 className="courses-section-title courses-section_anim">
-              Programs that develop the whole person
+              COURSES THAT ENCOURAGE FULL-SPECTRUM DEVELOPMENT
               </h2>
               <img src={titleLineSvg} alt="" className="courses-section-title-line courses-section_anim" aria-hidden="true" />
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                At Gorythm, every course is designed with an aim: to build something that endures. Grounded in research and anchored in faith, structured for learners worldwide, and always oriented toward a fuller, more purposeful vision of yourself
+                At Gorythm, every course is designed to build something that endures. Grounded in research, anchored in faith, structured for learners worldwide & always oriented towards a purposeful vision
                 </p>
                 <Link to={ctaTo} className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">{ctaLabel}</span>

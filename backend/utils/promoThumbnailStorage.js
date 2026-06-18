@@ -1,5 +1,9 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { safeBasename } = require('./safeFilename');
+
+const ALLOWED_THUMB_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 
 const THUMB_SUBDIR = 'video-thumbnails';
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
@@ -35,6 +39,27 @@ function deleteThumbFile(publicPath) {
     }
 }
 
+function listThumbFilenames() {
+    ensureThumbDir();
+    return fs
+        .readdirSync(THUMB_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .filter((name) => {
+            if (name.startsWith('.')) return false;
+            const ext = path.extname(name).toLowerCase();
+            return ALLOWED_THUMB_EXT.has(ext);
+        });
+}
+
+/** Always-unique server filename so re-uploads on edit never collide with orphans on disk. */
+function uniqueThumbFilename(originalName) {
+    const base = safeBasename(originalName || 'thumbnail.avif');
+    const ext = path.extname(base).toLowerCase();
+    const safeExt = ALLOWED_THUMB_EXT.has(ext) ? ext : '.avif';
+    return `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${safeExt}`;
+}
+
 module.exports = {
     THUMB_SUBDIR,
     THUMB_DIR,
@@ -42,4 +67,6 @@ module.exports = {
     thumbPublicPath,
     thumbAbsolutePathFromPublic,
     deleteThumbFile,
+    uniqueThumbFilename,
+    listThumbFilenames,
 };

@@ -5,7 +5,7 @@ const AdminDialogContext = createContext(null);
 const getIconClass = (type) => {
   if (type === 'success') return 'fas fa-check';
   if (type === 'error') return 'fas fa-exclamation-triangle';
-  if (type === 'warning') return 'fas fa-trash-alt';
+  if (type === 'warning') return 'fas fa-exclamation-triangle';
   return 'fas fa-info-circle';
 };
 

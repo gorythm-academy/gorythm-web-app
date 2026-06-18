@@ -4,16 +4,19 @@ const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
 const { validate, rules } = require('../middleware/validate');
 const { activeUserFilter, trashedUserFilter } = require('../utils/userQuery');
 const { softTrashUser, restoreTrashedUser } = require('../services/softTrashUser');
 const { cleanupTeacherOnTrash } = require('../services/cleanupTeacherOnTrash');
+const { userHasFinancialRecords } = require('../services/financialGuards');
 // NOTE: studentId is now manual-entry only (no auto-generation).
 
 router.use(authMiddleware);
-router.use(allowRoles('super-admin', 'admin'));
+router.use(validateSessionUser);
+router.use(allowRoles('super-admin', 'manager'));
 
 /** Treat missing isActive as true (legacy documents). */
 const isUserActive = (u) => u.isActive !== false;
@@ -74,7 +77,8 @@ const cleanupStudentDataForUserIds = async (userIds = []) => {
 };
 
 const PEOPLE_ROLES = ['student', 'teacher', 'parent'];
-const STAFF_ROLES = ['admin', 'super-admin', 'accountant'];
+const STAFF_ROLES = ['manager', 'super-admin', 'accountant'];
+const isManagerActor = (role) => role === 'manager';
 const ALL_MANAGED_ROLES = [...PEOPLE_ROLES, ...STAFF_ROLES];
 
 // Get all users (with pagination)
@@ -209,7 +213,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Create new user (super-admin: any role; admin: student / teacher / parent only)
+// Create new user (super-admin: any role; manager: student / teacher / parent only)
 router.post(
     '/',
     validate([
@@ -224,7 +228,7 @@ router.post(
 
         const actorRole = req.user?.role;
         const isSuper = actorRole === 'super-admin';
-        const isAdmin = actorRole === 'admin';
+        const isAdmin = isManagerActor(actorRole);
         if (!isSuper && !isAdmin) {
             return res.status(403).json({
                 success: false,
@@ -232,7 +236,8 @@ router.post(
             });
         }
 
-        const nextRole = role || 'student';
+        let nextRole = role || 'student';
+        if (nextRole === 'admin') nextRole = 'manager';
         if (isAdmin && !isSuper && !PEOPLE_ROLES.includes(nextRole)) {
             return res.status(403).json({
                 success: false,
@@ -343,19 +348,21 @@ router.put(
     try {
         const { name, email, role, phone, isActive, personalEmail, studentId, status } = req.body;
         const actorRole = req.user?.role;
+        let nextRole = role;
+        if (nextRole === 'admin') nextRole = 'manager';
 
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+        if (isManagerActor(actorRole) && (user.role === 'super-admin' || user.isSystemAccount)) {
             return res.status(403).json({ success: false, error: 'You cannot modify super-admin accounts' });
         }
-        if (actorRole === 'admin' && role === 'super-admin') {
+        if (isManagerActor(actorRole) && nextRole === 'super-admin') {
             return res.status(403).json({ success: false, error: 'Cannot assign super-admin role' });
         }
-        if (actorRole === 'admin' && role && PEOPLE_ROLES.includes(user.role) && !PEOPLE_ROLES.includes(role)) {
+        if (isManagerActor(actorRole) && nextRole && PEOPLE_ROLES.includes(user.role) && !PEOPLE_ROLES.includes(nextRole)) {
             return res.status(403).json({
                 success: false,
                 error: 'Admins cannot change learner accounts into staff roles',
@@ -381,7 +388,7 @@ router.put(
 
         // Update fields
         if (name) user.name = name;
-        if (role) user.role = role;
+        if (role) user.role = nextRole;
         if (phone !== undefined) user.phone = phone;
         if (status !== undefined) {
             const normalizedStatus = normalizeUserStatus(status, isUserActive(user));
@@ -482,7 +489,7 @@ router.patch(
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
-        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+        if (isManagerActor(actorRole) && (user.role === 'super-admin' || user.isSystemAccount)) {
             return res.status(403).json({ success: false, error: 'You cannot change this account password' });
         }
 
@@ -516,7 +523,7 @@ router.patch('/:id/status', async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
-        if (actorRole === 'admin' && (user.role === 'super-admin' || user.isSystemAccount)) {
+        if (isManagerActor(actorRole) && (user.role === 'super-admin' || user.isSystemAccount)) {
             return res.status(403).json({ success: false, error: 'You cannot change super-admin account status' });
         }
 
@@ -608,9 +615,21 @@ router.delete('/:id/permanent', async (req, res) => {
             return res.status(403).json({ success: false, error: 'Only super-admin can delete super-admin accounts' });
         }
 
+        if (await userHasFinancialRecords(existing._id)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot permanently delete: this account has payment or payroll records. Keep in trash for archive.',
+            });
+        }
+
         if (existing.role === 'teacher') {
             await cleanupTeacherOnTrash(existing._id);
         }
+
+        const ParentStudentLink = require('../models/ParentStudentLink');
+        await ParentStudentLink.deleteMany({
+            $or: [{ parent: req.params.id }, { student: req.params.id }],
+        });
 
         const user = await User.findByIdAndDelete(req.params.id);
         await logAudit({
@@ -725,6 +744,13 @@ router.post('/:id/child-links', async (req, res) => {
         if (!parent || parent.role !== 'parent') {
             return res.status(400).json({ success: false, error: 'Invalid parent' });
         }
+        if (!studentId) {
+            return res.status(400).json({ success: false, error: 'studentId is required' });
+        }
+        const student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() });
+        if (!student) {
+            return res.status(400).json({ success: false, error: 'Student not found or removed' });
+        }
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parent._id, student: studentId },
             { relation },
@@ -770,7 +796,7 @@ router.post('/bulk-delete', async (req, res) => {
         if (systemCount > 0) {
             return res.status(403).json({ success: false, error: 'Selection contains protected system account(s)' });
         }
-        if (req.user?.role === 'admin') {
+        if (isManagerActor(req.user?.role)) {
             const superCount = await User.countDocuments({
                 _id: { $in: ids },
                 role: 'super-admin',
@@ -818,7 +844,7 @@ router.patch('/bulk-status', async (req, res) => {
         if (systemCount > 0) {
             return res.status(403).json({ success: false, error: 'Selection contains protected system account(s)' });
         }
-        if (req.user?.role === 'admin') {
+        if (isManagerActor(req.user?.role)) {
             const superCount = await User.countDocuments({
                 _id: { $in: ids },
                 role: 'super-admin',

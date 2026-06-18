@@ -198,7 +198,9 @@ const Analytics = () => {
                 const studentUsers = allUsers.filter((u) => u?.role === 'student');
                 const teacherUsers = allUsers.filter((u) => u?.role === 'teacher');
                 const parentUsers = allUsers.filter((u) => u?.role === 'parent');
-                const staffUsers = allUsers.filter((u) => ['admin', 'super-admin', 'accountant'].includes(u?.role));
+                const staffUsers = allUsers.filter((u) =>
+                    ['manager', 'super-admin', 'accountant'].includes(u?.role)
+                );
 
                 const studentInactive = studentUsers.filter(isInactive).length;
                 const teacherInactive = teacherUsers.filter(isInactive).length;

@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const { activeUserFilter } = require('../utils/userQuery');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const Enrollment = require('../models/Enrollment');
 const Payment = require('../models/Payment');
 const { activePaymentFilter } = require('../utils/paymentQuery');
@@ -13,6 +15,7 @@ async function findStudentByContactEmail(email) {
     if (!normalized) return null;
     return User.findOne({
         role: 'student',
+        ...activeUserFilter(),
         $or: [{ email: normalized }, { personalEmail: normalized }],
     }).select('_id name email personalEmail');
 }
@@ -25,6 +28,7 @@ async function hasPaidEnrollmentForCourse(email, courseId) {
         student: student._id,
         course: courseId,
         paymentStatus: 'paid',
+        ...activeEnrollmentFilter(),
     }).select('_id');
     return Boolean(enrollment);
 }

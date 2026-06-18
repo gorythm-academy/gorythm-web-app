@@ -292,6 +292,7 @@ const TeacherResources = () => {
                 label="Upload file (PDF, Word, image)"
                 value={resourceForm.fileUrl}
                 onChange={(url) => setResourceForm({ ...resourceForm, fileUrl: url })}
+                category="content/books"
               />
             ) : null}
             {resourceForm.type === 'link' ? (

@@ -74,6 +74,13 @@
       }
     }
 
+    &__tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
     h3 {
       margin: 0 0 0.35rem;
       font-size: 0.95rem;
@@ -144,6 +151,10 @@
     border-collapse: collapse;
     font-size: 0.88rem;
 
+    &--resizable {
+      table-layout: fixed;
+    }
+
     th,
     td {
       padding: 0.65rem 0.8rem;
@@ -159,6 +170,29 @@
       letter-spacing: 0.03em;
       color: #64748b;
       white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .accountant-payroll-th-label {
+      display: inline-block;
+      max-width: calc(100% - 8px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .accountant-payroll-col-resize {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      user-select: none;
+
+      &:hover {
+        background: rgba(59, 130, 246, 0.25);
+      }
     }
 
     tbody tr:last-child td {
@@ -186,6 +220,9 @@
     &--paid {
       border-left: 3px solid #10b981;
     }
+    &--rejected {
+      border-left: 3px solid #dc2626;
+    }
   }
 
   .accountant-payroll-pill {
@@ -206,6 +243,10 @@
     &--paid {
       background: #d1fae5;
       color: #065f46;
+    }
+    &--rejected {
+      background: #fee2e2;
+      color: #991b1b;
     }
   }
 
@@ -244,6 +285,18 @@
       color: #1d4ed8;
       border: 1px solid #93c5fd;
     }
+    &--reject {
+      background: #fff;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+    }
+    &--ghost {
+      background: transparent;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+      font-size: 0.76rem;
+      padding: 0.32rem 0.6rem;
+    }
     &--primary {
       background: #0f172a;
       color: #fff;
@@ -252,6 +305,11 @@
       background: #f1f5f9;
       color: #334155;
       border: 1px solid #cbd5e1;
+    }
+    &--danger {
+      background: #fff;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
     }
 
     &:disabled {

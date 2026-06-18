@@ -1,5 +1,6 @@
 const Enrollment = require('../models/Enrollment');
 const User = require('../models/User');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 
 /**
  * Keep Enrollment.paymentStatus in sync with Payment / Stripe checkout.
@@ -12,12 +13,30 @@ async function syncEnrollmentPaymentStatus({
 }) {
     if (!userId || !courseId) return null;
 
-    let enrollment = await Enrollment.findOne({ student: userId, course: courseId });
+    let enrollment = await Enrollment.findOne({
+        student: userId,
+        course: courseId,
+        ...activeEnrollmentFilter(),
+    });
     if (enrollment) {
         enrollment.paymentStatus = paymentStatus;
         if (enrollmentStatus) enrollment.status = enrollmentStatus;
+        enrollment.deletedAt = null;
         await enrollment.save();
         return enrollment;
+    }
+
+    const trashed = await Enrollment.findOne({
+        student: userId,
+        course: courseId,
+        deletedAt: { $exists: true, $ne: null },
+    });
+    if (trashed) {
+        trashed.paymentStatus = paymentStatus;
+        if (enrollmentStatus) trashed.status = enrollmentStatus;
+        trashed.deletedAt = null;
+        await trashed.save();
+        return trashed;
     }
 
     enrollment = await Enrollment.create({

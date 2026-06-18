@@ -1,5 +1,6 @@
 @import '../../styles/breakpoints';
 @import './admin-dashboard-layout';
+@import './pages/admin-list-tabs';
 
 // Keep admin form fields consistently readable across all tabs.
 .admin-dashboard {
@@ -1249,7 +1250,9 @@
 }
 
 .contact-messages-page,
-.subscribers-page {
+.subscribers-page,
+.research-comments-page,
+.research-comments-embedded {
     .contact-stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1745,6 +1748,27 @@
                 cursor: not-allowed;
             }
         }
+    }
+}
+
+.research-comments-page {
+    .research-comment-text {
+        max-width: 380px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.55;
+        color: #334155;
+    }
+
+    .contact-message-subject {
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .contact-message-meta {
+        margin-top: 2px;
+        font-size: 0.78rem;
+        color: #64748b;
     }
 }
 

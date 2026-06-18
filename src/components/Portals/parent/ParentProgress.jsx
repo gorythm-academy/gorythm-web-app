@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
 import {
   PortalLoading,
@@ -7,12 +7,24 @@ import {
   FeeBadge,
 } from '../shared/PortalUi';
 import SubmissionFiles from '../shared/SubmissionFiles';
+import AttendancePeriodView from '../shared/AttendancePeriodView';
 import { formatScore } from '../../../utils/formatScore';
+
+const paymentStatusLabel = (status) => {
+  if (status === 'paid' || status === 'completed') return 'Paid';
+  if (status === 'awaiting_review') return 'Awaiting review';
+  if (status === 'processing') return 'Processing';
+  if (status === 'rejected') return 'Rejected';
+  if (status === 'refunded') return 'Refunded';
+  if (status === 'failed') return 'Failed';
+  return status || '—';
+};
 
 const ParentProgress = () => {
   const [children, setChildren] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -32,15 +44,33 @@ const ParentProgress = () => {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setDetailError('');
       return;
     }
     portalGet(`/parent/children/${selectedId}`)
       .then((res) => {
-        if (res.success) setDetail(res);
-        else setDetail(null);
+        if (res.success) {
+          setDetail(res);
+          setDetailError('');
+        } else {
+          setDetail(null);
+          setDetailError(res.error || 'Failed to load child details');
+        }
       })
-      .catch(() => setDetail(null));
+      .catch((err) => {
+        setDetail(null);
+        setDetailError(err.message || 'Failed to load child details');
+      });
   }, [selectedId]);
+
+  const attendanceCoursesUrl = useMemo(
+    () => (selectedId ? `/parent/children/${selectedId}/attendance/courses` : ''),
+    [selectedId]
+  );
+  const attendanceViewUrl = useMemo(
+    () => (selectedId ? `/parent/children/${selectedId}/attendance/view` : ''),
+    [selectedId]
+  );
 
   if (loading) {
     return (
@@ -94,8 +124,12 @@ const ParentProgress = () => {
         })}
       </div>
 
+      {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
+
       {!detail ? (
-        <p className="portal-select-hint">Select a child or ask admin to link your account.</p>
+        <p className="portal-select-hint">
+          {detailError ? 'Could not load this child.' : 'Select a child or ask admin to link your account.'}
+        </p>
       ) : (
         <>
           <div className="portal-panel">
@@ -139,36 +173,16 @@ const ParentProgress = () => {
           <div className="portal-panel">
             <div className="portal-panel__head">
               <h2>Attendance</h2>
+              <p>View by course — weekly or monthly summary.</p>
             </div>
             <div className="portal-panel__body">
-              <div className="portal-data-table-wrap">
-                <table className="portal-data-table portal-data-table--green">
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.attendance || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={4}>No attendance records.</td>
-                      </tr>
-                    ) : (
-                      (detail.attendance || []).map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.course?.title || '—'}</td>
-                          <td>{r.status}</td>
-                          <td>{new Date(r.date).toLocaleDateString()}</td>
-                          <td>{r.notes || '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <AttendancePeriodView
+                coursesUrl={attendanceCoursesUrl}
+                viewUrl={attendanceViewUrl}
+                emptyCoursesHint="No active course enrollments for this child."
+                allowedPeriods={['weekly', 'monthly']}
+                summaryOnly
+              />
             </div>
           </div>
 
@@ -182,24 +196,20 @@ const ParentProgress = () => {
                   <thead>
                     <tr>
                       <th>Assignment</th>
-                      <th>Score</th>
-                      <th>Status</th>
-                      <th>Feedback</th>
+                      <th>Submitted</th>
                       <th>Files</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(detail.submissions || []).length === 0 ? (
                       <tr>
-                        <td colSpan={5}>No submissions.</td>
+                        <td colSpan={3}>No submissions.</td>
                       </tr>
                     ) : (
                       (detail.submissions || []).map((r) => (
                         <tr key={r._id}>
                           <td>{r.assignment?.title || '—'}</td>
-                          <td>{r.scoreDisplay || formatScore(r.score, r.assignment?.maxPoints)}</td>
-                          <td>{r.status}</td>
-                          <td>{r.feedback || '—'}</td>
+                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td>
                           <td>
                             <SubmissionFiles attachments={r.attachments} />
                           </td>
@@ -247,6 +257,7 @@ const ParentProgress = () => {
           <div className="portal-panel">
             <div className="portal-panel__head">
               <h2>Payments</h2>
+              <p>Recorded payment transactions for this child.</p>
             </div>
             <div className="portal-panel__body">
               <div className="portal-data-table-wrap">
@@ -269,7 +280,7 @@ const ParentProgress = () => {
                         <tr key={r._id}>
                           <td>{r.course?.title || r.courseName || '—'}</td>
                           <td>${Number(r.amount || 0).toFixed(2)}</td>
-                          <td>{r.status}</td>
+                          <td>{paymentStatusLabel(r.status)}</td>
                           <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
                         </tr>
                       ))

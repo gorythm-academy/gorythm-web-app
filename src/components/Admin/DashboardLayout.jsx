@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { parseAuthUser, clearAuthSession, AUTH_REALM } from '../../utils/authStorage';
 import {
-    ADMIN_SETTINGS_PAGE_ENABLED,
     readAdminDashboardAccent,
     DEFAULT_ADMIN_DASHBOARD_ACCENT,
     getAdminDashboardAccentStyleVars,
@@ -11,8 +10,7 @@ import {
 } from '../../utils/adminDashboardTheme';
 import BrandLogo from '../BrandLogo/BrandLogo';
 import { AdminDialogProvider } from './AdminDialogContext';
-import { isAdminPortalPreviewEnabled, setAdminPortalPreviewActive } from '../../utils/adminPortalPreview';
-import { LMS_PORTAL_LINKS } from '../../config/lmsPortalLinks';
+import { useAdminPortalBadges } from '../../hooks/useAdminPortalBadges';
 import './Admin.scss';
 
 const MOBILE_MAX_WIDTH = 1024;
@@ -47,10 +45,7 @@ const DashboardLayout = () => {
     };
 
     const user = parseAuthUser(AUTH_REALM.ADMIN) || {};
-    const adminPortalPreview = isAdminPortalPreviewEnabled();
-
-    const isPortalNavActive = (path) =>
-        location.pathname === path || location.pathname.startsWith(`${path}/`);
+    const adminBadges = useAdminPortalBadges(true);
 
     const menuItems = [
         { path: '/admin', icon: 'fas fa-home', label: 'Dashboard' },
@@ -60,14 +55,13 @@ const DashboardLayout = () => {
         { path: '/admin/parents', icon: 'fas fa-people-roof', label: 'Parents' },
         { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
         { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments' },
-        { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS' },
+        { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS', badgeKey: 'lmsAttendance', badgeDot: true },
         { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources & Submissions' },
         { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
         { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
         { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
         { path: '/admin/promo-videos', icon: 'fas fa-video', label: 'Video Controls' },
-        { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
-    ].filter((item) => ADMIN_SETTINGS_PAGE_ENABLED || item.path !== '/admin/settings');
+    ];
 
     const [dashboardAccent, setDashboardAccent] = useState(
         () => readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT
@@ -119,41 +113,60 @@ const DashboardLayout = () => {
                 </div>
                 
                 <nav className="sidebar-menu">
-                    {menuItems.map((item) => (
+                    {menuItems.map((item) => {
+                        const badgeCount = item.badgeKey ? adminBadges[item.badgeKey] || 0 : 0;
+                        const isActive =
+                            item.path === '/admin'
+                                ? location.pathname === '/admin'
+                                : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                        return (
                         <Link
                             key={item.path}
                             to={item.path}
-                            className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
+                            className={`menu-item ${isActive ? 'active' : ''}`}
+                            title={
+                                !sidebarOpen && badgeCount > 0
+                                    ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
+                                    : undefined
+                            }
                         >
                             <i className={item.icon}></i>
-                            {sidebarOpen && <span>{item.label}</span>}
+                            {sidebarOpen ? (
+                                <span className="menu-item__label">
+                                    {item.label}
+                                    {badgeCount > 0 ? (
+                                        item.badgeDot ? (
+                                            <span
+                                                className="menu-item__badge menu-item__badge--dot"
+                                                aria-label="Pending items"
+                                            />
+                                        ) : (
+                                            <span className="menu-item__badge" aria-label={`${badgeCount} pending`}>
+                                                {badgeCount > 99 ? '99+' : badgeCount}
+                                            </span>
+                                        )
+                                    ) : null}
+                                </span>
+                            ) : null}
+                            {!sidebarOpen && badgeCount > 0 ? (
+                                item.badgeDot ? (
+                                    <span
+                                        className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
+                                        aria-label="Pending items"
+                                    />
+                                ) : (
+                                    <span
+                                        className="menu-item__badge menu-item__badge--collapsed"
+                                        aria-label={`${badgeCount} pending`}
+                                    >
+                                        {badgeCount > 9 ? '9+' : badgeCount}
+                                    </span>
+                                )
+                            ) : null}
                         </Link>
-                    ))}
+                    );
+                    })}
                 </nav>
-
-                {adminPortalPreview ? (
-                    <div className="sidebar-portal-section">
-                        {sidebarOpen ? (
-                            <div className="sidebar-section-label" aria-hidden="true">
-                                LMS portals (preview)
-                            </div>
-                        ) : null}
-                        <nav className="sidebar-menu sidebar-menu--portals" aria-label="LMS portal shortcuts">
-                            {LMS_PORTAL_LINKS.map((item) => (
-                                <Link
-                                    key={item.path}
-                                    to={item.path}
-                                    onClick={() => setAdminPortalPreviewActive(true)}
-                                    className={`menu-item ${isPortalNavActive(item.path) ? 'active' : ''}`}
-                                    title={!sidebarOpen ? item.label : undefined}
-                                >
-                                    <i className={item.icon}></i>
-                                    {sidebarOpen && <span>{item.label}</span>}
-                                </Link>
-                            ))}
-                        </nav>
-                    </div>
-                ) : null}
                 
                 <div className="sidebar-footer">
                     <button className="logout-btn" onClick={handleLogout}>
@@ -169,7 +182,7 @@ const DashboardLayout = () => {
                                 <h4>{user.name || 'Admin User'}</h4>
                                 {user.email ? <p>{user.email}</p> : null}
                                 <span className="role-badge">
-                                  {user.role === 'admin' ? 'Manager' : user.role || 'admin'}
+                                  {user.role === 'manager' ? 'Manager' : user.role || 'staff'}
                                 </span>
                             </div>
                         )}

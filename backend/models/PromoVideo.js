@@ -8,6 +8,7 @@ const promoVideoSchema = new mongoose.Schema(
         videoId: { type: String, required: true },
         embedSrc: { type: String, required: true },
         thumbnailPath: { type: String, default: '', trim: true },
+        deletedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

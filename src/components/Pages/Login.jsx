@@ -28,6 +28,9 @@ const Login = () => {
         password: '',
     });
     const [rememberMe, setRememberMe] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
     const handleChange = (e) => {
         setFormData({
@@ -40,7 +43,7 @@ const Login = () => {
         if (role === 'teacher') return '/teacher';
         if (role === 'parent') return '/parent';
         if (role === 'accountant') return '/accountant';
-        if (role === 'admin' || role === 'super-admin') return '/admin';
+        if (role === 'manager' || role === 'super-admin') return '/admin';
         return '/student';
     };
 
@@ -55,6 +58,11 @@ const Login = () => {
                 password: formData.password,
                 rememberMe,
             });
+            const role = response.data.user?.role;
+            if (role === 'manager' || role === 'super-admin') {
+                setError('Admin accounts must use the admin login page at /admin/login.');
+                return;
+            }
             setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.PORTAL);
             if (response.data.user?.mustChangePassword) {
                 navigate('/login?reset=1', { replace: true });
@@ -130,35 +138,51 @@ const Login = () => {
                                 <label className="auth-login__label" htmlFor="portal-reset-password">
                                     New password
                                 </label>
-                                <div className="auth-login__input-wrap">
+                                <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
                                         id="portal-reset-password"
                                         className="auth-login__input"
-                                        type="password"
+                                        type={showNewPassword ? 'text' : 'password'}
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         placeholder="At least 6 characters"
                                         autoComplete="new-password"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        className="auth-login__password-toggle"
+                                        onClick={() => setShowNewPassword((v) => !v)}
+                                        aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <i className={`fas ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                    </button>
                                 </div>
                             </div>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="portal-reset-password-confirm">
                                     Confirm password
                                 </label>
-                                <div className="auth-login__input-wrap">
-                                    <input
-                                        id="portal-reset-password-confirm"
-                                        className="auth-login__input"
-                                        type="password"
-                                        value={confirmNewPassword}
-                                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                                        placeholder="Re-enter password"
-                                        autoComplete="new-password"
-                                        required
-                                    />
-                                </div>
+                            <div className="auth-login__input-wrap auth-login__input-wrap--password">
+                                <input
+                                    id="portal-reset-password-confirm"
+                                    className="auth-login__input"
+                                    type={showConfirmNewPassword ? 'text' : 'password'}
+                                    value={confirmNewPassword}
+                                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                    placeholder="Re-enter password"
+                                    autoComplete="new-password"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    className="auth-login__password-toggle"
+                                    onClick={() => setShowConfirmNewPassword((v) => !v)}
+                                    aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    <i className={`fas ${showConfirmNewPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                </button>
+                            </div>
                             </div>
                             {error ? <div className="auth-login__error">{error}</div> : null}
                             <button type="submit" className="auth-login__submit" disabled={isSubmitting}>
@@ -208,11 +232,11 @@ const Login = () => {
                             <label className="auth-login__label" htmlFor="portal-login-password">
                                 Password
                             </label>
-                            <div className="auth-login__input-wrap">
+                            <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                 <input
                                     id="portal-login-password"
                                     className="auth-login__input"
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
@@ -220,6 +244,14 @@ const Login = () => {
                                     autoComplete="current-password"
                                     required
                                 />
+                                <button
+                                    type="button"
+                                    className="auth-login__password-toggle"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                </button>
                             </div>
                         </div>
                         <div className="auth-login__options">

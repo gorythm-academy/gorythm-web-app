@@ -1,0 +1,89 @@
+// Shared Active / Trash list tabs (Students, Courses, Users, Payments, etc.)
+.admin-list-tab-badge {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.students-list-tabs,
+.payments-list-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+
+    .students-list-tab,
+    .payments-list-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+
+        i {
+            font-size: 0.9em;
+            opacity: 0.88;
+        }
+
+        &:hover:not(.active) {
+            border-color: #cbd5e1;
+            color: #1e293b;
+            background: #f8fafc;
+        }
+
+        &.active {
+            border-color: var(--color-accent, #2563eb);
+            background: rgba(var(--color-accent-rgb, 37, 99, 235), 0.1);
+            color: var(--color-accent-dark, #1d4ed8);
+            box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb, 37, 99, 235), 0.12);
+
+            i {
+                opacity: 1;
+            }
+        }
+
+        &--trash {
+            &:hover:not(.active) {
+                border-color: #fecaca;
+                color: #b91c1c;
+                background: #fef2f2;
+
+                i {
+                    opacity: 1;
+                }
+            }
+
+            &.active {
+                border-color: #fca5a5;
+                background: linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%);
+                color: #b91c1c;
+                box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.18);
+            }
+        }
+    }
+}
+
+.payments-list-tabs {
+    margin-bottom: 1rem;
+}
+
+// Legacy alias used on Payments page
+.payments-tab-badge {
+    @extend .admin-list-tab-badge;
+}

@@ -48,7 +48,7 @@ const Header = () => {
     { id: 1, title: 'Home', path: '/', hasDropdown: false },
     { id: 2, title: 'All Courses', path: '/courses', hasDropdown: false },
     { id: 3, title: 'About Us', path: '/about', hasDropdown: false },
-    { id: 4, title: 'Blog', path: '/blog', hasDropdown: false },
+    { id: 4, title: 'Research', path: '/research', hasDropdown: false },
     { id: 5, title: 'Contact Us', path: '/contact', hasDropdown: false },
   ];
 

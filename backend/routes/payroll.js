@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const User = require('../models/User');
 const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const TeacherAttendance = require('../models/TeacherAttendance');
 const PayrollRun = require('../models/PayrollRun');
 const { logAudit } = require('../utils/audit');
+const { activeUserFilter } = require('../utils/userQuery');
 const {
     normalizeMonthKey,
     getTeacherAttendanceForPayroll,
@@ -19,11 +21,12 @@ function actorId(req) {
 }
 
 router.use(authMiddleware);
-router.use(allowRoles('accountant', 'admin', 'super-admin'));
+router.use(validateSessionUser);
+router.use(allowRoles('accountant', 'manager', 'super-admin'));
 
 router.get('/teachers', async (req, res) => {
     try {
-        const teachers = await User.find({ role: 'teacher' }).select('_id name email');
+        const teachers = await User.find({ role: 'teacher', ...activeUserFilter() }).select('_id name email');
         return res.json({ success: true, teachers });
     } catch (error) {
         return res.status(500).json({ success: false, error: 'Failed to load teachers' });

@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { getAuthToken, parseAuthUser } from '../../utils/authStorage';
+import { getAuthToken, parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
 import {
-    ADMIN_SETTINGS_PAGE_ENABLED,
     persistAndNotifyAdminDashboardAccent,
     readAdminDashboardAccent,
     DEFAULT_ADMIN_DASHBOARD_ACCENT,
     ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT,
 } from '../../utils/adminDashboardTheme';
-import { isAdminPortalPreviewEnabled, setAdminPortalPreviewActive } from '../../utils/adminPortalPreview';
-import { LMS_PORTAL_LINKS } from '../../config/lmsPortalLinks';
 import './DashboardHome.scss';
 
 /** When set (ISO string), dashboard hides activities at or before this time until newer events arrive. */
@@ -62,12 +59,13 @@ const DashboardHome = () => {
         () => readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT
     );
 
-    const user = parseAuthUser() || {};
+    const user = parseAuthUser(AUTH_REALM.ADMIN) || {};
 
     const checkBackendHealth = useCallback(async () => {
         try {
-            await axios.get(`${API_BASE_URL}/health`);
-            setBackendStatus('connected');
+            const res = await axios.get(`${API_BASE_URL}/health`);
+            const dbOk = res.data?.database === 'connected' && res.status === 200;
+            setBackendStatus(dbOk ? 'connected' : 'disconnected');
         } catch (err) {
             setBackendStatus('disconnected');
         }
@@ -78,7 +76,7 @@ const DashboardHome = () => {
             setLoading(true);
             setError('');
             
-            const token = getAuthToken();
+            const token = getAuthToken(AUTH_REALM.ADMIN);
             
             if (!token) {
                 navigate('/admin/login', { replace: true });
@@ -202,9 +200,6 @@ const DashboardHome = () => {
         { icon: 'fas fa-user-plus', label: 'Add Student', action: () => navigate('/admin/students'), color: '#10b981' },
         { icon: 'fas fa-file-invoice-dollar', label: 'Create Invoice', action: () => navigate('/admin/payments'), color: '#f59e0b' },
         { icon: 'fas fa-chart-line', label: 'View Reports', action: () => navigate('/admin/analytics'), color: '#8b5cf6' },
-        ...(ADMIN_SETTINGS_PAGE_ENABLED
-            ? [{ icon: 'fas fa-cog', label: 'Settings', action: () => navigate('/admin/settings'), color: '#64748b' }]
-            : []),
     ];
 
     if (loading) {
@@ -236,48 +231,18 @@ const DashboardHome = () => {
                 </div>
             </div>
 
-            <div
-                className={`dashboard-card lms-portals-card${
-                    isAdminPortalPreviewEnabled() ? '' : ' lms-portals-card--hint-only'
-                }`}
-            >
+            <div className="dashboard-card lms-portals-card lms-portals-card--hint-only">
                 <div className="card-header">
                     <h3>
                         <i className="fas fa-window-restore" aria-hidden="true"></i> LMS portals
                     </h3>
                 </div>
                 <div className="card-body">
-                    {isAdminPortalPreviewEnabled() ? (
-                        <>
-                            <p className="lms-portals-lead">
-                                Open any portal while logged in as admin. For UI work only; your session is still an
-                                admin account.
-                            </p>
-                            <div className="lms-portals-grid">
-                                {LMS_PORTAL_LINKS.map((item) => (
-                                    <button
-                                        key={item.path}
-                                        type="button"
-                                        className="lms-portal-tile"
-                                        onClick={() => {
-                                            setAdminPortalPreviewActive(true);
-                                            navigate(item.path);
-                                        }}
-                                    >
-                                        <i className={item.icon} aria-hidden="true"></i>
-                                        <span>{item.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    ) : (
-                        <p className="lms-portals-hint">
-                            Portal shortcuts from the admin area only run in local development (
-                            <code>npm start</code>) or when <code>REACT_APP_ADMIN_PORTAL_PREVIEW=true</code> is set for
-                            a build. This production build has preview off. To try portals as admin, run the app
-                            locally, or use separate logins for each role.
-                        </p>
-                    )}
+                    <p className="lms-portals-hint">
+                        Student, teacher, parent, and accountant portals require a valid login at{' '}
+                        <a href="/login">/login</a> with the matching role. Admin accounts cannot open portal routes
+                        without signing in as that portal user.
+                    </p>
                 </div>
             </div>
 

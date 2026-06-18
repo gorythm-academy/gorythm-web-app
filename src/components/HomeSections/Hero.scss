@@ -123,7 +123,8 @@
     text-align: left; // Left-aligned on desktop
     display: flex;
     flex-direction: row; // Display in row on tablet+ by default
-    align-items: flex-end;
+    align-items: flex-end; // fallback when last-baseline is unsupported
+    align-items: last baseline; // last title line shares baseline with description last line
     min-height: 310px;
     // Space between title and description (base for tablet)
     justify-content: space-between;
@@ -141,7 +142,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    align-self: flex-end; // restore original desktop vertical alignment
+    align-self: auto; // inherit last-baseline alignment from .hero-content
     margin-left: 0;
     position: static; // Normal document flow by default
     width: auto;
@@ -208,7 +209,7 @@
     /* Second line: "DISCOVER YOURSELF [logo]" */
     .hero-title-line-2 {
       display: flex;
-      align-items: center;
+      align-items: baseline; // subtitle text baseline — not vertically centered with logo
       width: 100%;
       flex-wrap: nowrap;
 
@@ -221,7 +222,6 @@
         color: rgba(255, 255, 255, 0.9); // match title color with description color
         margin: 0;
         line-height: 1;
-        transform: translateY(4px); // lower second-line title words slightly
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
         white-space: nowrap; // Single line on desktop/tablet; mobile overrides in mobile blocks
       }
@@ -306,7 +306,7 @@
     overflow-wrap: break-word;
     text-align: right;
     margin: 0;
-    align-self: flex-end;
+    align-self: auto; // inherit last-baseline alignment from .hero-content
     flex: 0 1 min(460px, 38vw);
 
     .hero-description {
@@ -504,6 +504,7 @@
     .hero-content {
       flex-direction: row;
       align-items: flex-end;
+      align-items: last baseline;
       justify-content: flex-end;
       margin-top: 0;
       min-height: 0;
@@ -640,6 +641,7 @@
     .hero-content {
       flex-direction: row;
       align-items: flex-end;
+      align-items: last baseline;
       justify-content: space-between; // desktop-like parallel title + description
       margin-bottom: 10px; // align with desktop bottom rhythm
       min-height: 0;

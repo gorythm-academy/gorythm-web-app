@@ -7,9 +7,17 @@ const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { activePaymentFilter } = require('../utils/paymentQuery');
+const { activeCourseFilter } = require('../utils/courseQuery');
+const { activeUserFilter } = require('../utils/userQuery');
+
+const PAID_PAYMENT_STATUSES = ['paid', 'completed'];
 
 router.use(authMiddleware);
-router.use(allowRoles('super-admin', 'admin'));
+router.use(validateSessionUser);
+router.use(allowRoles('super-admin', 'manager'));
 
 // Get comprehensive analytics data
 router.get('/overview', async (req, res) => {
@@ -25,8 +33,9 @@ router.get('/overview', async (req, res) => {
         const enrollmentTrend = await Enrollment.aggregate([
             {
                 $match: {
-                    enrollmentDate: { $gte: startDate }
-                }
+                    enrollmentDate: { $gte: startDate },
+                    ...activeEnrollmentFilter(),
+                },
             },
             {
                 $group: {
@@ -55,9 +64,10 @@ router.get('/overview', async (req, res) => {
         const revenueData = await Payment.aggregate([
             {
                 $match: {
-                    status: 'completed',
-                    createdAt: { $gte: startDate }
-                }
+                    status: { $in: PAID_PAYMENT_STATUSES },
+                    createdAt: { $gte: startDate },
+                    ...activePaymentFilter(),
+                },
             },
             {
                 $group: {
@@ -76,13 +86,21 @@ router.get('/overview', async (req, res) => {
 
         // 3. Course Popularity
         const coursePopularity = await Course.aggregate([
+            { $match: { ...activeCourseFilter() } },
             {
                 $lookup: {
-                    from: "enrollments",
-                    localField: "_id",
-                    foreignField: "course",
-                    as: "enrollments"
-                }
+                    from: 'enrollments',
+                    let: { courseId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ['$course', '$$courseId'] },
+                                ...activeEnrollmentFilter(),
+                            },
+                        },
+                    ],
+                    as: 'enrollments',
+                },
             },
             {
                 $project: {
@@ -108,13 +126,21 @@ router.get('/overview', async (req, res) => {
 
         // 4. Course Category Distribution
         const categoryDistribution = await Course.aggregate([
+            { $match: { ...activeCourseFilter() } },
             {
                 $lookup: {
-                    from: "enrollments",
-                    localField: "_id",
-                    foreignField: "course",
-                    as: "enrollments"
-                }
+                    from: 'enrollments',
+                    let: { courseId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ['$course', '$$courseId'] },
+                                ...activeEnrollmentFilter(),
+                            },
+                        },
+                    ],
+                    as: 'enrollments',
+                },
             },
             {
                 $group: {
@@ -129,38 +155,51 @@ router.get('/overview', async (req, res) => {
         ]);
 
         // 5. Completion Rates
-        const completedEnrollments = await Enrollment.countDocuments({ status: 'completed' });
-        const totalEnrollments = await Enrollment.countDocuments();
+        const completedEnrollments = await Enrollment.countDocuments({
+            status: 'completed',
+            ...activeEnrollmentFilter(),
+        });
+        const totalEnrollments = await Enrollment.countDocuments(activeEnrollmentFilter());
         const completionRate = totalEnrollments > 0 ? 
             ((completedEnrollments / totalEnrollments) * 100).toFixed(1) : "0";
 
         // 6. Active vs Inactive Users
         const userActivity = await User.aggregate([
+            { $match: { ...activeUserFilter() } },
             {
                 $group: {
-                    _id: "$isActive",
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
-
-        // 7. Payment Methods Distribution
-        const paymentMethods = await Payment.aggregate([
-            {
-                $group: {
-                    _id: "$paymentMethod",
+                    _id: '$isActive',
                     count: { $sum: 1 },
-                    totalAmount: { $sum: "$amount" }
-                }
-            }
+                },
+            },
         ]);
 
-        const totalStudents = await User.countDocuments({ role: 'student' });
-        const totalTeachers = await User.countDocuments({ role: 'teacher' });
-        const totalParents = await User.countDocuments({ role: 'parent' });
+        const paymentMethods = await Payment.aggregate([
+            { $match: { ...activePaymentFilter() } },
+            {
+                $group: {
+                    _id: '$paymentMethod',
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: '$amount' },
+                },
+            },
+        ]);
+
+        const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
+        const totalTeachers = await User.countDocuments({ role: 'teacher', ...activeUserFilter() });
+        const totalParents = await User.countDocuments({ role: 'parent', ...activeUserFilter() });
         const activeUsers = await User.countDocuments({
             isActive: true,
-            role: { $in: ['admin', 'super-admin', 'accountant'] }
+            role: { $in: ['manager', 'super-admin', 'accountant'] },
+            ...activeUserFilter(),
+        });
+        const activeEnrollmentCount = await Enrollment.countDocuments({
+            status: 'active',
+            ...activeEnrollmentFilter(),
+        });
+        const pendingEnrollmentCount = await Enrollment.countDocuments({
+            status: 'pending',
+            ...activeEnrollmentFilter(),
         });
 
         res.json({
@@ -173,8 +212,22 @@ router.get('/overview', async (req, res) => {
                 categoryDistribution,
                 completionRates: [
                     { status: 'completed', count: completedEnrollments, percentage: completionRate },
-                    { status: 'active', count: await Enrollment.countDocuments({ status: 'active' }), percentage: ((await Enrollment.countDocuments({ status: 'active' }) / totalEnrollments) * 100).toFixed(1) || "0" },
-                    { status: 'pending', count: await Enrollment.countDocuments({ status: 'pending' }), percentage: ((await Enrollment.countDocuments({ status: 'pending' }) / totalEnrollments) * 100).toFixed(1) || "0" }
+                    {
+                        status: 'active',
+                        count: activeEnrollmentCount,
+                        percentage:
+                            totalEnrollments > 0
+                                ? ((activeEnrollmentCount / totalEnrollments) * 100).toFixed(1)
+                                : '0',
+                    },
+                    {
+                        status: 'pending',
+                        count: pendingEnrollmentCount,
+                        percentage:
+                            totalEnrollments > 0
+                                ? ((pendingEnrollmentCount / totalEnrollments) * 100).toFixed(1)
+                                : '0',
+                    },
                 ],
                 userActivity,
                 paymentMethods,
@@ -182,13 +235,13 @@ router.get('/overview', async (req, res) => {
                     totalStudents,
                     totalTeachers,
                     totalParents,
-                    totalCourses: await Course.countDocuments(),
-                    totalEnrollments: totalEnrollments,
+                    totalCourses: await Course.countDocuments(activeCourseFilter()),
+                    totalEnrollments,
                     totalRevenue: revenueData.reduce((sum, item) => sum + item.totalRevenue, 0),
                     activeUsers,
-                    activeEnrollments: await Enrollment.countDocuments({ status: 'active' }),
-                    completionRate: completionRate
-                }
+                    activeEnrollments: activeEnrollmentCount,
+                    completionRate,
+                },
             }
         });
 
@@ -205,27 +258,42 @@ router.get('/overview', async (req, res) => {
 router.get('/student-progress', async (req, res) => {
     try {
         const studentProgress = await Enrollment.aggregate([
+            { $match: { ...activeEnrollmentFilter() } },
             {
                 $lookup: {
-                    from: "users",
-                    localField: "student",
-                    foreignField: "_id",
-                    as: "studentInfo"
-                }
+                    from: 'users',
+                    localField: 'student',
+                    foreignField: '_id',
+                    as: 'studentInfo',
+                },
             },
             {
                 $lookup: {
-                    from: "courses",
-                    localField: "course",
-                    foreignField: "_id",
-                    as: "courseInfo"
-                }
+                    from: 'courses',
+                    localField: 'course',
+                    foreignField: '_id',
+                    as: 'courseInfo',
+                },
             },
+            { $unwind: '$studentInfo' },
+            { $unwind: '$courseInfo' },
             {
-                $unwind: "$studentInfo"
-            },
-            {
-                $unwind: "$courseInfo"
+                $match: {
+                    $and: [
+                        {
+                            $or: [
+                                { 'studentInfo.deletedAt': null },
+                                { 'studentInfo.deletedAt': { $exists: false } },
+                            ],
+                        },
+                        {
+                            $or: [
+                                { 'courseInfo.deletedAt': null },
+                                { 'courseInfo.deletedAt': { $exists: false } },
+                            ],
+                        },
+                    ],
+                },
             },
             {
                 $project: {
@@ -269,7 +337,10 @@ router.get('/revenue', async (req, res) => {
         if (period === 'weekly') groupFormat = "%Y-%U";
         if (period === 'yearly') groupFormat = "%Y";
         
-        const matchStage = { status: 'completed' };
+        const matchStage = {
+            status: { $in: PAID_PAYMENT_STATUSES },
+            ...activePaymentFilter(),
+        };
         
         if (start) matchStage.createdAt = { $gte: new Date(start) };
         if (end) {
@@ -325,49 +396,58 @@ router.get('/metrics', async (req, res) => {
         previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
 
         // 1. Enrollment Rate (new students in selected period vs total)
-        const totalStudents = await User.countDocuments({ role: 'student' });
-        const newStudents = await User.countDocuments({ 
-            role: 'student', 
-            createdAt: { $gte: periodStart, $lt: now } 
+        const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
+        const newStudents = await User.countDocuments({
+            role: 'student',
+            createdAt: { $gte: periodStart, $lt: now },
+            ...activeUserFilter(),
         });
         const enrollmentRate = totalStudents > 0 ? 
             ((newStudents / totalStudents) * 100).toFixed(1) + '%' : '0%';
         
         // 2. Course Completion Rate in selected period
-        const completedEnrollments = await Enrollment.countDocuments({ 
+        const completedEnrollments = await Enrollment.countDocuments({
             status: 'completed',
-            enrollmentDate: { $gte: periodStart, $lt: now }
+            enrollmentDate: { $gte: periodStart, $lt: now },
+            ...activeEnrollmentFilter(),
         });
         const totalEnrollments = await Enrollment.countDocuments({
-            enrollmentDate: { $gte: periodStart, $lt: now }
+            enrollmentDate: { $gte: periodStart, $lt: now },
+            ...activeEnrollmentFilter(),
         });
         const completionRate = totalEnrollments > 0 ? 
             ((completedEnrollments / totalEnrollments) * 100).toFixed(1) + '%' : '0%';
         
         // 3. Student Satisfaction proxy in selected period
-        const highProgressEnrollments = await Enrollment.countDocuments({ 
+        const highProgressEnrollments = await Enrollment.countDocuments({
             progress: { $gte: 70 },
-            enrollmentDate: { $gte: periodStart, $lt: now }
+            enrollmentDate: { $gte: periodStart, $lt: now },
+            ...activeEnrollmentFilter(),
         });
         const satisfactionScore = totalEnrollments > 0 ? 
             ((highProgressEnrollments / totalEnrollments) * 4.8).toFixed(1) : '0.0';
         
         // 4. Revenue Growth (selected period vs previous period)
         const currentRevenueResult = await Payment.aggregate([
-            { $match: { 
-                status: 'completed',
-                createdAt: { $gte: periodStart, $lt: now }
-            }},
-            { $group: { _id: null, total: { $sum: "$amount" } } }
+            {
+                $match: {
+                    status: { $in: PAID_PAYMENT_STATUSES },
+                    createdAt: { $gte: periodStart, $lt: now },
+                    ...activePaymentFilter(),
+                },
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
         ]);
-        
-        // Previous period revenue
+
         const previousRevenueResult = await Payment.aggregate([
-            { $match: { 
-                status: 'completed',
-                createdAt: { $gte: previousPeriodStart, $lt: periodStart }
-            }},
-            { $group: { _id: null, total: { $sum: "$amount" } } }
+            {
+                $match: {
+                    status: { $in: PAID_PAYMENT_STATUSES },
+                    createdAt: { $gte: previousPeriodStart, $lt: periodStart },
+                    ...activePaymentFilter(),
+                },
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
         ]);
         
         const currentRevenue = currentRevenueResult[0]?.total || 0;

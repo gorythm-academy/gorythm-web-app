@@ -17,6 +17,7 @@ const AccountantReports = () => {
   const [payments, setPayments] = useState([]);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     Promise.all([portalGet('/accountant/payments'), payrollGet('/runs')])
@@ -24,8 +25,49 @@ const AccountantReports = () => {
         if (pRes.success) setPayments(pRes.payments || []);
         setRuns(rRes.runs || []);
       })
+      .catch((err) => setLoadError(err.message || 'Failed to load reports'))
       .finally(() => setLoading(false));
   }, []);
+
+  const exportPaymentRowPdf = (p) => {
+    const studentName = p.studentName || p.user?.name || 'Student';
+    const doc = new jsPDF();
+    drawPdfTable(doc, {
+      title: `Gorythm — Student payment`,
+      subtitle: `Individual payment record for ${studentName}.`,
+      headers: ['Student', 'Course', 'Amount (USD)', 'Status', 'Payment method', 'Record date'],
+      rows: [[
+        studentName,
+        p.courseName || p.course?.title || '—',
+        `$${Number(p.amount || 0).toFixed(2)}`,
+        p.status || '—',
+        p.paymentMethod || '—',
+        p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—',
+      ]],
+    });
+    const safeName = studentName.replace(/[^\w\-]+/g, '-').slice(0, 40);
+    doc.save(`payment-${safeName}.pdf`);
+  };
+
+  const exportPayrollRowPdf = (r) => {
+    const teacherName = r.teacher?.name || r.teacherName || 'Teacher';
+    const doc = new jsPDF();
+    drawPdfTable(doc, {
+      title: `Gorythm — Teacher payroll`,
+      subtitle: `Payroll run for ${teacherName} — ${formatMonth(r.monthKey)}.`,
+      headers: ['Teacher', 'Payroll month', 'Monthly salary', 'Deduction', 'Final salary', 'Status'],
+      rows: [[
+        teacherName,
+        formatMonth(r.monthKey),
+        `$${Number(r.monthlySalary || 0).toFixed(2)}`,
+        `$${Number(r.deduction || 0).toFixed(2)}`,
+        `$${Number(r.finalSalary || 0).toFixed(2)}`,
+        r.status || '—',
+      ]],
+    });
+    const safeName = teacherName.replace(/[^\w\-]+/g, '-').slice(0, 40);
+    doc.save(`payroll-${safeName}-${r.monthKey || 'month'}.pdf`);
+  };
 
   const exportPaymentsPdf = () => {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -77,6 +119,8 @@ const AccountantReports = () => {
     <div className="portal-page">
       <PortalPageHeader title="Reports" subtitle="Structured financial summaries with export to PDF" />
 
+      {loadError ? <PortalAlert variant="error">{loadError}</PortalAlert> : null}
+
       <div className="portal-hero portal-hero--accountant">
         <div className="portal-hero__icon" aria-hidden="true">
           <i className="fa-solid fa-file-alt" />
@@ -122,6 +166,7 @@ const AccountantReports = () => {
                       <th>Status</th>
                       <th>Payment method</th>
                       <th>Record date</th>
+                      <th>Download</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -135,6 +180,11 @@ const AccountantReports = () => {
                         <td>{p.status || '—'}</td>
                         <td>{p.paymentMethod || '—'}</td>
                         <td>{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
+                        <td>
+                          <button type="button" className="portal-report-row-dl" onClick={() => exportPaymentRowPdf(p)}>
+                            PDF
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -180,6 +230,7 @@ const AccountantReports = () => {
                       <th>Deduction</th>
                       <th>Final salary</th>
                       <th>Status</th>
+                      <th>Download</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -193,6 +244,11 @@ const AccountantReports = () => {
                         <td>${Number(r.deduction || 0).toFixed(2)}</td>
                         <td>${Number(r.finalSalary || 0).toFixed(2)}</td>
                         <td>{r.status || '—'}</td>
+                        <td>
+                          <button type="button" className="portal-report-row-dl" onClick={() => exportPayrollRowPdf(r)}>
+                            PDF
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

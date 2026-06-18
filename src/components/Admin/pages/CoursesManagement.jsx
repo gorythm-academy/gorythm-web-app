@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { getAuthToken } from '../../../utils/authStorage';
+import { getAuthToken, AUTH_REALM } from '../../../utils/authStorage';
 import { CATEGORY_ORDER } from '../../HomeSections/Courses';
 import { API_BASE_URL } from '../../../config/constants';
 import {
@@ -180,8 +180,9 @@ const CoursesManagement = () => {
     };
 
     useEffect(() => {
+        setCourses([]);
         fetchCourses();
-    }, [listTab]);
+    }, [listTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         const token = getAuthToken();
@@ -216,7 +217,7 @@ const CoursesManagement = () => {
     }, [isFormOpen]);
 
     const fetchGalleryImages = useCallback(async () => {
-        const token = getAuthToken();
+        const token = getAuthToken(AUTH_REALM.ADMIN);
         if (!token) return;
         setGalleryLoading(true);
         try {
@@ -274,9 +275,21 @@ const CoursesManagement = () => {
         setFormData((prev) => ({ ...prev, homepageImage: imagePath }));
     };
 
-    const handleDeleteGalleryImage = async (image) => {
+    const galleryDeleteBlocked = (image) => {
+        if (!image?.path) return true;
+        const editingId = editingCourse?._id ? String(editingCourse._id) : null;
+        const courseIds = image.usedByCourseIds || [];
+        if (courseIds.length === 0) return false;
+        if (!editingId) return true;
+        return courseIds.some((id) => String(id) !== editingId);
+    };
+
+    const handleDeleteGalleryImage = async (image, event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
         if (!image?.path) return;
-        if (image.usedBy > 0) {
+        const editingId = editingCourse?._id ? String(editingCourse._id) : null;
+        if (galleryDeleteBlocked(image)) {
             showAlert(
                 `This image is used by ${image.usedBy} course(s). Remove it from those courses first.`,
                 'warning'
@@ -285,14 +298,19 @@ const CoursesManagement = () => {
         }
         const confirmed = await showConfirm({
             title: 'Delete image?',
-            message: 'This will permanently remove the file from the server.',
+            message: editingId
+                ? 'This will remove the file and clear it from the course you are editing if saved.'
+                : 'This will permanently remove the file from the server.',
             confirmLabel: 'Delete',
             destructive: true,
         });
         if (!confirmed) return;
 
         try {
-            await deleteCourseGalleryImage(image.path);
+            await deleteCourseGalleryImage(image.path, {
+                excludeCourseId: editingId,
+                realm: AUTH_REALM.ADMIN,
+            });
             if (formData.homepageImage === image.path) {
                 setFormData((prev) => ({ ...prev, homepageImage: '' }));
             }
@@ -943,7 +961,7 @@ const CoursesManagement = () => {
                                         setFormData((prev) => ({
                                             ...prev,
                                             instructorId: id,
-                                            instructorName: t?.name || prev.instructorName,
+                                            instructorName: t?.name ?? '',
                                         }));
                                     }}
                                 >
@@ -1098,7 +1116,7 @@ const CoursesManagement = () => {
                                         {uploadingImage ? 'Uploading…' : 'Upload image'}
                                     </label>
                                     <span className="course-image-section__upload-note">
-                                        JPEG, PNG, WebP, or AVIF · max 8 MB
+                                        JPEG, PNG, WebP, or AVIF · large images are resized automatically
                                     </span>
                                 </div>
                             </div>
@@ -1144,9 +1162,13 @@ const CoursesManagement = () => {
                                                 <button
                                                     type="button"
                                                     className="course-image-section__tile-delete"
-                                                    onClick={() => handleDeleteGalleryImage(img)}
-                                                    disabled={img.usedBy > 0}
-                                                    title={img.usedBy > 0 ? 'In use by a course' : 'Delete image'}
+                                                    onClick={(e) => handleDeleteGalleryImage(img, e)}
+                                                    disabled={galleryDeleteBlocked(img)}
+                                                    title={
+                                                        galleryDeleteBlocked(img)
+                                                            ? 'In use by another course'
+                                                            : 'Delete image'
+                                                    }
                                                 >
                                                     <i className="fas fa-trash-alt" aria-hidden="true" />
                                                 </button>

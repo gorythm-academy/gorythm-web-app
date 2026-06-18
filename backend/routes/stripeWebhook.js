@@ -4,7 +4,12 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const Payment = require('../models/Payment');
 const logger = require('../utils/logger');
 const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
-const { onPaymentPaid } = require('../services/onPaymentPaid');
+const { fulfillStripeCheckoutSession } = require('../services/stripeCheckoutFulfillment');
+const { activePaymentFilter } = require('../utils/paymentQuery');
+
+async function updateActivePayment(query, update, options = {}) {
+    return Payment.findOneAndUpdate({ ...query, ...activePaymentFilter() }, update, options);
+}
 
 module.exports = async (req, res) => {
     if (!stripe) {
@@ -29,41 +34,13 @@ module.exports = async (req, res) => {
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object;
-                if (session.payment_status !== 'paid') {
-                    break;
-                }
-                const piId =
-                    typeof session.payment_intent === 'string'
-                        ? session.payment_intent
-                        : session.payment_intent?.id;
-
-                const stripePhone = session.customer_details?.phone || null;
-                const metaPhone = session.metadata?.phone ? String(session.metadata.phone).trim() : '';
-                const resolvedPhone =
-                    (stripePhone && String(stripePhone).trim()) || metaPhone || undefined;
-
-                const update = {
-                    status: 'paid',
-                    paymentMethod: session.payment_method_types?.[0] || 'card',
-                };
-                if (piId) update.stripePaymentIntentId = piId;
-                if (resolvedPhone) update.phone = resolvedPhone;
-
-                await Payment.findOneAndUpdate({ transactionId: session.id }, update);
-
-                const payment = await Payment.findOne({ transactionId: session.id })
-                    .populate('user')
-                    .populate('course');
-
-                if (payment?.course?._id) {
-                    await onPaymentPaid(payment);
-                }
+                await fulfillStripeCheckoutSession(session);
                 break;
             }
             case 'checkout.session.expired':
             case 'checkout.session.async_payment_failed': {
                 const session = event.data.object;
-                await Payment.findOneAndUpdate(
+                await updateActivePayment(
                     { transactionId: session.id },
                     {
                         status: 'failed',
@@ -78,7 +55,7 @@ module.exports = async (req, res) => {
             case 'payment_intent.payment_failed': {
                 const intent = event.data.object;
                 const msg = intent.last_payment_error?.message || 'Payment failed';
-                await Payment.findOneAndUpdate(
+                await updateActivePayment(
                     { stripePaymentIntentId: intent.id },
                     { status: 'failed', failureReason: msg }
                 );
@@ -96,7 +73,7 @@ module.exports = async (req, res) => {
                         : undefined;
 
                 if (paymentIntentId) {
-                    const payment = await Payment.findOneAndUpdate(
+                    const payment = await updateActivePayment(
                         { stripePaymentIntentId: paymentIntentId },
                         {
                             status: 'refunded',
@@ -118,7 +95,7 @@ module.exports = async (req, res) => {
                         : refund.payment_intent?.id;
 
                 if (paymentIntentId) {
-                    const payment = await Payment.findOneAndUpdate(
+                    const payment = await updateActivePayment(
                         { stripePaymentIntentId: paymentIntentId },
                         {
                             status: 'refunded',

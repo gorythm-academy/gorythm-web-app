@@ -35,6 +35,7 @@
   overflow: hidden;
   overflow: clip;
   cursor: pointer;
+  margin-bottom: clamp(40px, 5vw, 72px);
 
   &.video-section--playing {
     cursor: auto;

@@ -9,9 +9,15 @@ const Subscriber = require('../models/Subscriber');
 const ClassSchedule = require('../models/ClassSchedule');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
+const { activeUserFilter } = require('../utils/userQuery');
+const { activeCourseFilter } = require('../utils/courseQuery');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { activePaymentFilter } = require('../utils/paymentQuery');
 
 router.use(authMiddleware);
-router.use(allowRoles('admin', 'super-admin'));
+router.use(validateSessionUser);
+router.use(allowRoles('manager', 'super-admin'));
 
 // Dashboard stats endpoint
 router.get('/dashboard', async (req, res) => {
@@ -19,10 +25,10 @@ router.get('/dashboard', async (req, res) => {
         req.log.info('Fetching dashboard stats');
 
         // Get real data from MongoDB
-        const totalStudents = await User.countDocuments({ role: 'student' });
-        const totalTeachers = await User.countDocuments({ role: 'teacher' });
-        const totalParents = await User.countDocuments({ role: 'parent' });
-        const totalCourses = await Course.countDocuments({ isPublished: true });
+        const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
+        const totalTeachers = await User.countDocuments({ role: 'teacher', ...activeUserFilter() });
+        const totalParents = await User.countDocuments({ role: 'parent', ...activeUserFilter() });
+        const totalCourses = await Course.countDocuments({ isPublished: true, ...activeCourseFilter() });
         
         // Calculate total revenue
         const { activePaymentFilter } = require('../utils/paymentQuery');
@@ -34,7 +40,7 @@ router.get('/dashboard', async (req, res) => {
         
         const activeUsers = await User.countDocuments({
             isActive: true,
-            role: { $in: ['admin', 'super-admin', 'accountant'] }
+            role: { $in: ['manager', 'super-admin', 'accountant'] }
         });
 
         const recentActivities = await buildCrossTabRecentActivities();
@@ -42,11 +48,13 @@ router.get('/dashboard', async (req, res) => {
         const now = new Date();
         const dayOfWeek = now.getDay();
         const upcomingSchedules = await ClassSchedule.find()
-            .populate('course', 'title')
-            .populate('teacher', 'name')
+            .populate('course', 'title deletedAt')
+            .populate('teacher', 'name deletedAt')
             .sort({ dayOfWeek: 1, startTime: 1 })
             .limit(12);
-        const upcomingClasses = upcomingSchedules.map((s) => ({
+        const upcomingClasses = upcomingSchedules
+            .filter((s) => s.course && !s.course.deletedAt && s.teacher && !s.teacher.deletedAt)
+            .map((s) => ({
             id: String(s._id),
             course: s.course?.title || 'Course',
             teacher: s.teacher?.name || '—',
@@ -118,24 +126,24 @@ async function buildCrossTabRecentActivities() {
         contacts,
         subscribers,
     ] = await Promise.all([
-        Enrollment.find({})
+        Enrollment.find({ ...activeEnrollmentFilter() })
             .sort({ enrollmentDate: -1, createdAt: -1 })
             .limit(ACTIVITY_PER_SOURCE)
-            .populate('student', 'name')
-            .populate('course', 'title')
+            .populate('student', 'name deletedAt')
+            .populate('course', 'title deletedAt')
             .lean(),
-        Payment.find({})
+        Payment.find({ ...activePaymentFilter() })
             .sort({ createdAt: -1 })
             .limit(ACTIVITY_PER_SOURCE)
             .populate('user', 'name')
             .populate('course', 'title')
             .lean(),
-        User.find({ role: { $in: ['student', 'teacher', 'parent'] } })
+        User.find({ role: { $in: ['student', 'teacher', 'parent'] }, ...activeUserFilter() })
             .sort({ createdAt: -1 })
             .limit(ACTIVITY_PER_SOURCE)
             .select('name role createdAt')
             .lean(),
-        Course.find({})
+        Course.find({ ...activeCourseFilter() })
             .sort({ createdAt: -1 })
             .limit(ACTIVITY_PER_SOURCE)
             .populate('instructor', 'name')
@@ -154,6 +162,7 @@ async function buildCrossTabRecentActivities() {
     const rows = [];
 
     for (const e of enrollments) {
+        if (e.student?.deletedAt || e.course?.deletedAt) continue;
         const courseTitle = e.course?.title || 'a course';
         const line = e.course?.title
             ? `enrolled in ${courseTitle}`
@@ -247,21 +256,24 @@ router.get('/metrics', async (req, res) => {
         const Payment = require('../models/Payment');
         
         // 1. Enrollment Rate
-        const totalStudents = await User.countDocuments({ role: 'student' });
+        const studentFilter = { role: 'student', ...activeUserFilter() };
+        const totalStudents = await User.countDocuments(studentFilter);
         const lastMonth = new Date();
         lastMonth.setMonth(lastMonth.getMonth() - 1);
-        const newStudents = await User.countDocuments({ 
-            role: 'student', 
-            createdAt: { $gte: lastMonth } 
+        const newStudents = await User.countDocuments({
+            ...studentFilter,
+            createdAt: { $gte: lastMonth },
         });
         const enrollmentRate = totalStudents > 0 ? 
             ((newStudents / totalStudents) * 100).toFixed(1) + '%' : '0%';
         
         // 2. Course Completion Rate
-        const completedEnrollments = await Enrollment.countDocuments({ 
-            status: 'completed' 
+        const enrollmentBase = activeEnrollmentFilter();
+        const completedEnrollments = await Enrollment.countDocuments({
+            ...enrollmentBase,
+            status: 'completed',
         });
-        const totalEnrollments = await Enrollment.countDocuments();
+        const totalEnrollments = await Enrollment.countDocuments(enrollmentBase);
         const completionRate = totalEnrollments > 0 ? 
             ((completedEnrollments / totalEnrollments) * 100).toFixed(1) + '%' : '0%';
         
@@ -273,26 +285,34 @@ router.get('/metrics', async (req, res) => {
         const prevMonth = new Date();
         prevMonth.setMonth(prevMonth.getMonth() - 1);
         
+        const paidMatch = {
+            ...activePaymentFilter(),
+            status: { $in: ['paid', 'completed'] },
+        };
         const currentRevenue = await Payment.aggregate([
-            { $match: { 
-                status: 'completed',
-                createdAt: { 
-                    $gte: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
-                    $lt: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-                }
-            }},
-            { $group: { _id: null, total: { $sum: "$amount" } } }
+            {
+                $match: {
+                    ...paidMatch,
+                    createdAt: {
+                        $gte: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
+                        $lt: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
+                    },
+                },
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
         ]);
-        
+
         const previousRevenue = await Payment.aggregate([
-            { $match: { 
-                status: 'completed',
-                createdAt: { 
-                    $gte: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1),
-                    $lt: new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 1)
-                }
-            }},
-            { $group: { _id: null, total: { $sum: "$amount" } } }
+            {
+                $match: {
+                    ...paidMatch,
+                    createdAt: {
+                        $gte: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1),
+                        $lt: new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 1),
+                    },
+                },
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
         ]);
         
         const current = currentRevenue[0]?.total || 0;

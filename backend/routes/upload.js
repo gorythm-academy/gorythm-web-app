@@ -1,7 +1,16 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
+const {
+    normalizeCategory,
+    normalizeUploaderRole,
+    ensureCategoryDir,
+    ensureAllCategoryDirs,
+    categoryPublicPath,
+    resolveCategoryUploadFilename,
+    LMS_CATEGORIES,
+    FLAT_LMS_CATEGORIES,
+} = require('../utils/uploadStorage');
 
 const router = express.Router();
 
@@ -9,7 +18,7 @@ let multer;
 try {
     multer = require('multer');
 } catch (err) {
-    router.post('/', authMiddleware, (_req, res) => {
+    router.post('/', authMiddleware, validateSessionUser, (_req, res) => {
         res.status(503).json({
             success: false,
             error: 'File upload is not available on the server. In the backend folder run: npm ci --omit=dev',
@@ -19,10 +28,7 @@ try {
     return;
 }
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+ensureAllCategoryDirs();
 
 const ALLOWED_MIME = new Set([
     'application/pdf',
@@ -33,13 +39,48 @@ const ALLOWED_MIME = new Set([
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
+function uploadContext(req) {
+    const category = normalizeCategory(req.body?.category) || 'assignments';
+    if (!LMS_CATEGORIES.has(category)) {
+        throw new Error(`Invalid category. Use one of: ${[...LMS_CATEGORIES].join(', ')}`);
+    }
+    const uploaderRole = normalizeUploaderRole(req.user);
+    if (FLAT_LMS_CATEGORIES.has(category)) {
+        if (!req.user?.userId) {
+            throw new Error('Login required to upload files.');
+        }
+        return { category, uploaderRole: uploaderRole || 'shared' };
+    }
+    if (!uploaderRole) {
+        throw new Error('Only admin, teacher, or student accounts can upload here.');
+    }
+    return { category, uploaderRole };
+}
+
 const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const safe = String(file.originalname || 'file')
-            .replace(/[^a-zA-Z0-9._-]/g, '_')
-            .slice(0, 80);
-        cb(null, `${Date.now()}-${safe}`);
+    destination: (req, _file, cb) => {
+        try {
+            const { category, uploaderRole } = uploadContext(req);
+            const dir = ensureCategoryDir(category, uploaderRole);
+            cb(null, dir);
+        } catch (err) {
+            cb(err);
+        }
+    },
+    filename: (req, file, cb) => {
+        try {
+            const { category, uploaderRole } = uploadContext(req);
+            const name = resolveCategoryUploadFilename({
+                category,
+                uploaderRole,
+                originalName: file.originalname,
+                overrideName: req.body?.filename,
+                replacePath: req.body?.replacePath,
+            });
+            cb(null, name);
+        } catch (err) {
+            cb(err);
+        }
     },
 });
 
@@ -52,7 +93,7 @@ const upload = multer({
     },
 });
 
-router.post('/', authMiddleware, (req, res) => {
+router.post('/', authMiddleware, validateSessionUser, (req, res) => {
     upload.single('file')(req, res, (err) => {
         if (err) {
             return res.status(400).json({ success: false, error: err.message || 'Upload failed' });
@@ -61,10 +102,16 @@ router.post('/', authMiddleware, (req, res) => {
             if (!req.file) {
                 return res.status(400).json({ success: false, error: 'No file uploaded' });
             }
-            const url = `/api/uploads/${req.file.filename}`;
+            const { category, uploaderRole } = uploadContext(req);
+            const url = categoryPublicPath(category, uploaderRole, req.file.filename);
+            if (!url) {
+                return res.status(400).json({ success: false, error: 'Invalid upload path' });
+            }
             res.status(201).json({
                 success: true,
                 url,
+                category,
+                uploaderRole,
                 filename: req.file.filename,
                 originalName: req.file.originalname,
                 size: req.file.size,

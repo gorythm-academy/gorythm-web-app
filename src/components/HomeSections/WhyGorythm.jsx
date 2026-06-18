@@ -111,11 +111,10 @@ const WhyGorythmSection = () => {
           <div className="why-gorythm-content">
             <p className="why-gorythm-eyebrow why-gorythm_anim">Why Choose GoRythm</p>
             <h2 className="why-gorythm-title why-gorythm_anim">
-              A learning experience designed with purpose and care.
+              A learning experience designed with purpose & values
             </h2>
             <p className="why-gorythm-description why-gorythm_anim">
-            Gorythm is not about adding information. It is about refining your capacity to use it. Our research is organic, each study connected to the next, forming a coherent picture of human development.
-Qualified educators. Original research. A curriculum built around your intellect, your inner life, and your presence in the world. </p>
+            Gorythm is not about collecting information. It is about refining your capacity to use it. Our research is organic & each study is connected to the next, forming a coherent picture of human development. At Gorythm, we have qualified educators, original research & a curriculum built around your intellect, your life & your presence in the world.</p>
             <Link to="/contact" className="why-gorythm-cta why-gorythm_anim">
               Contact Us
             </Link>

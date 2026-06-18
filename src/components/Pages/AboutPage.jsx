@@ -32,9 +32,13 @@ import ahmedPng from '../../assets/images/our team/ahmed.png';
 import ahmedWebp from '../../assets/images/our team/ahmed.webp';
 import ahmedAvif from '../../assets/images/our team/ahmed.avif';
 
-import mahamPng from '../../assets/images/our team/maham.png';
-import mahamWebp from '../../assets/images/our team/maham.webp';
-import mahamAvif from '../../assets/images/our team/maham.avif';
+import muhammadMunimAnsariPng from '../../assets/images/our team/Muhammad Munim Ansari.png';
+import muhammadMunimAnsariWebp from '../../assets/images/our team/Muhammad Munim Ansari.webp';
+import muhammadMunimAnsariAvif from '../../assets/images/our team/Muhammad Munim Ansari.avif';
+
+import usmanAliPng from '../../assets/images/our team/Usman Ali.png';
+import usmanAliWebp from '../../assets/images/our team/Usman Ali.webp';
+import usmanAliAvif from '../../assets/images/our team/Usman Ali.avif';
 
 import fatimaPng from '../../assets/images/our team/fatima.png';
 import fatimaWebp from '../../assets/images/our team/fatima.webp';
@@ -60,22 +64,22 @@ const values = [
   {
     title: 'Integrity',
     description:
-      'We publish what we believe to be true. Our research is held to a high standard, and when certainty is not possible, we say so. Honesty is not a policy here. It is a conviction.',
+      'Integrity is the alignment of knowledge & wisdom. Every asset, lesson & concept we publish is the result of intensive research & precise execution. We operate with the understanding that credibility is built on consistent & uncompromising truth.',
   },
   {
     title: 'Community',
     description:
-      'Community Learning deepens in connection. We build environments where every learner belongs not as a number, but as a person with a name, a story, and a reason for being here.',
+      'True learning is a shared pursuit. We curate environments where individuals do not merely study in parallel—they evolve in community. At Gorythm, you are recognized by your unique perspective, your distinct journey & the vital purpose you bring to the collective space.',
   },
   {
     title: 'Excellence',
     description:
-      ' From course design to student support, we do not settle. We improve because the work demands it and because the people we serve deserve nothing less.',
+      'From the way we build our courses to the way we support our students, we refuse to settle for "good enough." We are committed to constant improvement—not for the applause, but because our mission demands it & our community deserves it.',
   },
   {
     title: 'Faith',
     description:
-      'Every value we hold is anchored in something larger than preference or opinion. Faith is not a filter we apply selectively. It is the foundation on which everything else is built on.',
+      'Gorythm prioritizes timeless truths over changing trends. Faith is not a separate piece of what we do—it is the core reality of who we are. It is the uncompromised foundation from which every program, insight & framework we offer is built.',
   },
 ];
 
@@ -90,10 +94,10 @@ const teamMembers = [
     raster: { avif: shaziaAvif, webp: shaziaWebp, png: shaziaPng },
   },
   {
-    name: 'Syed Kamran Ahmad',
-    role: 'Systems Engineering Manager',
-    country: 'Saudi Arabia',
-    raster: { avif: kamranAvif, webp: kamranWebp, png: kamranPng },
+    name: 'Sufiyan Nadeem',
+    role: 'CEO, Earth movers International',
+    country: 'United Arab Emirates',
+    raster: { avif: sufiyanAvif, webp: sufiyanWebp, png: sufiyanPng },
   },
   {
     name: 'Gülsen Yazici',
@@ -102,28 +106,10 @@ const teamMembers = [
     raster: { avif: gulsenAvif, webp: gulsenWebp, png: gulsenPng },
   },
   {
-    name: 'Farhan Gondal',
-    role: 'IT Consultant',
-    country: 'Pakistan',
-    raster: { avif: farhanAvif, webp: farhanWebp, png: farhanPng },
-  },
-  {
-    name: 'Sufiyan Nadeem',
-    role: 'CEO, Earth movers International',
-    country: 'United Arab Emirates',
-    raster: { avif: sufiyanAvif, webp: sufiyanWebp, png: sufiyanPng },
-  },
-  {
     name: 'Ahmed Bin Rashid',
     role: 'Graphics Designer and Poet',
     country: 'Pakistan',
     raster: { avif: ahmedAvif, webp: ahmedWebp, png: ahmedPng },
-  },
-  {
-    name: 'Maham Jaffery',
-    role: 'Communications Head, Gorythm',
-    country: 'Pakistan',
-    raster: { avif: mahamAvif, webp: mahamWebp, png: mahamPng },
   },
   {
     name: 'Fatima Rashid',
@@ -132,10 +118,34 @@ const teamMembers = [
     raster: { avif: fatimaAvif, webp: fatimaWebp, png: fatimaPng },
   },
   {
+    name: 'Muhammad Munim Ansari',
+    role: 'Administrator, Gorythm',
+    country: 'Pakistan',
+    raster: { avif: muhammadMunimAnsariAvif, webp: muhammadMunimAnsariWebp, png: muhammadMunimAnsariPng },
+  },
+  {
+    name: 'Usman Ali',
+    role: 'Human Resource, Gorythm',
+    country: 'Pakistan',
+    raster: { avif: usmanAliAvif, webp: usmanAliWebp, png: usmanAliPng },
+  },
+  {
     name: 'Syed Shahmeer Ahmed',
     role: 'Accounts, Gorythm',
     country: 'Pakistan',
     raster: { avif: shahmeerAvif, webp: shahmeerWebp, png: shahmeerPng },
+  },
+  {
+    name: 'Farhan Gondal',
+    role: 'IT Consultant',
+    country: 'Pakistan',
+    raster: { avif: farhanAvif, webp: farhanWebp, png: farhanPng },
+  },
+  {
+    name: 'Syed Kamran Ahmad',
+    role: 'Systems Engineering Manager',
+    country: 'Saudi Arabia',
+    raster: { avif: kamranAvif, webp: kamranWebp, png: kamranPng },
   },
 ];
 
@@ -143,13 +153,13 @@ const academyHighlights = [
   {
     title: 'Our Mission',
     description:
-      ' To make rigorous, meaningful education accessible to every learner grounded in faith, and built around the intellectual, emotional, and physical foundations needed to live with purpose and clarity.',
+      'To make rigorous & meaningful education accessible to all. By strengthening the intellectual, emotional & physical foundations of our learners, we empower them to live with purpose & clarity.',
     raster: { avif: academyMissionAvif, webp: academyMissionWebp, png: academyMissionPng },
   },
   {
     title: 'Our Vision',
     description:
-      'To become a global centre for human development where research, character, and self-knowledge converge, and where faith gives direction to everything we build. We exist to produce people who know who they are, why they are here, and how to act accordingly.',
+      'To be a global platform for human development—a place where research, character & knowledge meet, & where faith guides everything we teach. We exist to empower people to discover who they are, understand their purpose & live it out with intention.',
     raster: { avif: academyVisionAvif, webp: academyVisionWebp, png: academyVisionPng },
   },
 ];
@@ -280,23 +290,20 @@ const AboutPage = () => {
             <div className="about-page-dark__intro-copy">
               <h2>Four principles behind every program</h2>
               <p>
-              Everything you learn at Gorythm is ours researched, written, and structured in-house.
+              Everything you learn at Gorythm is well-researched, developed, reviewed & carefully structured to deliver clear & defined concepts.
               </p>
               <ul className="about-page-dark__intro-points">
                 <li>
-                  <strong>Concept First:</strong>                 We teach the why before the what. Our own curriculum is built to develop understanding, not memorisation.
-                  </li>
-                <li>
-                  <strong>Interactive Sessions:</strong> Every session is a conversation. Our content is designed to create space for reflection, dialogue, and real engagement.
-
+                  <strong>Concepts First:</strong> We teach the principle before the process. Our curriculum is built to develop understanding, not memorisation.
                 </li>
                 <li>
-                  <strong>Values-led:</strong> Each lesson connects to real life. Our material is written to build judgment, not just deliver answers.
-
+                  <strong>Interactive Sessions:</strong> Every session is a conversation. Our content is designed to create a space for reflection, dialogue & focused engagement.
                 </li>
                 <li>
-                  <strong>Whole-person:</strong> Academic progress is one part. Our programs are built around the whole person confidence, discipline, and self-awareness included.
- 
+                  <strong>Led by Values:</strong> Each lesson connects to real life. Our material is written to build judgement, not just to deliver answers.
+                </li>
+                <li>
+                  <strong>Personality Development:</strong> Academic progress is only a small part of the journey. Our courses are designed to nurture confidence, discipline, self-awareness & the skills needed for lifelong growth.
                 </li>
               </ul>
               <div className="about-page-dark__intro-actions">
@@ -341,22 +348,26 @@ const AboutPage = () => {
               </span>
               <div className="about-page-dark__section-copy">
                 <p>
-                Gorythm began as an initiative of Al Farhan Academy, born from the conviction that meaningful education was never just about content delivery. It was about shaping how a person understands themselves and the world around them.
-
+                  Gorythm began with a single, unshakeable conviction: education was never meant to be mere content delivery. It was always meant to be transformation.
                 </p>
                 <p>
-                We saw a gap. Learners were absorbing more than ever and integrating less. Facts without frameworks. Information without identity. Knowledge without the one thing that gives it direction, faith.
+                  We kept witnessing the exact same modern symptom—students who knew more but understood less; individuals who could absorb information but could not reflect; & knowledge that accumulated in the mind but never deepened into wisdom, character or faith.
                 </p>
                 <p>
-                So we built something different, a platform where every topic connects to a coherent worldview, every course is grounded in research, and every lesson points toward something larger than itself. We do not cover subjects in isolation. We cover every dimension of a human being because real development does not happen in parts. And at the centre of it all is a foundational belief: that truth is coherent, that the human being was created with purpose, and that education, at its highest, is an act of remembrance.
+                  Gorythm was built to fix that exact detachment.
                 </p>
                 <p>
-                A person is not one thing. And neither is real education.
-
+                  The ultimate goal was never to discard knowledge, but to challenge the illusions of what we think is correct.
                 </p>
                 <p>
-                Gorythm was built to meet every dimension of who you are intellectually, emotionally, physically, and spiritually. Everything we teach is filtered through faith, grounded in research, and oriented toward the kind of growth that actually lasts.
-</p>
+                  We believe that human beings were created with inherent depth across all dimensions. To neglect any single dimension is to compromise the whole; but bringing them into alignment is what unlocks the true capability.
+                </p>
+                <p>
+                  Our curriculum & experiences are engineered for precise outcomes such as building self-awareness, securing your faith & empowering you to live with absolute clarity in an increasingly fragmented world.
+                </p>
+                <p>
+                  That is what Gorythm is here for.
+                </p>
               </div>
             </div>
 
@@ -364,7 +375,7 @@ const AboutPage = () => {
           </section>
 
           <section className="about-page-dark__values">
-            <span className="about-page-dark__eyebrow">What guides every decision we make</span>
+            <span className="about-page-dark__eyebrow">Our core values</span>
             <div className="about-page-dark__value-grid">
               {values.map((item) => (
                 <article key={item.title} className="about-page-dark__value-card">

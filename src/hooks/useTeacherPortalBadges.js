@@ -26,7 +26,8 @@ export function useTeacherPortalBadges(enabled) {
           quizAttempts: getItemsNewSinceLastVisit(SEEN_QUIZ_ATTEMPTS, attempts).length,
         });
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('Teacher portal badges failed:', err);
         setBadges({ submissions: 0, quizAttempts: 0 });
       });
   }, [enabled]);

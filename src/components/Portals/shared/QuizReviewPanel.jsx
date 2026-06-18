@@ -24,6 +24,9 @@ export default function QuizReviewPanel({ review, title }) {
         <div key={idx} className="portal-quiz-review-question">
           <p className="portal-quiz-review-qtext">
             {idx + 1}. {item.question}
+            {item.chosenIndex < 0 ? (
+              <span className="portal-quiz-review-tag portal-quiz-review-tag--wrong"> Not answered</span>
+            ) : null}
           </p>
           <ul className="portal-quiz-review-options">
             {(item.options || []).map((opt, oi) => {

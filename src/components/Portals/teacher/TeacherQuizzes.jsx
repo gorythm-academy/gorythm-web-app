@@ -391,6 +391,7 @@ const TeacherQuizzes = () => {
               label="Study file (optional PDF)"
               value={form.resourceFileUrl}
               onChange={(url) => setForm({ ...form, resourceFileUrl: url })}
+              category="quizzes"
             />
 
             {form.questions.map((q, idx) => (

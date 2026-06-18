@@ -4,19 +4,19 @@ const SETTINGS_KEY = 'academy-settings';
 
 const SECTION_CONFIG = {
     general: {
-        roles: ['super-admin', 'admin'],
+        roles: ['super-admin', 'manager'],
         fields: ['academyName', 'contactEmail', 'supportPhone', 'websiteUrl', 'timezone', 'language', 'dateFormat'],
     },
     security: {
-        roles: ['super-admin', 'admin'],
+        roles: ['super-admin', 'manager'],
         fields: ['requireEmailVerification', 'requireAdminApproval', 'maxLoginAttempts', 'sessionTimeout', 'twoFactorAuth', 'passwordMinLength'],
     },
     email: {
-        roles: ['super-admin', 'admin'],
+        roles: ['super-admin', 'manager'],
         fields: ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPassword', 'fromEmail', 'fromName'],
     },
     payment: {
-        roles: ['super-admin', 'admin', 'accountant'],
+        roles: ['super-admin', 'manager', 'accountant'],
         fields: [
             'currency',
             'stripePublicKey',

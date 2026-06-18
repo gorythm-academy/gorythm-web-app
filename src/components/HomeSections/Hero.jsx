@@ -101,7 +101,7 @@ const HeroSection = () => {
     caption2: "SIGNS",
     caption3: "DISCOVER YOURSELF",
     description:
-    "Gorythm is a research centre & development platform dedicated to intellectual, emotional, & physical growth delivering structured, purposeful learning for every stage of life",
+    "Gorythm is a research centre & development platform, dedicated to intellectual, emotional & physical growth, delivering structured & purposeful learning for every stage of life",
     particles: [
       { top: '15%', left: '5%', size: '4px' },
       { top: '70%', left: '90%', size: '6px' },
