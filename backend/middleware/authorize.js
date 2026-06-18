@@ -1,7 +1,8 @@
 const { hasPermission } = require('../config/rolePermissions');
 
 const allowRoles = (...roles) => (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const { roleAllowed } = require('../constants/dashboardRoles');
+    if (!req.user || !roleAllowed(req.user.role, roles)) {
         return res.status(403).json({
             success: false,
             error: 'Forbidden: insufficient role',

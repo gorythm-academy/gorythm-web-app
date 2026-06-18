@@ -2,6 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader, FeeBadge } from '../shared/PortalUi';
 
+const paymentStatusLabel = (status) => {
+  if (status === 'paid' || status === 'completed') return 'Paid';
+  if (status === 'awaiting_review') return 'Awaiting review';
+  if (status === 'processing') return 'Processing';
+  if (status === 'rejected') return 'Rejected';
+  if (status === 'refunded') return 'Refunded';
+  if (status === 'failed') return 'Failed';
+  return status || '—';
+};
+
 const StudentFees = () => {
   const [enrollments, setEnrollments] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -123,7 +133,7 @@ const StudentFees = () => {
                     <tr key={r._id}>
                       <td>{r.course?.title || r.courseName || '—'}</td>
                       <td>${Number(r.amount || 0).toFixed(2)}</td>
-                      <td>{r.status}</td>
+                      <td>{paymentStatusLabel(r.status)}</td>
                       <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
                     </tr>
                   ))}

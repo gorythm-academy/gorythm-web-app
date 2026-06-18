@@ -4,6 +4,8 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../middleware/auth');
 const { validate, rules } = require('../middleware/validate');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
+const { isDashboardLoginRole } = require('../constants/dashboardRoles');
 
 const createToken = (user, rememberMe = false) => {
     const expiresIn = rememberMe
@@ -40,7 +42,7 @@ router.post(
         // Find user
         const user = await User.findOne({ email: emailNorm });
         if (!user) {
-            return res.status(400).json({ error: 'User not found' });
+            return res.status(400).json({ error: 'Invalid credentials' });
         }
         
         // Check password
@@ -99,7 +101,7 @@ router.post(
         const user = await User.findOne({ email: emailNorm });
 
         if (!user) {
-            return res.status(400).json({ error: 'User not found' });
+            return res.status(400).json({ error: 'Invalid credentials' });
         }
 
         const isMatch = await user.comparePassword(password);
@@ -115,8 +117,8 @@ router.post(
             return res.status(403).json({ error: 'Account has been removed' });
         }
 
-        if (!['super-admin', 'admin'].includes(user.role)) {
-            return res.status(403).json({ error: 'Only admin or super-admin can access admin dashboard' });
+        if (!isDashboardLoginRole(user.role)) {
+            return res.status(403).json({ error: 'Only manager or super-admin can access admin dashboard' });
         }
 
         user.lastLogin = new Date();
@@ -140,7 +142,7 @@ router.post(
     }
 });
 
-router.post('/change-initial-password', authMiddleware, async (req, res) => {
+router.post('/change-initial-password', authMiddleware, validateSessionUser, async (req, res) => {
     try {
         const { newPassword } = req.body;
         if (!newPassword || String(newPassword).length < 6) {

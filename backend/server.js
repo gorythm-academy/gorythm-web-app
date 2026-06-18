@@ -4,10 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 
-// Load backend/.env on self-hosted servers. On Vercel, env vars are injected — skip file load.
-if (!process.env.VERCEL) {
-    require('dotenv').config({ path: path.join(__dirname, '.env') });
-}
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -17,8 +14,11 @@ const enrollmentsRoute = require('./routes/enrollments');
 const paymentRoutes = require('./routes/payments');
 const stripeWebhookHandler = require('./routes/stripeWebhook');
 const analyticsRoutes = require('./routes/analytics');
-const settingsRoutes = require('./routes/settings');
 const blogCommentRoutes = require('./routes/blogComments');
+const researchCommentRoutes = require('./routes/researchComments');
+const { publicRouter: researchPublicRoutes, adminRouter: researchAdminRoutes } = require('./routes/research');
+const researchImageRoutes = require('./routes/researchImages');
+const adminResearchCommentRoutes = require('./routes/adminResearchComments');
 const contactRoutes = require('./routes/contact');
 const subscriberRoutes = require('./routes/subscribers');
 const userRoutes = require('./routes/users');
@@ -29,14 +29,20 @@ const promoVideoRoutes = require('./routes/promoVideos');
 const promoVideoAdminRoutes = require('./routes/promoVideos').adminRouter;
 const payrollRoutes = require('./routes/payroll');
 const { authRateLimiter } = require('./middleware/security');
+const { protectedUploadsGate } = require('./middleware/protectedUploads');
 const requestContext = require('./middleware/requestContext');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const User = require('./models/User');
+const { ensureAllCategoryDirs } = require('./utils/uploadStorage');
+const { ensureImageDir } = require('./utils/researchImageStorage');
+const { ensureProofDir } = require('./utils/paymentProofStorage');
+const { ensureImageDir: ensureCourseImageDir } = require('./utils/courseImageStorage');
+const { ensureThumbDir } = require('./utils/promoThumbnailStorage');
 
 const app = express();
 
-// Behind nginx / ALB / Vercel, proxies send X-Forwarded-For. Express must trust them so req.ip and
+// Behind nginx / ALB, proxies send X-Forwarded-For. Express must trust them so req.ip and
 // express-rate-limit see the real client IP (avoids ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
 // Default: 1 hop. Set TRUST_PROXY=2 if you have e.g. load balancer + nginx; TRUST_PROXY=0 only when
 // Node is reached directly with no reverse proxy.
@@ -56,6 +62,11 @@ const app = express();
 
 const ensureDefaultAdmin = async () => {
     try {
+        const migrated = await User.updateMany({ role: 'admin' }, { $set: { role: 'manager' } });
+        if (migrated.modifiedCount > 0) {
+            logger.info('Migrated admin role to manager', { count: migrated.modifiedCount });
+        }
+
         const rawEmail = process.env.DEFAULT_ADMIN_EMAIL;
         if (!rawEmail || !String(rawEmail).trim()) {
             logger.info('DEFAULT_ADMIN_EMAIL not set; skipping default admin seed');
@@ -85,7 +96,6 @@ const ensureDefaultAdmin = async () => {
 // Middleware
 const allowedOrigins = new Set([
     'http://localhost:3000',
-    'https://gorythm-client.vercel.app',
     'https://gorythmacademy.com',
     'https://www.gorythmacademy.com',
     process.env.FRONTEND_URL,
@@ -99,7 +109,7 @@ app.use(cors({
         return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Portal-Preview-Role'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(
     helmet({
@@ -108,7 +118,7 @@ app.use(
 );
 app.use(requestContext);
 
-// MongoDB Connection — cached for Vercel serverless warm reuse
+// MongoDB Connection
 const mongoUri = process.env.MONGODB_URI;
 
 let isConnecting = false;
@@ -151,12 +161,23 @@ const connectDB = async () => {
 // Start connecting immediately (warm start)
 connectDB();
 
-// Middleware: ensure DB is connected before handling any request
+// Middleware: ensure DB is connected before handling API requests
+const DB_BYPASS_PATHS = new Set(['/health', '/api/payments/webhook']);
+
 app.use(async (req, res, next) => {
+    if (DB_BYPASS_PATHS.has(req.path)) {
+        return next();
+    }
     if (mongoose.connection.readyState !== 1) {
         await connectDB();
     }
-    next();
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            error: 'Database unavailable. Please try again shortly.',
+        });
+    }
+    return next();
 });
 
 // Stripe webhook must receive raw body (before express.json)
@@ -169,12 +190,17 @@ app.post(
 app.use(express.json());
 
 const uploadsDir = path.join(__dirname, 'uploads');
+ensureAllCategoryDirs();
+ensureImageDir();
+ensureProofDir();
+ensureCourseImageDir();
+ensureThumbDir();
+app.use('/api/uploads', protectedUploadsGate);
 app.use(
     '/api/uploads',
     express.static(uploadsDir, {
         setHeaders(res, filePath) {
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-            res.setHeader('Access-Control-Allow-Origin', '*');
             if (filePath.endsWith('.avif')) res.type('image/avif');
             else if (filePath.endsWith('.webp')) res.type('image/webp');
         },
@@ -185,14 +211,18 @@ app.use(
 app.use('/api/auth', authRateLimiter, authRoutes);
 app.use('/api/admin/promo-videos', promoVideoAdminRoutes);
 app.use('/api/admin/course-images', courseImageRoutes);
+app.use('/api/admin/research', researchAdminRoutes);
+app.use('/api/admin/research-images', researchImageRoutes);
+app.use('/api/admin/research-comments', adminResearchCommentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes); 
 app.use('/api/enrollments', enrollmentsRoute);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/blog', blogCommentRoutes);
+app.use('/api/research', researchPublicRoutes);
+app.use('/api/research', researchCommentRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/portal', portalRoutes);
@@ -204,8 +234,8 @@ app.use('/api/payroll', payrollRoutes);
 // Health check
 app.get('/health', (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    res.json({ 
-        status: 'ok',
+    const payload = {
+        status: dbStatus === 'connected' ? 'ok' : 'degraded',
         service: 'Gorythm Academy API',
         version: '1.0.0',
         database: dbStatus,
@@ -225,7 +255,8 @@ app.get('/health', (req, res) => {
     'POST /api/payments/webhook',
     'POST /api/payments/:id/refund'
       ]
-    });
+    };
+    res.status(dbStatus === 'connected' ? 200 : 503).json(payload);
 });
 
 // Basic route
@@ -243,7 +274,7 @@ app.use(errorHandler);
 
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://gorythm-client.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://gorythmacademy.com';
     app.listen(PORT, () => {
         logger.info('Gorythm Academy backend started', {
             port: PORT,

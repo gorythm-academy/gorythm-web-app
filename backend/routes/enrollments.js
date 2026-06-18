@@ -5,21 +5,26 @@ const Course = require('../models/Course');
 const User = require('../models/User');
 const ClassSchedule = require('../models/ClassSchedule');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { enrichEnrollmentsWithPaymentStatus } = require('../services/enrollmentPaymentStatus');
 const { attachTeachersToEnrollments } = require('../services/courseTeachers');
 const { syncStudentUserLoginFromEnrollmentStatus } = require('../services/syncStudentAccountLogin');
 const { activeEnrollmentFilter, trashedEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { activeUserFilter } = require('../utils/userQuery');
+const { activeCourseFilter } = require('../utils/courseQuery');
 const { deleteStudentUserCompletely } = require('../utils/studentCleanup');
+const { permanentlyDeletePayments } = require('../services/trashCleanup');
 
 router.use(authMiddleware);
-router.use(allowRoles('super-admin', 'admin'));
-const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive createdAt';
+router.use(validateSessionUser);
+router.use(allowRoles('super-admin', 'manager'));
+const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive createdAt deletedAt';
 const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
 
 const coursePopulate = () => ({
     path: 'course',
-    select: 'title category instructorName instructor students',
+    select: 'title category instructorName instructor students deletedAt',
     populate: { path: 'instructor', select: 'name' },
 });
 
@@ -86,11 +91,14 @@ router.get('/', async (req, res) => {
         }
 
         const withTeachers = await attachTeachersToEnrollments(enriched);
+        const visible = trash
+            ? withTeachers
+            : withTeachers.filter((e) => !e.student?.deletedAt && !e.course?.deletedAt);
 
         res.json({
             success: true,
-            enrollments: withTeachers,
-            count: withTeachers.length,
+            enrollments: visible,
+            count: visible.length,
             trashCount,
         });
     } catch (error) {
@@ -106,7 +114,10 @@ router.get('/', async (req, res) => {
 // Class schedule slots for a course (admin: assign timeslot to student)
 router.get('/course-schedules/:courseId', async (req, res) => {
     try {
-        const course = await Course.findById(req.params.courseId).select('title');
+        const course = await Course.findOne({
+            _id: req.params.courseId,
+            ...activeCourseFilter(),
+        }).select('title');
         if (!course) {
             return res.status(404).json({ success: false, message: 'Course not found' });
         }
@@ -132,7 +143,7 @@ router.post('/', async (req, res) => {
         }
 
         // Validate course exists
-        const course = await Course.findById(courseId);
+        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) {
             return res.status(404).json({ success: false, message: 'Course not found' });
         }
@@ -145,11 +156,21 @@ router.post('/', async (req, res) => {
         if (student.role !== 'student') {
             return res.status(400).json({ success: false, message: 'Selected user is not a student' });
         }
-        // Do not block on `isActive`: pending learners use isActive=false for portal login, but admins
-        // must still be able to assign courses from Students data / Enroll Student.
+        if (student.deletedAt) {
+            return res.status(400).json({ success: false, message: 'Student is in trash. Restore the account first.' });
+        }
+
+        const courseActive = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
+        if (!courseActive) {
+            return res.status(400).json({ success: false, message: 'Course is not available' });
+        }
 
         // Check if already enrolled in this course
-        const alreadyEnrolled = await Enrollment.findOne({ student: student._id, course: courseId });
+        const alreadyEnrolled = await Enrollment.findOne({
+            student: student._id,
+            course: courseId,
+            ...activeEnrollmentFilter(),
+        });
         if (alreadyEnrolled) {
             return res.status(400).json({ success: false, message: 'Student is already enrolled in this course' });
         }
@@ -157,12 +178,14 @@ router.post('/', async (req, res) => {
         // Reuse the placeholder row (course: null) if one exists — avoids creating a duplicate row
         const placeholder = await Enrollment.findOne({
             student: student._id,
-            $or: [{ course: null }, { course: { $exists: false } }]
+            $or: [{ course: null }, { course: { $exists: false } }],
+            ...activeEnrollmentFilter(),
         });
 
         let enrollment;
         if (placeholder) {
             placeholder.course = courseId;
+            placeholder.deletedAt = null;
             placeholder.status = status || 'pending';
             placeholder.progress = progress || 0;
             placeholder.grade = grade || null;
@@ -217,7 +240,10 @@ router.put('/:id', async (req, res) => {
     try {
         const { status, progress, grade, lastAccessed, courseId, enrollmentDate, paymentStatus, assignedScheduleId } = req.body;
 
-        const enrollment = await Enrollment.findById(req.params.id)
+        const enrollment = await Enrollment.findOne({
+            _id: req.params.id,
+            ...activeEnrollmentFilter(),
+        })
             .populate('student', STUDENT_POPULATE_WITH_ENROLLED)
             .populate(coursePopulate());
 
@@ -314,6 +340,25 @@ router.patch('/:id/restore', async (req, res) => {
         if (!enrollment) {
             return res.status(404).json({ success: false, message: 'Enrollment not found in trash' });
         }
+        const student = await User.findOne({ _id: enrollment.student, ...activeUserFilter() });
+        if (!student) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot restore enrollment while the student is in trash. Restore the student first.',
+            });
+        }
+        if (enrollment.course) {
+            const course = await Course.findOne({
+                _id: enrollment.course,
+                ...activeCourseFilter(),
+            }).select('_id');
+            if (!course) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot restore enrollment while the course is in trash. Restore the course first.',
+                });
+            }
+        }
         if (enrollment.course && enrollment.student) {
             await Course.findByIdAndUpdate(enrollment.course, {
                 $addToSet: { students: enrollment.student },
@@ -341,6 +386,13 @@ router.delete('/:id/permanent', async (req, res) => {
                 success: false,
                 message: 'Enrollment must be in trash before permanent delete',
             });
+        }
+
+        const paymentFilter = {};
+        if (enrollment.course) paymentFilter.course = enrollment.course;
+        if (enrollment.student) paymentFilter.user = enrollment.student;
+        if (Object.keys(paymentFilter).length) {
+            await permanentlyDeletePayments(paymentFilter);
         }
 
         if (enrollment.course) {
@@ -422,12 +474,15 @@ router.post('/bulk-update', async (req, res) => {
         }
         
         await Enrollment.updateMany(
-            { _id: { $in: enrollmentIds } },
+            { _id: { $in: enrollmentIds }, ...activeEnrollmentFilter() },
             updateData
         );
 
         if (status !== undefined) {
-            const rows = await Enrollment.find({ _id: { $in: enrollmentIds } }).select('student status');
+            const rows = await Enrollment.find({
+                _id: { $in: enrollmentIds },
+                ...activeEnrollmentFilter(),
+            }).select('student status');
             await Promise.all(
                 rows.map((row) =>
                     syncStudentUserLoginFromEnrollmentStatus(row.student, row.status)
@@ -451,10 +506,11 @@ router.post('/bulk-update', async (req, res) => {
 // Get enrollment statistics
 router.get('/stats', async (req, res) => {
     try {
-        const total = await Enrollment.countDocuments();
-        const active = await Enrollment.countDocuments({ status: 'active' });
-        const completed = await Enrollment.countDocuments({ status: 'completed' });
-        const pending = await Enrollment.countDocuments({ status: 'pending' });
+        const activeFilter = activeEnrollmentFilter();
+        const total = await Enrollment.countDocuments(activeFilter);
+        const active = await Enrollment.countDocuments({ ...activeFilter, status: 'active' });
+        const completed = await Enrollment.countDocuments({ ...activeFilter, status: 'completed' });
+        const pending = await Enrollment.countDocuments({ ...activeFilter, status: 'pending' });
         
         res.json({
             success: true,

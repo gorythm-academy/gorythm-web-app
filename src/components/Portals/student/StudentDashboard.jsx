@@ -36,7 +36,6 @@ const StudentDashboard = () => {
 
   return (
     <div className="portal-page">
-      {data.previewMode ? <PortalAlert type="info">{data.message}</PortalAlert> : null}
       <PortalPageHeader title="Student Dashboard" subtitle="Your learning overview" />
 
       <div className="portal-hero portal-hero--student">

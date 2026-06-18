@@ -89,10 +89,10 @@ export const SatelliteMaintenancePage = () => (
     title="IQ — Intellectual Quotient: How you think, learn, and grow"
     description="Intelligence is not what you know, it is how you engage with what you do not know yet. We develop intellectual creativity, critical thinking, logical reasoning, pattern recognition, and the capacity to learn independently. We build curiosity, adaptability of thought, and the courage to question what you think you know. Real intelligence is not fixed. It is forged."
     points={[
-      'Critical Thinking: Analyse deeply before deciding. Examine assumptions and arrive at conclusions that hold, not just ones that feel right.',
-      'Pattern Recognition: See connections others miss across disciplines and contexts. The mind that finds structure in complexity is the mind that leads.',
-      'Independent Learning: Take ownership of your growth. The ability to direct your own learning is one of the rarest things education can build.',
-      'Adaptability of Thought: Revise beliefs when evidence calls for it. Hold ideas firmly enough to defend them, loosely enough to release them. That tension is the mark of a developed intellect. The mind that thinks well, learns well. The mind that learns well, lives well.',
+      'Critical Thinking: Analyze deeply before deciding. Examine your assumptions & arrive at conclusions that truly hold up, rather than settling for what simply feels right.',
+      'Pattern Recognition: See connections others miss across various disciplines & contexts. The mind that finds structure in complexity is the mind that leads.',
+      'Independent Learning: Take absolute command of your personal evolution. The capacity to self-direct your learning is the ultimate competitive advantage in a changing world.',
+      'Adaptability of Thought: Revise your beliefs when evidence calls for it. Hold ideas firmly enough to defend them, but loosely enough to release them when necessary. That tension is the mark of a developed intellect.',
     ]}
   />
 );
@@ -103,12 +103,12 @@ export const ExplorationMissionsPage = () => (
     ringKey="eq"
     subtitle="How We Support Growth"
     title="EQ — Emotional Quotient: How you feel, connect, and lead."
-    description="At GoRythm, education is not limited to academics. We nurture emotional awareness, discipline, leadership, and empathy through Islamic teachings so learners grow in both mindset and manners."
+    description="Emotional intelligence is not softness. It is precision. We develop self-awareness, empathy, emotional regulation & the ability to act with clarity under pressure. Our approach is grounded in resilience, moral integrity & a sense of purpose that holds steady when circumstances do not. Character is not built in comfort. It is built in the moments that test it."
     points={[
-      'Emotional intelligence is not softness; it is precision. We develop self-awareness, empathy, emotional regulation, and the ability to act with clarity under pressure. Deepened by resilience in adversity, moral integrity, and the inner sense of purpose that keeps you grounded when circumstances are not. Character is not built in comfort. It is built in the moments that test it.',
-      'Self-Awareness: Know your triggers, patterns, and emotional landscape honestly. The person who understands themselves is rarely controlled by circumstances. Empathy Hold space for others without losing your own centre. Real empathy is not agreement — it is presence, without losing yourself in it.',
-      'Clarity Under Pressure: Respond rather than react when things get hard. The ability to stay clear when everything pulls toward panic is one of the highest forms of emotional strength. Moral Integrity Act in alignment with your values, especially when no one is watching. Consistency between belief and behavior is the foundation of a trustworthy character. The person who knows themselves leads others. The person who leads with character changes them.',
-      'A supportive environment that helps learners build confidence and akhlaq',
+      'Self-Awareness: Know your triggers, patterns & emotional landscape. The person who truly understands himself is rarely controlled by circumstances.',
+      'Empathy: Hold space for others without losing your own centre. Empathy is not agreement — it is presence, without losing yourself in the process.',
+      'Clarity Under Pressure: Respond rather than react when things get hard. Staying clear when everything pulls toward panic is one of the highest forms of emotional strength.',
+      'Moral Integrity: Stay aligned with your values, especially when no one is watching. Consistency between belief & behavior is the foundation of a trustworthy character.',
     ]}
   />
 );
@@ -118,13 +118,13 @@ export const ResearchObservationPage = () => (
   <MissionPageLayout
     ringKey="phq"
     subtitle="How We Support Growth"
-    title="PhQ — Physical Health Quotient: How you move, recover, and sustain."
-    description="Our online model combines qualified teachers, structured curriculum, and flexible scheduling so families can stay consistent in Islamic learning from anywhere in the world."
+    title="PhQ — Physical Health Quotient"
+    description="How we move, recover & endure. Our body is not separate from our mind; rather it is the foundation of it. We practice discipline, vitality & daily habits necessary to fuel our highest ambitions over the long run. True physical health is rooted in somatic awareness, strategic recovery & a deep understanding of how our physical state dictates our mental & emotional resilience. The body is a vessel. We should treat it with ultimate respect."
     points={[
-      'The body is not separate from the mind; it is the condition of it. We develop discipline, vitality, and the habits that sustain the energy to pursue meaningful goals over time. Extended by body awareness, rest as a practice, and a deep understanding of how physical state shapes mental performance and emotional resilience. The body is a trust. We treat it accordingly. Discipline & Vitality Build movement habits that serve your energy, not just your appearance. Consistency over intensity every time.',
-      'Body Awareness: Listen to what your body is telling you before it starts shouting. Awareness precedes every meaningful physical change.',
-      'Rest as a Practice Recovery is not laziness; it is the foundation of sustained performance. The person who rests well works well.',
-      'Body-Mind Connection: Your physical state directly shapes your mental clarity and emotional resilience. How you carry your body determines, in part, how you carry everything else. Think with depth. Feel with clarity. Live with discipline.',
-        ]}
+      'Discipline & Vitality: Practice habits that maximize our energy, not just our appearance. True power comes from consistency over intensity.',
+      'Somatic Awareness: Listen to the subtle signals our body sends before they become disasters. Awareness is the prerequisite for transformation.',
+      'Strategic Recovery: Rest is not a luxury, nor is it laziness. It is the active & non-negotiable foundation of high performance.',
+      'The Mind-Body Synergy: Our physical state directly governs our mental clarity. How we carry our body ultimately dictates how we carry our life.',
+    ]}
   />
 );

@@ -7,6 +7,7 @@ const quizAttemptSchema = new mongoose.Schema(
         answers: [{ type: Number }],
         score: { type: Number, default: 0 },
         submittedAt: { type: Date, default: Date.now },
+        deletedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

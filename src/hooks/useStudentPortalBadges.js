@@ -30,7 +30,8 @@ export function useStudentPortalBadges(enabled) {
           content: getItemsNewSinceLastVisit(SEEN_CONTENT, resources).length,
         });
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('Student portal badges failed:', err);
         setBadges({ assignments: 0, quizzes: 0, content: 0 });
       });
   }, [enabled]);

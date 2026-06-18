@@ -781,44 +781,7 @@
     }
 }
 
-.payments-list-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 1rem;
-
-    .payments-list-tab {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid #e2e8f0;
-        background: #fff;
-        color: #475569;
-        border-radius: 999px;
-        padding: 8px 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-
-        &.active {
-            border-color: var(--color-accent);
-            background: rgba(var(--color-accent-rgb), 0.1);
-            color: #1e293b;
-        }
-    }
-
-    .payments-tab-badge {
-        min-width: 20px;
-        height: 20px;
-        padding: 0 6px;
-        border-radius: 999px;
-        background: #ef4444;
-        color: #fff;
-        font-size: 0.75rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-}
+// Active / Trash tabs: see _admin-list-tabs.scss (imported via Admin.scss)
 
 .payments-bank-config {
     margin-bottom: 1.5rem;

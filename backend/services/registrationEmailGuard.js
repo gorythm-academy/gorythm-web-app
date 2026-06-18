@@ -1,6 +1,6 @@
 const User = require('../models/User');
 
-const STAFF_ROLES = ['admin', 'super-admin', 'accountant', 'teacher', 'parent'];
+const STAFF_ROLES = ['manager', 'super-admin', 'accountant', 'teacher', 'parent'];
 const PORTAL_DOMAIN = '@gorythmacademy.com';
 
 function isPortalEmail(email) {

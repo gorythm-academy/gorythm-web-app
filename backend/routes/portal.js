@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
-const { allowPortalRoles, getPortalActorId, previewDashboardPayload } = require('../middleware/portalAccess');
+const { allowPortalRoles, getPortalActorId } = require('../middleware/portalAccess');
 const PayrollRun = require('../models/PayrollRun');
 const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const TeacherAttendance = require('../models/TeacherAttendance');
@@ -12,6 +12,8 @@ const {
     calculatePayrollAmounts,
     buildPayrollRun,
     persistPayrollRun,
+    payrollRunTeacherId,
+    payrollRunTeacherDisplay,
 } = require('../services/payrollCalculation');
 const { upsertTeacherPayrollProfile } = require('../services/teacherPayrollProfile');
 const { getTeacherPayrollAttendanceDetail } = require('../services/teacherPayrollAttendance');
@@ -49,23 +51,20 @@ const {
 const { isValidAttendanceStatus } = require('../constants/attendanceStatuses');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activeCourseFilter, isCourseTrashed } = require('../utils/courseQuery');
-const { isUserTrashed } = require('../utils/userQuery');
+const { activeUserFilter, isUserTrashed } = require('../utils/userQuery');
+const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter, studentPaymentsFilter } = require('../utils/paymentQuery');
+const { serializePayments } = require('../utils/serializePayment');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
+const {
+    assertTeacherOwnsCourse,
+    getTeacherCourseIds,
+} = require('../services/teacherCourseAccess');
+const { stripCourseModulesForStudent } = require('../utils/stripCourseModulesForStudent');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 router.use(authMiddleware);
-router.use(async (req, res, next) => {
-    if (req.portalPreview) return next();
-    const actorId = req.user?.userId || req.user?.id;
-    if (!actorId) return next();
-    if (!['student', 'teacher', 'parent', 'accountant'].includes(req.user.role)) return next();
-
-    const actor = await User.findById(actorId).select('deletedAt');
-    if (!actor || actor.deletedAt) {
-        return res.status(403).json({ success: false, error: 'Account is disabled' });
-    }
-    next();
-});
+router.use(validateSessionUser);
 router.use((req, res, next) => {
     req.portalActorId = getPortalActorId(req);
     next();
@@ -79,8 +78,8 @@ function dropTrashedCourses(enrollments = []) {
     return enrollments.filter((e) => e.course && !isCourseTrashed(e.course));
 }
 
-function emptyList(res, extra = {}) {
-    return res.json({ success: true, previewMode: true, ...extra });
+function unauthorized(res) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
 /** Course IDs where the student has an active enrollment (LMS content access). */
@@ -111,6 +110,12 @@ async function getStudentCourseIds(studentId) {
 async function assertParentChild(parentId, studentId) {
     const link = await ParentStudentLink.findOne({ parent: parentId, student: studentId });
     if (!link) {
+        const err = new Error('Child not linked to this parent');
+        err.status = 403;
+        throw err;
+    }
+    const student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() });
+    if (!student) {
         const err = new Error('Child not linked to this parent');
         err.status = 403;
         throw err;
@@ -163,21 +168,6 @@ function isFutureAttendanceDate(dateInput) {
     return dayStart.getTime() > today.getTime();
 }
 
-async function assertTeacherOwnsCourse(teacherId, courseId) {
-    const course = await Course.findOne({ _id: courseId, instructor: teacherId });
-    if (!course) {
-        const err = new Error('Not your course');
-        err.status = 403;
-        throw err;
-    }
-    return course;
-}
-
-async function getTeacherCourseIds(teacherId) {
-    if (!teacherId) return [];
-    return Course.find({ instructor: teacherId }).distinct('_id');
-}
-
 /** Quizzes on instructor courses or created by this teacher (legacy/admin data). */
 function teacherQuizScopeFilter(teacherId, courseIds) {
     const clauses = [{ teacher: teacherId }];
@@ -185,11 +175,10 @@ function teacherQuizScopeFilter(teacherId, courseIds) {
     return { $or: clauses };
 }
 
-/** Assignments on instructor courses or owned by this teacher. */
+/** Assignments on courses this teacher instructs (scoped to roster). */
 function teacherAssignmentScopeFilter(teacherId, courseIds) {
-    const clauses = [{ teacher: teacherId }];
-    if (courseIds?.length) clauses.push({ course: { $in: courseIds } });
-    return { $or: clauses };
+    if (courseIds?.length) return { course: { $in: courseIds } };
+    return { teacher: teacherId };
 }
 
 async function findQuizForTeacher(teacherId, quizId) {
@@ -493,7 +482,7 @@ async function loadStudentAttendancePeriodView(studentId, courseId, period, date
 router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return res.json(previewDashboardPayload('student'));
+        if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
             .populate('course', 'title category price deletedAt');
         const enrollments = dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(
@@ -505,7 +494,10 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
             .filter((e) => e.status === 'active' && e.course?._id)
             .map((e) => e.course._id);
 
-        const attendance = await AttendanceRecord.find({ student: studentId });
+        const attendance = await AttendanceRecord.find({
+            student: studentId,
+            ...(courseIds.length ? { course: { $in: courseIds } } : { course: { $in: [] } }),
+        });
         const attendanceRate = attendancePresentRate(attendance);
 
         const now = new Date();
@@ -548,7 +540,7 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
 router.get('/student/courses', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { enrollments: [] });
+        if (!studentId) return unauthorized(res);
         const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
             .populate('course', 'title category description price duration level instructorName deletedAt')
             .sort({ enrollmentDate: -1 });
@@ -566,7 +558,7 @@ router.get('/student/courses', allowPortalRoles('student'), async (req, res) => 
 router.get('/student/fees', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { enrollments: [], payments: [] });
+        if (!studentId) return unauthorized(res);
         const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
             .populate('course', 'title price deletedAt')
             .sort({ updatedAt: -1 });
@@ -575,9 +567,7 @@ router.get('/student/fees', allowPortalRoles('student'), async (req, res) => {
             studentId,
             req.user.email
         ));
-        const payments = await Payment.find({
-            $or: [{ user: studentId }, { email: req.user.email }],
-        })
+        const payments = await Payment.find(studentPaymentsFilter(studentId, req.user.email))
             .populate('course', 'title')
             .sort({ createdAt: -1 })
             .limit(50);
@@ -590,10 +580,11 @@ router.get('/student/fees', allowPortalRoles('student'), async (req, res) => {
 router.get('/student/schedule', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { schedules: [], dayLabels: DAY_LABELS });
+        if (!studentId) return unauthorized(res);
 
         const enrollments = await Enrollment.find({
             ...withActiveEnrollments(studentId),
+            status: 'active',
             course: { $ne: null },
             assignedSchedule: { $ne: null },
         }).select('assignedSchedule');
@@ -622,7 +613,7 @@ router.get('/student/schedule', allowPortalRoles('student'), async (req, res) =>
 router.get('/student/assignments', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { assignments: [] });
+        if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
         const assignments = await Assignment.find({ course: { $in: courseIds }, status: 'published' })
             .populate('course', 'title')
@@ -644,19 +635,22 @@ router.get('/student/assignments', allowPortalRoles('student'), async (req, res)
 router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return res.status(400).json({ success: false, error: 'Preview mode: quiz not available' });
+        if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const quiz = await Quiz.findById(req.params.quizId).populate('course', 'title');
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
         const courseIds = await getStudentCourseIds(studentId);
         if (!courseIds.some((id) => String(id) === String(quiz.course._id || quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
+        const attempt = await QuizAttempt.findOne({ quiz: quiz._id, student: studentId });
+        if (quiz.status !== 'published' && !attempt) {
+            return res.status(403).json({ success: false, error: 'Quiz is not available' });
+        }
         const obj = quiz.toObject();
         obj.questions = (obj.questions || []).map((q) => {
             const { correctAnswer, ...rest } = q;
             return rest;
         });
-        const attempt = await QuizAttempt.findOne({ quiz: quiz._id, student: studentId });
         let review = null;
         if (attempt) {
             const fullQuiz = await Quiz.findById(quiz._id).select('questions totalMarks title');
@@ -671,14 +665,16 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
 router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { quizzes: [] });
+        if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
         const attempts = await QuizAttempt.find({ student: studentId });
         const attemptQuizIds = attempts.map((a) => a.quiz).filter(Boolean);
         const quizzes = await Quiz.find({
             $or: [
                 { course: { $in: courseIds }, status: 'published' },
-                ...(attemptQuizIds.length ? [{ _id: { $in: attemptQuizIds } }] : []),
+                ...(attemptQuizIds.length
+                    ? [{ _id: { $in: attemptQuizIds }, course: { $in: courseIds } }]
+                    : []),
             ],
         })
             .populate('course', 'title')
@@ -699,13 +695,17 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
 router.get('/student/content', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { courses: [], resources: [] });
+        if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
         const courses = await Course.find({ _id: { $in: courseIds } }).select('title modules');
         const resources = await Resource.find({ course: { $in: courseIds } })
             .populate('course', 'title')
             .sort({ createdAt: -1 });
-        res.json({ success: true, courses, resources });
+        res.json({
+            success: true,
+            courses: courses.map(stripCourseModulesForStudent),
+            resources,
+        });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load content' });
     }
@@ -714,8 +714,12 @@ router.get('/student/content', allowPortalRoles('student'), async (req, res) => 
 router.get('/student/attendance', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { records: [] });
-        const records = await AttendanceRecord.find({ student: studentId })
+        if (!studentId) return unauthorized(res);
+        const courseIds = await getStudentCourseIds(studentId);
+        const records = await AttendanceRecord.find({
+            student: studentId,
+            ...(courseIds.length ? { course: { $in: courseIds } } : { course: { $in: [] } }),
+        })
             .populate('course', 'title')
             .sort({ date: -1 })
             .limit(100);
@@ -728,7 +732,7 @@ router.get('/student/attendance', allowPortalRoles('student'), async (req, res) 
 router.get('/student/attendance/courses', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { courses: [] });
+        if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
         const courses = await Course.find({ _id: { $in: courseIds } }).select('title').sort({ title: 1 });
         res.json({ success: true, courses });
@@ -740,7 +744,7 @@ router.get('/student/attendance/courses', allowPortalRoles('student'), async (re
 router.get('/student/attendance/view', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return emptyList(res, { records: [], calendarRows: [], summary: emptyAttendanceCounts() });
+        if (!studentId) return unauthorized(res);
         const { courseId, period = 'daily', date } = req.query;
         if (!courseId) return res.status(400).json({ success: false, error: 'courseId required' });
         const payload = await loadStudentAttendancePeriodView(studentId, courseId, period, date);
@@ -754,7 +758,7 @@ router.get('/student/attendance/view', allowPortalRoles('student'), async (req, 
 router.post('/student/submissions', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return res.status(400).json({ success: false, error: 'Preview mode: submit not available' });
+        if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const { assignmentId, text, attachments = [] } = req.body;
         const hasText = String(text || '').trim().length > 0;
         const hasFiles = Array.isArray(attachments) && attachments.length > 0;
@@ -763,13 +767,16 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
         }
         const assignment = await Assignment.findById(assignmentId);
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
+        if (assignment.status !== 'published') {
+            return res.status(403).json({ success: false, error: 'Assignment is not available' });
+        }
         const courseIds = await getStudentCourseIds(studentId);
         if (!courseIds.some((id) => String(id) === String(assignment.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
         const existing = await AssignmentSubmission.findOne({ assignment: assignmentId, student: studentId });
-        if (existing?.status === 'graded') {
-            return res.status(400).json({ success: false, error: 'This assignment is already graded and cannot be resubmitted' });
+        if (assignment.dueDate && new Date(assignment.dueDate) < new Date() && !existing) {
+            return res.status(400).json({ success: false, error: 'The due date for this assignment has passed' });
         }
         let submission;
         if (existing) {
@@ -796,10 +803,13 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
 router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
-        if (!studentId) return res.status(400).json({ success: false, error: 'Preview mode: quiz not available' });
+        if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const { quizId, answers = [] } = req.body;
         const quiz = await Quiz.findById(quizId);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
+        if (quiz.status !== 'published') {
+            return res.status(403).json({ success: false, error: 'Quiz is not available' });
+        }
         const courseIds = await getStudentCourseIds(studentId);
         if (!courseIds.some((id) => String(id) === String(quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
@@ -832,15 +842,14 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
 router.get('/teacher/dashboard', allowPortalRoles('teacher'), async (req, res) => {
     try {
         const teacherId = getPortalActorId(req);
-        if (!teacherId) return res.json(previewDashboardPayload('teacher'));
-        const courses = await Course.find({ instructor: teacherId }).select('title category');
-        const assignmentsCount = await Assignment.countDocuments({ teacher: teacherId });
-        const quizzesCount = await Quiz.countDocuments({ teacher: teacherId });
-        const courseIds = courses.map((c) => c._id);
-        const myAssignmentIds = await Assignment.find({ course: { $in: courseIds } }).distinct('_id');
-        const pendingSubmissions = await AssignmentSubmission.countDocuments({
+        if (!teacherId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const courseIds = await getTeacherCourseIds(teacherId);
+        const courses = await Course.find({ _id: { $in: courseIds } }).select('title category');
+        const assignmentsCount = await Assignment.countDocuments(teacherAssignmentScopeFilter(teacherId, courseIds));
+        const quizzesCount = await Quiz.countDocuments(teacherQuizScopeFilter(teacherId, courseIds));
+        const myAssignmentIds = await Assignment.find(teacherAssignmentScopeFilter(teacherId, courseIds)).distinct('_id');
+        const submissionCount = await AssignmentSubmission.countDocuments({
             assignment: { $in: myAssignmentIds },
-            status: 'submitted',
         });
         res.json({
             success: true,
@@ -848,7 +857,7 @@ router.get('/teacher/dashboard', allowPortalRoles('teacher'), async (req, res) =
                 coursesManaged: courses.length,
                 assignmentsCount,
                 quizzesCount,
-                pendingSubmissions,
+                submissionCount,
             },
             courses,
         });
@@ -860,8 +869,9 @@ router.get('/teacher/dashboard', allowPortalRoles('teacher'), async (req, res) =
 router.get('/teacher/courses', allowPortalRoles('teacher'), async (req, res) => {
     try {
         const teacherId = getPortalActorId(req);
-        if (!teacherId) return emptyList(res, { courses: [] });
-        const courses = await Course.find({ instructor: teacherId }).sort({ title: 1 });
+        if (!teacherId) return unauthorized(res);
+        const courseIds = await getTeacherCourseIds(teacherId);
+        const courses = await Course.find({ _id: { $in: courseIds } }).sort({ title: 1 });
         res.json({ success: true, courses });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load courses' });
@@ -870,12 +880,12 @@ router.get('/teacher/courses', allowPortalRoles('teacher'), async (req, res) => 
 
 router.get('/teacher/courses/:courseId/roster', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const course = await Course.findOne({ _id: req.params.courseId, instructor: req.portalActorId });
-        if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
-        const students = await getCourseRosterStudents(course._id);
+        await assertTeacherOwnsCourse(req.portalActorId, req.params.courseId);
+        const students = await getCourseRosterStudents(req.params.courseId);
         res.json({ success: true, enrollments: students, students, count: students.length });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to load roster' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to load roster' });
     }
 });
 
@@ -900,12 +910,11 @@ router.get('/teacher/submissions', allowPortalRoles('teacher'), async (req, res)
         const myAssignments = await Assignment.find(teacherAssignmentScopeFilter(teacherId, courseIds)).select('_id');
         const ids = myAssignments.map((a) => a._id);
         const filter = { assignment: { $in: ids } };
-        if (req.query.ungradedOnly === 'true') filter.status = 'submitted';
         const submissions = await AssignmentSubmission.find(filter)
             .populate('student', 'name email studentId')
             .populate({
                 path: 'assignment',
-                select: 'title maxPoints description attachments dueDate course',
+                select: 'title description attachments dueDate course',
                 populate: { path: 'course', select: 'title' },
             })
             .sort({ submittedAt: -1 });
@@ -948,36 +957,6 @@ router.post('/teacher/submissions/bulk-delete', allowPortalRoles('teacher'), asy
         res.json({ success: true, deletedCount: deleted });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete submissions' });
-    }
-});
-
-router.patch('/teacher/submissions/:id/grade', allowPortalRoles('teacher'), async (req, res) => {
-    try {
-        const { score, feedback, status = 'graded' } = req.body;
-        const submission = await AssignmentSubmission.findById(req.params.id).populate('assignment');
-        if (!submission) return res.status(404).json({ success: false, error: 'Submission not found' });
-        const courseIds = await Course.find({ instructor: req.portalActorId }).distinct('_id');
-        const courseIdStr = String(submission.assignment.course?._id || submission.assignment.course);
-        if (!courseIds.some((id) => String(id) === courseIdStr)) {
-            return res.status(403).json({ success: false, error: 'Forbidden' });
-        }
-        const maxPts = submission.assignment?.maxPoints;
-        if (score == null || Number.isNaN(Number(score))) {
-            return res.status(400).json({ success: false, error: 'Valid score is required' });
-        }
-        if (maxPts != null && Number(score) > Number(maxPts)) {
-            return res.status(400).json({
-                success: false,
-                error: `Score cannot exceed maximum points (${maxPts})`,
-            });
-        }
-        submission.score = Number(score);
-        submission.feedback = feedback || '';
-        submission.status = status;
-        await submission.save();
-        res.json({ success: true, submission });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to grade submission' });
     }
 });
 
@@ -1037,7 +1016,7 @@ router.get('/teacher/quiz-attempts', allowPortalRoles('teacher'), async (req, re
 
 router.get('/teacher/resources', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const courseIds = await Course.find({ instructor: req.portalActorId }).distinct('_id');
+        const courseIds = await getTeacherCourseIds(req.portalActorId);
         const resources = await Resource.find({ course: { $in: courseIds } })
             .populate('course', 'title')
             .populate('uploadedBy', 'name role')
@@ -1052,8 +1031,7 @@ router.get('/teacher/attendance/roster', allowPortalRoles('teacher'), async (req
     try {
         const { courseId, date } = req.query;
         if (!courseId) return res.status(400).json({ success: false, error: 'courseId required' });
-        const course = await Course.findOne({ _id: courseId, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Not your course' });
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const rosterStudents = await getActiveCourseRosterStudents(courseId);
         const { dayStart, dayEnd } = dayRange(date);
         const existing = await AttendanceRecord.find({
@@ -1113,8 +1091,7 @@ router.post('/teacher/attendance', allowPortalRoles('teacher'), async (req, res)
         if (!courseId || !list.length) {
             return res.status(400).json({ success: false, error: 'courseId and attendance records required' });
         }
-        const course = await Course.findOne({ _id: courseId, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Not your course' });
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const activeStudentIds = new Set(
             (await getActiveCourseRosterStudentIds(courseId)).map((id) => String(id))
         );
@@ -1135,6 +1112,10 @@ router.post('/teacher/attendance', allowPortalRoles('teacher'), async (req, res)
                     error: 'Attendance cannot be marked on Sunday (academy weekend).',
                 });
             }
+            const statusValue = r.status || 'present';
+            if (!isValidAttendanceStatus(statusValue)) {
+                return res.status(400).json({ success: false, error: `Invalid attendance status: ${statusValue}` });
+            }
             const { dayStart, dayEnd } = dayRange(recordDate);
             await AttendanceRecord.findOneAndUpdate(
                 {
@@ -1146,7 +1127,7 @@ router.post('/teacher/attendance', allowPortalRoles('teacher'), async (req, res)
                     course: courseId,
                     teacher: req.portalActorId,
                     student: r.studentId,
-                    status: r.status || 'present',
+                    status: statusValue,
                     notes: r.notes != null ? String(r.notes) : '',
                     date: dayStart,
                 },
@@ -1165,9 +1146,13 @@ router.patch('/teacher/attendance/:id', allowPortalRoles('teacher'), async (req,
         const { status, notes, date } = req.body;
         const record = await AttendanceRecord.findById(req.params.id);
         if (!record) return res.status(404).json({ success: false, error: 'Record not found' });
-        const course = await Course.findOne({ _id: record.course, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Forbidden' });
-        if (status) record.status = status;
+        await assertTeacherOwnsCourse(req.portalActorId, record.course);
+        if (status) {
+            if (!isValidAttendanceStatus(status)) {
+                return res.status(400).json({ success: false, error: `Invalid attendance status: ${status}` });
+            }
+            record.status = status;
+        }
         if (notes !== undefined) record.notes = String(notes);
         if (date) {
             if (isFutureAttendanceDate(date)) {
@@ -1193,8 +1178,7 @@ router.delete('/teacher/attendance/:id', allowPortalRoles('teacher'), async (req
     try {
         const record = await AttendanceRecord.findById(req.params.id);
         if (!record) return res.status(404).json({ success: false, error: 'Record not found' });
-        const course = await Course.findOne({ _id: record.course, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Forbidden' });
+        await assertTeacherOwnsCourse(req.portalActorId, record.course);
         await AttendanceRecord.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (error) {
@@ -1211,10 +1195,12 @@ router.post('/teacher/attendance/bulk-delete', allowPortalRoles('teacher'), asyn
         const records = await AttendanceRecord.find({ _id: { $in: ids } });
         let deleted = 0;
         for (const record of records) {
-            const course = await Course.findOne({ _id: record.course, instructor: req.portalActorId });
-            if (course) {
+            try {
+                await assertTeacherOwnsCourse(req.portalActorId, record.course);
                 await AttendanceRecord.findByIdAndDelete(record._id);
                 deleted += 1;
+            } catch {
+                // skip records outside teacher scope
             }
         }
         res.json({ success: true, deletedCount: deleted });
@@ -1309,19 +1295,17 @@ router.get('/teacher/attendance/report', allowPortalRoles('teacher'), async (req
 
 router.post('/teacher/assignments', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const { courseId, title, description, dueDate, maxPoints, status, attachments } = req.body;
+        const { courseId, title, description, dueDate, status, attachments } = req.body;
         if (!courseId || !title || !dueDate) {
             return res.status(400).json({ success: false, error: 'courseId, title, and dueDate are required' });
         }
-        const course = await Course.findOne({ _id: courseId, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Not your course' });
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const assignment = await Assignment.create({
             title: String(title).trim(),
             description: description || '',
             course: courseId,
             teacher: req.portalActorId,
             dueDate: new Date(dueDate),
-            maxPoints: maxPoints != null && maxPoints !== '' ? Number(maxPoints) : null,
             attachments: Array.isArray(attachments) ? attachments : [],
             status: status || 'published',
         });
@@ -1343,8 +1327,7 @@ router.post('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) =>
         if (!normalized.length) {
             return res.status(400).json({ success: false, error: 'Add at least one question with 3 options' });
         }
-        const course = await Course.findOne({ _id: courseId, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Not your course' });
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const quiz = await Quiz.create({
             title: String(title).trim(),
             course: courseId,
@@ -1368,8 +1351,7 @@ router.post('/teacher/resources', allowPortalRoles('teacher'), async (req, res) 
         if (!courseId || !title) {
             return res.status(400).json({ success: false, error: 'courseId and title are required' });
         }
-        const course = await Course.findOne({ _id: courseId, instructor: req.portalActorId });
-        if (!course) return res.status(403).json({ success: false, error: 'Not your course' });
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const resource = await Resource.create({
             title: String(title).trim(),
             description: description || '',
@@ -1395,13 +1377,10 @@ router.patch('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req
         const assignment = await Assignment.findById(req.params.id);
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         await assertTeacherOwnsCourse(req.portalActorId, assignment.course);
-        const { title, description, dueDate, maxPoints, status, attachments } = req.body;
+        const { title, description, dueDate, status, attachments } = req.body;
         if (title !== undefined) assignment.title = String(title).trim();
         if (description !== undefined) assignment.description = description || '';
         if (dueDate) assignment.dueDate = new Date(dueDate);
-        if (maxPoints !== undefined) {
-            assignment.maxPoints = maxPoints != null && maxPoints !== '' ? Number(maxPoints) : null;
-        }
         if (status !== undefined) assignment.status = status;
         if (attachments !== undefined) assignment.attachments = Array.isArray(attachments) ? attachments : [];
         await assignment.save();
@@ -1603,9 +1582,8 @@ router.get('/teacher/quizzes/:quizId/attempts', allowPortalRoles('teacher'), asy
 router.get('/teacher/schedule', allowPortalRoles('teacher'), async (req, res) => {
     try {
         const teacherId = getPortalActorId(req);
-        if (!teacherId) return emptyList(res, { schedules: [], dayLabels: DAY_LABELS });
-        const courseIds = await Course.find({ instructor: teacherId }).distinct('_id');
-        const schedules = await ClassSchedule.find({ course: { $in: courseIds } })
+        if (!teacherId) return unauthorized(res);
+        const schedules = await ClassSchedule.find({ teacher: teacherId })
             .populate('course', 'title')
             .sort({ dayOfWeek: 1, startTime: 1 });
         res.json({ success: true, schedules, dayLabels: DAY_LABELS });
@@ -1738,7 +1716,7 @@ router.get('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, re
 router.post('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, res) => {
     try {
         if (!req.portalActorId) {
-            return res.status(400).json({ success: false, error: 'Preview mode: submit not available' });
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
         const { date, status, notes } = req.body;
         if (!isValidAttendanceStatus(status)) {
@@ -1800,7 +1778,7 @@ router.post('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, r
 router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => {
     try {
         const parentId = getPortalActorId(req);
-        if (!parentId) return res.json(previewDashboardPayload('parent'));
+        if (!parentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const links = await ParentStudentLink.find({ parent: parentId }).populate(
             'student',
             'name email studentId deletedAt'
@@ -1814,7 +1792,21 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
                 ...activeEnrollmentFilter(),
             }).populate('course', 'title deletedAt')
         );
-        const attendance = await AttendanceRecord.find({ student: { $in: studentIds } });
+        const enrolledCourseIds = [
+            ...new Set(
+                enrollments
+                    .map((e) => e.course?._id || e.course)
+                    .filter(Boolean)
+                    .map((id) => String(id))
+            ),
+        ];
+        const attendance =
+            enrolledCourseIds.length > 0
+                ? await AttendanceRecord.find({
+                      student: { $in: studentIds },
+                      course: { $in: enrolledCourseIds },
+                  })
+                : [];
         const quizAttempts = await QuizAttempt.find({ student: { $in: studentIds } });
         const emailByStudentId = {};
         for (const link of activeLinks) {
@@ -1842,7 +1834,7 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
 
 router.get('/parent/children', allowPortalRoles('parent'), async (req, res) => {
     try {
-        if (!req.portalActorId) return emptyList(res, { children: [] });
+        if (!req.portalActorId) return unauthorized(res);
         const links = await ParentStudentLink.find({ parent: req.portalActorId }).populate(
             'student',
             'name email studentId status deletedAt'
@@ -1854,9 +1846,37 @@ router.get('/parent/children', allowPortalRoles('parent'), async (req, res) => {
     }
 });
 
+router.get('/parent/children/:studentId/attendance/courses', allowPortalRoles('parent'), async (req, res) => {
+    try {
+        if (!req.portalActorId) return unauthorized(res);
+        await assertParentChild(req.portalActorId, req.params.studentId);
+        const studentId = req.params.studentId;
+        const courseIds = await getStudentCourseIds(studentId);
+        const courses = await Course.find({ _id: { $in: courseIds } }).select('title').sort({ title: 1 });
+        res.json({ success: true, courses });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to load courses' });
+    }
+});
+
+router.get('/parent/children/:studentId/attendance/view', allowPortalRoles('parent'), async (req, res) => {
+    try {
+        if (!req.portalActorId) return unauthorized(res);
+        await assertParentChild(req.portalActorId, req.params.studentId);
+        const { courseId, period = 'daily', date } = req.query;
+        if (!courseId) return res.status(400).json({ success: false, error: 'courseId required' });
+        const payload = await loadStudentAttendancePeriodView(req.params.studentId, courseId, period, date);
+        res.json({ success: true, ...payload });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to load attendance' });
+    }
+});
+
 router.get('/parent/children/:studentId', allowPortalRoles('parent'), async (req, res) => {
     try {
-        if (!req.portalActorId) return emptyList(res, { enrollments: [], attendance: [], submissions: [], quizAttempts: [], payments: [] });
+        if (!req.portalActorId) return unauthorized(res);
         await assertParentChild(req.portalActorId, req.params.studentId);
         const studentId = req.params.studentId;
 
@@ -1871,38 +1891,43 @@ router.get('/parent/children/:studentId', allowPortalRoles('parent'), async (req
             studentId,
             student?.email
         ));
-        const attendance = await AttendanceRecord.find({ student: studentId })
-            .populate('course', 'title')
-            .sort({ date: -1 })
-            .limit(50);
+        const enrolledCourseIds = enrollments
+            .map((e) => e.course?._id || e.course)
+            .filter(Boolean);
+        const attendance = enrolledCourseIds.length
+            ? await AttendanceRecord.find({
+                  student: studentId,
+                  course: { $in: enrolledCourseIds },
+              })
+                  .populate('course', 'title')
+                  .sort({ date: -1 })
+                  .limit(50)
+            : [];
         const submissions = await AssignmentSubmission.find({ student: studentId })
-            .populate('assignment', 'title maxPoints')
+            .populate('assignment', 'title')
             .sort({ submittedAt: -1 })
             .limit(30);
         const quizAttempts = await QuizAttempt.find({ student: studentId })
             .populate('quiz', 'title totalMarks')
             .sort({ createdAt: -1 })
             .limit(30);
-        const submissionsOut = submissions.map((s) => {
-            const o = s.toObject();
-            const maxPts = o.assignment?.maxPoints;
-            o.scoreDisplay = formatScoreDisplay(o.score, maxPts);
-            return o;
-        });
         const quizAttemptsOut = quizAttempts.map((a) => {
             const o = a.toObject();
             o.scoreDisplay = formatScoreDisplay(o.score, o.quiz?.totalMarks);
             return o;
         });
-        const payments = await Payment.find({ user: studentId }).populate('course', 'title').sort({ createdAt: -1 });
+        const payments = await Payment.find(studentPaymentsFilter(studentId, student?.email))
+            .populate('course', 'title')
+            .sort({ createdAt: -1 });
+        const paymentsOut = serializePayments(payments);
 
         res.json({
             success: true,
             enrollments,
             attendance,
-            submissions: submissionsOut,
+            submissions,
             quizAttempts: quizAttemptsOut,
-            payments,
+            payments: paymentsOut,
         });
     } catch (error) {
         const code = error.status || 500;
@@ -1914,7 +1939,7 @@ router.get('/parent/children/:studentId', allowPortalRoles('parent'), async (req
 
 router.get('/accountant/dashboard', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const payments = await Payment.find().sort({ createdAt: -1 }).limit(500);
+        const payments = await Payment.find(activePaymentFilter()).sort({ createdAt: -1 }).limit(500);
         const payrollRuns = await PayrollRun.find().select('status');
         const payrollMissingAlerts = await TeacherAttendanceRequest.find({
             status: 'approved',
@@ -1928,7 +1953,9 @@ router.get('/accountant/dashboard', allowPortalRoles('accountant'), async (req, 
             summary: {
                 payments: payments.length,
                 paid: payments.filter((p) => p.status === 'paid' || p.status === 'completed').length,
-                pending: payments.filter((p) => p.status === 'pending' || p.status === 'awaiting_review').length,
+                pending: payments.filter((p) =>
+                    ['pending', 'awaiting_review', 'processing'].includes(p.status)
+                ).length,
                 refunded: payments.filter((p) => p.status === 'refunded').length,
                 failed: payments.filter((p) => p.status === 'failed').length,
                 payrollPendingReview: payrollRuns.filter((r) => r.status === 'pending_review').length,
@@ -1950,17 +1977,22 @@ router.get('/accountant/dashboard', allowPortalRoles('accountant'), async (req, 
 
 router.get('/accountant/payments', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const { activePaymentFilter } = require('../utils/paymentQuery');
-        const payments = await Payment.find(activePaymentFilter())
-            .populate('user', 'name email')
-            .populate('course', 'title')
-            .sort({ createdAt: -1 })
-            .lean();
-        const withProof = payments.map((p) => ({
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const filter = trash ? trashedPaymentFilter() : activePaymentListFilter();
+        const sort = trash ? { deletedAt: -1 } : { createdAt: -1 };
+        const [payments, trashCount] = await Promise.all([
+            Payment.find(filter)
+                .populate('user', 'name email')
+                .populate('course', 'title')
+                .sort(sort)
+                .lean(),
+            Payment.countDocuments(trashedPaymentFilter()),
+        ]);
+        const withProof = serializePayments(payments).map((p) => ({
             ...p,
             proofUrl: p.proofUrl || '',
         }));
-        res.json({ success: true, payments: withProof });
+        res.json({ success: true, payments: withProof, trashCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load payments' });
     }
@@ -1969,38 +2001,65 @@ router.get('/accountant/payments', allowPortalRoles('accountant'), async (req, r
 router.patch('/accountant/payments/:id/approve', allowPortalRoles('accountant'), async (req, res) => {
     try {
         const { isPaidStatus } = require('../services/onPaymentPaid');
-        const payment = await Payment.findById(req.params.id).populate('user').populate('course');
-        if (!payment) {
-            return res.status(404).json({ success: false, error: 'Payment not found' });
-        }
-        if (payment.paymentMethod !== 'bank') {
-            return res.status(400).json({ success: false, error: 'Only bank transfer payments can be approved here' });
-        }
-        if (!payment.proofUrl) {
-            return res.status(400).json({ success: false, error: 'No payment proof uploaded yet' });
-        }
-        if (isPaidStatus(payment.status)) {
-            return res.status(400).json({ success: false, error: 'Payment is already paid' });
-        }
-        if (payment.status !== 'awaiting_review') {
-            return res.status(400).json({ success: false, error: 'Payment is not awaiting review' });
-        }
-
         const verifiedBy = req.portalActorId || req.user?.userId;
         const { fulfillPaymentEnrollment } = require('../services/onPaymentPaid');
         const { resolveAndLinkCourseOnPayment } = require('../services/resolveCourseFromPayment');
 
-        await resolveAndLinkCourseOnPayment(payment);
-        await payment.populate(['user', 'course']);
-        await fulfillPaymentEnrollment(payment, { verifiedBy });
+        const claimed = await Payment.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                ...activePaymentFilter(),
+                paymentMethod: 'bank',
+                status: 'awaiting_review',
+                proofUrl: { $nin: [null, ''] },
+            },
+            {
+                $set: {
+                    status: 'processing',
+                    verifiedBy,
+                    verifiedAt: new Date(),
+                },
+            },
+            { new: true }
+        );
 
-        payment.status = 'paid';
-        payment.verifiedBy = verifiedBy;
-        payment.verifiedAt = new Date();
-        payment.rejectionReason = '';
-        await payment.save();
+        if (!claimed) {
+            const payment = await Payment.findById(req.params.id);
+            if (!payment) {
+                return res.status(404).json({ success: false, error: 'Payment not found' });
+            }
+            if (payment.deletedAt) {
+                return res.status(400).json({ success: false, error: 'Payment is in trash' });
+            }
+            if (payment.paymentMethod !== 'bank') {
+                return res.status(400).json({ success: false, error: 'Only bank transfer payments can be approved here' });
+            }
+            if (!payment.proofUrl) {
+                return res.status(400).json({ success: false, error: 'No payment proof uploaded yet' });
+            }
+            if (isPaidStatus(payment.status)) {
+                return res.status(400).json({ success: false, error: 'Payment is already paid' });
+            }
+            return res.status(400).json({ success: false, error: 'Payment is not awaiting review' });
+        }
 
-        res.json({ success: true, message: 'Payment approved', payment });
+        try {
+            await resolveAndLinkCourseOnPayment(claimed);
+            await claimed.populate(['user', 'course']);
+            await fulfillPaymentEnrollment(claimed, { verifiedBy });
+
+            claimed.status = 'paid';
+            claimed.rejectionReason = '';
+            await claimed.save();
+
+            res.json({ success: true, message: 'Payment approved', payment: claimed });
+        } catch (error) {
+            await Payment.findByIdAndUpdate(claimed._id, {
+                $set: { status: 'awaiting_review' },
+                $unset: { verifiedBy: 1, verifiedAt: 1 },
+            });
+            throw error;
+        }
     } catch (error) {
         req.log?.error('Approve bank payment failed', { err: error });
         const msg =
@@ -2018,7 +2077,7 @@ router.patch('/accountant/payments/:id/reject', allowPortalRoles('accountant'), 
         if (!reason) {
             return res.status(400).json({ success: false, error: 'Rejection reason is required' });
         }
-        const payment = await Payment.findById(req.params.id);
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
         if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment not found' });
         }
@@ -2028,7 +2087,7 @@ router.patch('/accountant/payments/:id/reject', allowPortalRoles('accountant'), 
         if (isPaidStatus(payment.status)) {
             return res.status(400).json({ success: false, error: 'Paid payments cannot be rejected' });
         }
-        if (!['awaiting_review', 'pending'].includes(payment.status)) {
+        if (!['awaiting_review', 'pending', 'processing'].includes(payment.status)) {
             return res.status(400).json({ success: false, error: 'This payment cannot be rejected' });
         }
 
@@ -2042,11 +2101,63 @@ router.patch('/accountant/payments/:id/reject', allowPortalRoles('accountant'), 
     }
 });
 
+router.delete('/accountant/payments/:id', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const payment = await Payment.findOneAndUpdate(
+            { _id: req.params.id, ...activePaymentFilter() },
+            { $set: { deletedAt: new Date() } },
+            { new: true }
+        );
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+        res.json({ success: true, message: 'Payment moved to trash', paymentId: req.params.id });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to delete payment' });
+    }
+});
+
+router.patch('/accountant/payments/:id/restore', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const payment = await Payment.findOneAndUpdate(
+            { _id: req.params.id, ...trashedPaymentFilter() },
+            { $set: { deletedAt: null } },
+            { new: true }
+        );
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Trashed payment not found' });
+        }
+        res.json({ success: true, message: 'Payment restored', payment });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore payment' });
+    }
+});
+
+router.delete('/accountant/payments/:id/permanent', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const { deleteProofFile } = require('../services/trashCleanup');
+        const payment = await Payment.findOne({
+            _id: req.params.id,
+            ...trashedPaymentFilter(),
+        });
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Payment must be in trash before permanent delete' });
+        }
+        if (payment.proofUrl) {
+            deleteProofFile(payment.proofUrl);
+        }
+        await Payment.deleteOne({ _id: payment._id });
+        res.json({ success: true, message: 'Payment permanently deleted', paymentId: req.params.id });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete payment' });
+    }
+});
+
 // ————————————————— ACCOUNTANT PAYROLL (portal; uses approved attendance) —————————————————
 
 router.get('/accountant/payroll/teachers', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const teachers = await User.find({ role: 'teacher' }).select('_id name email');
+        const teachers = await User.find({ role: 'teacher', ...activeUserFilter() }).select('_id name email');
         res.json({ success: true, teachers });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load teachers' });
@@ -2071,16 +2182,27 @@ router.get('/accountant/payroll/preview', allowPortalRoles('accountant'), async 
 
 router.get('/accountant/payroll/salary-profiles', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const teachers = await User.find({ role: 'teacher' }).select('_id name email').sort({ name: 1 });
+        const teachers = await User.find({ role: 'teacher', ...activeUserFilter() }).select('_id name email').sort({ name: 1 });
         const profiles = await TeacherSalaryProfile.find().populate('teacher', 'name email');
         const profileByTeacher = new Map(profiles.map((p) => [String(p.teacher?._id || p.teacher), p]));
-        res.json({
-            success: true,
-            rows: teachers.map((t) => ({
-                teacher: t,
-                profile: profileByTeacher.get(String(t._id)) || null,
-            })),
+        const rows = teachers.map((t) => ({
+            teacher: t,
+            profile: profileByTeacher.get(String(t._id)) || null,
+        }));
+        const listedTeacherIds = new Set(teachers.map((t) => String(t._id)));
+        profiles.forEach((p) => {
+            const teacherRef = p.teacher?._id || p.get('teacher');
+            const tid = teacherRef ? String(teacherRef) : '';
+            if (!tid || listedTeacherIds.has(tid)) return;
+            rows.push({
+                teacher: p.teacher?.name
+                    ? p.teacher
+                    : { _id: teacherRef, name: 'Removed teacher', email: '', removed: true },
+                profile: p,
+                teacherRemoved: true,
+            });
         });
+        res.json({ success: true, rows });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load salary profiles' });
     }
@@ -2123,6 +2245,19 @@ router.patch('/accountant/payroll/teacher-profile/:teacherId', allowPortalRoles(
         });
     } catch (error) {
         res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to update teacher profile' });
+    }
+});
+
+router.delete('/accountant/payroll/teacher-profile/:teacherId', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const teacherId = req.params.teacherId;
+        const profile = await TeacherSalaryProfile.findOneAndDelete({ teacher: teacherId });
+        if (!profile) {
+            return res.status(404).json({ success: false, error: 'Teacher salary profile not found' });
+        }
+        res.json({ success: true, message: 'Teacher salary profile removed' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to remove teacher salary profile' });
     }
 });
 
@@ -2189,13 +2324,22 @@ router.get('/accountant/payroll/runs/:id/attendance', allowPortalRoles('accounta
         if (!run) {
             return res.status(404).json({ success: false, error: 'Payroll run not found' });
         }
-        const attendance = await getTeacherPayrollAttendanceDetail(run.teacher._id || run.teacher, run.monthKey);
+        const teacherId = payrollRunTeacherId(run);
+        if (!teacherId) {
+            return res.status(404).json({
+                success: false,
+                error: 'Teacher account no longer exists for this payroll run.',
+            });
+        }
+        const attendance = await getTeacherPayrollAttendanceDetail(teacherId, run.monthKey);
+        const teacher = payrollRunTeacherDisplay(run);
         res.json({
             success: true,
             run: {
                 _id: run._id,
                 monthKey: run.monthKey,
-                teacher: run.teacher,
+                teacher,
+                teacherName: run.teacherName,
                 presentDays: run.presentDays,
                 absentDays: run.absentDays,
                 deduction: run.deduction,
@@ -2267,10 +2411,16 @@ router.patch('/accountant/payroll/runs/:id/mark-paid', allowPortalRoles('account
         if (run.status === 'paid') {
             return res.status(400).json({ success: false, error: 'Payroll is already marked paid.' });
         }
+        if (run.status === 'rejected') {
+            return res.status(400).json({
+                success: false,
+                error: 'Rejected payroll must be reviewed by admin before marking paid.',
+            });
+        }
         const actorId = req.portalActorId || req.user?.userId;
         const payroll = await PayrollRun.findByIdAndUpdate(
             run._id,
-            { status: 'paid', paidAt: new Date(), paidBy: actorId },
+            { status: 'paid', paidAt: new Date(), paidBy: actorId, rejectedAt: null, rejectedBy: null },
             { new: true }
         )
             .populate('teacher', 'name email')
@@ -2278,6 +2428,67 @@ router.patch('/accountant/payroll/runs/:id/mark-paid', allowPortalRoles('account
         res.json({ success: true, payroll });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to mark payroll paid' });
+    }
+});
+
+router.patch('/accountant/payroll/runs/:id/reject', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const { note } = req.body;
+        const trimmedNote = String(note || '').trim();
+        if (!trimmedNote) {
+            return res.status(400).json({ success: false, error: 'Rejection note is required' });
+        }
+        const run = await PayrollRun.findById(req.params.id);
+        if (!run) {
+            return res.status(404).json({ success: false, error: 'Payroll run not found' });
+        }
+        if (run.status === 'paid') {
+            return res.status(400).json({ success: false, error: 'Paid payroll cannot be rejected.' });
+        }
+        const actorId = req.portalActorId || req.user?.userId;
+        const teacherId = payrollRunTeacherId(run);
+        const payroll = await PayrollRun.findByIdAndUpdate(
+            run._id,
+            {
+                status: 'rejected',
+                rejectedAt: new Date(),
+                rejectedBy: actorId,
+                accountantNotes: trimmedNote,
+                paidAt: null,
+                paidBy: null,
+            },
+            { new: true }
+        )
+            .populate('teacher', 'name email')
+            .populate('rejectedBy', 'name email');
+        if (teacherId) {
+            await TeacherAttendanceRequest.updateOne(
+                { teacher: teacherId, monthKey: run.monthKey },
+                { status: 'pending', reviewedBy: null, reviewedAt: null }
+            );
+        }
+        res.json({ success: true, payroll });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to reject payroll' });
+    }
+});
+
+router.delete('/accountant/payroll/runs/:id', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const run = await PayrollRun.findById(req.params.id);
+        if (!run) {
+            return res.status(404).json({ success: false, error: 'Payroll run not found' });
+        }
+        if (run.status === 'paid') {
+            return res.status(400).json({
+                success: false,
+                error: 'Paid payroll runs cannot be deleted. Contact an admin if this record must be removed.',
+            });
+        }
+        await PayrollRun.deleteOne({ _id: run._id });
+        res.json({ success: true, message: 'Payroll run deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to delete payroll run' });
     }
 });
 
@@ -2291,6 +2502,7 @@ router.get('/accountant/payroll/runs', allowPortalRoles('accountant'), async (re
             .populate('teacher', 'name email')
             .populate('generatedBy', 'name email')
             .populate('paidBy', 'name email')
+            .populate('rejectedBy', 'name email')
             .sort({ monthKey: -1, updatedAt: -1 })
             .limit(200);
         const teacherIds = runs.map((r) => r.teacher?._id || r.teacher).filter(Boolean);
@@ -2300,8 +2512,10 @@ router.get('/accountant/payroll/runs', allowPortalRoles('accountant'), async (re
             const plain = r.toObject();
             const tid = String(r.teacher?._id || r.teacher);
             const profile = profileByTeacher.get(tid);
+            const teacher = payrollRunTeacherDisplay(r);
             return {
                 ...plain,
+                teacher,
                 profileSalary: profile?.monthlySalary ?? null,
                 profileWorkingDays: profile?.workingDays ?? null,
             };
@@ -2313,9 +2527,17 @@ router.get('/accountant/payroll/runs', allowPortalRoles('accountant'), async (re
 });
 
 // Legacy admin link endpoint (portal path)
-router.post('/admin/link-parent-student', allowRoles('admin', 'super-admin'), async (req, res) => {
+router.post('/admin/link-parent-student', allowRoles('manager', 'super-admin'), async (req, res) => {
     try {
         const { parentId, studentId, relation = 'guardian' } = req.body;
+        if (!parentId || !studentId) {
+            return res.status(400).json({ success: false, error: 'parentId and studentId are required' });
+        }
+        const parent = await User.findOne({ _id: parentId, role: 'parent', ...activeUserFilter() });
+        const student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() });
+        if (!parent || !student) {
+            return res.status(400).json({ success: false, error: 'Invalid or removed parent/student' });
+        }
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parentId, student: studentId },
             { relation },

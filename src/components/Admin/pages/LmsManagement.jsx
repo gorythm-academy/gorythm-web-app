@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../../config/constants';
 import { getAuthToken } from '../../../utils/authStorage';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch, lmsAdminDelete } from '../../../utils/lmsAdminApi';
+import { ADMIN_LMS_ATTENDANCE_UPDATED_EVENT } from '../../../hooks/useAdminPortalBadges';
 import { useAdminDialog } from '../AdminDialogContext';
 import {
   statusCalendarLabel,
@@ -11,6 +12,7 @@ import {
 import { formatWeekdayName } from '../../../utils/academyWeek';
 import { formatTime12h } from '../../../utils/formatTime12h';
 import ScheduleRoomOrLink from '../../Portals/shared/ScheduleRoomOrLink';
+import PayrollMonthAttendanceModal from '../../shared/PayrollMonthAttendanceModal';
 import './LmsManagement.scss';
 
 const currentMonthKey = () => {
@@ -58,6 +60,7 @@ const PAYROLL_STATUS_FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'pending_review', label: 'Pending' },
   { value: 'stale', label: 'Out of date' },
+  { value: 'rejected', label: 'Rejected' },
 ];
 
 const formatPayrollMonth = (monthKey) => {
@@ -73,6 +76,7 @@ const payrollStatusLabel = (status) => {
   if (status === 'pending_review') return 'Pending review';
   if (status === 'stale') return 'Out of date';
   if (status === 'paid') return 'Paid';
+  if (status === 'rejected') return 'Rejected';
   return status || '—';
 };
 
@@ -80,6 +84,7 @@ const payrollStatusKey = (status) => {
   if (status === 'pending_review') return 'pending';
   if (status === 'stale') return 'stale';
   if (status === 'paid') return 'paid';
+  if (status === 'rejected') return 'rejected';
   return 'unknown';
 };
 
@@ -153,12 +158,20 @@ const LmsManagement = () => {
   const [dailyDays, setDailyDays] = useState([]);
   const [dailyMonth, setDailyMonth] = useState(currentMonthKey());
   const [dailyStatusFilter, setDailyStatusFilter] = useState('pending');
+  const [dailyTeacherFilter, setDailyTeacherFilter] = useState('');
+  const [dailyTeachers, setDailyTeachers] = useState([]);
   const [showMonthlyRollup, setShowMonthlyRollup] = useState(false);
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [payrollFilter, setPayrollFilter] = useState('paid');
   const [payrollMissingAlerts, setPayrollMissingAlerts] = useState([]);
   const [payrollAttendanceModal, setPayrollAttendanceModal] = useState(null);
   const [payrollAttendanceBusy, setPayrollAttendanceBusy] = useState(null);
+  const [payrollDeleteBusy, setPayrollDeleteBusy] = useState(null);
+  const [attendanceFeedback, setAttendanceFeedback] = useState('');
+  const [monthlyRollupNotice, setMonthlyRollupNotice] = useState('');
+  const [attendanceBadgeCount, setAttendanceBadgeCount] = useState(0);
+  const [payrollBadgeCount, setPayrollBadgeCount] = useState(0);
+  const [pendingAttendanceSummary, setPendingAttendanceSummary] = useState([]);
 
   const loadCourses = useCallback(async () => {
     try {
@@ -230,16 +243,31 @@ const LmsManagement = () => {
     }
   }, [showAlert, attendanceFilter]);
 
-  const loadDailyDays = useCallback(async () => {
+  const loadDailyTeachers = useCallback(async () => {
     try {
       const res = await lmsAdminGet(
-        `/teacher-attendance-daily?month=${encodeURIComponent(dailyMonth)}&status=${dailyStatusFilter}`
+        `/teacher-attendance-daily/teachers?month=${encodeURIComponent(dailyMonth)}`
+      );
+      if (res.success) setDailyTeachers(res.teachers || []);
+      else setDailyTeachers([]);
+    } catch {
+      setDailyTeachers([]);
+    }
+  }, [dailyMonth]);
+
+  const loadDailyDays = useCallback(async () => {
+    try {
+      const teacherQ = dailyTeacherFilter
+        ? `&teacherId=${encodeURIComponent(dailyTeacherFilter)}`
+        : '';
+      const res = await lmsAdminGet(
+        `/teacher-attendance-daily?month=${encodeURIComponent(dailyMonth)}&status=${dailyStatusFilter}${teacherQ}`
       );
       if (res.success) setDailyDays(res.days || []);
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }, [showAlert, dailyMonth, dailyStatusFilter]);
+  }, [showAlert, dailyMonth, dailyStatusFilter, dailyTeacherFilter]);
 
   const loadPayrollRuns = useCallback(async () => {
     try {
@@ -263,6 +291,35 @@ const LmsManagement = () => {
     }
   }, []);
 
+  const loadLmsTabBadges = useCallback(async () => {
+    try {
+      const [badgesRes, alertsRes] = await Promise.all([
+        lmsAdminGet('/lms-tab-badges'),
+        lmsAdminGet('/payroll-missing-alerts'),
+      ]);
+      if (badgesRes.success) {
+        setAttendanceBadgeCount(Number(badgesRes.attendanceCount) || 0);
+        setPayrollBadgeCount(Number(badgesRes.payrollCount) || 0);
+      }
+      if (alertsRes.success) {
+        setPayrollMissingAlerts(alertsRes.alerts || []);
+      }
+    } catch {
+      setAttendanceBadgeCount(0);
+      setPayrollBadgeCount(0);
+    }
+  }, []);
+
+  const loadPendingAttendanceSummary = useCallback(async () => {
+    try {
+      const res = await lmsAdminGet('/teacher-attendance-daily/pending-summary');
+      if (res.success) setPendingAttendanceSummary(res.items || []);
+      else setPendingAttendanceSummary([]);
+    } catch {
+      setPendingAttendanceSummary([]);
+    }
+  }, []);
+
   const openPayrollAttendance = async (runId) => {
     setPayrollAttendanceBusy(runId);
     try {
@@ -276,9 +333,45 @@ const LmsManagement = () => {
     }
   };
 
+  const deletePayrollRun = async (run) => {
+    const label = run.teacher?.name || run.teacherName || 'this teacher';
+    const isPaid = run.status === 'paid';
+    const ok = await showConfirm({
+      title: isPaid ? 'Delete paid payroll run' : 'Delete payroll run',
+      message: isPaid
+        ? `This payroll for ${label} (${run.monthKey}) is marked paid. Permanently delete it? This cannot be undone.`
+        : `Delete payroll for ${label} (${run.monthKey})? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      type: 'warning',
+    });
+    if (!ok) return;
+    setPayrollDeleteBusy(run._id);
+    try {
+      const res = await lmsAdminDelete(`/payroll-runs/${run._id}`);
+      if (res.success) {
+        showAlert('Payroll run deleted.', 'success');
+        loadPayrollRuns();
+        loadLmsTabBadges();
+      } else {
+        showAlert(res.error || 'Failed to delete payroll run', 'error');
+      }
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setPayrollDeleteBusy(null);
+    }
+  };
+
   useEffect(() => {
     loadCourses();
-  }, [loadCourses]);
+    loadLmsTabBadges();
+  }, [loadCourses, loadLmsTabBadges]);
+
+  useEffect(() => {
+    const onBadgesUpdated = () => loadLmsTabBadges();
+    window.addEventListener(ADMIN_LMS_ATTENDANCE_UPDATED_EVENT, onBadgesUpdated);
+    return () => window.removeEventListener(ADMIN_LMS_ATTENDANCE_UPDATED_EVENT, onBadgesUpdated);
+  }, [loadLmsTabBadges]);
 
   useEffect(() => {
     loadTeachersForCourse(scheduleForm.courseId);
@@ -291,13 +384,28 @@ const LmsManagement = () => {
       loadDailyDays();
       loadRequests();
       loadPayrollAlerts();
+      loadPendingAttendanceSummary();
     }
-    if (tab === 'teacher-payroll') loadPayrollRuns();
-  }, [tab, loadSchedules, loadLinks, loadRequests, loadDailyDays, loadPayrollRuns, loadPayrollAlerts]);
+    if (tab === 'teacher-payroll') {
+      loadPayrollRuns();
+      loadLmsTabBadges();
+    }
+  }, [tab, loadSchedules, loadLinks, loadRequests, loadDailyDays, loadPayrollRuns, loadPayrollAlerts, loadPendingAttendanceSummary, loadLmsTabBadges]);
 
   useEffect(() => {
     if (tab === 'teacher-attendance') loadDailyDays();
-  }, [dailyMonth, dailyStatusFilter, tab, loadDailyDays]);
+  }, [dailyMonth, dailyStatusFilter, dailyTeacherFilter, tab, loadDailyDays]);
+
+  useEffect(() => {
+    if (tab === 'teacher-attendance') loadDailyTeachers();
+  }, [dailyMonth, tab, loadDailyTeachers]);
+
+  useEffect(() => {
+    if (tab !== 'teacher-attendance') return;
+    if (!dailyTeacherFilter) return;
+    const stillVisible = dailyTeachers.some((t) => String(t._id) === String(dailyTeacherFilter));
+    if (!stillVisible) setDailyTeacherFilter('');
+  }, [dailyTeachers, dailyTeacherFilter, tab]);
 
   useEffect(() => {
     if (tab === 'teacher-attendance' && showMonthlyRollup) loadRequests();
@@ -306,6 +414,45 @@ const LmsManagement = () => {
   useEffect(() => {
     setSelectedScheduleIds([]);
   }, [scheduleListCourseFilter]);
+
+  useEffect(() => {
+    if (!attendanceFeedback) return undefined;
+    const timer = window.setTimeout(() => setAttendanceFeedback(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [attendanceFeedback]);
+
+  useEffect(() => {
+    if (!monthlyRollupNotice) return undefined;
+    const timer = window.setTimeout(() => setMonthlyRollupNotice(''), 8000);
+    return () => window.clearTimeout(timer);
+  }, [monthlyRollupNotice]);
+
+  const notifyAttendanceUpdated = () => {
+    window.dispatchEvent(new Event(ADMIN_LMS_ATTENDANCE_UPDATED_EVENT));
+    loadLmsTabBadges();
+  };
+
+  const setAttendanceNotice = (message) => {
+    setAttendanceFeedback(message);
+  };
+
+  const setMonthlyRollupNoticeMsg = (message) => {
+    setMonthlyRollupNotice(message);
+    if (message) setShowMonthlyRollup(true);
+  };
+
+  const monthlyRollupBlockAlerts = useMemo(
+    () =>
+      requests
+        .filter((r) => r.status === 'pending' && r.approvalBlockReason)
+        .map((r) => ({
+          id: r._id,
+          teacherName: r.teacher?.name || 'Teacher',
+          monthKey: r.monthKey,
+          reason: r.approvalBlockReason,
+        })),
+    [requests]
+  );
 
   const resetScheduleForm = () => {
     setScheduleForm(EMPTY_SCHEDULE_FORM);
@@ -447,25 +594,22 @@ const LmsManagement = () => {
 
   const reviewDailyDay = async (id, status) => {
     if (!id) return;
-    const ok = await showConfirm({
-      title: status === 'approved' ? 'Approve this day?' : 'Reject this day?',
-      message:
-        status === 'approved'
-          ? 'This day will be marked approved.'
-          : 'The teacher may update and resubmit this day.',
-      confirmLabel: status === 'approved' ? 'Approve' : 'Reject',
-      type: status === 'approved' ? 'default' : 'warning',
-    });
-    if (!ok) return;
     try {
       const res = await lmsAdminPatch(`/teacher-attendance-daily/${id}`, { status });
       if (res.success) {
-        showAlert(`Day ${status}.`, 'success');
+        const label =
+          status === 'approved' ? 'Day approved.' : status === 'rejected' ? 'Day rejected.' : 'Day reopened.';
+        setAttendanceNotice(label);
         loadDailyDays();
+        loadDailyTeachers();
         if (showMonthlyRollup) loadRequests();
-      } else showAlert(res.error || 'Failed', 'error');
+        notifyAttendanceUpdated();
+        loadPendingAttendanceSummary();
+      } else {
+        setAttendanceNotice(res.error || 'Failed to update day.');
+      }
     } catch (err) {
-      showAlert(err.message, 'error');
+      setAttendanceNotice(err.message);
     }
   };
 
@@ -488,11 +632,12 @@ const LmsManagement = () => {
   }, [requests]);
 
   const payrollStats = useMemo(() => {
-    const stats = { total: payrollRuns.length, paid: 0, pending: 0, stale: 0 };
+    const stats = { total: payrollRuns.length, paid: 0, pending: 0, stale: 0, rejected: 0 };
     payrollRuns.forEach((r) => {
       if (r.status === 'paid') stats.paid += 1;
       else if (r.status === 'pending_review') stats.pending += 1;
       else if (r.status === 'stale') stats.stale += 1;
+      else if (r.status === 'rejected') stats.rejected += 1;
     });
     return stats;
   }, [payrollRuns]);
@@ -504,41 +649,71 @@ const LmsManagement = () => {
 
   const reviewRequest = async (id, status) => {
     if (!id) {
-      showAlert('Invalid request id.', 'error');
+      setMonthlyRollupNoticeMsg('Invalid request id.');
       return;
     }
-    const ok = await showConfirm({
-      title: status === 'approved' ? 'Approve monthly attendance?' : 'Reject attendance?',
-      message:
-        status === 'approved'
-          ? 'Only available after the calendar month has ended. Payroll will be auto-generated for the accountant to review.'
-          : 'The teacher may submit again after rejection.',
-      confirmLabel: status === 'approved' ? 'Approve month' : 'Reject',
-      type: status === 'approved' ? 'default' : 'warning',
-    });
-    if (!ok) return;
     try {
       const res = await lmsAdminPatch(`/teacher-attendance-requests/${id}`, { status });
       if (res.success) {
         if (status === 'approved' && res.payroll) {
-          showAlert(
-            `Month approved. Payroll auto-generated ($${Number(res.payroll.finalSalary || 0).toFixed(2)}) — pending accountant review.`,
-            'success'
+          setMonthlyRollupNoticeMsg(
+            `Month approved. Payroll auto-generated ($${Number(res.payroll.finalSalary || 0).toFixed(2)}).`
           );
         } else if (status === 'approved' && res.payrollError) {
-          showAlert(
-            `Month approved, but payroll was not generated: ${res.payrollError}. Accountant must set salary profile or regenerate later.`,
-            'warning'
+          setMonthlyRollupNoticeMsg(
+            `Month approved, but payroll was not generated: ${res.payrollError}. Use Retry payroll or ask accountant to generate it.`
           );
+        } else if (status === 'approved') {
+          setMonthlyRollupNoticeMsg('Month approved successfully.');
+        } else if (status === 'rejected') {
+          setMonthlyRollupNoticeMsg('Month rejected.');
         } else {
-          showAlert(`Attendance ${status}.`, 'success');
+          setMonthlyRollupNoticeMsg('Month reopened for review.');
         }
         loadRequests();
         loadPayrollAlerts();
-      } else showAlert(res.error || 'Failed', 'error');
+        notifyAttendanceUpdated();
+      } else {
+        setMonthlyRollupNoticeMsg(res.error || 'Failed to update month.');
+      }
     } catch (err) {
-      showAlert(err.message, 'error');
+      setMonthlyRollupNoticeMsg(err.message);
     }
+  };
+
+  const retryPayroll = async (requestId) => {
+    try {
+      const res = await lmsAdminPost(`/teacher-attendance-requests/${requestId}/retry-payroll`, {});
+      if (res.success) {
+        setMonthlyRollupNoticeMsg(
+          `Payroll generated ($${Number(res.payroll?.finalSalary || 0).toFixed(2)}) — pending accountant review.`
+        );
+        loadRequests();
+        loadPayrollAlerts();
+        loadPayrollRuns();
+        loadLmsTabBadges();
+      } else {
+        setMonthlyRollupNoticeMsg(res.error || 'Failed to generate payroll.');
+      }
+    } catch (err) {
+      setMonthlyRollupNoticeMsg(err.message);
+    }
+  };
+
+  const payrollTabBadgeCount = payrollBadgeCount;
+
+  const jumpToPendingAttendance = (item) => {
+    if (!item) return;
+    setTab('teacher-attendance');
+    setDailyMonth(item.monthKey);
+    setDailyTeacherFilter(String(item.teacherId || item.teacher?._id || ''));
+    setDailyStatusFilter('pending');
+  };
+
+  const lmsTabBadgeCount = (tabId) => {
+    if (tabId === 'teacher-attendance') return attendanceBadgeCount;
+    if (tabId === 'teacher-payroll') return payrollTabBadgeCount;
+    return 0;
   };
 
   const dayOptions = dayLabels.length
@@ -552,17 +727,26 @@ const LmsManagement = () => {
         Class timings, parent–child links, teacher attendance approvals, and paid payroll records.
       </p>
       <div className="lms-management-tabs" role="tablist">
-        {TABS.map((t) => (
+        {TABS.map((t) => {
+          const badge = lmsTabBadgeCount(t.id);
+          return (
           <button
             key={t.id}
             type="button"
             role="tab"
             className={tab === t.id ? 'active' : ''}
             onClick={() => setTab(t.id)}
+            aria-label={badge > 0 ? `${t.label}, ${badge} pending` : t.label}
           >
-            {t.label}
+            <span>{t.label}</span>
+            {badge > 0 ? (
+              <span className="lms-tab-badge" aria-hidden="true">
+                {badge > 99 ? '99+' : badge}
+              </span>
+            ) : null}
           </button>
-        ))}
+        );
+        })}
       </div>
 
       {tab === 'schedules' && (
@@ -909,6 +1093,32 @@ const LmsManagement = () => {
 
           <PayrollMissingBanner alerts={payrollMissingAlerts} />
 
+          {attendanceFeedback ? (
+            <div className="lms-attendance-feedback" role="status">
+              {attendanceFeedback}
+            </div>
+          ) : null}
+
+          {pendingAttendanceSummary.length > 0 ? (
+            <div className="lms-attendance-pending-banner" role="region" aria-label="Pending attendance in other months">
+              <strong>
+                <i className="fas fa-bell" aria-hidden="true" /> Pending in other months — click to open
+              </strong>
+              <div className="lms-attendance-pending-banner__chips">
+                {pendingAttendanceSummary.map((item) => (
+                  <button
+                    key={`${item.monthKey}-${item.teacherId}`}
+                    type="button"
+                    className="lms-attendance-pending-chip"
+                    onClick={() => jumpToPendingAttendance(item)}
+                  >
+                    {formatMonthLabel(item.monthKey)} — {item.teacher?.name || 'Teacher'} ({item.pendingCount})
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="lms-attendance-stat-row">
             <div className="lms-attendance-stat lms-attendance-stat--total">
               <span className="lms-attendance-stat__value">{dailyApprovalStats.total}</span>
@@ -942,6 +1152,23 @@ const LmsManagement = () => {
               </label>
               <label className="lms-attendance-field">
                 <span>
+                  <i className="fas fa-chalkboard-teacher" aria-hidden="true" /> Teacher
+                </span>
+                <select
+                  value={dailyTeacherFilter}
+                  onChange={(e) => setDailyTeacherFilter(e.target.value)}
+                >
+                  <option value="">All teachers</option>
+                  {dailyTeachers.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}
+                      {t.pendingCount > 0 ? ` (${t.pendingCount} pending)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="lms-attendance-field">
+                <span>
                   <i className="fas fa-filter" aria-hidden="true" /> Approval status
                 </span>
                 <select
@@ -954,11 +1181,37 @@ const LmsManagement = () => {
                   <option value="all">All</option>
                 </select>
               </label>
+              {dailyTeachers.some((t) => t.pendingCount > 0) ? (
+                <div className="lms-attendance-teacher-badges" aria-label="Teachers with pending submissions">
+                  {dailyTeachers
+                    .filter((t) => t.pendingCount > 0)
+                    .map((t) => (
+                      <button
+                        key={t._id}
+                        type="button"
+                        className={`lms-attendance-teacher-chip ${
+                          String(dailyTeacherFilter) === String(t._id) ? 'is-active' : ''
+                        }`}
+                        onClick={() =>
+                          setDailyTeacherFilter(
+                            String(dailyTeacherFilter) === String(t._id) ? '' : String(t._id)
+                          )
+                        }
+                      >
+                        {t.name}
+                        <span className="lms-attendance-teacher-chip__badge">{t.pendingCount}</span>
+                      </button>
+                    ))}
+                </div>
+              ) : null}
             </div>
             <button
               type="button"
               className="lms-attendance-refresh-btn"
-              onClick={loadDailyDays}
+              onClick={() => {
+                loadDailyTeachers();
+                loadDailyDays();
+              }}
             >
               <i className="fas fa-sync-alt" aria-hidden="true" /> Refresh
             </button>
@@ -1048,8 +1301,8 @@ const LmsManagement = () => {
                             )}
                           </td>
                           <td className="lms-attendance-list-actions">
-                            {approval === 'pending' ? (
-                              <>
+                            <div className="lms-attendance-action-group">
+                              {approval !== 'approved' ? (
                                 <button
                                   type="button"
                                   className="lms-attendance-btn lms-attendance-btn--approve"
@@ -1057,6 +1310,8 @@ const LmsManagement = () => {
                                 >
                                   <i className="fas fa-check" aria-hidden="true" /> Approve
                                 </button>
+                              ) : null}
+                              {approval !== 'rejected' ? (
                                 <button
                                   type="button"
                                   className="lms-attendance-btn lms-attendance-btn--reject"
@@ -1064,12 +1319,17 @@ const LmsManagement = () => {
                                 >
                                   <i className="fas fa-times" aria-hidden="true" /> Reject
                                 </button>
-                              </>
-                            ) : (
-                              <span className="lms-attendance-reviewed">
-                                {d.reviewedBy?.name ? `By ${d.reviewedBy.name}` : 'Reviewed'}
-                              </span>
-                            )}
+                              ) : null}
+                              {approval !== 'pending' ? (
+                                <button
+                                  type="button"
+                                  className="lms-attendance-btn lms-attendance-btn--reopen"
+                                  onClick={() => reviewDailyDay(d._id, 'pending')}
+                                >
+                                  Reopen
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1115,6 +1375,25 @@ const LmsManagement = () => {
                     </select>
                   </label>
                 </div>
+
+                {monthlyRollupNotice ? (
+                  <div className="lms-attendance-rollup-alert" role="status">
+                    {monthlyRollupNotice}
+                  </div>
+                ) : null}
+
+                {monthlyRollupBlockAlerts.length > 0 ? (
+                  <div className="lms-attendance-rollup-block-banner" role="alert">
+                    {monthlyRollupBlockAlerts.map((alert) => (
+                      <p key={alert.id}>
+                        <strong>
+                          {alert.teacherName} ({formatMonthLabel(alert.monthKey)}):
+                        </strong>{' '}
+                        {alert.reason}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
 
                 {requests.length === 0 ? (
                   <div className="lms-attendance-empty lms-attendance-empty--compact">
@@ -1168,10 +1447,13 @@ const LmsManagement = () => {
                                 <span className={`lms-status-pill lms-status-pill--${monthStatus}`}>
                                   {monthStatus}
                                 </span>
+                                {r.payrollMissingReason ? (
+                                  <small className="lms-attendance-payroll-miss">{r.payrollMissingReason}</small>
+                                ) : null}
                               </td>
                               <td className="lms-attendance-list-actions">
-                                {monthStatus === 'pending' ? (
-                                  <>
+                                <div className="lms-attendance-action-group">
+                                  {monthStatus !== 'approved' ? (
                                     <button
                                       type="button"
                                       className="lms-attendance-btn lms-attendance-btn--approve"
@@ -1179,6 +1461,8 @@ const LmsManagement = () => {
                                     >
                                       <i className="fas fa-check-double" aria-hidden="true" /> Approve
                                     </button>
+                                  ) : null}
+                                  {monthStatus !== 'rejected' ? (
                                     <button
                                       type="button"
                                       className="lms-attendance-btn lms-attendance-btn--reject"
@@ -1186,10 +1470,26 @@ const LmsManagement = () => {
                                     >
                                       <i className="fas fa-times" aria-hidden="true" /> Reject
                                     </button>
-                                  </>
-                                ) : (
-                                  '—'
-                                )}
+                                  ) : null}
+                                  {monthStatus !== 'pending' ? (
+                                    <button
+                                      type="button"
+                                      className="lms-attendance-btn lms-attendance-btn--reopen"
+                                      onClick={() => reviewRequest(r._id, 'pending')}
+                                    >
+                                      Reopen
+                                    </button>
+                                  ) : null}
+                                  {monthStatus === 'approved' && r.payrollMissingReason ? (
+                                    <button
+                                      type="button"
+                                      className="lms-attendance-btn lms-attendance-btn--retry"
+                                      onClick={() => retryPayroll(r._id)}
+                                    >
+                                      Retry payroll
+                                    </button>
+                                  ) : null}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1237,6 +1537,10 @@ const LmsManagement = () => {
             <div className="lms-payroll-stat lms-payroll-stat--stale">
               <span className="lms-payroll-stat__value">{payrollStats.stale}</span>
               <span className="lms-payroll-stat__label">Out of date</span>
+            </div>
+            <div className="lms-payroll-stat lms-payroll-stat--rejected">
+              <span className="lms-payroll-stat__value">{payrollStats.rejected}</span>
+              <span className="lms-payroll-stat__label">Rejected</span>
             </div>
           </div>
 
@@ -1313,8 +1617,12 @@ const LmsManagement = () => {
                                 {teacherInitials(r.teacher?.name)}
                               </span>
                               <div>
-                                <strong>{r.teacher?.name || '—'}</strong>
-                                <small>{r.teacher?.email || ''}</small>
+                                <strong>{r.teacher?.name || r.teacherName || '—'}</strong>
+                                {!r.teacher?.name && r.teacherName ? (
+                                  <small className="lms-payroll-removed-teacher">Teacher account removed</small>
+                                ) : (
+                                  <small>{r.teacher?.email || ''}</small>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1341,6 +1649,11 @@ const LmsManagement = () => {
                               <span className="lms-payroll-stale-hint" title={r.staleReason}>
                                 <i className="fas fa-info-circle" aria-hidden="true" />
                               </span>
+                            ) : null}
+                            {r.status === 'rejected' && r.accountantNotes ? (
+                              <small className="lms-payroll-reject-note" title={r.accountantNotes}>
+                                Accountant: {r.accountantNotes}
+                              </small>
                             ) : null}
                           </td>
                           <td>
@@ -1373,14 +1686,24 @@ const LmsManagement = () => {
                             )}
                           </td>
                           <td>
-                            <button
-                              type="button"
-                              className="lms-payroll-attendance-btn"
-                              disabled={payrollAttendanceBusy === r._id}
-                              onClick={() => openPayrollAttendance(r._id)}
-                            >
-                              Attendance
-                            </button>
+                            <div className="lms-payroll-row-actions">
+                              <button
+                                type="button"
+                                className="lms-payroll-attendance-btn"
+                                disabled={payrollAttendanceBusy === r._id || payrollDeleteBusy === r._id}
+                                onClick={() => openPayrollAttendance(r._id)}
+                              >
+                                Attendance
+                              </button>
+                              <button
+                                type="button"
+                                className="lms-payroll-delete-btn"
+                                disabled={payrollDeleteBusy === r._id}
+                                onClick={() => deletePayrollRun(r)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1393,69 +1716,11 @@ const LmsManagement = () => {
         </section>
       )}
 
-      {payrollAttendanceModal ? (
-        <div
-          className="lms-payroll-modal-backdrop"
-          role="presentation"
-          onClick={() => setPayrollAttendanceModal(null)}
-        >
-          <div
-            className="lms-payroll-modal"
-            role="dialog"
-            aria-labelledby="lms-payroll-attendance-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="lms-payroll-attendance-title">
-              Attendance — {payrollAttendanceModal.run?.teacher?.name} (
-              {formatPayrollMonth(payrollAttendanceModal.run?.monthKey)})
-            </h3>
-            {payrollAttendanceModal.attendance?.monthlyRequest ? (
-              <div className="lms-payroll-attendance-summary">
-                <span>Present: {payrollAttendanceModal.attendance.monthlyRequest.presentDays ?? 0}</span>
-                <span>Late: {payrollAttendanceModal.attendance.monthlyRequest.lateDays ?? 0}</span>
-                <span>Leave: {payrollAttendanceModal.attendance.monthlyRequest.leaveDays ?? 0}</span>
-                <span>Absent: {payrollAttendanceModal.attendance.monthlyRequest.absentDays ?? 0}</span>
-                <span>Status: {payrollAttendanceModal.attendance.monthlyRequest.status}</span>
-              </div>
-            ) : (
-              <p className="lms-payroll-modal-hint">No monthly rollup on file for this month.</p>
-            )}
-            <div className="lms-payroll-table-wrap">
-              <table className="lms-payroll-list-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th>Status</th>
-                    <th>Admin approval</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(payrollAttendanceModal.attendance?.dailyRows || []).map((row) => (
-                    <tr key={row.date}>
-                      <td>{row.date}</td>
-                      <td>{formatWeekdayName(row.date)}</td>
-                      <td>{row.mark ? statusCalendarLabel(row.mark.status) : row.label || '—'}</td>
-                      <td>{row.mark?.approvalStatus || '—'}</td>
-                      <td>{row.mark?.notes || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="lms-payroll-modal__actions">
-              <button
-                type="button"
-                className="lms-payroll-attendance-btn"
-                onClick={() => setPayrollAttendanceModal(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PayrollMonthAttendanceModal
+        data={payrollAttendanceModal}
+        onClose={() => setPayrollAttendanceModal(null)}
+        formatMonth={formatPayrollMonth}
+      />
     </div>
   );
 };

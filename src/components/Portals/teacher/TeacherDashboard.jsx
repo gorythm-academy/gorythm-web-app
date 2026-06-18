@@ -34,7 +34,6 @@ const TeacherDashboard = () => {
   const s = data.summary || {};
   return (
     <div className="portal-page">
-      {data.previewMode ? <PortalAlert type="info">{data.message}</PortalAlert> : null}
       <PortalPageHeader title="Teacher Dashboard" />
       <SummaryGrid
         items={[
@@ -42,8 +41,8 @@ const TeacherDashboard = () => {
           { label: 'Assignments', value: s.assignmentsCount ?? 0, to: '/teacher/content' },
           { label: 'Quizzes', value: s.quizzesCount ?? 0, to: '/teacher/quizzes' },
           {
-            label: 'Pending submissions',
-            value: s.pendingSubmissions ?? 0,
+            label: 'Submissions',
+            value: s.submissionCount ?? 0,
             to: '/teacher/content',
           },
         ]}

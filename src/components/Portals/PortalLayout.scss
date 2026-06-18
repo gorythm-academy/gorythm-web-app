@@ -183,6 +183,14 @@
         line-height: 1;
         flex-shrink: 0;
 
+        &--dot {
+          min-width: 0.45rem;
+          width: 0.45rem;
+          height: 0.45rem;
+          padding: 0;
+          font-size: 0;
+        }
+
         &--collapsed {
           position: absolute;
           top: 6px;
@@ -191,6 +199,15 @@
           height: 1rem;
           font-size: 0.6rem;
           padding: 0 0.2rem;
+
+          &.menu-item__badge--dot {
+            top: 8px;
+            right: 10px;
+            min-width: 0.4rem;
+            width: 0.4rem;
+            height: 0.4rem;
+            padding: 0;
+          }
         }
       }
     }
@@ -210,5 +227,18 @@
     .portal-lms-preview-banner {
       padding: 0.65rem 1rem;
     }
+  }
+}
+
+.admin-content--preview-readonly {
+  button[type='submit']:not(.portal-lms-preview-back),
+  input[type='file'],
+  .accountant-pay-btn--approve,
+  .accountant-pay-btn--reject,
+  .accountant-payments-bulk-btn,
+  .teacher-assignments__btn--danger {
+    pointer-events: none;
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 }

@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const PromoVideo = require('../models/PromoVideo');
 const SitePromoSettings = require('../models/SitePromoSettings');
 const { parseVideoUrl } = require('../utils/videoEmbed');
@@ -9,11 +10,14 @@ const {
     ensureThumbDir,
     thumbPublicPath,
     deleteThumbFile,
+    uniqueThumbFilename,
+    listThumbFilenames,
     THUMB_DIR,
 } = require('../utils/promoThumbnailStorage');
+const { activePromoVideoFilter, trashedPromoVideoFilter } = require('../utils/promoVideoQuery');
 
 const SETTINGS_KEY = 'site-promo';
-const adminOnly = [authMiddleware, allowRoles('admin', 'super-admin')];
+const adminOnly = [authMiddleware, validateSessionUser, allowRoles('manager', 'super-admin')];
 
 const IMAGE_MIME = new Set([
     'image/jpeg',
@@ -48,9 +52,11 @@ const thumbStorage = multer
               cb(null, THUMB_DIR);
           },
           filename: (_req, file, cb) => {
-              const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-              const safeExt = ALLOWED_EXT.has(ext) ? ext : '.jpg';
-              cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 9)}${safeExt}`);
+              try {
+                  cb(null, uniqueThumbFilename(file.originalname));
+              } catch (err) {
+                  cb(err);
+              }
           },
       })
     : null;
@@ -85,6 +91,7 @@ function serializeVideo(doc) {
         videoId: o.videoId,
         embedSrc: o.embedSrc,
         thumbnailPath: o.thumbnailPath || '',
+        deletedAt: o.deletedAt || null,
         createdAt: o.createdAt,
         updatedAt: o.updatedAt,
     };
@@ -92,8 +99,24 @@ function serializeVideo(doc) {
 
 async function loadActiveVideo(videoId) {
     if (!videoId) return null;
-    const doc = await PromoVideo.findById(videoId).lean();
+    const doc = await PromoVideo.findOne({ _id: videoId, ...activePromoVideoFilter() }).lean();
     return serializeVideo(doc);
+}
+
+async function clearSelectionForVideo(doc, settings) {
+    const idStr = String(doc._id);
+    const cleared = [];
+
+    if (settings.homepageVideoId && String(settings.homepageVideoId) === idStr) {
+        settings.homepageVideoId = null;
+        cleared.push('homepage');
+    }
+    if (settings.aboutVideoId && String(settings.aboutVideoId) === idStr) {
+        settings.aboutVideoId = null;
+        cleared.push('about');
+    }
+    if (cleared.length) await settings.save();
+    return cleared;
 }
 
 /** Remove upload only when no video row still references it (avoids duplicate orphan files). */
@@ -102,6 +125,42 @@ async function deleteThumbnailIfOrphan(publicPath) {
     if (!path) return;
     const inUse = await PromoVideo.countDocuments({ thumbnailPath: path });
     if (inUse === 0) deleteThumbFile(path);
+}
+
+async function countVideosUsingThumbnail(thumbnailPath) {
+    return PromoVideo.countDocuments({ thumbnailPath });
+}
+
+async function getVideosUsingThumbnail(thumbnailPath) {
+    return PromoVideo.find({ thumbnailPath }).select('name').lean();
+}
+
+async function buildThumbnailGallery() {
+    const filenames = listThumbFilenames();
+    const paths = filenames.map((name) => thumbPublicPath(name));
+    const usageRows = paths.length
+        ? await PromoVideo.find({ thumbnailPath: { $in: paths } }).select('name thumbnailPath').lean()
+        : [];
+
+    const usageByPath = new Map();
+    usageRows.forEach((row) => {
+        const key = row.thumbnailPath;
+        if (!usageByPath.has(key)) usageByPath.set(key, []);
+        usageByPath.get(key).push(row.name || 'Untitled');
+    });
+
+    return filenames
+        .map((filename) => {
+            const imagePath = thumbPublicPath(filename);
+            const usedByTitles = usageByPath.get(imagePath) || [];
+            return {
+                filename,
+                path: imagePath,
+                usedBy: usedByTitles.length,
+                usedByTitles,
+            };
+        })
+        .sort((a, b) => b.filename.localeCompare(a.filename));
 }
 
 // —— Public (mounted at /api/promo-videos) ———————————————————————————————————
@@ -134,14 +193,22 @@ adminRouter.use(...adminOnly);
 
 adminRouter.get('/', async (req, res) => {
     try {
-        const [videos, settings] = await Promise.all([
-            PromoVideo.find({}).sort({ createdAt: -1 }).lean(),
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const listFilter = trash ? trashedPromoVideoFilter() : activePromoVideoFilter();
+        const listSort = trash ? { deletedAt: -1 } : { createdAt: -1 };
+
+        const [videos, activeVideos, trashCount, settings] = await Promise.all([
+            PromoVideo.find(listFilter).sort(listSort).lean(),
+            PromoVideo.find(activePromoVideoFilter()).sort({ createdAt: -1 }).lean(),
+            PromoVideo.countDocuments(trashedPromoVideoFilter()),
             getOrCreateSettings(),
         ]);
 
         return res.json({
             success: true,
             videos: videos.map(serializeVideo),
+            activeVideos: activeVideos.map(serializeVideo),
+            trashCount,
             selection: {
                 homepageVideoId: settings.homepageVideoId ? String(settings.homepageVideoId) : '',
                 aboutVideoId: settings.aboutVideoId ? String(settings.aboutVideoId) : '',
@@ -161,7 +228,10 @@ adminRouter.patch('/selection', async (req, res) => {
             if (!homepageVideoId) {
                 settings.homepageVideoId = null;
             } else {
-                const exists = await PromoVideo.findById(homepageVideoId);
+                const exists = await PromoVideo.findOne({
+                    _id: homepageVideoId,
+                    ...activePromoVideoFilter(),
+                });
                 if (!exists) {
                     return res.status(400).json({ success: false, error: 'Homepage video not found' });
                 }
@@ -173,7 +243,10 @@ adminRouter.patch('/selection', async (req, res) => {
             if (!aboutVideoId) {
                 settings.aboutVideoId = null;
             } else {
-                const exists = await PromoVideo.findById(aboutVideoId);
+                const exists = await PromoVideo.findOne({
+                    _id: aboutVideoId,
+                    ...activePromoVideoFilter(),
+                });
                 if (!exists) {
                     return res.status(400).json({ success: false, error: 'About page video not found' });
                 }
@@ -201,6 +274,47 @@ adminRouter.post('/thumbnail/cleanup', async (req, res) => {
         return res.json({ success: true });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message || 'Cleanup failed' });
+    }
+});
+
+adminRouter.get('/thumbnails', async (req, res) => {
+    try {
+        const images = await buildThumbnailGallery();
+        return res.json({ success: true, images });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message || 'Failed to list thumbnails' });
+    }
+});
+
+adminRouter.post('/thumbnail/delete', async (req, res) => {
+    try {
+        const thumbnailPath = String(req.body?.thumbnailPath || '').trim();
+        if (!thumbnailPath) {
+            return res.status(400).json({ success: false, error: 'thumbnailPath is required' });
+        }
+        const force =
+            req.body?.force === true ||
+            req.body?.force === 1 ||
+            req.body?.force === '1' ||
+            req.body?.force === 'true';
+        const inUse = await countVideosUsingThumbnail(thumbnailPath);
+        if (inUse > 0 && !force) {
+            const videos = await getVideosUsingThumbnail(thumbnailPath);
+            const names = videos.map((v) => v.name || 'Untitled').join(', ');
+            return res.status(409).json({
+                success: false,
+                inUse: true,
+                error: `Thumbnail is used by ${inUse} video(s): ${names}.`,
+                usedByTitles: videos.map((v) => v.name || 'Untitled'),
+            });
+        }
+        if (inUse > 0 && force) {
+            await PromoVideo.updateMany({ thumbnailPath }, { $set: { thumbnailPath: '' } });
+        }
+        deleteThumbFile(thumbnailPath);
+        return res.json({ success: true, detachedVideos: force ? inUse : 0 });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message || 'Delete failed' });
     }
 });
 
@@ -263,7 +377,7 @@ adminRouter.post('/', async (req, res) => {
 
 adminRouter.put('/:id', async (req, res) => {
     try {
-        const doc = await PromoVideo.findById(req.params.id);
+        const doc = await PromoVideo.findOne({ _id: req.params.id, ...activePromoVideoFilter() });
         if (!doc) {
             return res.status(404).json({ success: false, error: 'Video not found' });
         }
@@ -285,50 +399,96 @@ adminRouter.put('/:id', async (req, res) => {
             doc.embedSrc = parsed.embedSrc;
         }
 
+        const previousThumb = doc.thumbnailPath;
+
         if (req.body?.thumbnailPath !== undefined) {
             const next = String(req.body.thumbnailPath || '').trim();
             if (!next) {
                 return res.status(400).json({ success: false, error: 'Thumbnail is required' });
             }
-            if (doc.thumbnailPath && doc.thumbnailPath !== next) {
-                deleteThumbFile(doc.thumbnailPath);
-            }
             doc.thumbnailPath = next;
         }
 
         await doc.save();
+
+        if (previousThumb && previousThumb !== doc.thumbnailPath) {
+            await deleteThumbnailIfOrphan(previousThumb);
+        }
+
         return res.json({ success: true, video: serializeVideo(doc) });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message || 'Failed to update video' });
     }
 });
 
+adminRouter.patch('/:id/restore', async (req, res) => {
+    try {
+        const doc = await PromoVideo.findOneAndUpdate(
+            { _id: req.params.id, ...trashedPromoVideoFilter() },
+            { $set: { deletedAt: null } },
+            { new: true }
+        );
+
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Video not found in trash' });
+        }
+
+        return res.json({ success: true, video: serializeVideo(doc) });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message || 'Failed to restore video' });
+    }
+});
+
+adminRouter.delete('/:id/permanent', async (req, res) => {
+    try {
+        const doc = await PromoVideo.findOne({
+            _id: req.params.id,
+            ...trashedPromoVideoFilter(),
+        });
+
+        if (!doc) {
+            return res.status(404).json({
+                success: false,
+                error: 'Video must be in trash before permanent delete',
+            });
+        }
+
+        const settings = await getOrCreateSettings();
+        await clearSelectionForVideo(doc, settings);
+
+        if (doc.thumbnailPath) await deleteThumbnailIfOrphan(doc.thumbnailPath);
+        await doc.deleteOne();
+
+        return res.json({
+            success: true,
+            selection: {
+                homepageVideoId: settings.homepageVideoId ? String(settings.homepageVideoId) : '',
+                aboutVideoId: settings.aboutVideoId ? String(settings.aboutVideoId) : '',
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message || 'Failed to permanently delete video' });
+    }
+});
+
 adminRouter.delete('/:id', async (req, res) => {
     try {
-        const doc = await PromoVideo.findById(req.params.id);
+        const doc = await PromoVideo.findOneAndUpdate(
+            { _id: req.params.id, ...activePromoVideoFilter() },
+            { $set: { deletedAt: new Date() } },
+            { new: true }
+        );
+
         if (!doc) {
             return res.status(404).json({ success: false, error: 'Video not found' });
         }
 
         const settings = await getOrCreateSettings();
-        const idStr = String(doc._id);
-        const cleared = [];
-
-        if (settings.homepageVideoId && String(settings.homepageVideoId) === idStr) {
-            settings.homepageVideoId = null;
-            cleared.push('homepage');
-        }
-        if (settings.aboutVideoId && String(settings.aboutVideoId) === idStr) {
-            settings.aboutVideoId = null;
-            cleared.push('about');
-        }
-        if (cleared.length) await settings.save();
-
-        if (doc.thumbnailPath) deleteThumbFile(doc.thumbnailPath);
-        await doc.deleteOne();
+        const cleared = await clearSelectionForVideo(doc, settings);
 
         return res.json({
             success: true,
+            message: 'Video moved to trash',
             clearedSelection: cleared,
             selection: {
                 homepageVideoId: settings.homepageVideoId ? String(settings.homepageVideoId) : '',
@@ -336,7 +496,7 @@ adminRouter.delete('/:id', async (req, res) => {
             },
         });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message || 'Failed to delete video' });
+        return res.status(500).json({ success: false, error: error.message || 'Failed to move video to trash' });
     }
 });
 

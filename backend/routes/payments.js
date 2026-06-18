@@ -1,6 +1,5 @@
 const express = require('express');
-const crypto = require('crypto');
-const path = require('path');
+const { deleteProofFile } = require('../services/trashCleanup');
 const mongoose = require('mongoose');
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -14,11 +13,17 @@ const { onPaymentPaid, isPaidStatus } = require('../services/onPaymentPaid');
 const { getDuplicateCoursePaymentBlock } = require('../services/enrollmentDuplicateCheck');
 const { getOrCreateSettings } = require('../services/settingsService');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowPermission } = require('../middleware/authorize');
 const logger = require('../utils/logger');
 const { validate, rules } = require('../middleware/validate');
-const { ensureProofDir, proofPublicPath } = require('../utils/paymentProofStorage');
-const { activePaymentFilter, trashedPaymentFilter } = require('../utils/paymentQuery');
+const { paymentRegisterRateLimiter } = require('../middleware/publicWriteRateLimit');
+const { fulfillStripeCheckoutSession } = require('../services/stripeCheckoutFulfillment');
+const { serializePayment, serializePayments } = require('../utils/serializePayment');
+const { ensureProofDir, proofPublicPath, PROOF_DIR } = require('../utils/paymentProofStorage');
+const { resolveStoredFilename } = require('../utils/safeFilename');
+const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter } = require('../utils/paymentQuery');
+const { activeCourseFilter } = require('../utils/courseQuery');
 
 let multer;
 try {
@@ -33,13 +38,19 @@ const proofStorage = multer
     ? multer.diskStorage({
           destination: (_req, _file, cb) => {
               ensureProofDir();
-              cb(null, path.join(__dirname, '..', 'uploads', 'payment-proofs'));
+              cb(null, PROOF_DIR);
           },
           filename: (_req, file, cb) => {
-              const safe = String(file.originalname || 'proof')
-                  .replace(/[^a-zA-Z0-9._-]/g, '_')
-                  .slice(0, 60);
-              cb(null, `${Date.now()}-${safe}`);
+              try {
+                  const name = resolveStoredFilename({
+                      destDir: PROOF_DIR,
+                      originalName: file.originalname,
+                      publicPathFor: proofPublicPath,
+                  });
+                  cb(null, name);
+              } catch (err) {
+                  cb(err);
+              }
           },
       })
     : null;
@@ -47,11 +58,16 @@ const proofStorage = multer
 const proofUpload = proofStorage
     ? multer({
           storage: proofStorage,
-          limits: { fileSize: 12 * 1024 * 1024 },
+          limits: { fileSize: 1024 * 1024 },
           fileFilter: (_req, file, cb) => {
-              const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+              const allowed = new Set([
+                  'image/jpeg',
+                  'image/png',
+                  'image/webp',
+                  'application/pdf',
+              ]);
               if (allowed.has(file.mimetype)) return cb(null, true);
-              cb(new Error('Use JPG, PNG, or PDF for payment proof.'));
+              cb(new Error('Use JPG, PNG, WebP, or PDF for payment proof.'));
           },
       })
     : null;
@@ -121,7 +137,8 @@ const BANK_DETAIL_FIELDS = [
     'bankExtraNote',
 ];
 
-const canManagePaymentConfig = (role) => ['accountant', 'admin', 'super-admin'].includes(role);
+const canManagePaymentConfig = (role) =>
+    ['accountant', 'manager', 'super-admin'].includes(role);
 
 // --- Public: bank details (saved from Admin → Payments page) ---
 router.get('/bank-details', async (_req, res) => {
@@ -136,192 +153,149 @@ router.get('/bank-details', async (_req, res) => {
     }
 });
 
-// --- Public: bank transfer registration (manual verification) ---
-router.post(
-    '/register-online',
-    validate([
-        rules.requiredString('studentName', 'Student name'),
-        rules.requiredString('email', 'Email'),
-        rules.email('email', 'Email'),
-        rules.requiredString('courseName', 'Course name'),
-        rules.number('amount', 'Amount', { min: 0 }),
-    ]),
-    async (req, res) => {
-    try {
-        const { studentName, email, courseName, amount, paymentMethod, phone } = req.body || {};
-
-        if (!studentName || !email || !courseName || amount == null) {
-            return res.status(400).json({
-                success: false,
-                error: 'studentName, email, courseName, and amount are required',
-            });
-        }
-
-        const method = String(paymentMethod || 'bank').toLowerCase();
-        if (method !== 'bank') {
-            return res.status(400).json({
-                success: false,
-                error: 'Only bank transfer registrations are accepted here. Use Stripe for card and digital wallets.',
-            });
-        }
-
-        const normalizedEmail = String(email).trim().toLowerCase();
-        const normalizedCourseName = String(courseName).trim();
-        const { assertPersonalRegistrationEmail } = require('../services/registrationEmailGuard');
-        const emailGuard = await assertPersonalRegistrationEmail(normalizedEmail);
-        if (!emailGuard.ok) {
-            return res.status(400).json({
-                success: false,
-                code: emailGuard.code,
-                error: emailGuard.error,
-            });
-        }
-
-        const bankDigits = phone != null ? String(phone).replace(/\D/g, '') : '';
-        const bankPhone =
-            bankDigits.length >= 8 && bankDigits.length <= 15 ? bankDigits : undefined;
-        const numericAmount = Number(amount);
-        if (Number.isNaN(numericAmount) || numericAmount < 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid amount',
-            });
-        }
-
-        const course = await Course.findOne({
-            title: { $regex: new RegExp(`^${normalizedCourseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-        }).select('_id title');
-
-        const duplicateBlock = await getDuplicateCoursePaymentBlock(normalizedEmail, {
-            courseId: course?._id,
-            courseName: normalizedCourseName,
-        });
-        if (duplicateBlock.blocked) {
-            return res.status(400).json({
-                success: false,
-                code: duplicateBlock.code,
-                error: duplicateBlock.error,
-            });
-        }
-
-        const existingPending = await Payment.findOne({
-            email: normalizedEmail,
-            courseName: normalizedCourseName,
-            paymentMethod: 'bank',
-            status: { $in: ['pending', 'awaiting_review'] },
-        }).sort({ createdAt: -1 });
-
-        if (existingPending) {
-            if (!existingPending.uploadToken) {
-                existingPending.uploadToken = crypto.randomBytes(24).toString('hex');
-                await existingPending.save();
-            }
-            return res.json({
-                success: true,
-                message: 'You already have a pending bank transfer for this course. Use the reference below to pay and upload proof.',
-                payment: {
-                    _id: existingPending._id,
-                    transactionId: existingPending.transactionId,
-                    amount: existingPending.amount,
-                    currency: existingPending.currency,
-                    status: existingPending.status,
-                    uploadToken: existingPending.uploadToken,
-                    proofUrl: existingPending.proofUrl || '',
-                },
-            });
-        }
-
-        const uploadToken = crypto.randomBytes(24).toString('hex');
-        const payment = new Payment({
-            studentName: String(studentName).trim(),
-            email: normalizedEmail,
-            phone: bankPhone,
-            courseName: normalizedCourseName,
-            course: course?._id || undefined,
-            amount: numericAmount,
-            currency: 'USD',
-            status: 'pending',
-            paymentMethod: 'bank',
-            transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-            uploadToken,
-        });
-
-        await payment.save();
-
-        res.json({
-            success: true,
-            message: 'Registration saved. Transfer the fee using the bank details and reference, then upload your payment proof.',
-            payment: {
-                _id: payment._id,
-                transactionId: payment.transactionId,
-                amount: payment.amount,
-                currency: payment.currency,
-                status: payment.status,
-                uploadToken: payment.uploadToken,
-            },
-        });
-    } catch (error) {
-        req.log.error('Error storing bank registration', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to save registration' });
-    }
-});
-
-// --- Public: upload bank transfer proof (scoped by payment id + upload token) ---
-router.post('/:id/proof', (req, res) => {
+// --- Public: bank transfer — single submit with proof (no DB row until proof is saved) ---
+router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
     if (!proofUpload) {
         return res.status(503).json({ success: false, error: 'File upload is not available on the server.' });
     }
     proofUpload.single('file')(req, res, async (err) => {
         if (err) {
-            return res.status(400).json({ success: false, error: err.message || 'Upload failed' });
+            const tooLarge = err.code === 'LIMIT_FILE_SIZE';
+            return res.status(400).json({
+                success: false,
+                error: tooLarge
+                    ? 'Payment proof must be 1 MB or smaller. Use a smaller screenshot or compress your PDF.'
+                    : err.message || 'Upload failed',
+            });
         }
-        try {
-            const paymentId = req.params.id;
-            const uploadToken = String(req.body?.uploadToken || '').trim();
-            if (!mongoose.Types.ObjectId.isValid(paymentId)) {
-                return res.status(400).json({ success: false, error: 'Invalid payment id' });
-            }
-            if (!uploadToken) {
-                return res.status(400).json({ success: false, error: 'uploadToken is required' });
-            }
-            if (!req.file) {
-                return res.status(400).json({ success: false, error: 'No file uploaded' });
-            }
 
-            const payment = await Payment.findById(paymentId);
-            if (!payment || payment.paymentMethod !== 'bank') {
-                return res.status(404).json({ success: false, error: 'Payment not found' });
-            }
-            if (payment.uploadToken !== uploadToken) {
-                return res.status(403).json({ success: false, error: 'Invalid upload token' });
-            }
-            if (isPaidStatus(payment.status)) {
-                return res.status(400).json({ success: false, error: 'This payment is already confirmed' });
-            }
-            if (payment.status === 'rejected') {
+        let savedProofPath = null;
+        try {
+            const studentName = String(req.body?.studentName || '').trim();
+            const email = String(req.body?.email || '').trim().toLowerCase();
+            const courseName = String(req.body?.courseName || '').trim();
+            const bankDigits = String(req.body?.phone || '').replace(/\D/g, '');
+
+            if (!studentName || !email || !courseName) {
                 return res.status(400).json({
                     success: false,
-                    error: 'This payment was rejected. Submit a new bank transfer registration.',
+                    error: 'studentName, email, and courseName are required',
+                });
+            }
+            if (!req.file) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Payment proof screenshot or PDF is required',
+                });
+            }
+            if (bankDigits.length < 8 || bankDigits.length > 15) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Enter a valid phone number with 8 to 15 digits',
                 });
             }
 
-            payment.proofUrl = proofPublicPath(req.file.filename);
-            payment.proofSubmittedAt = new Date();
-            payment.status = 'awaiting_review';
-            await payment.save();
+            const { assertPersonalRegistrationEmail } = require('../services/registrationEmailGuard');
+            const emailGuard = await assertPersonalRegistrationEmail(email);
+            if (!emailGuard.ok) {
+                return res.status(400).json({
+                    success: false,
+                    code: emailGuard.code,
+                    error: emailGuard.error,
+                });
+            }
 
-            res.json({
+            const course = await Course.findOne({
+                title: {
+                    $regex: new RegExp(
+                        `^${courseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+                        'i'
+                    ),
+                },
+                isPublished: true,
+                ...activeCourseFilter(),
+            }).select('_id title price');
+
+            if (!course) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Course not found or is not available for registration',
+                });
+            }
+
+            const coursePrice = Number(course.price);
+            if (Number.isNaN(coursePrice) || coursePrice <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'This course has no payable amount. Contact us to enroll.',
+                });
+            }
+
+            const duplicateBlock = await getDuplicateCoursePaymentBlock(email, {
+                courseId: course._id,
+                courseName: course.title,
+            });
+            if (duplicateBlock.blocked) {
+                return res.status(400).json({
+                    success: false,
+                    code: duplicateBlock.code,
+                    error: duplicateBlock.error,
+                });
+            }
+
+            const existingAwaiting = await Payment.findOne({
+                ...activePaymentFilter(),
+                email,
+                course: course._id,
+                paymentMethod: 'bank',
+                status: 'awaiting_review',
+            }).select('_id');
+
+            if (existingAwaiting) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'A bank transfer for this course is already awaiting review. Contact the academy if you need help.',
+                });
+            }
+
+            savedProofPath = proofPublicPath(req.file.filename);
+
+            const payment = new Payment({
+                studentName,
+                email,
+                phone: bankDigits,
+                courseName: course.title,
+                course: course._id,
+                amount: coursePrice,
+                currency: 'USD',
+                status: 'awaiting_review',
+                paymentMethod: 'bank',
+                transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+                proofUrl: savedProofPath,
+                proofSubmittedAt: new Date(),
+            });
+
+            await payment.save();
+            savedProofPath = null;
+
+            return res.status(201).json({
                 success: true,
-                message: 'Payment proof received. Our accountant will verify and confirm your payment.',
+                message:
+                    'Payment proof received. Our accountant will verify your transfer and confirm enrollment.',
                 payment: {
                     _id: payment._id,
+                    transactionId: payment.transactionId,
+                    amount: payment.amount,
+                    currency: payment.currency,
                     status: payment.status,
-                    proofUrl: payment.proofUrl,
                 },
             });
         } catch (error) {
-            req.log?.error('Payment proof upload failed', { err: error });
-            res.status(500).json({ success: false, error: 'Failed to save payment proof' });
+            if (savedProofPath) {
+                deleteProofFile(savedProofPath);
+            }
+            req.log?.error('Bank registration with proof failed', { err: error });
+            return res.status(500).json({ success: false, error: 'Failed to submit bank payment' });
         }
     });
 });
@@ -329,50 +303,26 @@ router.post('/:id/proof', (req, res) => {
 // --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
 router.post(
     '/create-checkout',
-    validate([
-        rules.objectId('courseId', 'Course ID'),
-        rules.requiredString('studentName', 'Student name'),
-        rules.requiredString('email', 'Email'),
-        rules.email('email', 'Email'),
-    ]),
+    validate([rules.objectId('courseId', 'Course ID')]),
     async (req, res) => {
     if (!requireStripe(res)) return;
     try {
-        const { courseId, studentName, email, userId, phone } = req.body || {};
+        const { courseId, userId } = req.body || {};
 
-        if (!courseId || !studentName || !email) {
+        if (!courseId) {
             return res.status(400).json({
                 success: false,
-                error: 'courseId, studentName, and email are required',
+                error: 'courseId is required',
             });
         }
 
-        const course = await Course.findById(String(courseId));
+        const course = await Course.findOne({
+            _id: String(courseId),
+            isPublished: true,
+            ...activeCourseFilter(),
+        });
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
-        }
-
-        const normalizedEmail = String(email).trim().toLowerCase();
-        const { assertPersonalRegistrationEmail } = require('../services/registrationEmailGuard');
-        const emailGuard = await assertPersonalRegistrationEmail(normalizedEmail);
-        if (!emailGuard.ok) {
-            return res.status(400).json({
-                success: false,
-                code: emailGuard.code,
-                error: emailGuard.error,
-            });
-        }
-
-        const duplicateBlock = await getDuplicateCoursePaymentBlock(normalizedEmail, {
-            courseId: course._id,
-            courseName: course.title,
-        });
-        if (duplicateBlock.blocked) {
-            return res.status(400).json({
-                success: false,
-                code: duplicateBlock.code,
-                error: duplicateBlock.error,
-            });
         }
 
         const priceUsd = Number(course.price);
@@ -400,12 +350,7 @@ router.post(
         const base = frontendBase();
         const paymentMethodTypes = checkoutPaymentMethodTypes();
 
-        const digitsPhone = phone != null ? String(phone).replace(/\D/g, '') : '';
-        const normalizedPhone =
-            digitsPhone.length >= 8 && digitsPhone.length <= 15 ? digitsPhone : '';
-
         const sessionParams = {
-            customer_email: String(email).trim().toLowerCase(),
             phone_number_collection: { enabled: true },
             line_items: [
                 {
@@ -425,30 +370,11 @@ router.post(
             cancel_url: `${base}/payment-cancel`,
             metadata: {
                 courseId: String(courseId),
-                studentName: String(studentName).trim(),
-                email: String(email).trim().toLowerCase(),
-                ...(normalizedPhone ? { phone: normalizedPhone } : {}),
                 ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
             },
         };
 
         const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
-
-        const payment = new Payment({
-            user: linkedUserId,
-            course: courseId,
-            studentName: String(studentName).trim(),
-            phone: normalizedPhone || undefined,
-            email: String(email).trim().toLowerCase(),
-            courseName: course.title,
-            amount: priceUsd,
-            currency: 'USD',
-            status: 'pending',
-            paymentMethod: 'stripe',
-            transactionId: session.id,
-        });
-
-        await payment.save();
 
         res.json({
             success: true,
@@ -474,23 +400,21 @@ router.get('/verify-session', async (req, res) => {
     }
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        let payment = await Payment.findOne({ transactionId: sessionId }).populate('course').populate('user');
-
-        if (session.payment_status === 'paid' && payment && !isPaidStatus(payment.status)) {
-            payment.status = 'paid';
-            const piId =
-                typeof session.payment_intent === 'string'
-                    ? session.payment_intent
-                    : session.payment_intent?.id;
-            if (piId) payment.stripePaymentIntentId = piId;
-            await payment.save();
-            await payment.populate(['user', 'course']);
-            await onPaymentPaid(payment);
+        let payment = null;
+        if (session.payment_status === 'paid') {
+            payment = await fulfillStripeCheckoutSession(session);
+        } else {
+            payment = await Payment.findOne({
+                transactionId: sessionId,
+                ...activePaymentFilter(),
+            })
+                .populate('course')
+                .populate('user');
         }
 
         res.json({
             success: true,
-            paid: session.payment_status === 'paid',
+            paid: session.payment_status === 'paid' || isPaidStatus(payment?.status),
             paymentStatus: payment?.status || null,
             courseTitle: payment?.course?.title || payment?.courseName || null,
         });
@@ -501,11 +425,12 @@ router.get('/verify-session', async (req, res) => {
 });
 
 router.use(authMiddleware);
+router.use(validateSessionUser);
 
 router.get('/', allowPermission('payments.read'), async (req, res) => {
     try {
         const trash = req.query.trash === 'true' || req.query.trash === '1';
-        const filter = trash ? trashedPaymentFilter() : activePaymentFilter();
+        const filter = trash ? trashedPaymentFilter() : activePaymentListFilter();
         const sort = trash ? { deletedAt: -1 } : { createdAt: -1 };
 
         const [payments, trashCount] = await Promise.all([
@@ -518,7 +443,7 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
 
         res.json({
             success: true,
-            payments,
+            payments: serializePayments(payments),
             trashCount,
         });
     } catch (error) {
@@ -527,7 +452,7 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
     }
 });
 
-router.put('/admin/bank-details', allowPermission('payments.read'), async (req, res) => {
+router.put('/admin/bank-details', allowPermission('payments.write'), async (req, res) => {
     if (!canManagePaymentConfig(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
@@ -556,12 +481,12 @@ router.put('/admin/bank-details', allowPermission('payments.read'), async (req, 
 });
 
 router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) => {
-    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+    if (!['accountant', 'manager', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
     if (!requireStripe(res)) return;
     try {
-        const payment = await Payment.findById(req.params.id);
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
 
         if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment not found' });
@@ -606,7 +531,7 @@ router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) 
 });
 
 router.patch('/:id/restore', allowPermission('payments.write'), async (req, res) => {
-    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+    if (!['accountant', 'manager', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
 
@@ -629,19 +554,25 @@ router.patch('/:id/restore', allowPermission('payments.write'), async (req, res)
 });
 
 router.delete('/:id/permanent', allowPermission('payments.write'), async (req, res) => {
-    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+    if (!['accountant', 'manager', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
 
     try {
-        const deletedPayment = await Payment.findOneAndDelete({
+        const payment = await Payment.findOne({
             _id: req.params.id,
             ...trashedPaymentFilter(),
         });
 
-        if (!deletedPayment) {
+        if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment must be in trash before permanent delete' });
         }
+
+        if (payment.proofUrl) {
+            deleteProofFile(payment.proofUrl);
+        }
+
+        await Payment.deleteOne({ _id: payment._id });
 
         return res.json({
             success: true,
@@ -655,7 +586,7 @@ router.delete('/:id/permanent', allowPermission('payments.write'), async (req, r
 });
 
 router.delete('/:id', allowPermission('payments.write'), async (req, res) => {
-    if (!['accountant', 'admin', 'super-admin'].includes(req.user?.role)) {
+    if (!['accountant', 'manager', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
 

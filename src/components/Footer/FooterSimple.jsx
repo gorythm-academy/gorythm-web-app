@@ -20,16 +20,16 @@ const FooterSimple = () => {
           loading="lazy"
           pictureClassName="footer-milky-bg-picture"
           className="footer-milky-bg-img"
-          width={1920}
-          height={600}
+          width={1024}
+          height={576}
         />
       </div>
 
       <div className="footer-milky-inner">
         <div className="footer-milky-top">
           <div className="footer-milky-copy">
-            <h2 className="footer-milky-title">Learn, Reflect, Know yourself!</h2>
-            <p className="footer-milky-subtitle">A Gorythm initiative part of the Al-Farhan</p>
+            <h2 className="footer-milky-title">Learn, Reflect & Know Yourself!</h2>
+            <p className="footer-milky-subtitle">Gorythm: An initiative of Al-Farhan Institute</p>
 
             <nav className="footer-milky-nav" aria-label="Footer navigation">
               <NavLink to="/" end>
@@ -37,7 +37,7 @@ const FooterSimple = () => {
               </NavLink>
               <NavLink to="/courses">All Courses</NavLink>
               <NavLink to="/about">About Us</NavLink>
-              <NavLink to="/blog">Blog</NavLink>
+              <NavLink to="/research">Research</NavLink>
               <NavLink to="/contact">Contact Us</NavLink>
             </nav>
           </div>

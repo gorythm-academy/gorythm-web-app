@@ -1,6 +1,6 @@
 const ROLE_PERMISSIONS = {
     'super-admin': ['*'],
-    admin: [
+    manager: [
         'settings.general.read',
         'settings.general.write',
         'settings.security.read',

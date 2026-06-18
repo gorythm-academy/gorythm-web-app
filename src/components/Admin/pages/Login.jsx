@@ -27,6 +27,9 @@ const AdminLogin = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
     const redirectMessage = location.state?.message;
 
@@ -117,32 +120,48 @@ const AdminLogin = () => {
                                 <label className="auth-login__label" htmlFor="admin-reset-password">
                                     New password
                                 </label>
-                                <div className="auth-login__input-wrap">
+                                <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
                                         id="admin-reset-password"
                                         className="auth-login__input"
-                                        type="password"
+                                        type={showNewPassword ? 'text' : 'password'}
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         autoComplete="new-password"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        className="auth-login__password-toggle"
+                                        onClick={() => setShowNewPassword((v) => !v)}
+                                        aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <i className={`fas ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                    </button>
                                 </div>
                             </div>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="admin-reset-password-confirm">
                                     Confirm password
                                 </label>
-                                <div className="auth-login__input-wrap">
+                                <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
                                         id="admin-reset-password-confirm"
                                         className="auth-login__input"
-                                        type="password"
+                                        type={showConfirmNewPassword ? 'text' : 'password'}
                                         value={confirmNewPassword}
                                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                                         autoComplete="new-password"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        className="auth-login__password-toggle"
+                                        onClick={() => setShowConfirmNewPassword((v) => !v)}
+                                        aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <i className={`fas ${showConfirmNewPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                    </button>
                                 </div>
                             </div>
                             {error ? <div className="auth-login__error">{error}</div> : null}
@@ -196,16 +215,24 @@ const AdminLogin = () => {
                             <label className="auth-login__label" htmlFor="admin-login-password">
                                 Password
                             </label>
-                            <div className="auth-login__input-wrap">
+                            <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                 <input
                                     id="admin-login-password"
                                     className="auth-login__input"
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="current-password"
                                     required
                                 />
+                                <button
+                                    type="button"
+                                    className="auth-login__password-toggle"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+                                </button>
                             </div>
                         </div>
                         <div className="auth-login__field">

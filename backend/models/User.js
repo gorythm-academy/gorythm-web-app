@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { 
         type: String, 
-        enum: ['super-admin', 'admin', 'teacher', 'accountant', 'student', 'parent'], 
+        enum: ['super-admin', 'manager', 'teacher', 'accountant', 'student', 'parent'], 
         default: 'student' 
     },
     studentId: { type: String, unique: true, sparse: true },

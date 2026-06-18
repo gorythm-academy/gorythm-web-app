@@ -117,6 +117,7 @@ export function SingleCourse() {
       _id: apiCourse._id,
       slug: apiCourse.slug || apiCourse._id,
       title: apiCourse.title,
+      homepageImage: apiCourse.homepageImage || '',
       overview: apiCourse.description,
       description: apiCourse.description,
       image,

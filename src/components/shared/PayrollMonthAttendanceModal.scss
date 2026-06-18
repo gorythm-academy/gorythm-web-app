@@ -1,0 +1,350 @@
+.payroll-attendance-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.payroll-attendance-modal {
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem 1.35rem 1.1rem;
+  width: min(54rem, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  &__eyebrow {
+    margin: 0 0 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
+  &__month {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  &__dismiss {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: pointer;
+
+    &:hover {
+      background: #e2e8f0;
+      color: #334155;
+    }
+  }
+
+  &__hint {
+    margin: 0 0 1rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    font-size: 0.88rem;
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  &__close-btn {
+    padding: 0.45rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      background: #1e293b;
+    }
+  }
+}
+
+.payroll-attendance-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+
+  &__card {
+    border-radius: 12px;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+
+    &--present {
+      background: linear-gradient(145deg, #ecfdf5, #d1fae5);
+      border-color: #a7f3d0;
+
+      .payroll-attendance-summary__value {
+        color: #047857;
+      }
+    }
+
+    &--absent {
+      background: linear-gradient(145deg, #fef2f2, #fee2e2);
+      border-color: #fecaca;
+
+      .payroll-attendance-summary__value {
+        color: #b91c1c;
+      }
+    }
+
+    &--late {
+      background: linear-gradient(145deg, #faf5ff, #f3e8ff);
+      border-color: #e9d5ff;
+
+      .payroll-attendance-summary__value {
+        color: #7e22ce;
+      }
+    }
+
+    &--leave {
+      background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+      border-color: #cbd5e1;
+
+      .payroll-attendance-summary__value {
+        color: #334155;
+      }
+    }
+
+    &--status {
+      background: linear-gradient(145deg, #fff, #f8fafc);
+      border-color: #e2e8f0;
+
+      .payroll-attendance-summary__value--text {
+        font-size: 0.88rem;
+        text-transform: capitalize;
+        color: #0f172a;
+      }
+    }
+  }
+
+  &__value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  &__label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+  }
+}
+
+.payroll-attendance-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: auto;
+  background: #fff;
+}
+
+.payroll-attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+
+  th,
+  td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    background: #f8fafc;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.payroll-attendance-row {
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: #f8fafc;
+  }
+
+  &--present {
+    border-left: 3px solid #22c55e;
+  }
+
+  &--absent {
+    border-left: 3px solid #ef4444;
+    background: #fffbfb;
+  }
+
+  &--late {
+    border-left: 3px solid #a855f7;
+  }
+
+  &--leave {
+    border-left: 3px solid #94a3b8;
+  }
+
+  &--holiday {
+    border-left: 3px solid #3b82f6;
+  }
+
+  &--unmarked {
+    border-left: 3px solid #cbd5e1;
+    background: #fafafa;
+  }
+}
+
+.payroll-attendance-date {
+  strong {
+    display: block;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  small {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+}
+
+.payroll-attendance-notes {
+  color: #475569;
+  max-width: 14rem;
+  font-size: 0.82rem;
+}
+
+.payroll-attendance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+
+  &.portal-attendance-chip--present {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &.portal-attendance-chip--absent {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &.portal-attendance-chip--late {
+    background: #f3e8ff;
+    color: #6b21a8;
+  }
+
+  &.portal-attendance-chip--leave {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+
+  &.portal-attendance-chip--holiday {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  &--unmarked {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+}
+
+.payroll-attendance-approval {
+  display: inline-flex;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+
+  &--approved {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &--pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  &--rejected {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &--muted {
+    color: #94a3b8;
+  }
+}

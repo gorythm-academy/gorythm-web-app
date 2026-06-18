@@ -3,8 +3,12 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Subscriber = require('../models/Subscriber');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
+const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
+
+const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
 const validateSubscriberIds = (ids) => {
   if (!Array.isArray(ids) || ids.length === 0) return 'Subscriber IDs are required';
@@ -59,6 +63,7 @@ const deleteSubscriberHandler = async (req, res) => {
 
 router.post(
   '/',
+  publicWriteRateLimiter,
   validate([rules.requiredString('email', 'Email'), rules.email('email', 'Email')]),
   async (req, res) => {
     try {
@@ -83,7 +88,7 @@ router.post(
   }
 );
 
-router.get('/admin', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+router.get('/admin', ...adminOnly, async (req, res) => {
   try {
     const subscribers = await Subscriber.find({}).sort({ createdAt: -1 }).limit(2000).lean();
     return res.json({ success: true, subscribers });
@@ -94,22 +99,20 @@ router.get('/admin', authMiddleware, allowRoles('super-admin', 'admin'), async (
 
 router.post(
   '/admin/bulk-delete',
-  authMiddleware,
-  allowRoles('super-admin', 'admin'),
+  ...adminOnly,
   validate([rules.arrayNonEmpty('ids', 'Subscriber IDs')]),
   deleteSubscribersHandler
 );
 
 router.post(
   '/admin/delete',
-  authMiddleware,
-  allowRoles('super-admin', 'admin'),
+  ...adminOnly,
   validate([rules.arrayNonEmpty('ids', 'Subscriber IDs')]),
   deleteSubscribersHandler
 );
 
-router.post('/admin/:id/delete', authMiddleware, allowRoles('super-admin', 'admin'), deleteSubscriberHandler);
+router.post('/admin/:id/delete', ...adminOnly, deleteSubscriberHandler);
 
-router.delete('/admin/:id', authMiddleware, allowRoles('super-admin', 'admin'), deleteSubscriberHandler);
+router.delete('/admin/:id', ...adminOnly, deleteSubscriberHandler);
 
 module.exports = router;

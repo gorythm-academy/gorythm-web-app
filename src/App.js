@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import HeroSection from './components/HomeSections/Hero';
@@ -12,7 +12,7 @@ import VideoSection from './components/HomeSections/Video';
 import CoursesSection from './components/HomeSections/Courses';
 import SubscribeSection from './components/HomeSections/Subscribe';
 import WhyGorythmSection from './components/HomeSections/WhyGorythm';
-import BlogSection from './components/HomeSections/BlogSection';
+import ResearchSection from './components/HomeSections/ResearchSection';
 import StudentTestimonialsSection from './components/HomeSections/StudentTestimonials';
 import SocialSidebar from './components/SocialSidebar/SocialSidebar';
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
@@ -46,7 +46,6 @@ const UsersManagement = lazy(() => import('./components/Admin/pages/UsersManagem
 const CoursesManagement = lazy(() => import('./components/Admin/pages/CoursesManagement'));
 const PaymentsManagement = lazy(() => import('./components/Admin/pages/PaymentsManagement'));
 const Analytics = lazy(() => import('./components/Admin/pages/Analytics'));
-const Settings = lazy(() => import('./components/Admin/pages/Settings'));
 const StudentsData = lazy(() => import('./components/Admin/pages/StudentsData'));
 const PaymentGateway = lazy(() => import('./components/Admin/pages/PaymentGateway'));
 const PaymentSuccess = lazy(() =>
@@ -66,9 +65,9 @@ const PortfolioPage = lazy(() =>
 const PortfolioItemPage = lazy(() =>
   import('./components/Pages/PortfolioPages').then((m) => ({ default: m.PortfolioItemPage }))
 );
-const BlogMainPage = lazy(() => import('./components/Pages/BlogMainPage'));
-const BlogCategory = lazy(() => import('./components/Pages/BlogCategory'));
-const SingleBlogPostPage = lazy(() => import('./components/Pages/SingleBlogPostPage'));
+const ResearchMainPage = lazy(() => import('./components/Pages/ResearchMainPage'));
+const ResearchCategoryPage = lazy(() => import('./components/Pages/ResearchCategoryPage'));
+const ResearchPostPage = lazy(() => import('./components/Pages/ResearchPostPage'));
 const PortalLayout = lazy(() => import('./components/Portals/PortalLayout'));
 const LmsManagement = lazy(() => import('./components/Admin/pages/LmsManagement'));
 const ResourcesManagement = lazy(() => import('./components/Admin/pages/ResourcesManagement'));
@@ -131,10 +130,22 @@ const Home = () => {
       <StudentTestimonialsSection />
       <WhyGorythmSection />
       <SubscribeSection />
-      <BlogSection />
+      <ResearchSection />
     </div>
   );
 };
+
+function LegacyBlogRedirect() {
+  const { slug, categorySlug } = useParams();
+  const location = useLocation();
+  if (categorySlug) {
+    return <Navigate to={`/research/category/${categorySlug}${location.search}`} replace />;
+  }
+  if (slug) {
+    return <Navigate to={`/research/${slug}${location.hash}`} replace />;
+  }
+  return <Navigate to="/research" replace />;
+}
 
 function AppLayout() {
   const location = useLocation();
@@ -204,10 +215,14 @@ function AppLayout() {
               <Route path="/portfolio" element={<PortfolioPage />} />
               <Route path="/portfolio/:slug" element={<PortfolioItemPage />} />
 
-              {/* Blog: main listing, category view, single post */}
-              <Route path="/blog/category/:categorySlug" element={<BlogCategory />} />
-              <Route path="/blog/:slug" element={<SingleBlogPostPage />} />
-              <Route path="/blog" element={<BlogMainPage />} />
+              {/* Research: main listing, category view, single article */}
+              <Route path="/research/category/:categorySlug" element={<ResearchCategoryPage />} />
+              <Route path="/research/:slug" element={<ResearchPostPage />} />
+              <Route path="/research" element={<ResearchMainPage />} />
+              {/* Legacy blog URLs → research */}
+              <Route path="/blog/category/:categorySlug" element={<LegacyBlogRedirect />} />
+              <Route path="/blog/:slug" element={<LegacyBlogRedirect />} />
+              <Route path="/blog" element={<Navigate to="/research" replace />} />
 
               {/* Admin Login Route */}
               <Route path="/admin/login" element={<AdminLogin />} />
@@ -216,7 +231,7 @@ function AppLayout() {
               <Route
                 element={
                   <ProtectedRoute
-                    allowedRoles={['super-admin', 'admin']}
+                    allowedRoles={['super-admin', 'manager']}
                     loginPath="/admin/login"
                     authRealm={AUTH_REALM.ADMIN}
                   />
@@ -234,13 +249,14 @@ function AppLayout() {
                   <Route path="courses" element={<CoursesManagement />} />
                   <Route path="assignments" element={<ResourcesManagement defaultTab="assignments" />} />
                   <Route path="resources" element={<ResourcesManagement defaultTab="resources" />} />
+                  <Route path="research" element={<ResourcesManagement defaultTab="research" />} />
                   <Route path="submissions" element={<ResourcesManagement defaultTab="submissions" />} />
                   <Route path="analytics" element={<Analytics />} />
-                  <Route path="settings" element={<Settings />} />
                   <Route path="payments" element={<PaymentsManagement />} />
                   <Route path="lms" element={<LmsManagement />} />
                   <Route path="enrollments" element={<Navigate to="/admin/students" replace />} />
                   <Route path="contact-messages" element={<ContactMessages />} />
+                  <Route path="research-comments" element={<Navigate to="/admin/assignments?tab=research&section=comments" replace />} />
                   <Route path="subscribers" element={<Subscribers />} />
                   <Route path="promo-videos" element={<PromoVideosManagement />} />
                 </Route>
@@ -251,7 +267,6 @@ function AppLayout() {
                   <ProtectedRoute
                     allowedRoles={['student']}
                     loginPath="/login"
-                    allowAdminPortalPreview
                     authRealm={AUTH_REALM.PORTAL}
                   />
                 }
@@ -273,7 +288,6 @@ function AppLayout() {
                   <ProtectedRoute
                     allowedRoles={['teacher']}
                     loginPath="/login"
-                    allowAdminPortalPreview
                     authRealm={AUTH_REALM.PORTAL}
                   />
                 }
@@ -283,6 +297,7 @@ function AppLayout() {
                   <Route path="classes" element={<TeacherClasses />} />
                   <Route path="attendance" element={<TeacherAttendance />} />
                   <Route path="content" element={<TeacherContent />} />
+                  <Route path="assignments" element={<Navigate to="/teacher/content" replace />} />
                   <Route path="resources" element={<TeacherResources />} />
                   <Route path="schedule" element={<Navigate to="/teacher/classes" replace />} />
                   <Route path="my-attendance" element={<TeacherMyAttendance />} />
@@ -295,7 +310,6 @@ function AppLayout() {
                   <ProtectedRoute
                     allowedRoles={['parent']}
                     loginPath="/login"
-                    allowAdminPortalPreview
                     authRealm={AUTH_REALM.PORTAL}
                   />
                 }
@@ -312,12 +326,11 @@ function AppLayout() {
                   <ProtectedRoute
                     allowedRoles={['accountant']}
                     loginPath="/login"
-                    allowAdminPortalPreview
                     authRealm={AUTH_REALM.PORTAL}
                   />
                 }
               >
-                <Route path="/accountant/*" element={<PortalLayout role="accountant" title="Accountant Portal" />}>
+                <Route path="/accountant/*" element={<PortalLayout role="accountant" title="Finance portal" />}>
                   <Route index element={<AccountantDashboard />} />
                   <Route path="payments" element={<AccountantPayments />} />
                   <Route path="payroll" element={<AccountantPayroll />} />

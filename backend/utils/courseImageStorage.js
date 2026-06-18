@@ -44,12 +44,68 @@ function listImageFilenames() {
         .filter((name) => !name.startsWith('.'));
 }
 
+const ALLOWED_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
+
+/**
+ * Build a safe filename from admin input. Returns null to use auto-generated name.
+ */
+function sanitizeCourseImageFilename(raw, fallbackExt = '.jpg') {
+    let name = String(raw || '').trim();
+    if (!name) return null;
+
+    name = name.replace(/^.*[\\/]/, '');
+    let ext = path.extname(name).toLowerCase();
+    let base = name;
+
+    if (ext && ALLOWED_EXT.has(ext)) {
+        base = name.slice(0, -ext.length);
+    } else {
+        ext = ALLOWED_EXT.has(fallbackExt) ? fallbackExt : '.jpg';
+    }
+
+    base = base
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+    if (!base) return null;
+
+    const full = `${base}${ext}`;
+    if (full.length > 120) return null;
+    return full;
+}
+
+function absolutePathForFilename(filename) {
+    if (!filename || filename.includes('..') || filename.includes('/')) return null;
+    return path.join(IMAGE_DIR, filename);
+}
+
+function renameImageFile(oldPublicPath, newFilename) {
+    const oldAbs = imageAbsolutePathFromPublic(oldPublicPath);
+    const newAbs = absolutePathForFilename(newFilename);
+    if (!oldAbs || !newAbs || !fs.existsSync(oldAbs)) {
+        throw new Error('Original image file not found.');
+    }
+    if (fs.existsSync(newAbs) && newAbs !== oldAbs) {
+        throw new Error(`"${newFilename}" already exists. Choose a different name.`);
+    }
+    fs.renameSync(oldAbs, newAbs);
+    return imagePublicPath(newFilename);
+}
+
 module.exports = {
     IMAGE_SUBDIR,
     IMAGE_DIR,
+    ALLOWED_EXT,
     ensureImageDir,
     imagePublicPath,
     imageAbsolutePathFromPublic,
     deleteImageFile,
     listImageFilenames,
+    sanitizeCourseImageFilename,
+    absolutePathForFilename,
+    renameImageFile,
 };

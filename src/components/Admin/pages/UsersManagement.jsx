@@ -7,7 +7,7 @@ import { useAdminDialog } from '../AdminDialogContext';
 import './UsersManagement.scss';
 
 const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
-const STAFF_ROLE_SLUGS = ['admin', 'super-admin', 'accountant'];
+const STAFF_ROLE_SLUGS = ['manager', 'super-admin', 'accountant'];
 
 const VARIANT_CONFIG = {
     staff: {
@@ -16,7 +16,7 @@ const VARIANT_CONFIG = {
         pageTitle: 'Staff accounts (Users)',
         addLabel: 'Add staff user',
         icon: 'fa-users-cog',
-        defaultRole: 'admin',
+        defaultRole: 'manager',
         fixedRole: null,
         showEnroll: false,
     },
@@ -63,7 +63,7 @@ const VARIANT_CONFIG = {
 };
 
 function displayRoleLabel(role) {
-    if (role === 'admin') return 'Manager';
+    if (role === 'manager') return 'Manager';
     if (role === 'super-admin') return 'Super Admin';
     if (role === 'teacher') return 'Teacher';
     if (role === 'parent') return 'Parent';
@@ -262,13 +262,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     const currentUser = parseAuthUser() || {};
     const isSuperAdmin = currentUser.role === 'super-admin';
-    const isAdminViewer = currentUser.role === 'admin';
+    const isManagerViewer = currentUser.role === 'manager';
 
     const variantConfig = VARIANT_CONFIG[variant] || VARIANT_CONFIG.staff;
 
     const staffRoleOptions = useMemo(() => {
         const base = [
-            { value: 'admin', label: 'Manager', icon: 'fa-user-cog' },
+            { value: 'manager', label: 'Manager', icon: 'fa-user-cog' },
             { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
         ];
         if (isSuperAdmin) {
@@ -282,7 +282,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         ? PEOPLE_ROLE_OPTIONS.filter((o) => variantConfig.roles.includes(o.value))
         : staffRoleOptions;
 
-    const canCreateLearner = isLearnerTab && (isSuperAdmin || isAdminViewer);
+    const canCreateLearner = isLearnerTab && (isSuperAdmin || isManagerViewer);
     const canCreateStaff = variant === 'staff' && isSuperAdmin;
     const showAddButton = canCreateLearner || canCreateStaff;
 
@@ -1682,7 +1682,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                             <>
                                 <option value="all">All staff roles</option>
                                 <option value="super-admin">Super Admin</option>
-                                <option value="admin">Manager</option>
+                                <option value="manager">Manager</option>
                                 <option value="accountant">Accountant</option>
                             </>
                         )}
@@ -1828,7 +1828,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                         className={`fas fa-${
                                                             user.role === 'super-admin'
                                                                 ? 'user-shield'
-                                                                : user.role === 'admin'
+                                                                : user.role === 'manager'
                                                                   ? 'user-cog'
                                                                   : user.role === 'teacher'
                                                                     ? 'chalkboard-teacher'
@@ -2145,7 +2145,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-user-cog"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'admin').length}</h3>
+                                <h3>{users.filter((u) => u.role === 'manager').length}</h3>
                                 <p>Admins</p>
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 const TeacherAttendanceRequest = require('../models/TeacherAttendanceRequest');
 const TeacherSelfAttendanceDay = require('../models/TeacherSelfAttendanceDay');
-const { normalizeMonthKey, markPayrollStale } = require('./payrollCalculation');
+const { normalizeMonthKey, markPayrollStale, isMonthEnded } = require('./payrollCalculation');
 const {
     monthBounds,
     buildMonthCalendar,
@@ -36,6 +36,69 @@ function monthNeedsReapproval(dailyDocs, calendarDays) {
             doc.submittedAt &&
             ['pending', 'rejected'].includes(doc.approvalStatus || 'pending')
     );
+}
+
+/** Working days (excludes Sunday/weekend & holidays) with no teacher submission. */
+function getUnmarkedWorkingDays(dailyDocs, calendarDays) {
+    const submittedDates = new Set(
+        dailyDocs.filter((doc) => doc.submittedAt).map((doc) => isoDateKey(doc.date))
+    );
+    return calendarDays
+        .filter((d) => d.dayType === 'working')
+        .filter((d) => !submittedDates.has(d.date))
+        .map((d) => d.date);
+}
+
+function formatUnmarkedWorkingDaysError(unmarkedDates) {
+    if (!unmarkedDates?.length) return '';
+    const preview = unmarkedDates.slice(0, 5).join(', ');
+    const suffix = unmarkedDates.length > 5 ? ` (+${unmarkedDates.length - 5} more)` : '';
+    return `Teacher has not marked ${unmarkedDates.length} working day(s). Missing: ${preview}${suffix}. Sundays and official holidays are excluded.`;
+}
+
+/** Why a pending monthly rollup cannot be approved yet (null = ready). */
+async function computeMonthlyApprovalBlock(teacherId, monthKey) {
+    const tid = teacherId?._id || teacherId;
+    if (!tid || !monthKey) return null;
+
+    if (!isMonthEnded(monthKey)) {
+        return {
+            reason:
+                'Monthly attendance can only be approved after the calendar month has ended. Approve daily submissions during the month, then approve the month from the 1st of the following month.',
+            unmarkedDates: [],
+        };
+    }
+
+    const { start, end } = monthBounds(monthKey);
+    const monthDays = await TeacherSelfAttendanceDay.find({
+        teacher: tid,
+        date: { $gte: start, $lte: end },
+    });
+    const calendar = await buildMonthCalendar(monthKey);
+
+    const unmarked = getUnmarkedWorkingDays(monthDays, calendar.days);
+    if (unmarked.length > 0) {
+        return {
+            reason: `Cannot approve month: ${formatUnmarkedWorkingDaysError(unmarked)}`,
+            unmarkedDates: unmarked,
+        };
+    }
+
+    const submitted = workingDayDocs(monthDays, calendar.days).filter((d) => d.submittedAt);
+    if (!submitted.length) {
+        return {
+            reason: 'Cannot approve month: no daily attendance submissions for this month.',
+            unmarkedDates: [],
+        };
+    }
+    if (monthNeedsReapproval(monthDays, calendar.days)) {
+        return {
+            reason: 'Cannot approve month: one or more submitted days are still pending or rejected.',
+            unmarkedDates: [],
+        };
+    }
+
+    return null;
 }
 
 /**
@@ -94,5 +157,8 @@ async function syncMonthlyRequestFromDaily(teacherId, dateInput) {
 module.exports = {
     aggregateFromApprovedDays,
     monthNeedsReapproval,
+    getUnmarkedWorkingDays,
+    formatUnmarkedWorkingDaysError,
+    computeMonthlyApprovalBlock,
     syncMonthlyRequestFromDaily,
 };

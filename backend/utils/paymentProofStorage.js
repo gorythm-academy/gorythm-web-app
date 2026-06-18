@@ -18,11 +18,24 @@ function proofPublicPath(filename) {
 
 function proofAbsolutePathFromPublic(publicPath) {
     if (!publicPath || typeof publicPath !== 'string') return null;
+
     const prefix = `/api/uploads/${PROOF_SUBDIR}/`;
-    if (!publicPath.startsWith(prefix)) return null;
-    const filename = publicPath.slice(prefix.length);
-    if (!filename || filename.includes('..') || filename.includes('/')) return null;
-    return path.join(PROOF_DIR, filename);
+    if (publicPath.startsWith(prefix)) {
+        const filename = publicPath.slice(prefix.length);
+        if (!filename || filename.includes('..') || filename.includes('/')) return null;
+        return path.join(PROOF_DIR, filename);
+    }
+
+    // Legacy URL only — folder is no longer created
+    const legacyPaymentsPrefix = '/api/uploads/payments/';
+    if (publicPath.startsWith(legacyPaymentsPrefix)) {
+        const filename = publicPath.slice(legacyPaymentsPrefix.length);
+        if (!filename || filename.includes('..') || filename.includes('/')) return null;
+        const legacyAbs = path.join(UPLOAD_ROOT, 'payments', filename);
+        if (fs.existsSync(legacyAbs)) return legacyAbs;
+    }
+
+    return null;
 }
 
 module.exports = {

@@ -8,7 +8,7 @@ export const AUTH_REALM = {
   PORTAL: 'portal',
 };
 
-const ADMIN_ROLES = new Set(['admin', 'super-admin']);
+const ADMIN_ROLES = new Set(['manager', 'super-admin']);
 const PREVIEW_SESSION_KEY = 'gorythm_admin_portal_preview';
 
 /** @deprecated legacy single-bucket keys */

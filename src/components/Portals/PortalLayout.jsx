@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { parseAuthUser, clearAuthSession, AUTH_REALM } from '../../utils/authStorage';
-import { isViewingPortalAsAdmin, clearAdminPortalPreview } from '../../utils/adminPortalPreview';
 import {
   readAdminDashboardAccent,
   DEFAULT_ADMIN_DASHBOARD_ACCENT,
@@ -14,6 +13,7 @@ import { useStudentPortalBadges } from '../../hooks/useStudentPortalBadges';
 import { useTeacherPortalBadges } from '../../hooks/useTeacherPortalBadges';
 import { useAccountantPortalBadges } from '../../hooks/useAccountantPortalBadges';
 import './PortalLayout.scss';
+import './accountant/AccountantPortalTheme.scss';
 
 const MOBILE_MAX_WIDTH = 1024;
 const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
@@ -43,10 +43,10 @@ const NAV_BY_ROLE = {
     { to: '/parent/progress', label: 'Progress', icon: 'fas fa-chart-line' },
   ],
   accountant: [
-    { to: '/accountant', label: 'Dashboard', icon: 'fas fa-home', end: true },
-    { to: '/accountant/payments', label: 'Payments', icon: 'fas fa-credit-card', badgeKey: 'payments' },
-    { to: '/accountant/payroll', label: 'Payroll', icon: 'fas fa-money-bill-wave' },
-    { to: '/accountant/reports', label: 'Reports', icon: 'fas fa-file-alt' },
+    { to: '/accountant', label: 'Overview', icon: 'fas fa-chart-pie', end: true },
+    { to: '/accountant/payments', label: 'Fee reviews', icon: 'fas fa-file-invoice-dollar', badgeKey: 'payments' },
+    { to: '/accountant/payroll', label: 'Teacher payroll', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
+    { to: '/accountant/reports', label: 'Financial reports', icon: 'fas fa-file-export' },
   ],
 };
 
@@ -60,7 +60,6 @@ const PortalLayout = ({ role, title }) => {
   const nav = NAV_BY_ROLE[role] || [];
   const navigate = useNavigate();
   const location = useLocation();
-  const adminPreview = isViewingPortalAsAdmin();
   const studentBadges = useStudentPortalBadges(role === 'student');
   const teacherBadges = useTeacherPortalBadges(role === 'teacher');
   const accountantBadges = useAccountantPortalBadges(role === 'accountant');
@@ -121,17 +120,12 @@ const PortalLayout = ({ role, title }) => {
   );
 
   const handleLogout = () => {
-    if (adminPreview) {
-      clearAdminPortalPreview();
-      navigate('/admin');
-      return;
-    }
     clearAuthSession(AUTH_REALM.PORTAL);
     navigate('/login');
   };
 
   return (
-    <div className="admin-dashboard portal-dashboard" style={dashboardThemeStyle}>
+    <div className={`admin-dashboard portal-dashboard portal-dashboard--${role}`} style={dashboardThemeStyle}>
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
           {sidebarOpen && (
@@ -157,6 +151,7 @@ const PortalLayout = ({ role, title }) => {
         <nav className="sidebar-menu" aria-label="Portal navigation">
           {nav.map((item) => {
             const badgeCount = item.badgeKey ? navBadges[item.badgeKey] || 0 : 0;
+            const showBadge = badgeCount > 0;
             return (
               <Link
                 key={item.to}
@@ -164,43 +159,50 @@ const PortalLayout = ({ role, title }) => {
                 className={`menu-item ${
                   navItemIsActive(location.pathname, item.to, item.end) ? 'active' : ''
                 }`}
-                title={!sidebarOpen ? item.label : undefined}
+                title={
+                  !sidebarOpen && showBadge
+                    ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
+                    : !sidebarOpen
+                      ? item.label
+                      : undefined
+                }
               >
                 <i className={item.icon} />
                 {sidebarOpen && (
                   <span className="menu-item__label">
                     {item.label}
-                    {badgeCount > 0 ? (
-                      <span className="menu-item__badge" aria-label={`${badgeCount} new`}>
-                        {badgeCount > 99 ? '99+' : badgeCount}
-                      </span>
+                    {showBadge ? (
+                      item.badgeDot ? (
+                        <span className="menu-item__badge menu-item__badge--dot" aria-label="Pending items" />
+                      ) : (
+                        <span className="menu-item__badge" aria-label={`${badgeCount} new`}>
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      )
                     ) : null}
                   </span>
                 )}
-                {!sidebarOpen && badgeCount > 0 ? (
-                  <span className="menu-item__badge menu-item__badge--collapsed" aria-label={`${badgeCount} new`}>
-                    {badgeCount > 9 ? '9+' : badgeCount}
-                  </span>
+                {!sidebarOpen && showBadge ? (
+                  item.badgeDot ? (
+                    <span
+                      className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
+                      aria-label="Pending items"
+                    />
+                  ) : (
+                    <span className="menu-item__badge menu-item__badge--collapsed" aria-label={`${badgeCount} new`}>
+                      {badgeCount > 9 ? '9+' : badgeCount}
+                    </span>
+                  )
                 ) : null}
               </Link>
             );
           })}
-          {adminPreview ? (
-            <Link
-              to="/admin"
-              className="menu-item"
-              title={!sidebarOpen ? 'Admin dashboard' : undefined}
-            >
-              <i className="fas fa-arrow-left" />
-              {sidebarOpen && <span>Admin dashboard</span>}
-            </Link>
-          ) : null}
         </nav>
 
         <div className="sidebar-footer">
           <button type="button" className="logout-btn" onClick={handleLogout}>
             <i className="fas fa-sign-out-alt" />
-            {sidebarOpen ? <span>{adminPreview ? 'Sign out' : 'Logout'}</span> : null}
+            {sidebarOpen ? <span>Logout</span> : null}
           </button>
           <div className="admin-profile">
             <div className="profile-avatar">
@@ -218,18 +220,6 @@ const PortalLayout = ({ role, title }) => {
       </aside>
 
       <main className="admin-main">
-        {adminPreview ? (
-          <div className="portal-lms-preview-banner" role="status">
-            <strong>Admin preview</strong>
-            <span>
-              You are viewing the {title} UI with your admin login. API calls still use your admin account unless the
-              backend allows it.
-            </span>
-            <button type="button" className="portal-lms-preview-back" onClick={() => navigate('/admin')}>
-              Back to admin
-            </button>
-          </div>
-        ) : null}
         <div className="admin-content">
           <Outlet />
         </div>

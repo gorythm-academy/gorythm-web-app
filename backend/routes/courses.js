@@ -7,90 +7,9 @@ const { validate, rules } = require('../middleware/validate');
 const { activeCourseFilter, trashedCourseFilter } = require('../utils/courseQuery');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
-
-const adminOnly = [authMiddleware, allowRoles('super-admin', 'admin')];
-
-// Get all courses (admin)
-router.get('/', adminOnly, async (req, res) => {
-    try {
-        const trash = req.query.trash === 'true' || req.query.trash === '1';
-        const courseFilter = trash ? trashedCourseFilter() : activeCourseFilter();
-
-        const courses = await Course.find(courseFilter)
-            .populate('instructor', 'name email')
-            .sort(trash ? { deletedAt: -1 } : { createdAt: -1 });
-
-        const trashCount = await Course.countDocuments(trashedCourseFilter());
-
-        // Source of truth for membership: enrollments linked to People students.
-        const enrollmentStats = await Enrollment.aggregate([
-            {
-                $match: {
-                    course: { $ne: null },
-                    student: { $ne: null },
-                    ...activeEnrollmentFilter(),
-                },
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'student',
-                    foreignField: '_id',
-                    as: 'studentDoc',
-                },
-            },
-            { $unwind: '$studentDoc' },
-            { $match: { 'studentDoc.role': 'student' } },
-            {
-                $group: {
-                    _id: '$course',
-                    studentIds: { $addToSet: '$student' },
-                },
-            },
-        ]);
-
-        const byCourseStudentCount = new Map();
-        const uniqueStudentIdSet = new Set();
-        enrollmentStats.forEach((row) => {
-            const ids = row.studentIds || [];
-            byCourseStudentCount.set(String(row._id), ids.length);
-            ids.forEach((id) => uniqueStudentIdSet.add(String(id)));
-        });
-
-        const mappedCourses = courses.map((course) => {
-            return {
-                _id: course._id,
-                title: course.title,
-                description: course.description,
-                category: course.category,
-                price: course.price,
-                duration: course.duration,
-                level: course.level,
-                students: byCourseStudentCount.get(String(course._id)) || 0,
-                status: course.isPublished ? 'published' : 'draft',
-                instructor: course.instructor,
-                instructorName: course.instructorName || '',
-                homepageImage: course.homepageImage || '',
-                displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
-                masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
-                slug: course.slug || '',
-                createdAt: course.createdAt,
-                deletedAt: course.deletedAt || null,
-            };
-        });
-
-        res.json({
-            success: true,
-            courses: mappedCourses,
-            totalUniqueStudents: uniqueStudentIdSet.size,
-            trashCount,
-        });
-    } catch (error) {
-        req.log.error('Error fetching courses', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to fetch courses' });
-    }
-});
+const { stripCourseModulesForStudent } = require('../utils/stripCourseModulesForStudent');
 
 // Category order for listing: Quran, Tajweed, Islamic Studies, Seerah, STEM, then rest
 const PUBLIC_CATEGORY_ORDER = [
@@ -105,7 +24,7 @@ const getCategorySortIndex = (category) => {
 // Get published courses only (public, no auth) – for homepage & All Courses
 router.get('/public', async (req, res) => {
     try {
-        // Short CDN/browser cache for public catalog to improve page load on Vercel.
+        // Short CDN/browser cache for public catalog.
         res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
 
         const raw = await Course.find({ isPublished: true, ...activeCourseFilter() })
@@ -146,12 +65,16 @@ router.get('/:id', async (req, res) => {
         const param = req.params.id;
         let course = null;
         if (mongoose.isValidObjectId(param)) {
-            course = await Course.findById(param).populate('instructor', 'name email');
+            course = await Course.findOne({
+                _id: param,
+                isPublished: true,
+                ...activeCourseFilter(),
+            }).populate('instructor', 'name');
         }
         if (!course && param) {
-            course = await Course.findOne({ slug: param, isPublished: true }).populate('instructor', 'name email');
+            course = await Course.findOne({ slug: param, isPublished: true, ...activeCourseFilter() }).populate('instructor', 'name');
         }
-        if (!course || course.deletedAt) {
+        if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
         if (course.isPublished) {
@@ -175,7 +98,7 @@ router.get('/:id', async (req, res) => {
                 displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
                 masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
                 slug: course.slug || '',
-                modules: course.modules || [],
+                modules: stripCourseModulesForStudent(course).modules || [],
                 students: course.students?.length ?? 0,
                 isPublished: course.isPublished,
                 createdAt: course.createdAt
@@ -184,6 +107,88 @@ router.get('/:id', async (req, res) => {
     } catch (error) {
         req.log.error('Error fetching course', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch course' });
+    }
+});
+
+router.use(authMiddleware);
+router.use(validateSessionUser);
+router.use(allowRoles('manager', 'super-admin'));
+
+// Get all courses (admin)
+router.get('/', async (req, res) => {
+    try {
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const courseFilter = trash ? trashedCourseFilter() : activeCourseFilter();
+
+        const courses = await Course.find(courseFilter)
+            .populate('instructor', 'name email')
+            .sort(trash ? { deletedAt: -1 } : { createdAt: -1 });
+
+        const trashCount = await Course.countDocuments(trashedCourseFilter());
+
+        const enrollmentStats = await Enrollment.aggregate([
+            {
+                $match: {
+                    course: { $ne: null },
+                    student: { $ne: null },
+                    ...activeEnrollmentFilter(),
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'student',
+                    foreignField: '_id',
+                    as: 'studentDoc',
+                },
+            },
+            { $unwind: '$studentDoc' },
+            { $match: { 'studentDoc.role': 'student' } },
+            {
+                $group: {
+                    _id: '$course',
+                    studentIds: { $addToSet: '$student' },
+                },
+            },
+        ]);
+
+        const byCourseStudentCount = new Map();
+        const uniqueStudentIdSet = new Set();
+        enrollmentStats.forEach((row) => {
+            const ids = row.studentIds || [];
+            byCourseStudentCount.set(String(row._id), ids.length);
+            ids.forEach((id) => uniqueStudentIdSet.add(String(id)));
+        });
+
+        const mappedCourses = courses.map((course) => ({
+            _id: course._id,
+            title: course.title,
+            description: course.description,
+            category: course.category,
+            price: course.price,
+            duration: course.duration,
+            level: course.level,
+            students: byCourseStudentCount.get(String(course._id)) || 0,
+            status: course.isPublished ? 'published' : 'draft',
+            instructor: course.instructor,
+            instructorName: course.instructorName || '',
+            homepageImage: course.homepageImage || '',
+            displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
+            masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
+            slug: course.slug || '',
+            createdAt: course.createdAt,
+            deletedAt: course.deletedAt || null,
+        }));
+
+        res.json({
+            success: true,
+            courses: mappedCourses,
+            totalUniqueStudents: uniqueStudentIdSet.size,
+            trashCount,
+        });
+    } catch (error) {
+        req.log.error('Error fetching courses', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch courses' });
     }
 });
 
@@ -213,7 +218,6 @@ async function buildUniqueSlug(raw, excludeId = null) {
 // Create new course
 router.post(
     '/',
-    adminOnly,
     validate([
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
@@ -265,7 +269,6 @@ router.post(
 // Update entire course
 router.put(
     '/:id',
-    adminOnly,
     validate([
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
@@ -278,7 +281,7 @@ router.put(
             fields: Object.keys(req.body || {}),
         });
 
-        const course = await Course.findById(req.params.id);
+        const course = await Course.findOne({ _id: req.params.id, ...activeCourseFilter() });
         if (!course) {
             req.log.warn('Course not found for update', { courseId: req.params.id });
             return res.status(404).json({ success: false, error: 'Course not found' });
@@ -295,7 +298,7 @@ router.put(
         course.duration = req.body.duration || course.duration;
         course.level = req.body.level || course.level;
         course.isPublished = req.body.status === 'published';
-        if (req.body.instructorId) course.instructor = req.body.instructorId;
+        if (req.body.instructorId !== undefined) course.instructor = req.body.instructorId || null;
         if (req.body.instructorName !== undefined) course.instructorName = req.body.instructorName || '';
         if (req.body.homepageImage !== undefined) course.homepageImage = String(req.body.homepageImage || '').trim();
         if (req.body.displayOrder !== undefined) {
@@ -329,11 +332,10 @@ router.put(
 // Update course status only
 router.patch(
     '/:id/status',
-    adminOnly,
     validate([rules.enum('status', 'Status', ['published', 'draft'])]),
     async (req, res) => {
     try {
-        const course = await Course.findById(req.params.id);
+        const course = await Course.findOne({ _id: req.params.id, ...activeCourseFilter() });
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
@@ -351,7 +353,7 @@ router.patch(
 });
 
 // Soft-delete course (move to trash)
-router.delete('/:id', adminOnly, async (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         req.log.info('Trashing course', { courseId: req.params.id });
 
@@ -376,7 +378,7 @@ router.delete('/:id', adminOnly, async (req, res) => {
 });
 
 // Restore course from trash
-router.patch('/:id/restore', adminOnly, async (req, res) => {
+router.patch('/:id/restore', async (req, res) => {
     try {
         const course = await Course.findOneAndUpdate(
             { _id: req.params.id, ...trashedCourseFilter() },
@@ -393,7 +395,7 @@ router.patch('/:id/restore', adminOnly, async (req, res) => {
 });
 
 // Permanently delete course (must be in trash)
-router.delete('/:id/permanent', adminOnly, async (req, res) => {
+router.delete('/:id/permanent', async (req, res) => {
     try {
         const course = await Course.findOneAndDelete({
             _id: req.params.id,
@@ -419,7 +421,6 @@ router.delete('/:id/permanent', adminOnly, async (req, res) => {
 // FIXED: Bulk delete courses - ADD THIS ROUTE
 router.post(
     '/bulk-delete',
-    adminOnly,
     validate([rules.arrayNonEmpty('ids', 'Course IDs')]),
     async (req, res) => {
     try {
@@ -450,7 +451,6 @@ router.post(
 // Bulk update status
 router.patch(
     '/bulk-status',
-    adminOnly,
     validate([
         rules.arrayNonEmpty('courseIds', 'Course IDs'),
         rules.enum('status', 'Status', ['published', 'draft']),
@@ -468,7 +468,7 @@ router.patch(
         }
 
         await Course.updateMany(
-            { _id: { $in: courseIds } },
+            { _id: { $in: courseIds }, ...activeCourseFilter() },
             { isPublished: status === 'published' }
         );
 

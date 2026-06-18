@@ -1,15 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch, lmsAdminDelete } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import FileUploadField from '../../Portals/shared/FileUploadField';
 import { AUTH_REALM } from '../../../utils/authStorage';
 import AdminAssignmentSubmissions from './AdminAssignmentSubmissions';
+import AdminResearchTab from './AdminResearchTab';
+import ResearchComments from './ResearchComments';
+import LmsTrashTabs from '../shared/LmsTrashTabs';
+import LmsCollapsibleFormPanel from '../shared/LmsCollapsibleFormPanel';
 import './LmsManagement.scss';
 
 const TABS = [
   { id: 'assignments', label: 'Assignments' },
   { id: 'resources', label: 'Books & resources' },
+  { id: 'research', label: 'Research' },
   { id: 'submissions', label: 'Student submissions' },
 ];
 
@@ -19,7 +24,6 @@ const EMPTY_ASSIGNMENT = {
   title: '',
   description: '',
   dueDate: '',
-  maxPoints: '',
   fileUrl: '',
 };
 
@@ -34,12 +38,15 @@ const EMPTY_RESOURCE = {
 const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const { showAlert, showConfirm } = useAdminDialog();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const initialTab =
     defaultTab === 'submissions' || location.pathname.endsWith('/submissions')
       ? 'submissions'
-      : defaultTab === 'resources' || location.pathname.endsWith('/resources')
-        ? 'resources'
-        : 'assignments';
+      : defaultTab === 'research' || location.pathname.endsWith('/research')
+        ? 'research'
+        : defaultTab === 'resources' || location.pathname.endsWith('/resources')
+          ? 'resources'
+          : 'assignments';
   const [tab, setTab] = useState(initialTab);
   const [savingResource, setSavingResource] = useState(false);
   const savingResourceRef = useRef(false);
@@ -57,6 +64,13 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const [resourceListCourseFilter, setResourceListCourseFilter] = useState('');
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState(() => new Set());
   const [deletingAssignments, setDeletingAssignments] = useState(false);
+  const [assignListMode, setAssignListMode] = useState('active');
+  const [resourceListMode, setResourceListMode] = useState('active');
+  const [assignTrashCount, setAssignTrashCount] = useState(0);
+  const [resourceTrashCount, setResourceTrashCount] = useState(0);
+  const [assignFormExpanded, setAssignFormExpanded] = useState(true);
+  const [resourceFormExpanded, setResourceFormExpanded] = useState(true);
+  const [researchSubTab, setResearchSubTab] = useState('articles');
 
   const loadAssignments = useCallback(async () => {
     try {
@@ -73,12 +87,16 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         assignListCourseFilter === 'all'
           ? '/assignments'
           : `/assignments?courseId=${encodeURIComponent(assignListCourseFilter)}`;
-      const res = await lmsAdminGet(path);
-      if (res.success) setAssignments(res.assignments || []);
+      const trashQ = assignListMode === 'trash' ? (path.includes('?') ? '&trash=1' : '?trash=1') : '';
+      const res = await lmsAdminGet(`${path}${trashQ}`);
+      if (res.success) {
+        setAssignments(res.assignments || []);
+        if (typeof res.trashCount === 'number') setAssignTrashCount(res.trashCount);
+      }
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }, [assignListCourseFilter, showAlert]);
+  }, [assignListCourseFilter, assignListMode, showAlert]);
 
   const loadResources = useCallback(async () => {
     try {
@@ -92,25 +110,40 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         resourceListCourseFilter === 'all'
           ? '/resources'
           : `/resources?courseId=${encodeURIComponent(resourceListCourseFilter)}`;
-      const res = await lmsAdminGet(path);
+      const trashQ = resourceListMode === 'trash' ? (path.includes('?') ? '&trash=1' : '?trash=1') : '';
+      const res = await lmsAdminGet(`${path}${trashQ}`);
       if (res.success) {
         setResources(res.resources || []);
+        if (typeof res.trashCount === 'number') setResourceTrashCount(res.trashCount);
         if (res.courses?.length) setCourses(res.courses);
       }
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }, [resourceListCourseFilter, showAlert]);
+  }, [resourceListCourseFilter, resourceListMode, showAlert]);
 
   useEffect(() => {
     const nextTab =
       defaultTab === 'submissions' || location.pathname.endsWith('/submissions')
         ? 'submissions'
-        : defaultTab === 'resources' || location.pathname.endsWith('/resources')
-          ? 'resources'
-          : 'assignments';
+        : defaultTab === 'research' || location.pathname.endsWith('/research')
+          ? 'research'
+          : defaultTab === 'resources' || location.pathname.endsWith('/resources')
+            ? 'resources'
+            : 'assignments';
     setTab(nextTab);
   }, [defaultTab, location.pathname]);
+
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    const section = searchParams.get('section');
+    if (urlTab === 'research') setTab('research');
+    else if (urlTab === 'resources') setTab('resources');
+    else if (urlTab === 'submissions') setTab('submissions');
+    else if (urlTab === 'assignments') setTab('assignments');
+    if (section === 'comments') setResearchSubTab('comments');
+    else if (section === 'articles') setResearchSubTab('articles');
+  }, [searchParams]);
 
   useEffect(() => {
     if (tab === 'assignments') loadAssignments();
@@ -141,6 +174,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   };
 
   const startEditAssignment = (a) => {
+    setAssignFormExpanded(true);
     setEditingAssignId(a._id);
     setAssignForm({
       courseId: String(a.course?._id || a.course || ''),
@@ -148,12 +182,12 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       title: a.title || '',
       description: a.description || '',
       dueDate: a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : '',
-      maxPoints: a.maxPoints != null ? String(a.maxPoints) : '',
       fileUrl: (a.attachments && a.attachments[0]) || '',
     });
   };
 
   const startEditResource = (r) => {
+    setResourceFormExpanded(true);
     setEditingResourceId(r._id);
     setResourceForm({
       courseId: String(r.course?._id || r.course || ''),
@@ -168,7 +202,6 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     e.preventDefault();
     const payload = {
       ...assignForm,
-      maxPoints: assignForm.maxPoints === '' ? null : Number(assignForm.maxPoints),
       attachments: assignForm.fileUrl ? [assignForm.fileUrl] : [],
     };
     try {
@@ -209,9 +242,87 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     }
   };
 
-  const removeAssignment = async (id) => {
-    removeAssignmentsByIds([String(id)], 'Remove this assignment from all portals?');
+  const trashAssignmentsByIds = async (ids, confirmText) => {
+    const idList = [...ids].filter(Boolean);
+    if (!idList.length) return;
+    const ok = await showConfirm(
+      confirmText ||
+        `Move ${idList.length} assignment${idList.length > 1 ? 's' : ''} to trash? Student submissions are moved to trash too.`
+    );
+    if (!ok) return;
+    setDeletingAssignments(true);
+    try {
+      const res = await lmsAdminPost('/assignments/bulk-delete', { ids: idList });
+      const moved = res.deletedCount ?? idList.length;
+      showAlert(`${moved} assignment${moved !== 1 ? 's' : ''} moved to trash.`, 'success');
+      setSelectedAssignmentIds(new Set());
+      if (editingAssignId && idList.includes(String(editingAssignId))) resetAssignForm();
+      await loadAssignments();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setDeletingAssignments(false);
+    }
   };
+
+  const restoreAssignmentsByIds = async (ids) => {
+    const idList = [...ids].filter(Boolean);
+    if (!idList.length) return;
+    const ok = await showConfirm(`Restore ${idList.length} assignment${idList.length > 1 ? 's' : ''}?`);
+    if (!ok) return;
+    setDeletingAssignments(true);
+    try {
+      const res = await lmsAdminPost('/assignments/bulk-restore', { ids: idList });
+      const restored = res.restoredCount ?? idList.length;
+      showAlert(`${restored} assignment${restored !== 1 ? 's' : ''} restored.`, 'success');
+      setSelectedAssignmentIds(new Set());
+      await loadAssignments();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setDeletingAssignments(false);
+    }
+  };
+
+  const permanentDeleteAssignmentsByIds = async (ids, confirmText) => {
+    const idList = [...ids].filter(Boolean);
+    if (!idList.length) return;
+    const ok = await showConfirm(
+      confirmText ||
+        `Permanently delete ${idList.length} assignment${idList.length > 1 ? 's' : ''}? This cannot be undone.`
+    );
+    if (!ok) return;
+    setDeletingAssignments(true);
+    try {
+      const res = await lmsAdminPost('/assignments/bulk-permanent-delete', { ids: idList });
+      const removed = res.deletedCount ?? idList.length;
+      showAlert(`${removed} assignment${removed !== 1 ? 's' : ''} deleted forever.`, 'success');
+      setSelectedAssignmentIds(new Set());
+      await loadAssignments();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setDeletingAssignments(false);
+    }
+  };
+
+  const removeAssignment = async (id) => {
+    if (assignListMode === 'trash') {
+      permanentDeleteAssignmentsByIds([String(id)], 'Permanently delete this assignment?');
+      return;
+    }
+    trashAssignmentsByIds([String(id)], 'Move this assignment to trash?');
+  };
+
+  const bulkAssignmentAction = () => {
+    if (assignListMode === 'trash') {
+      if (selectedAssignmentIds.size) permanentDeleteAssignmentsByIds(selectedAssignmentIds);
+      return;
+    }
+    trashAssignmentsByIds(selectedAssignmentIds);
+  };
+
+  const bulkRestoreAssignments = () => restoreAssignmentsByIds(selectedAssignmentIds);
 
   const toggleAssignmentSelect = (id) => {
     if (!id) return;
@@ -229,34 +340,6 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     if (allSelected) setSelectedAssignmentIds(new Set());
     else setSelectedAssignmentIds(new Set(ids));
   };
-
-  const removeAssignmentsByIds = async (ids, confirmText) => {
-    const idList = [...ids].filter(Boolean);
-    if (!idList.length) return;
-    const ok = await showConfirm(
-      confirmText || `Remove ${idList.length} selected assignment${idList.length > 1 ? 's' : ''}? Student submissions will also be deleted.`
-    );
-    if (!ok) return;
-    setDeletingAssignments(true);
-    try {
-      const res = await lmsAdminPost('/assignments/bulk-delete', { ids: idList });
-      const removed = res.deletedCount ?? idList.length;
-      showAlert(`Removed ${removed} assignment${removed !== 1 ? 's' : ''}.`, 'success');
-      setSelectedAssignmentIds((prev) => {
-        const next = new Set(prev);
-        idList.forEach((id) => next.delete(id));
-        return next;
-      });
-      if (editingAssignId && idList.includes(String(editingAssignId))) resetAssignForm();
-      await loadAssignments();
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      setDeletingAssignments(false);
-    }
-  };
-
-  const bulkRemoveAssignments = () => removeAssignmentsByIds(selectedAssignmentIds);
 
   const toggleResourceSelect = (id) => {
     if (!id) return;
@@ -278,23 +361,19 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     }
   };
 
-  const removeResourcesByIds = async (ids, confirmText) => {
+  const trashResourcesByIds = async (ids, confirmText) => {
     const idList = [...ids].filter(Boolean);
     if (!idList.length) return;
     const ok = await showConfirm(
-      confirmText || `Remove ${idList.length} selected resource${idList.length > 1 ? 's' : ''}?`
+      confirmText || `Move ${idList.length} resource${idList.length > 1 ? 's' : ''} to trash?`
     );
     if (!ok) return;
     setDeletingResources(true);
     try {
       const res = await lmsAdminPost('/resources/bulk-delete', { ids: idList });
-      const removed = res.deletedCount ?? idList.length;
-      showAlert(`Removed ${removed} resource${removed !== 1 ? 's' : ''}.`, 'success');
-      setSelectedResourceIds((prev) => {
-        const next = new Set(prev);
-        idList.forEach((id) => next.delete(id));
-        return next;
-      });
+      const moved = res.deletedCount ?? idList.length;
+      showAlert(`${moved} resource${moved !== 1 ? 's' : ''} moved to trash.`, 'success');
+      setSelectedResourceIds(new Set());
       if (editingResourceId && idList.includes(String(editingResourceId))) resetResourceForm();
       await loadResources();
     } catch (err) {
@@ -304,17 +383,77 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     }
   };
 
-  const removeResource = async (id) => {
-    removeResourcesByIds([String(id)], 'Remove this resource?');
+  const restoreResourcesByIds = async (ids) => {
+    const idList = [...ids].filter(Boolean);
+    if (!idList.length) return;
+    const ok = await showConfirm(`Restore ${idList.length} resource${idList.length > 1 ? 's' : ''}?`);
+    if (!ok) return;
+    setDeletingResources(true);
+    try {
+      const res = await lmsAdminPost('/resources/bulk-restore', { ids: idList });
+      const restored = res.restoredCount ?? idList.length;
+      showAlert(`${restored} resource${restored !== 1 ? 's' : ''} restored.`, 'success');
+      setSelectedResourceIds(new Set());
+      await loadResources();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setDeletingResources(false);
+    }
   };
 
-  const bulkRemoveResources = () => removeResourcesByIds(selectedResourceIds);
+  const permanentDeleteResourcesByIds = async (ids, confirmText) => {
+    const idList = [...ids].filter(Boolean);
+    if (!idList.length) return;
+    const ok = await showConfirm(
+      confirmText || `Permanently delete ${idList.length} resource${idList.length > 1 ? 's' : ''}?`
+    );
+    if (!ok) return;
+    setDeletingResources(true);
+    try {
+      const res = await lmsAdminPost('/resources/bulk-permanent-delete', { ids: idList });
+      const removed = res.deletedCount ?? idList.length;
+      showAlert(`${removed} resource${removed !== 1 ? 's' : ''} deleted forever.`, 'success');
+      setSelectedResourceIds(new Set());
+      await loadResources();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setDeletingResources(false);
+    }
+  };
+
+  const removeResource = async (id) => {
+    if (resourceListMode === 'trash') {
+      permanentDeleteResourcesByIds([String(id)], 'Permanently delete this resource?');
+      return;
+    }
+    trashResourcesByIds([String(id)], 'Move this resource to trash?');
+  };
+
+  const bulkResourceAction = () => {
+    if (resourceListMode === 'trash') {
+      if (selectedResourceIds.size) permanentDeleteResourcesByIds(selectedResourceIds);
+      return;
+    }
+    trashResourcesByIds(selectedResourceIds);
+  };
+
+  const bulkRestoreResources = () => restoreResourcesByIds(selectedResourceIds);
+
+  const restoreAssignment = async (id) => {
+    restoreAssignmentsByIds([String(id)]);
+  };
+
+  const restoreResource = async (id) => {
+    restoreResourcesByIds([String(id)]);
+  };
 
   return (
     <div className="lms-management resources-management">
       <h1>Resources & Submissions</h1>
       <p className="lms-management-lead">
-        Manage assignments, course materials, and review student assignment and quiz submissions by course.
+        Manage assignments, course materials, research articles, and review student assignment and quiz submissions by course.
       </p>
       <div className="lms-management-tabs">
         {TABS.map((t) => (
@@ -330,8 +469,15 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       </div>
       {tab === 'assignments' ? (
         <div className="lms-panel">
+          <LmsCollapsibleFormPanel
+            title={editingAssignId ? 'Edit assignment' : 'Add Assignment'}
+            subtitle={editingAssignId ? 'Update assignment details' : 'Publish homework for teachers and students'}
+            icon="fa-tasks"
+            tone="indigo"
+            expanded={assignFormExpanded}
+            onToggle={() => setAssignFormExpanded((v) => !v)}
+          >
           <form className="lms-form-grid portal-form-card" onSubmit={saveAssignment} autoComplete="off">
-            <h2>{editingAssignId ? 'Edit assignment' : 'Add assignment'}</h2>
             <label className="lms-field-label">
               <span>Course</span>
               <select
@@ -381,17 +527,6 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               />
             </label>
             <label className="lms-field-label">
-              <span>Max points (optional)</span>
-              <input
-                type="number"
-                min="1"
-                placeholder="Maximum points for this assignment, if graded"
-                value={assignForm.maxPoints}
-                onChange={(e) => setAssignForm({ ...assignForm, maxPoints: e.target.value })}
-                autoComplete="off"
-              />
-            </label>
-            <label className="lms-field-label">
               <span>Description</span>
               <textarea
                 value={assignForm.description}
@@ -404,6 +539,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               value={assignForm.fileUrl}
               onChange={(url) => setAssignForm({ ...assignForm, fileUrl: url })}
               realm={AUTH_REALM.ADMIN}
+              category="assignments"
             />
             <div className="lms-form-actions">
               <button type="submit">{editingAssignId ? 'Save changes' : 'Publish assignment'}</button>
@@ -414,6 +550,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               ) : null}
             </div>
           </form>
+          </LmsCollapsibleFormPanel>
           <div className="lms-list-toolbar">
             <h3>Assignments list</h3>
             <label className="lms-field-label lms-list-toolbar__filter">
@@ -436,6 +573,17 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
             </label>
           </div>
 
+          {assignListCourseFilter ? (
+            <LmsTrashTabs
+              mode={assignListMode}
+              trashCount={assignTrashCount}
+              onChange={(mode) => {
+                setAssignListMode(mode);
+                setSelectedAssignmentIds(new Set());
+              }}
+            />
+          ) : null}
+
           {!assignListCourseFilter ? (
             <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view assignments.</p>
           ) : (
@@ -449,12 +597,28 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                     </button>
                     <button
                       type="button"
-                      className="lms-btn-danger"
-                      onClick={bulkRemoveAssignments}
+                      className={assignListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
+                      onClick={bulkAssignmentAction}
                       disabled={deletingAssignments}
                     >
-                      {deletingAssignments ? 'Removing…' : `Delete selected (${selectedAssignmentIds.size})`}
+                      <i className={`fas ${assignListMode === 'trash' ? 'fa-trash-alt' : 'fa-trash'}`} aria-hidden />
+                      {deletingAssignments
+                        ? 'Working…'
+                        : assignListMode === 'trash'
+                          ? `Delete forever (${selectedAssignmentIds.size})`
+                          : `Move to trash (${selectedAssignmentIds.size})`}
                     </button>
+                    {assignListMode === 'trash' ? (
+                      <button
+                        type="button"
+                        className="lms-btn-restore"
+                        onClick={bulkRestoreAssignments}
+                        disabled={deletingAssignments}
+                      >
+                        <i className="fas fa-undo" aria-hidden />
+                        Restore selected
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -477,7 +641,6 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                       <th>Course</th>
                       <th>Teacher</th>
                       <th>Due</th>
-                      <th>Points</th>
                       <th />
                     </tr>
                   </thead>
@@ -499,19 +662,41 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                           <td>{a.course?.title}</td>
                           <td>{a.teacher?.name || '—'}</td>
                           <td>{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}</td>
-                          <td>{a.maxPoints != null ? a.maxPoints : '—'}</td>
                           <td className="lms-table-actions">
-                            <button type="button" className="lms-btn-secondary" onClick={() => startEditAssignment(a)}>
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="lms-btn-danger"
-                              onClick={() => removeAssignment(a._id)}
-                              disabled={deletingAssignments}
-                            >
-                              Remove
-                            </button>
+                            {assignListMode === 'trash' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="lms-btn-restore"
+                                  onClick={() => restoreAssignment(a._id)}
+                                  disabled={deletingAssignments}
+                                >
+                                  <i className="fas fa-undo" aria-hidden /> Restore
+                                </button>
+                                <button
+                                  type="button"
+                                  className="lms-btn-delete-forever"
+                                  onClick={() => removeAssignment(a._id)}
+                                  disabled={deletingAssignments}
+                                >
+                                  <i className="fas fa-trash-alt" aria-hidden /> Delete forever
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" className="lms-btn-secondary" onClick={() => startEditAssignment(a)}>
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="lms-btn-trash"
+                                  onClick={() => removeAssignment(a._id)}
+                                  disabled={deletingAssignments}
+                                >
+                                  <i className="fas fa-trash" aria-hidden /> Trash
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       );
@@ -523,10 +708,41 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
             </>
           )}
         </div>
+      ) : tab === 'research' ? (
+        <div className="lms-research-section">
+          <div className="lms-research-subtabs">
+            <button
+              type="button"
+              className={researchSubTab === 'articles' ? 'active' : ''}
+              onClick={() => setResearchSubTab('articles')}
+            >
+              Articles
+            </button>
+            <button
+              type="button"
+              className={researchSubTab === 'comments' ? 'active' : ''}
+              onClick={() => setResearchSubTab('comments')}
+            >
+              Comments
+            </button>
+          </div>
+          {researchSubTab === 'comments' ? (
+            <ResearchComments embedded />
+          ) : (
+            <AdminResearchTab />
+          )}
+        </div>
       ) : tab === 'resources' ? (
         <div className="lms-panel">
+          <LmsCollapsibleFormPanel
+            title={editingResourceId ? 'Edit resource' : 'Add Book / Resource'}
+            subtitle={editingResourceId ? 'Update course material' : 'Upload PDFs, links, or notes for a course'}
+            icon="fa-book"
+            tone="emerald"
+            expanded={resourceFormExpanded}
+            onToggle={() => setResourceFormExpanded((v) => !v)}
+          >
           <form className="lms-form-grid portal-form-card" onSubmit={saveResource} autoComplete="off">
-            <h2>{editingResourceId ? 'Edit resource' : 'Add book / resource'}</h2>
             <label className="lms-field-label">
               <span>Course</span>
               <select
@@ -568,6 +784,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               value={resourceForm.fileUrl}
               onChange={(url) => setResourceForm({ ...resourceForm, fileUrl: url })}
               realm={AUTH_REALM.ADMIN}
+              category="content/books"
             />
             <label className="lms-field-label">
               <span>Or external URL</span>
@@ -596,6 +813,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               ) : null}
             </div>
           </form>
+          </LmsCollapsibleFormPanel>
           <div className="lms-resources-library">
             <div className="lms-list-toolbar">
               <h3>Course resources</h3>
@@ -619,6 +837,17 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               </label>
             </div>
 
+            {resourceListCourseFilter ? (
+              <LmsTrashTabs
+                mode={resourceListMode}
+                trashCount={resourceTrashCount}
+                onChange={(mode) => {
+                  setResourceListMode(mode);
+                  setSelectedResourceIds(new Set());
+                }}
+              />
+            ) : null}
+
             {!resourceListCourseFilter ? (
               <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view resources.</p>
             ) : null}
@@ -636,12 +865,28 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                   </button>
                   <button
                     type="button"
-                    className="lms-btn-danger"
-                    onClick={bulkRemoveResources}
+                    className={resourceListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
+                    onClick={bulkResourceAction}
                     disabled={deletingResources}
                   >
-                    {deletingResources ? 'Removing…' : `Delete selected (${selectedResourceIds.size})`}
+                    <i className={`fas ${resourceListMode === 'trash' ? 'fa-trash-alt' : 'fa-trash'}`} aria-hidden />
+                    {deletingResources
+                      ? 'Working…'
+                      : resourceListMode === 'trash'
+                        ? `Delete forever (${selectedResourceIds.size})`
+                        : `Move to trash (${selectedResourceIds.size})`}
                   </button>
+                  {resourceListMode === 'trash' ? (
+                    <button
+                      type="button"
+                      className="lms-btn-restore"
+                      onClick={bulkRestoreResources}
+                      disabled={deletingResources}
+                    >
+                      <i className="fas fa-undo" aria-hidden />
+                      Restore selected
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -704,17 +949,40 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                           {r.uploadedBy?.role ? ` (${r.uploadedBy.role})` : ''}
                         </td>
                         <td className="lms-table-actions">
-                          <button type="button" className="lms-btn-secondary" onClick={() => startEditResource(r)}>
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="lms-btn-danger"
-                            onClick={() => removeResource(r._id)}
-                            disabled={deletingResources}
-                          >
-                            Remove
-                          </button>
+                          {resourceListMode === 'trash' ? (
+                            <>
+                              <button
+                                type="button"
+                                className="lms-btn-restore"
+                                onClick={() => restoreResource(r._id)}
+                                disabled={deletingResources}
+                              >
+                                <i className="fas fa-undo" aria-hidden /> Restore
+                              </button>
+                              <button
+                                type="button"
+                                className="lms-btn-delete-forever"
+                                onClick={() => removeResource(r._id)}
+                                disabled={deletingResources}
+                              >
+                                <i className="fas fa-trash-alt" aria-hidden /> Delete forever
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" className="lms-btn-secondary" onClick={() => startEditResource(r)}>
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="lms-btn-trash"
+                                onClick={() => removeResource(r._id)}
+                                disabled={deletingResources}
+                              >
+                                <i className="fas fa-trash" aria-hidden /> Trash
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );

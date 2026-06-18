@@ -3,8 +3,12 @@ const router = express.Router();
 const nodemailer = require('nodemailer');
 const ContactMessage = require('../models/ContactMessage');
 const authMiddleware = require('../middleware/auth');
+const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
+const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
+
+const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
 const activeMessageFilter = () => ({
   $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
@@ -51,6 +55,7 @@ async function createTransporter() {
 // POST /api/contact  - receive contact form, save, and email admin
 router.post(
   '/',
+  publicWriteRateLimiter,
   validate([
     rules.requiredString('name', 'Name'),
     rules.requiredString('email', 'Email'),
@@ -153,7 +158,7 @@ router.post(
 });
 
 // Admin endpoint: list contact messages (inbox) or deleted (trash=1)
-router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+router.get('/admin/messages', ...adminOnly, async (req, res) => {
   try {
     const trash = req.query.trash === 'true' || req.query.trash === '1';
     const filter = trash ? trashedMessageFilter() : activeMessageFilter();
@@ -171,7 +176,7 @@ router.get('/admin/messages', authMiddleware, allowRoles('super-admin', 'admin')
 });
 
 // Admin endpoint: update contact message status
-router.patch('/admin/messages/:id/status', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+router.patch('/admin/messages/:id/status', ...adminOnly, async (req, res) => {
   try {
     const { status } = req.body || {};
     const allowedStatuses = ['new', 'in-progress', 'resolved'];
@@ -200,7 +205,7 @@ router.patch('/admin/messages/:id/status', authMiddleware, allowRoles('super-adm
 });
 
 // Admin endpoint: soft-delete a contact message
-router.delete('/admin/messages/:id', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+router.delete('/admin/messages/:id', ...adminOnly, async (req, res) => {
   try {
     const updated = await ContactMessage.findOneAndUpdate(
       { _id: req.params.id, ...activeMessageFilter() },
@@ -217,7 +222,7 @@ router.delete('/admin/messages/:id', authMiddleware, allowRoles('super-admin', '
 });
 
 // Admin endpoint: restore a soft-deleted message
-router.post('/admin/messages/:id/restore', authMiddleware, allowRoles('super-admin', 'admin'), async (req, res) => {
+router.post('/admin/messages/:id/restore', ...adminOnly, async (req, res) => {
   try {
     const updated = await ContactMessage.findOneAndUpdate(
       { _id: req.params.id, ...trashedMessageFilter() },
@@ -234,25 +239,20 @@ router.post('/admin/messages/:id/restore', authMiddleware, allowRoles('super-adm
 });
 
 // Admin endpoint: permanently remove a message (must already be in trash)
-router.delete(
-  '/admin/messages/:id/permanent',
-  authMiddleware,
-  allowRoles('super-admin', 'admin'),
-  async (req, res) => {
-    try {
-      const removed = await ContactMessage.findOneAndDelete({
-        _id: req.params.id,
-        ...trashedMessageFilter(),
-      });
-      if (!removed) {
-        return res.status(404).json({ success: false, error: 'Deleted message not found' });
-      }
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ success: false, error: 'Failed to permanently delete message' });
+router.delete('/admin/messages/:id/permanent', ...adminOnly, async (req, res) => {
+  try {
+    const removed = await ContactMessage.findOneAndDelete({
+      _id: req.params.id,
+      ...trashedMessageFilter(),
+    });
+    if (!removed) {
+      return res.status(404).json({ success: false, error: 'Deleted message not found' });
     }
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to permanently delete message' });
   }
-);
+});
 
 module.exports = router;
 

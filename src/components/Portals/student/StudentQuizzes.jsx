@@ -71,6 +71,9 @@ const StudentQuizzes = () => {
         if (res.attempt && res.review) {
           setActiveQuiz({ quiz: res.quiz, attempt: res.attempt });
           setReview(res.review);
+          requestAnimationFrame(() => {
+            document.querySelector('.portal-quiz-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
         } else {
           setActiveQuiz(res);
           setAnswers({});
@@ -97,6 +100,9 @@ const StudentQuizzes = () => {
         setActiveQuiz({ quiz: activeQuiz.quiz, attempt: res.attempt });
         setMsg('');
         load();
+        requestAnimationFrame(() => {
+          document.querySelector('.portal-quiz-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
       } else setMsg(res.error || 'Failed');
     } catch (err) {
       setMsg(err.message || 'Failed');
@@ -131,7 +137,7 @@ const StudentQuizzes = () => {
     <div className="portal-page">
       <PortalPageHeader
         title="Quizzes"
-        subtitle="Choose one answer per question (A, B, or C). Results show after you submit."
+        subtitle="Choose one answer per question (A, B, or C). After submit, you will see the correct answers and your score."
       />
 
       <div className="portal-hero portal-hero--student">

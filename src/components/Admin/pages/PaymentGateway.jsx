@@ -3,36 +3,64 @@ import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
 import { getAuthUserJson } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
+import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
+import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
 import './PaymentGateway.scss';
 
 const BANK_STEPS = {
     FORM: 'form',
-    INSTRUCTIONS: 'instructions',
     DONE: 'done',
 };
 
-const BANK_PAYMENT_SESSION_KEY = 'gorythm_bank_payment_session';
+const PROOF_MAX_BYTES = 1024 * 1024;
+const PROOF_MAX_MB = 1;
 
-const readBankPaymentSession = () => {
-    try {
-        const raw = sessionStorage.getItem(BANK_PAYMENT_SESSION_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (parsed?._id && parsed?.uploadToken) return parsed;
-    } catch {
-        /* ignore */
+function collectBankValidationIssues({ formData, proofFile, hasBankInfo, resolvedAmount, validateEmail }) {
+    const issues = [];
+    if (!formData.courseName) {
+        issues.push('Please select a course.');
     }
-    return null;
-};
+    if (!formData.studentName?.trim()) {
+        issues.push('Please enter the student full name.');
+    }
+    const email = String(formData.email || '').trim();
+    if (!email) {
+        issues.push('Please enter your email address.');
+    } else {
+        const emailError = validateEmail(email);
+        if (emailError) issues.push(emailError);
+    }
+    const phoneDigits = String(formData.phone || '').replace(/\D/g, '');
+    if (!phoneDigits) {
+        issues.push('Please enter your phone number (WhatsApp, with country code).');
+    } else if (!/^\d{8,15}$/.test(phoneDigits)) {
+        issues.push('Phone number must be 8 to 15 digits.');
+    }
+    if (!proofFile) {
+        issues.push('Please upload a screenshot or PDF of your bank transfer.');
+    }
+    if (!hasBankInfo) {
+        issues.push('Bank transfer is not configured yet. Use Stripe or contact support.');
+    }
+    if (resolvedAmount <= 0) {
+        issues.push('This course has no charge. Contact us to enroll.');
+    }
+    return issues;
+}
 
-const writeBankPaymentSession = (payment) => {
-    if (!payment?._id || !payment?.uploadToken) return;
-    sessionStorage.setItem(BANK_PAYMENT_SESSION_KEY, JSON.stringify(payment));
-};
-
-const clearBankPaymentSession = () => {
-    sessionStorage.removeItem(BANK_PAYMENT_SESSION_KEY);
-};
+async function parseJsonResponse(response) {
+    const raw = await response.text();
+    try {
+        return { data: raw ? JSON.parse(raw) : {}, raw };
+    } catch {
+        const snippet = raw.trim().startsWith('<') ? 'Server returned an HTML error page' : raw.slice(0, 120);
+        throw new Error(
+            response.status === 413
+                ? `File is too large (max ${PROOF_MAX_MB} MB). Use a smaller screenshot or JPG/PNG instead of PDF.`
+                : `Server error (${response.status}): ${snippet}`
+        );
+    }
+}
 
 function PaymentNoticeModal({ notice, onClose }) {
     if (!notice) return null;
@@ -68,14 +96,14 @@ const PaymentGateway = () => {
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [bankDetails, setBankDetails] = useState(null);
     const [bankStep, setBankStep] = useState(BANK_STEPS.FORM);
-    const [bankPayment, setBankPayment] = useState(null);
     const [proofFile, setProofFile] = useState(null);
     const [proofPreview, setProofPreview] = useState('');
-    const [proofUploading, setProofUploading] = useState(false);
+    const [proofPreparing, setProofPreparing] = useState(false);
     const [bankSubmitting, setBankSubmitting] = useState(false);
     const proofInputRef = useRef(null);
     const successPanelRef = useRef(null);
     const [notice, setNotice] = useState(null);
+    const [validationModal, setValidationModal] = useState({ open: false, title: '', issues: [] });
 
     const showNotice = (title, message, type = 'info') => {
         setNotice({ title, message, type });
@@ -156,20 +184,10 @@ const PaymentGateway = () => {
     }, []);
 
     useEffect(() => {
-        const saved = readBankPaymentSession();
-        if (saved) {
-            setBankPayment(saved);
-            setBankStep(BANK_STEPS.INSTRUCTIONS);
-        }
-    }, []);
-
-    useEffect(() => {
         if (paymentMethod !== 'bank') {
             setBankStep(BANK_STEPS.FORM);
-            setBankPayment(null);
             setProofFile(null);
             setProofPreview('');
-            clearBankPaymentSession();
         }
     }, [paymentMethod]);
 
@@ -178,6 +196,15 @@ const PaymentGateway = () => {
         [courseOptions, formData.courseName]
     );
     const resolvedAmount = Number(selectedCourse?.price ?? paymentDetails.amount) || 0;
+
+    const hasBankInfo = Boolean(
+        bankDetails &&
+            (bankDetails.accountName ||
+                bankDetails.bankName ||
+                bankDetails.accountNumber ||
+                bankDetails.iban ||
+                bankDetails.swift)
+    );
 
     const paymentMethods = [
         {
@@ -198,22 +225,46 @@ const PaymentGateway = () => {
         }
     };
 
-    const handleProofSelect = (file) => {
+    const handleProofSelect = async (file) => {
         if (!file) return;
         const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
         if (!allowed.includes(file.type)) {
-            showNotice('Invalid file', 'Please upload JPG, PNG, or PDF.', 'error');
+            showNotice('Invalid file', 'Please upload JPG, PNG, WebP, or PDF.', 'error');
             return;
         }
-        if (file.size > 12 * 1024 * 1024) {
-            showNotice('File too large', 'File must be under 12 MB.', 'error');
+        if (file.size > PROOF_MAX_BYTES) {
+            showNotice(
+                'File too large',
+                `Maximum file size is ${PROOF_MAX_MB} MB. Use a smaller screenshot or compress your PDF.`,
+                'error'
+            );
             return;
         }
-        setProofFile(file);
-        if (file.type.startsWith('image/')) {
-            setProofPreview(URL.createObjectURL(file));
-        } else {
-            setProofPreview('');
+
+        setProofPreparing(true);
+        try {
+            let prepared = file;
+            if (file.type.startsWith('image/')) {
+                prepared = await compressImageForUpload(file, IMAGE_UPLOAD_PRESETS.paymentProof);
+            }
+            if (prepared.size > PROOF_MAX_BYTES) {
+                showNotice(
+                    'File too large',
+                    `Maximum file size is ${PROOF_MAX_MB} MB. Use a smaller screenshot or compress your PDF.`,
+                    'error'
+                );
+                return;
+            }
+            setProofFile(prepared);
+            if (prepared.type.startsWith('image/')) {
+                setProofPreview(URL.createObjectURL(prepared));
+            } else {
+                setProofPreview('');
+            }
+        } catch {
+            showNotice('Could not prepare file', 'Try a different image or PDF.', 'error');
+        } finally {
+            setProofPreparing(false);
         }
     };
 
@@ -226,129 +277,58 @@ const PaymentGateway = () => {
         return '';
     };
 
-    const handleBankRegister = async (e) => {
-        e.preventDefault();
-        const emailError = validateRegistrationEmail(formData.email);
-        if (emailError) {
-            showNotice('Invalid email', emailError, 'error');
-            return;
-        }
-        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
-        if (!/^\d{8,15}$/.test(normalizedPhone)) {
-            showNotice('Invalid phone', 'Please enter a valid phone number with 8 to 15 digits.', 'error');
-            return;
-        }
-        if (!formData.courseName) {
-            showNotice('Course required', 'Please select a course.', 'error');
-            return;
-        }
-        if (resolvedAmount <= 0) {
-            showNotice('No fee', 'This course has no charge. Contact us to enroll.', 'error');
+    const handleBankSubmit = async () => {
+        const issues = collectBankValidationIssues({
+            formData,
+            proofFile,
+            hasBankInfo,
+            resolvedAmount,
+            validateEmail: validateRegistrationEmail,
+        });
+        if (issues.length > 0) {
+            setValidationModal({
+                open: true,
+                title: 'Please check the following',
+                issues,
+            });
             return;
         }
 
+        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
+
         setBankSubmitting(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/payments/register-online`, {
+            const form = new FormData();
+            form.append('studentName', formData.studentName.trim());
+            form.append('email', formData.email.trim());
+            form.append('phone', normalizedPhone);
+            form.append('courseName', formData.courseName);
+            form.append('file', proofFile);
+
+            const response = await fetch(`${API_BASE_URL}/api/payments/register-bank`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    studentName: formData.studentName.trim(),
-                    email: formData.email.trim(),
-                    phone: normalizedPhone,
-                    courseName: formData.courseName,
-                    amount: resolvedAmount,
-                    paymentMethod: 'bank',
-                }),
+                body: form,
             });
-            const data = await response.json();
+            const { data } = await parseJsonResponse(response);
             if (!response.ok || !data.success) {
                 throw new Error(data.error || 'Failed to submit');
             }
-            if (!data.payment?._id || !data.payment?.uploadToken) {
-                throw new Error('Registration saved but upload session is incomplete. Please try again.');
-            }
-            if (data.message?.toLowerCase().includes('already have a pending')) {
-                showNotice('Pending payment found', data.message, 'warning');
-            }
-            setBankPayment(data.payment);
-            writeBankPaymentSession(data.payment);
-            setBankStep(BANK_STEPS.INSTRUCTIONS);
+            setBankStep(BANK_STEPS.DONE);
+            setProofFile(null);
+            setProofPreview('');
+            requestAnimationFrame(() => {
+                successPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
         } catch (error) {
             const msg = error.message || 'Failed to submit';
-            const isDuplicate =
-                /already enrolled|completed payment for this course/i.test(msg);
-            showNotice(isDuplicate ? 'Already enrolled' : 'Registration failed', msg, isDuplicate ? 'warning' : 'error');
+            const isDuplicate = /already enrolled|completed payment|awaiting review/i.test(msg);
+            showNotice(isDuplicate ? 'Already submitted' : 'Submission failed', msg, isDuplicate ? 'warning' : 'error');
         } finally {
             setBankSubmitting(false);
         }
     };
 
-    const handleProofUpload = async () => {
-        if (!proofFile) {
-            showNotice('Proof required', 'Please upload a screenshot or PDF of your payment before submitting.', 'error');
-            return;
-        }
-        const activePayment = bankPayment?._id && bankPayment?.uploadToken ? bankPayment : readBankPaymentSession();
-        if (!activePayment?._id || !activePayment?.uploadToken) {
-            showNotice(
-                'Session expired',
-                'Click "Edit details" and submit the registration form again.',
-                'error'
-            );
-            return;
-        }
-        if (!bankPayment?._id) {
-            setBankPayment(activePayment);
-        }
-        setProofUploading(true);
-        try {
-            const form = new FormData();
-            form.append('file', proofFile);
-            form.append('uploadToken', activePayment.uploadToken);
-            const response = await fetch(`${API_BASE_URL}/api/payments/${activePayment._id}/proof`, {
-                method: 'POST',
-                body: form,
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'Upload failed');
-            }
-            setBankStep(BANK_STEPS.DONE);
-            clearBankPaymentSession();
-            requestAnimationFrame(() => {
-                successPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            });
-        } catch (error) {
-            showNotice('Upload failed', error.message, 'error');
-        } finally {
-            setProofUploading(false);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        if (paymentMethod === 'bank') {
-            if (bankStep === BANK_STEPS.INSTRUCTIONS) {
-                await handleProofUpload();
-            } else if (bankStep === BANK_STEPS.FORM) {
-                await handleBankRegister(e);
-            }
-            return;
-        }
-
-        const emailError = validateRegistrationEmail(formData.email);
-        if (emailError) {
-            showNotice('Invalid email', emailError, 'error');
-            return;
-        }
-        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
-        if (!/^\d{8,15}$/.test(normalizedPhone)) {
-            showNotice('Invalid phone', 'Please enter a valid phone number with 8 to 15 digits.', 'error');
-            return;
-        }
-
+    const handleStripeCheckout = async () => {
         if (!selectedCourse?._id) {
             showNotice('Course required', 'Please select a course from the list.', 'error');
             return;
@@ -375,21 +355,10 @@ const PaymentGateway = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     courseId: String(selectedCourse._id),
-                    studentName: formData.studentName.trim(),
-                    email: formData.email.trim(),
-                    phone: normalizedPhone,
                     ...(userId ? { userId: String(userId) } : {}),
                 }),
             });
-            const raw = await response.text();
-            let data = {};
-            try {
-                data = raw ? JSON.parse(raw) : {};
-            } catch {
-                throw new Error(
-                    `Server returned non-JSON (${response.status}). Check API URL and CORS. ${raw.slice(0, 120)}`
-                );
-            }
+            const { data } = await parseJsonResponse(response);
             if (!response.ok || !data.success || !data.url) {
                 throw new Error(
                     data.error ||
@@ -401,8 +370,7 @@ const PaymentGateway = () => {
             window.location.href = data.url;
         } catch (error) {
             const msg = error.message || 'Checkout failed';
-            const isDuplicate =
-                /already enrolled|completed payment for this course/i.test(msg);
+            const isDuplicate = /already enrolled|completed payment for this course/i.test(msg);
             showNotice(
                 isDuplicate ? 'Already enrolled' : 'Checkout failed',
                 msg,
@@ -412,25 +380,20 @@ const PaymentGateway = () => {
         }
     };
 
-    const formattedFeePlan = paymentDetails.feePlan === 'per-month' ? 'Per Month' : paymentDetails.feePlan;
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (paymentMethod === 'bank') {
+            await handleBankSubmit();
+            return;
+        }
+        await handleStripeCheckout();
+    };
+
     const usdAmount = resolvedAmount;
     const localizedAmount = formatFromUsd(usdAmount);
     const shouldShowApprox = currency !== baseCurrency;
 
-    const hasBankInfo =
-        bankDetails &&
-        (bankDetails.accountName ||
-            bankDetails.bankName ||
-            bankDetails.accountNumber ||
-            bankDetails.iban ||
-            bankDetails.swift);
-
-    const bankTimelineStep = (step, label, active, done) => (
-        <div className={`bank-timeline__step ${active ? 'is-active' : ''} ${done ? 'is-done' : ''}`} key={step}>
-            <span className="bank-timeline__dot">{done ? <i className="fas fa-check" /> : step}</span>
-            <span>{label}</span>
-        </div>
-    );
+    const stripeReady = Boolean(selectedCourse?._id) && resolvedAmount > 0;
 
     return (
         <section className="payment-page scheme_dark">
@@ -469,45 +432,6 @@ const PaymentGateway = () => {
                         <form className="payment-form" onSubmit={handleSubmit}>
                             {bankStep === BANK_STEPS.FORM && (
                                 <div className="form-grid">
-                                    <div className="form-group">
-                                        <label>Student Full Name *</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Enter full name"
-                                            value={formData.studentName}
-                                            onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label>Student/Parent Email *</label>
-                                        <input
-                                            type="email"
-                                            placeholder="Enter email address"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="form-group form-group-wide">
-                                        <label>Student/Parent Phone Number (whatsapp Please) *</label>
-                                        <input
-                                            type="tel"
-                                            placeholder="Country code + phone no"
-                                            value={formData.phone}
-                                            inputMode="numeric"
-                                            pattern="[0-9]{8,15}"
-                                            minLength={8}
-                                            maxLength={15}
-                                            onChange={(e) =>
-                                                setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })
-                                            }
-                                            required
-                                        />
-                                    </div>
-
                                     <div className="form-group form-group-wide">
                                         <label>Select Course *</label>
                                         <select
@@ -530,6 +454,54 @@ const PaymentGateway = () => {
                                             ))}
                                         </select>
                                     </div>
+
+                                    {paymentMethod === 'bank' ? (
+                                        <>
+                                            <div className="form-group">
+                                                <label>Student Full Name *</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Enter full name"
+                                                    value={formData.studentName}
+                                                    onChange={(e) =>
+                                                        setFormData({ ...formData, studentName: e.target.value })
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label>Student/Parent Email *</label>
+                                                <input
+                                                    type="email"
+                                                    placeholder="Enter email address"
+                                                    value={formData.email}
+                                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="form-group form-group-wide">
+                                                <label>Student/Parent Phone Number (whatsapp Please) *</label>
+                                                <input
+                                                    type="tel"
+                                                    placeholder="Country code + phone no"
+                                                    value={formData.phone}
+                                                    inputMode="numeric"
+                                                    pattern="[0-9]{8,15}"
+                                                    minLength={8}
+                                                    maxLength={15}
+                                                    onChange={(e) =>
+                                                        setFormData({
+                                                            ...formData,
+                                                            phone: e.target.value.replace(/\D/g, ''),
+                                                        })
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+                                        </>
+                                    ) : null}
                                 </div>
                             )}
 
@@ -574,9 +546,9 @@ const PaymentGateway = () => {
                                                 <div className="payment-panel-header">
                                                     <h3>Stripe Checkout</h3>
                                                     <p>
-                                                        You will be redirected to Stripe to pay. Depending on your device
-                                                        and region, you may see Apple Pay, Google Pay, Link, and other
-                                                        options enabled for your account in the Stripe Dashboard.
+                                                        You will be redirected to Stripe. Enter your name, email, and
+                                                        phone on the secure Stripe Checkout page — we do not collect them
+                                                        here.
                                                     </p>
                                                 </div>
                                                 <div className="payment-details-box">
@@ -611,8 +583,8 @@ const PaymentGateway = () => {
                                             <div className="payment-bank-info">
                                                 <h3>Bank transfer</h3>
                                                 <p>
-                                                    Submit your details first. You will then see our bank account
-                                                    information and can upload proof of payment.
+                                                    Transfer the fee using the bank details below, upload your payment
+                                                    proof, then submit once. Your record is created only after you submit.
                                                 </p>
                                             </div>
                                         )}
@@ -620,21 +592,15 @@ const PaymentGateway = () => {
                                 </>
                             )}
 
-                            {bankStep === BANK_STEPS.INSTRUCTIONS && bankPayment && (
+                            {bankStep === BANK_STEPS.FORM && paymentMethod === 'bank' ? (
                                 <>
-                                    <div className="bank-timeline">
-                                        {bankTimelineStep(1, 'Registered', false, true)}
-                                        {bankTimelineStep(2, 'Pay & upload proof', true, false)}
-                                        {bankTimelineStep(3, 'Verified', false, false)}
-                                    </div>
-
                                     <div className="bank-details-card">
                                         <h3>
                                             <i className="fas fa-university" /> Bank details
                                         </h3>
                                         {!hasBankInfo ? (
                                             <p className="bank-details-empty">
-                                                Bank details are not configured yet. Please contact support.
+                                                Bank details are not configured yet. Please contact support or use Stripe.
                                             </p>
                                         ) : (
                                             <dl className="bank-details-list">
@@ -701,25 +667,13 @@ const PaymentGateway = () => {
                                                     <dt>Amount to transfer</dt>
                                                     <dd>
                                                         <strong>
-                                                            ${Number(bankPayment.amount || usdAmount).toFixed(2)}{' '}
-                                                            {bankPayment.currency || baseCurrency}
+                                                            ${usdAmount.toFixed(2)} {baseCurrency}
                                                         </strong>
                                                     </dd>
                                                 </div>
-                                                <div className="bank-details-row bank-details-row--highlight">
-                                                    <dt>Payment reference *</dt>
-                                                    <dd>
-                                                        <code>{bankPayment.transactionId}</code>
-                                                        <button
-                                                            type="button"
-                                                            className="bank-copy-btn"
-                                                            onClick={() =>
-                                                                copyText(bankPayment.transactionId, 'Payment reference')
-                                                            }
-                                                        >
-                                                            <i className="fas fa-copy" />
-                                                        </button>
-                                                    </dd>
+                                                <div className="bank-details-row">
+                                                    <dt>Reference hint</dt>
+                                                    <dd>Use your email or phone in the bank transfer note</dd>
                                                 </div>
                                             </dl>
                                         )}
@@ -730,12 +684,9 @@ const PaymentGateway = () => {
 
                                     <div className="bank-upload-card">
                                         <h3>
-                                            <i className="fas fa-cloud-upload-alt" /> Upload payment proof
+                                            <i className="fas fa-cloud-upload-alt" /> Upload payment proof *
                                         </h3>
-                                        <p>After transferring, upload a screenshot or PDF of your bank receipt.</p>
-                                        {!proofFile ? (
-                                            <p className="bank-upload-required">Upload required before you can submit proof.</p>
-                                        ) : null}
+                                        <p>After transferring, attach a screenshot or PDF of your bank receipt.</p>
                                         <div
                                             className={`bank-upload-dropzone ${proofFile ? 'has-file' : ''}`}
                                             onDragOver={(e) => e.preventDefault()}
@@ -744,11 +695,12 @@ const PaymentGateway = () => {
                                                 const file = e.dataTransfer.files?.[0];
                                                 handleProofSelect(file);
                                             }}
-                                            onClick={() => proofInputRef.current?.click()}
+                                            onClick={() => !proofPreparing && proofInputRef.current?.click()}
                                             role="button"
                                             tabIndex={0}
                                             onKeyDown={(e) => {
-                                                if (e.key === 'Enter' || e.key === ' ') proofInputRef.current?.click();
+                                                if (e.key === 'Enter' || e.key === ' ')
+                                                    !proofPreparing && proofInputRef.current?.click();
                                             }}
                                         >
                                             <input
@@ -758,8 +710,16 @@ const PaymentGateway = () => {
                                                 hidden
                                                 onChange={(e) => handleProofSelect(e.target.files?.[0])}
                                             />
-                                            {proofPreview ? (
-                                                <img src={proofPreview} alt="Payment proof preview" className="bank-upload-preview" />
+                                            {proofPreparing ? (
+                                                <span>
+                                                    <i className="fas fa-spinner fa-spin" /> Preparing image…
+                                                </span>
+                                            ) : proofPreview ? (
+                                                <img
+                                                    src={proofPreview}
+                                                    alt="Payment proof preview"
+                                                    className="bank-upload-preview"
+                                                />
                                             ) : proofFile ? (
                                                 <div className="bank-upload-pdf">
                                                     <i className="fas fa-file-pdf" />
@@ -769,13 +729,13 @@ const PaymentGateway = () => {
                                                 <>
                                                     <i className="fas fa-image" />
                                                     <span>Drop file here or click to browse</span>
-                                                    <small>JPG, PNG, or PDF — max 12 MB</small>
+                                                    <small>JPG, PNG, WebP, or PDF — images are compressed automatically</small>
                                                 </>
                                             )}
                                         </div>
                                     </div>
                                 </>
-                            )}
+                            ) : null}
 
                             <div className="payment-footer-row">
                                 <div className="payment-security">
@@ -786,21 +746,10 @@ const PaymentGateway = () => {
                                 </div>
 
                                 <div className="payment-footer-actions">
-                                    {bankStep === BANK_STEPS.INSTRUCTIONS ? (
-                                        <button
-                                            type="button"
-                                            className="back-to-courses-btn"
-                                            onClick={() => setBankStep(BANK_STEPS.FORM)}
-                                        >
-                                            <span className="back-arrow">←</span>
-                                            <span>Edit details</span>
-                                        </button>
-                                    ) : (
-                                        <Link to="/courses" className="back-to-courses-btn">
-                                            <span className="back-arrow">←</span>
-                                            <span>Back to All Courses</span>
-                                        </Link>
-                                    )}
+                                    <Link to="/courses" className="back-to-courses-btn">
+                                        <span className="back-arrow">←</span>
+                                        <span>Back to All Courses</span>
+                                    </Link>
                                     {bankStep !== BANK_STEPS.DONE && (
                                         <button
                                             type="submit"
@@ -808,16 +757,14 @@ const PaymentGateway = () => {
                                             disabled={
                                                 checkoutLoading ||
                                                 bankSubmitting ||
-                                                proofUploading ||
-                                                (paymentMethod === 'bank' &&
-                                                    bankStep === BANK_STEPS.INSTRUCTIONS &&
-                                                    !proofFile)
+                                                proofPreparing ||
+                                                (paymentMethod === 'stripe' && !stripeReady)
                                             }
                                         >
                                             <i
                                                 className={
-                                                    paymentMethod === 'bank' && bankStep === BANK_STEPS.INSTRUCTIONS
-                                                        ? 'fas fa-cloud-upload-alt'
+                                                    paymentMethod === 'bank'
+                                                        ? 'fas fa-paper-plane'
                                                         : 'fas fa-credit-card'
                                                 }
                                             />{' '}
@@ -825,29 +772,25 @@ const PaymentGateway = () => {
                                                 ? checkoutLoading
                                                     ? 'Redirecting…'
                                                     : `Continue to Stripe (${localizedAmount})`
-                                                : bankStep === BANK_STEPS.INSTRUCTIONS
-                                                  ? proofUploading
-                                                      ? 'Uploading…'
-                                                      : 'Submit payment proof'
-                                                  : bankSubmitting
-                                                    ? 'Saving…'
-                                                    : `Continue to bank transfer (${localizedAmount})`}
+                                                : bankSubmitting
+                                                  ? 'Submitting…'
+                                                  : `Submit bank payment (${localizedAmount})`}
                                         </button>
                                     )}
                                 </div>
                             </div>
 
-                            {bankStep === BANK_STEPS.FORM && (
-                                <p className="payment-note">
-                                    Fee plan: {formattedFeePlan}. By continuing, you agree to our terms and privacy
-                                    policy.
-                                </p>
-                            )}
                         </form>
                     )}
                 </div>
             </div>
             <PaymentNoticeModal notice={notice} onClose={() => setNotice(null)} />
+            <SiteValidationModal
+                open={validationModal.open}
+                title={validationModal.title}
+                issues={validationModal.issues}
+                onClose={() => setValidationModal((prev) => ({ ...prev, open: false }))}
+            />
         </section>
     );
 };

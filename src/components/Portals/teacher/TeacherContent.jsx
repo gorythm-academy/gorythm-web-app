@@ -4,7 +4,6 @@ import FileUploadField from '../shared/FileUploadField';
 import PortalModal from '../shared/PortalModal';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import { formatScore } from '../../../utils/formatScore';
 import { portalDocId } from '../../../utils/portalDocId';
 import {
   filterPortalItemsByCourse,
@@ -21,7 +20,6 @@ const EMPTY_ASSIGN = {
   courseId: '',
   dueDate: '',
   description: '',
-  maxPoints: '',
   fileUrl: '',
 };
 
@@ -40,7 +38,7 @@ const TeacherContent = () => {
   const [submissionModal, setSubmissionModal] = useState(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState(() => new Set());
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState(() => new Set());
-  const [gradeForm, setGradeForm] = useState({ score: '', feedback: '' });
+  const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [assignmentCourseFilter, setAssignmentCourseFilter] = useState('all');
   const [submissionCourseFilter, setSubmissionCourseFilter] = useState('all');
@@ -56,11 +54,14 @@ const TeacherContent = () => {
       portalGet('/teacher/courses'),
       portalGet('/teacher/assignments'),
       portalGet('/teacher/submissions'),
-    ]).then(([c, a, s]) => {
-      if (c.success) setCourses(c.courses || []);
-      if (a.success) setAssignments(a.assignments || []);
-      if (s.success) setSubmissions(s.submissions || []);
-    });
+    ])
+      .then(([c, a, s]) => {
+        if (c.success) setCourses(c.courses || []);
+        if (a.success) setAssignments(a.assignments || []);
+        if (s.success) setSubmissions(s.submissions || []);
+        setLoadError('');
+      })
+      .catch((err) => setLoadError(err.message || 'Failed to load assignments data'));
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
@@ -76,8 +77,6 @@ const TeacherContent = () => {
     return () => clearTimeout(t);
   }, [msg]);
 
-  const maxForGrade = submissionModal?.assignment?.maxPoints;
-
   const saveAssignment = async (e) => {
     e.preventDefault();
     if (savingRef.current) return;
@@ -86,7 +85,6 @@ const TeacherContent = () => {
     setMsg('');
     const payload = {
       ...assignForm,
-      maxPoints: assignForm.maxPoints === '' ? null : Number(assignForm.maxPoints),
       attachments: assignForm.fileUrl ? [assignForm.fileUrl] : [],
     };
     try {
@@ -124,7 +122,6 @@ const TeacherContent = () => {
       courseId: String(a.course?._id || a.course || ''),
       dueDate: a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : '',
       description: a.description || '',
-      maxPoints: a.maxPoints != null ? String(a.maxPoints) : '',
       fileUrl: (a.attachments && a.attachments[0]) || '',
     });
     setShowForm(true);
@@ -237,28 +234,6 @@ const TeacherContent = () => {
 
   const openSubmission = (row) => {
     setSubmissionModal(row);
-    setGradeForm({
-      score: row.score != null ? String(row.score) : '',
-      feedback: row.feedback || '',
-    });
-  };
-
-  const gradeInModal = async (e) => {
-    e.preventDefault();
-    if (!submissionModal) return;
-    try {
-      const res = await portalPatch(`/teacher/submissions/${portalDocId(submissionModal)}/grade`, {
-        score: Number(gradeForm.score),
-        feedback: gradeForm.feedback,
-      });
-      if (res.success) {
-        setMsg('Grade saved.');
-        setSubmissionModal(null);
-        await reload();
-      } else setMsg(res.error || 'Failed');
-    } catch (err) {
-      setMsg(err.message || 'Failed to grade');
-    }
   };
 
   const courseOptions = useMemo(
@@ -340,7 +315,6 @@ const TeacherContent = () => {
           <td>{a.title}</td>
           <td>{a.course?.title}</td>
           <td>{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}</td>
-          <td>{a.maxPoints != null ? a.maxPoints : '—'}</td>
           <td>
             <div className="portal-table-actions">
               <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => setViewAssignment(a)}>
@@ -379,17 +353,11 @@ const TeacherContent = () => {
           <td>{r.student?.studentId || '—'}</td>
           <td>{r.assignment?.title || '—'}</td>
           <td>{r.assignment?.course?.title || '—'}</td>
-          <td>
-            <span className={`teacher-assignments__badge teacher-assignments__badge--${r.status}`}>
-              {r.status === 'graded' ? 'Graded' : 'Submitted'}
-            </span>
-          </td>
-          <td>{formatScore(r.score, r.assignment?.maxPoints)}</td>
           <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td>
           <td>
             <div className="portal-table-actions">
               <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => openSubmission(r)}>
-                View / grade
+                View
               </button>
               <button type="button" className="teacher-assignments__btn teacher-assignments__btn--danger teacher-assignments__btn--small" disabled={deleting} onClick={(e) => deleteOneSubmission(r, e)}>
                 Delete
@@ -423,7 +391,7 @@ const TeacherContent = () => {
     <div className="portal-page teacher-assignments">
       <PortalPageHeader
         title="Assignments"
-        subtitle="Publish homework, review student work, grade submissions, or remove invalid entries."
+        subtitle="Publish homework, review student submissions, or remove invalid entries."
       />
 
       <div className="teacher-assignments__layout">
@@ -480,16 +448,6 @@ const TeacherContent = () => {
               />
             </label>
             <label className="portal-field-label">
-              <span>Maximum points (optional)</span>
-              <input
-                type="number"
-                min="1"
-                placeholder="Leave empty if not graded with points"
-                value={assignForm.maxPoints}
-                onChange={(e) => setAssignForm({ ...assignForm, maxPoints: e.target.value })}
-              />
-            </label>
-            <label className="portal-field-label">
               <span>Description</span>
               <textarea
                 value={assignForm.description}
@@ -501,6 +459,7 @@ const TeacherContent = () => {
               label="Attachment for students (PDF / file)"
               value={assignForm.fileUrl}
               onChange={(url) => setAssignForm({ ...assignForm, fileUrl: url })}
+              category="assignments"
             />
             <div className="portal-table-actions">
               <button type="submit" disabled={saving}>
@@ -574,7 +533,6 @@ const TeacherContent = () => {
                     <th>Title</th>
                     <th>Course</th>
                     <th>Due</th>
-                    <th>Max pts</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -582,7 +540,7 @@ const TeacherContent = () => {
                   {assignmentGroups
                     ? assignmentGroups.flatMap((group) => [
                         <tr key={`assign-head-${group.courseId}`} className="teacher-assignments__course-row">
-                          <td colSpan={6}>
+                          <td colSpan={5}>
                             <span className="portal-course-group__title">{group.title}</span>
                           </td>
                         </tr>,
@@ -635,8 +593,6 @@ const TeacherContent = () => {
                     <th>Roll no.</th>
                     <th>Assignment</th>
                     <th>Course</th>
-                    <th>Status</th>
-                    <th>Score</th>
                     <th>Submitted</th>
                     <th>Actions</th>
                   </tr>
@@ -644,7 +600,7 @@ const TeacherContent = () => {
                 <tbody>
                   {submissionGroups.flatMap((group) => [
                     <tr key={`sub-head-${group.courseId}`} className="teacher-assignments__course-row">
-                      <td colSpan={9}>
+                      <td colSpan={7}>
                         <span className="portal-course-group__title">{group.title}</span>
                       </td>
                     </tr>,
@@ -666,7 +622,6 @@ const TeacherContent = () => {
         <PortalModal title={viewAssignment.title} onClose={() => setViewAssignment(null)}>
           <p><strong>Course:</strong> {viewAssignment.course?.title}</p>
           <p><strong>Due:</strong> {new Date(viewAssignment.dueDate).toLocaleDateString()}</p>
-          <p><strong>Max points:</strong> {viewAssignment.maxPoints != null ? viewAssignment.maxPoints : 'Not set'}</p>
           <p><strong>Description:</strong> {viewAssignment.description || '—'}</p>
           {viewAssignment.attachments?.length ? (
             <>
@@ -692,44 +647,20 @@ const TeacherContent = () => {
           ) : null}
           <p><strong>Files:</strong></p>
           <SubmissionFiles attachments={submissionModal.attachments} />
-          <form className="portal-form-card" onSubmit={gradeInModal} style={{ marginTop: '1rem' }}>
-            <label className="portal-field-label">
-              <span>
-                Score
-                {maxForGrade != null && maxForGrade > 0 ? ` (out of ${maxForGrade})` : ' (no maximum set on assignment)'}
-              </span>
-              <input
-                type="number"
-                min="0"
-                max={maxForGrade != null && maxForGrade > 0 ? maxForGrade : undefined}
-                value={gradeForm.score}
-                onChange={(e) => setGradeForm({ ...gradeForm, score: e.target.value })}
-                required
-              />
-            </label>
-            <label className="portal-field-label">
-              <span>Feedback for student</span>
-              <textarea
-                value={gradeForm.feedback}
-                onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })}
-                rows={3}
-              />
-            </label>
-            <div className="teacher-assignments__modal-actions">
-              <button type="submit">Save grade</button>
-              <button
-                type="button"
-                className="teacher-assignments__btn teacher-assignments__btn--danger"
-                disabled={deleting}
-                onClick={() => deleteOneSubmission(submissionModal)}
-              >
-                Delete submission
-              </button>
-            </div>
-          </form>
+          <div className="teacher-assignments__modal-actions" style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="teacher-assignments__btn teacher-assignments__btn--danger"
+              disabled={deleting}
+              onClick={() => deleteOneSubmission(submissionModal)}
+            >
+              Delete submission
+            </button>
+          </div>
         </PortalModal>
       ) : null}
 
+      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
       {msg ? <div className="teacher-assignments__toast" role="status">{msg}</div> : null}
     </div>
   );

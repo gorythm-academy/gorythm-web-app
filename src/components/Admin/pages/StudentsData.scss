@@ -3,28 +3,7 @@
 @import '../../../styles/mixins';
 @import './students-data-modal';
 
-.students-list-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-
-    .students-list-tab {
-        border: 1px solid #e2e8f0;
-        background: #fff;
-        color: #475569;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-
-        &.active {
-            border-color: var(--color-accent);
-            background: rgba(var(--color-accent-rgb), 0.08);
-            color: var(--color-accent-dark, var(--color-accent));
-        }
-    }
-}
+// Active / Trash tabs: see _admin-list-tabs.scss (imported via Admin.scss)
 
 .students-data-page {
     padding: 24px;

@@ -45,15 +45,15 @@ const AccountantDashboard = () => {
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Accountant Dashboard" subtitle="Payments, payroll, and financial reports" />
+      <PortalPageHeader title="Finance overview" subtitle="Student fee reviews, teacher payroll, and exportable reports" />
 
       <div className="portal-hero portal-hero--accountant">
         <div className="portal-hero__icon" aria-hidden="true">
           <i className="fa-solid fa-calculator" />
         </div>
         <div>
-          <h2>Finance overview</h2>
-          <p>Review student payments, teacher payroll, and export summary reports.</p>
+          <h2>Welcome back</h2>
+          <p>Track pending fee proofs, teacher payroll queues, and monthly financial summaries in one place.</p>
         </div>
       </div>
 
@@ -89,13 +89,13 @@ const AccountantDashboard = () => {
 
       <div className="portal-quick-links">
         <Link to="/accountant/payments" className="portal-card portal-link-card">
-          Student payments →
+          Fee reviews →
         </Link>
         <Link to="/accountant/payroll" className="portal-card portal-link-card">
-          Payroll →
+          Teacher payroll →
         </Link>
         <Link to="/accountant/reports" className="portal-card portal-link-card">
-          Reports →
+          Financial reports →
         </Link>
       </div>
     </div>

@@ -9,7 +9,6 @@ import {
   PortalNewBanner,
 } from '../shared/PortalUi';
 import { absFileUrl } from '../../../utils/fileUrl';
-import { formatScore } from '../../../utils/formatScore';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import {
   filterPortalItemsByCourse,
@@ -21,9 +20,6 @@ const SEEN_KEY = 'student_assignments';
 
 const statusPill = (row) => {
   if (!row.submission) return <span className="portal-status-pill portal-status-pill--pending">Pending</span>;
-  if (row.submission.status === 'graded') {
-    return <span className="portal-status-pill portal-status-pill--graded">Graded</span>;
-  }
   return <span className="portal-status-pill portal-status-pill--submitted">Submitted</span>;
 };
 
@@ -73,6 +69,10 @@ const StudentAssignments = () => {
   const submit = async (e) => {
     e.preventDefault();
     setMsg('');
+    if (isPastDue) {
+      setMsg('The due date for this assignment has passed.');
+      return;
+    }
     const attachments = fileUrl ? [fileUrl] : [];
     try {
       const res = await portalPost('/student/submissions', {
@@ -112,11 +112,15 @@ const StudentAssignments = () => {
   }
 
   const selectedRow = filtered.find((a) => String(a._id) === String(selected));
+  const isPastDue =
+    selectedRow?.dueDate &&
+    new Date(selectedRow.dueDate) < new Date() &&
+    !selectedRow?.submission;
   const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Assignments" subtitle="View instructions, submit work, and see grades" />
+      <PortalPageHeader title="Assignments" subtitle="View instructions, submit work, and track submissions" />
 
       <div className="portal-hero portal-hero--student">
         <div className="portal-hero__icon" aria-hidden="true">
@@ -124,7 +128,7 @@ const StudentAssignments = () => {
         </div>
         <div>
           <h2>Homework & submissions</h2>
-          <p>Choose a course to see assignments. Download teacher files, submit your work, and track grades.</p>
+          <p>Choose a course to see assignments. Download teacher files and submit your work.</p>
         </div>
       </div>
 
@@ -147,7 +151,7 @@ const StudentAssignments = () => {
           <div className="portal-panel__head">
             <div>
               <h2>Assignment list</h2>
-              <p>Status, due dates, scores, and your uploads</p>
+              <p>Status, due dates, and your uploads</p>
             </div>
           </div>
           <div className="portal-panel__body">
@@ -164,8 +168,6 @@ const StudentAssignments = () => {
                       <th>Course</th>
                       <th>Due</th>
                       <th>Status</th>
-                      <th>Score</th>
-                      <th>Feedback</th>
                       <th>Your file</th>
                     </tr>
                   </thead>
@@ -178,18 +180,6 @@ const StudentAssignments = () => {
                         <td>{r.course?.title || '—'}</td>
                         <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
                         <td>{statusPill(r)}</td>
-                        <td>{formatScore(r.submission?.score, r.maxPoints)}</td>
-                        <td>
-                          {r.submission?.feedback ? (
-                            <span title={r.submission.feedback}>
-                              {r.submission.feedback.length > 40
-                                ? `${r.submission.feedback.slice(0, 40)}…`
-                                : r.submission.feedback}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
                         <td>
                           {r.submission?.attachments?.length ? (
                             <a href={absFileUrl(r.submission.attachments[0])} target="_blank" rel="noreferrer">
@@ -240,9 +230,8 @@ const StudentAssignments = () => {
             <select value={selected || ''} onChange={(e) => setSelected(e.target.value)} required>
               <option value="">Select assignment</option>
               {filtered.map((a) => (
-                <option key={a._id} value={a._id} disabled={a.submission?.status === 'graded'}>
+                <option key={a._id} value={a._id}>
                   {a.title}
-                  {a.submission?.status === 'graded' ? ' (graded)' : ''}
                 </option>
               ))}
             </select>
@@ -252,11 +241,6 @@ const StudentAssignments = () => {
               {selectedRow.description ? (
                 <p>
                   <strong>Instructions:</strong> {selectedRow.description}
-                </p>
-              ) : null}
-              {selectedRow.maxPoints != null ? (
-                <p>
-                  <strong>Graded out of:</strong> {selectedRow.maxPoints} points
                 </p>
               ) : null}
               {selectedRow.attachments?.length ? (
@@ -275,11 +259,6 @@ const StudentAssignments = () => {
               <SubmissionFiles attachments={selectedRow.submission.attachments} />
             </p>
           ) : null}
-          {selectedRow?.submission?.feedback ? (
-            <PortalAlert type="info">
-              <strong>Teacher feedback:</strong> {selectedRow.submission.feedback}
-            </PortalAlert>
-          ) : null}
           <label className="portal-field-label">
             <span>Your answer</span>
             <textarea
@@ -291,8 +270,11 @@ const StudentAssignments = () => {
               autoComplete="off"
             />
           </label>
-          <FileUploadField label="Attach file (optional)" value={fileUrl} onChange={setFileUrl} />
-          <button type="submit" disabled={selectedRow?.submission?.status === 'graded'}>
+          <FileUploadField label="Attach file (optional)" value={fileUrl} onChange={setFileUrl} category="assignments" />
+          {isPastDue ? (
+            <PortalAlert type="info">The due date for this assignment has passed. New submissions are not accepted.</PortalAlert>
+          ) : null}
+          <button type="submit" disabled={isPastDue}>
             {selectedRow?.submission ? 'Update submission' : 'Submit'}
           </button>
           {msg ? <PortalAlert type={msg.includes('success') ? 'success' : 'error'}>{msg}</PortalAlert> : null}

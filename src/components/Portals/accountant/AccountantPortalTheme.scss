@@ -1,0 +1,61 @@
+.admin-dashboard.portal-dashboard--accountant {
+  .portal-dashboard-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 0 1rem 0.75rem;
+  }
+
+  .admin-sidebar {
+    background: linear-gradient(180deg, #1c1917 0%, #292524 48%, #1c1917 100%);
+  }
+
+  .portal-page {
+    max-width: 1180px;
+  }
+
+  .portal-hero--accountant {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 42%, #fef3c7 100%);
+    border-color: rgba(234, 88, 12, 0.2);
+    box-shadow: 0 10px 30px rgba(234, 88, 12, 0.08);
+
+    h2 {
+      margin: 0 0 0.25rem;
+      color: #7c2d12;
+      font-size: 1.2rem;
+    }
+
+    p {
+      margin: 0;
+      color: #9a3412;
+      line-height: 1.5;
+    }
+  }
+
+  .portal-quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .portal-link-card {
+    border: 1px solid #fed7aa;
+    background: linear-gradient(180deg, #fff 0%, #fff7ed 100%);
+    color: #9a3412;
+    font-weight: 700;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(234, 88, 12, 0.12);
+    }
+  }
+
+  .summary-grid__item {
+    border-color: #fed7aa;
+    background: linear-gradient(180deg, #fff 0%, #fffbeb 100%);
+  }
+}

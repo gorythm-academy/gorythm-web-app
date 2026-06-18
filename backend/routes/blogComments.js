@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const BlogComment = require('../models/BlogComment');
+const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
 
 // GET /api/blog/counts - returns { postSlug: count } only for posts that have comments
 router.get('/counts', async (req, res) => {
@@ -29,7 +30,6 @@ router.get('/:postSlug/comments', async (req, res) => {
       comments: comments.map((c) => ({
         id: c._id.toString(),
         authorName: c.authorName,
-        authorEmail: c.authorEmail,
         text: c.text,
         date: c.createdAt
       }))
@@ -44,7 +44,7 @@ router.get('/:postSlug/comments', async (req, res) => {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // POST /api/blog/:postSlug/comments
-router.post('/:postSlug/comments', async (req, res) => {
+router.post('/:postSlug/comments', publicWriteRateLimiter, async (req, res) => {
   try {
     const { authorName, authorEmail, text } = req.body;
     const postSlug = req.params.postSlug;
@@ -70,7 +70,6 @@ router.post('/:postSlug/comments', async (req, res) => {
       comment: {
         id: comment._id.toString(),
         authorName: comment.authorName,
-        authorEmail: comment.authorEmail,
         text: comment.text,
         date: comment.createdAt
       }

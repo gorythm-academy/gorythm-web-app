@@ -22,5 +22,7 @@ export function localFromPortalEmail(email) {
 
 /** Email entered on course registration / stored on payment record. */
 export function paymentRegistrationEmail(payment) {
-    return String(payment?.email || '').trim();
+    const direct = String(payment?.email || '').trim();
+    if (direct) return direct;
+    return String(payment?.user?.email || '').trim();
 }

@@ -1,4 +1,5 @@
 const Course = require('../models/Course');
+const { activeCourseFilter } = require('../utils/courseQuery');
 
 function escapeRegex(str) {
     return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -16,6 +17,8 @@ async function resolveAndLinkCourseOnPayment(payment) {
 
     const course = await Course.findOne({
         title: { $regex: new RegExp(`^${escapeRegex(title)}$`, 'i') },
+        isPublished: true,
+        ...activeCourseFilter(),
     }).select('_id title');
 
     if (course) {
