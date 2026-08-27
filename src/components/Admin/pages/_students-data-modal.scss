@@ -79,7 +79,8 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.8);
-    z-index: 1000;
+    /* Above StudentDetailOverlay (1100) so edit form stacks on top */
+    z-index: 1300;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -97,6 +98,11 @@
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     
     .modal-header {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
         background: #1e293b;
         color: white;
         padding: 24px;
@@ -130,9 +136,8 @@
         }
         
         .close-btn {
-            position: absolute;
-            top: 24px;
-            right: 24px;
+            position: static;
+            flex-shrink: 0;
             background: rgba(255, 255, 255, 0.1);
             border: none;
             color: white;
@@ -141,10 +146,20 @@
             border-radius: 50%;
             cursor: pointer;
             
-            &:hover {
+            &:hover:not(:disabled) {
                 background: rgba(255, 255, 255, 0.2);
             }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
         }
+    }
+
+    .edit-enrollment-modal-header__main {
+        min-width: 0;
+        flex: 1;
     }
     
     .modal-body {
@@ -341,49 +356,57 @@
         }
     }
     
-    .modal-footer {
-        padding: 20px 24px;
-        background: #f8fafc;
-        border-top: 1px solid #e2e8f0;
+    .edit-enrollment-meta {
+        flex-shrink: 0;
+        margin: 0;
+        padding: 0 24px 0.5rem;
+        font-size: 0.8125rem;
+        color: #64748b;
+    }
+
+    .form-actions {
+        flex-shrink: 0;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        
-        .footer-left small {
-            color: #64748b;
-            font-size: 13px;
+        justify-content: flex-end;
+        gap: 0.7rem;
+        padding: 0.95rem 1.2rem 1.1rem;
+        border-top: 1px solid #dbe6ff;
+        background: #fff;
+
+        .btn-secondary,
+        .btn-primary {
+            border: none;
+            border-radius: 10px;
+            padding: 0.72rem 1.2rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
         }
-        
-        .footer-right {
-            display: flex;
-            gap: 12px;
-            
-            .btn-secondary, .btn-primary {
-                padding: 10px 24px;
-                border-radius: 8px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                border: none;
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #334155;
+
+            &:hover:not(:disabled) {
+                background: #cfd8e3;
             }
-            
-            .btn-secondary {
-                background: white;
-                color: #64748b;
-                border: 1px solid #cbd5e1;
-                
-                &:hover {
-                    background: #f1f5f9;
-                }
-            }
-            
-            .btn-primary {
-                background: var(--color-accent);
-                color: white;
-                
-                &:hover {
-                    background: var(--color-accent-dark);
-                }
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+            color: #fff;
+
+            &:hover:not(:disabled) {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
             }
         }
     }

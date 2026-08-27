@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { getAuthToken, parseAuthUser } from '../../../utils/authStorage';
-import { API_BASE_URL } from '../../../config/constants';
-import EnrollStudentModal from './EnrollStudentModal';
+import { API_BASE_URL, PROTECTED_SUPER_ADMIN_EMAIL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
+import { MIN_STUDENT_PASSWORD_LENGTH, validatePasswordPair } from '../../../utils/studentAdminValidation';
+import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import { lmsAdminGet } from '../../../utils/lmsAdminApi';
+import { Link } from 'react-router-dom';
+import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
+import AdminTablePagination from '../shared/AdminTablePagination';
+import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import './UsersManagement.scss';
+
+const USERS_PAGE_SIZE = 25;
+const PARENT_LINK_STUDENT_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
 const STAFF_ROLE_SLUGS = ['manager', 'super-admin', 'accountant'];
@@ -18,16 +29,6 @@ const VARIANT_CONFIG = {
         icon: 'fa-users-cog',
         defaultRole: 'manager',
         fixedRole: null,
-        showEnroll: false,
-    },
-    students: {
-        roles: ['student'],
-        segment: 'students',
-        pageTitle: 'Students',
-        addLabel: 'Add student',
-        icon: 'fa-user-graduate',
-        defaultRole: 'student',
-        fixedRole: 'student',
         showEnroll: false,
     },
     teachers: {
@@ -50,16 +51,6 @@ const VARIANT_CONFIG = {
         fixedRole: 'parent',
         showEnroll: false,
     },
-    people: {
-        roles: ['student'],
-        segment: 'people',
-        pageTitle: 'Students',
-        addLabel: 'Add student',
-        icon: 'fa-user-graduate',
-        defaultRole: 'student',
-        fixedRole: 'student',
-        showEnroll: true,
-    },
 };
 
 function displayRoleLabel(role) {
@@ -79,9 +70,9 @@ const PEOPLE_ROLE_OPTIONS = [
 ];
 
 const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'];
-const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 250, 130, 180, 150];
-const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 140, 100, 120, 120];
-const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 420, 220, 320, 260];
+const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 250, 130, 180, 1];
+const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 140, 100, 120, 90];
+const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 420, 220, 320, 320];
 
 const TABLE_LAYOUT = {
     staff: {
@@ -91,16 +82,16 @@ const TABLE_LAYOUT = {
         maxs: COLUMN_MAX_WIDTHS,
     },
     teachers: {
-        keys: ['checkbox', 'user', 'role', 'status', 'assignedCourses', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 220, 160, 140, 260, 150, 250, 250, 130, 180, 150],
-        mins: [50, 140, 110, 100, 160, 110, 140, 140, 100, 120, 120],
-        maxs: [90, 360, 260, 240, 420, 280, 420, 420, 220, 320, 260],
+        keys: ['checkbox', 'user', 'status', 'assignedCourses', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 240, 160, 260, 150, 250, 250, 130, 180, 1],
+        mins: [50, 160, 120, 160, 110, 140, 140, 100, 120, 90],
+        maxs: [90, 380, 260, 420, 280, 420, 420, 220, 320, 320],
     },
     parents: {
-        keys: ['checkbox', 'user', 'role', 'status', 'children', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 220, 160, 140, 260, 150, 250, 250, 130, 180, 150],
-        mins: [50, 140, 110, 100, 160, 110, 140, 140, 100, 120, 120],
-        maxs: [90, 360, 260, 240, 420, 280, 420, 420, 220, 320, 260],
+        keys: ['checkbox', 'user', 'status', 'children', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 240, 140, 260, 150, 250, 250, 130, 180, 1],
+        mins: [50, 160, 100, 160, 110, 140, 140, 100, 120, 90],
+        maxs: [90, 380, 240, 420, 280, 420, 420, 220, 320, 320],
     },
 };
 
@@ -128,14 +119,23 @@ const sanitizePortalEmailLocal = (raw) => {
     return beforeAt.replace(/\s+/g, '');
 };
 const PERSONAL_EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
-const USER_STATUS_OPTIONS = ['active', 'pending', 'inactive', 'completed'];
+const USER_STATUS_OPTIONS = ['active', 'inactive', 'completed'];
+const STAFF_STATUS_OPTIONS = ['active', 'inactive'];
+
+const normalizeStaffStatus = (status) => (status === 'active' ? 'active' : 'inactive');
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const UsersManagement = ({ variant = 'staff' }) => {
     const { showAlert, showConfirm } = useAdminDialog();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [listStats, setListStats] = useState(null);
     const [filterRole, setFilterRole] = useState('all');
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [listTab, setListTab] = useState('active');
@@ -149,17 +149,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-    // Enroll modal state (legacy; students tab merged into Students page)
-    const [showEnrollModal, setShowEnrollModal] = useState(false);
-    const [enrollingStudent, setEnrollingStudent] = useState(null);
-    const [coursesForEnroll, setCoursesForEnroll] = useState([]);
+    const [teacherSlots, setTeacherSlots] = useState([]);
+    const [teacherSlotsLoading, setTeacherSlotsLoading] = useState(false);
+    const [viewTeacherSlots, setViewTeacherSlots] = useState([]);
+    const [viewTeacherSlotsLoading, setViewTeacherSlotsLoading] = useState(false);
 
     const [allCourses, setAllCourses] = useState([]);
     const [teacherCoursesById, setTeacherCoursesById] = useState({});
+    const [teacherSlotsById, setTeacherSlotsById] = useState({});
     const [parentChildrenById, setParentChildrenById] = useState({});
     const [allStudentsForLink, setAllStudentsForLink] = useState([]);
-    const [coursesToReassign, setCoursesToReassign] = useState([]);
+    const [parentStudentSearch, setParentStudentSearch] = useState('');
+    const [parentStudentsLoading, setParentStudentsLoading] = useState(false);
     const [linkStudentPick, setLinkStudentPick] = useState('');
     const [parentLinksInModal, setParentLinksInModal] = useState([]);
     const [pendingParentLinks, setPendingParentLinks] = useState([]);
@@ -176,6 +177,24 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [columnWidths, setColumnWidths] = useState(tableLayout.widths);
     const [sortBy, setSortBy] = useState('joined');
     const [sortOrder, setSortOrder] = useState('desc');
+
+    const listCacheRef = useRef(createListCache());
+    const isFirstListLoadRef = useRef(true);
+    const pageRef = useRef(page);
+    pageRef.current = page;
+    const fetchUsersRef = useRef(() => {});
+    const prevFiltersRef = useRef({
+        debouncedSearchTerm: '',
+        filterRole: 'all',
+        listTab: 'active',
+        sortBy: 'joined',
+        sortOrder: 'desc',
+        variant,
+    });
+
+    const invalidateUsersCache = useCallback(() => {
+        listCacheRef.current.clear();
+    }, []);
 
     const startTableDragScroll = (e) => {
         if (e.button !== 0) return;
@@ -265,19 +284,14 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const isManagerViewer = currentUser.role === 'manager';
 
     const variantConfig = VARIANT_CONFIG[variant] || VARIANT_CONFIG.staff;
+    const isStaffTab = variant === 'staff';
 
-    const staffRoleOptions = useMemo(() => {
-        const base = [
-            { value: 'manager', label: 'Manager', icon: 'fa-user-cog' },
-            { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
-        ];
-        if (isSuperAdmin) {
-            return [{ value: 'super-admin', label: 'Super Admin', icon: 'fa-user-shield' }, ...base];
-        }
-        return base;
-    }, [isSuperAdmin]);
+    const staffRoleOptions = useMemo(() => [
+        { value: 'manager', label: 'Manager', icon: 'fa-user-cog' },
+        { value: 'accountant', label: 'Accountant', icon: 'fa-calculator' },
+    ], []);
 
-    const isLearnerTab = ['students', 'teachers', 'parents', 'people'].includes(variant);
+    const isLearnerTab = ['teachers', 'parents'].includes(variant);
     const roleOptions = isLearnerTab
         ? PEOPLE_ROLE_OPTIONS.filter((o) => variantConfig.roles.includes(o.value))
         : staffRoleOptions;
@@ -286,8 +300,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const canCreateStaff = variant === 'staff' && isSuperAdmin;
     const showAddButton = canCreateLearner || canCreateStaff;
 
-    const isRowActionsLocked = (user) =>
-        (user.role === 'super-admin' || user.isSystemAccount) && !isSuperAdmin;
+    const isRowActionsLocked = (user) => {
+        const email = String(user?.email || '').trim().toLowerCase();
+        if (email === PROTECTED_SUPER_ADMIN_EMAIL.toLowerCase()) return true;
+        if (user?.role === 'super-admin') return true;
+        if (
+            isManagerViewer &&
+            (user?.role === 'manager' || user?.role === 'accountant')
+        ) {
+            return true;
+        }
+        return false;
+    };
 
     // Form state
     const [formData, setFormData] = useState({
@@ -301,64 +325,163 @@ const UsersManagement = ({ variant = 'staff' }) => {
         status: 'active',
         mustChangePassword: true,
         assignedCourseIds: [],
-        releaseToTeacherId: '',
     });
 
-    const fetchUsers = useCallback(async () => {
+    const fetchUsers = useCallback(async (options = {}) => {
+        const effectivePage = options.page ?? pageRef.current;
+        const cacheKey = buildListCacheKey({
+            variant,
+            listTab,
+            page: effectivePage,
+            debouncedSearchTerm,
+            filterRole,
+            sortBy,
+            sortOrder,
+        });
+
+        if (!options.force && listCacheRef.current.has(cacheKey)) {
+            const cached = listCacheRef.current.get(cacheKey);
+            setUsers(cached.users);
+            setTotal(cached.total);
+            if (cached.stats) setListStats(cached.stats);
+            if (typeof cached.trashCount === 'number') setTrashCount(cached.trashCount);
+            setLoading(false);
+            setHasLoadedOnce(true);
+            return;
+        }
+
         try {
+            if (!options.force) {
+                setUsers([]);
+            }
             setLoading(true);
             const token = getAuthToken();
             const segment = variantConfig.segment;
+            const includeCounts = options.includeCounts
+                || isFirstListLoadRef.current
+                || prevFiltersRef.current.listTab !== listTab;
+            const includeStats = listTab === 'active' && !debouncedSearchTerm && filterRole === 'all';
 
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
                 params: {
                     segment,
-                    limit: 500,
+                    page: effectivePage,
+                    limit: USERS_PAGE_SIZE,
+                    search: debouncedSearchTerm || undefined,
+                    sortBy,
+                    sortOrder,
+                    ...(isStaffTab && filterRole !== 'all' ? { role: filterRole } : {}),
                     ...(listTab === 'trash' ? { trash: '1' } : {}),
+                    ...(includeCounts ? { includeCounts: 1 } : {}),
+                    ...(includeStats ? { includeStats: 1 } : {}),
                 },
             });
 
             if (response.data.success) {
                 const raw = response.data.users || [];
                 const allowed = variantConfig.roles;
-                setUsers(raw.filter((u) => allowed.includes(u.role)));
+                const nextUsers = raw.filter((u) => allowed.includes(u.role));
+                const apiTotal = Number(response.data.total) || 0;
+                const maxPage = Math.max(1, Math.ceil(apiTotal / USERS_PAGE_SIZE));
+                const resolvedPage = Math.min(effectivePage, maxPage);
+
+                listCacheRef.current.set(cacheKey, {
+                    users: nextUsers,
+                    total: apiTotal,
+                    stats: response.data.stats || null,
+                    trashCount: response.data.trashCount,
+                });
+                setUsers(nextUsers);
+                setTotal(apiTotal);
+                if (response.data.stats) setListStats(response.data.stats);
                 if (typeof response.data.trashCount === 'number') {
                     setTrashCount(response.data.trashCount);
                 }
+                if (options.page !== undefined) {
+                    setPage(resolvedPage);
+                } else if (pageRef.current > maxPage) {
+                    setPage(maxPage);
+                }
+                setHasLoadedOnce(true);
             } else {
                 showAlert('Failed to load users', 'error');
                 setUsers([]);
             }
-            setLoading(false);
         } catch (error) {
             console.error('Error fetching users:', error);
             showAlert('Failed to load users. Check backend connection.', 'error');
             setUsers([]);
+        } finally {
             setLoading(false);
         }
-    }, [showAlert, variant, listTab]);
+    }, [
+        debouncedSearchTerm,
+        filterRole,
+        isStaffTab,
+        listTab,
+        showAlert,
+        sortBy,
+        sortOrder,
+        variant,
+        variantConfig.roles,
+        variantConfig.segment,
+    ]);
+
+    fetchUsersRef.current = fetchUsers;
+
+    const reloadAfterMutation = useCallback(async () => {
+        invalidateUsersCache();
+        await fetchUsers({
+            force: true,
+            includeCounts: true,
+            page: pageRef.current,
+        });
+    }, [fetchUsers, invalidateUsersCache]);
+
+    const handleManualRefresh = useCallback(() => {
+        invalidateUsersCache();
+        fetchUsers({ force: true, includeCounts: true });
+    }, [fetchUsers, invalidateUsersCache]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm.trim());
+        }, SEARCH_DEBOUNCE_MS);
+        return () => window.clearTimeout(timer);
+    }, [searchTerm]);
 
     const loadTeacherCourseMap = useCallback(async (token) => {
-        const res = await axios.get(`${API_BASE_URL}/api/courses`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        const courses = res.data.courses || [];
-        setAllCourses(courses);
-        const map = {};
-        for (const c of courses) {
-            const tid = c.instructor?._id || c.instructor;
-            if (!tid) continue;
-            const key = String(tid);
-            if (!map[key]) map[key] = [];
-            map[key].push(c);
+        try {
+            const [res, slotsRes] = await Promise.all([
+                axios.get(`${API_BASE_URL}/api/users/teachers/course-assignments`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+                lmsAdminGet('/schedules').catch(() => ({ success: false, schedules: [] })),
+            ]);
+            setAllCourses(res.data.courses || []);
+            setTeacherCoursesById(res.data.assignmentsByTeacherId || {});
+
+            const byTeacher = {};
+            for (const slot of slotsRes.schedules || []) {
+                const tid = String(slot.teacher?._id || slot.teacher || '');
+                if (!tid) continue;
+                if (!byTeacher[tid]) byTeacher[tid] = [];
+                byTeacher[tid].push(slot);
+            }
+            setTeacherSlotsById(byTeacher);
+        } catch (err) {
+            console.error('Failed to load teacher course assignments', err);
+            setAllCourses([]);
+            setTeacherCoursesById({});
+            setTeacherSlotsById({});
         }
-        setTeacherCoursesById(map);
     }, []);
 
     const loadParentChildrenMap = useCallback(async (token) => {
         const res = await axios.get(`${API_BASE_URL}/api/lms-admin/parent-links`, {
             headers: { Authorization: `Bearer ${token}` },
+            params: { linksOnly: '1' },
         });
         if (!res.data.success) return;
         const map = {};
@@ -372,9 +495,84 @@ const UsersManagement = ({ variant = 'staff' }) => {
         setParentChildrenById(map);
     }, []);
 
+    const patchParentChildrenMap = useCallback((parentId, updater) => {
+        const key = String(parentId);
+        setParentChildrenById((prev) => {
+            const current = prev[key] || [];
+            const next = typeof updater === 'function' ? updater(current) : updater;
+            return { ...prev, [key]: next };
+        });
+    }, []);
+
+    const fetchStudentsForParentLink = useCallback(async (search = '') => {
+        const token = getAuthToken();
+        if (!token) return;
+        setParentStudentsLoading(true);
+        try {
+            const res = await axios.get(`${API_BASE_URL}/api/users`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    segment: 'students',
+                    limit: PARENT_LINK_STUDENT_LIMIT,
+                    search: search.trim() || undefined,
+                    sortBy: 'student',
+                    sortOrder: 'asc',
+                },
+            });
+            if (res.data.success) {
+                setAllStudentsForLink((res.data.users || []).filter((u) => u.role === 'student'));
+            } else {
+                setAllStudentsForLink([]);
+            }
+        } catch {
+            setAllStudentsForLink([]);
+        } finally {
+            setParentStudentsLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        const prev = prevFiltersRef.current;
+        const tabChanged = prev.listTab !== listTab;
+        const filtersChanged =
+            prev.debouncedSearchTerm !== debouncedSearchTerm
+            || prev.filterRole !== filterRole
+            || prev.listTab !== listTab
+            || prev.sortBy !== sortBy
+            || prev.sortOrder !== sortOrder
+            || prev.variant !== variant;
+
+        const includeCounts = isFirstListLoadRef.current || tabChanged;
+
+        if (filtersChanged) {
+            prevFiltersRef.current = {
+                debouncedSearchTerm,
+                filterRole,
+                listTab,
+                sortBy,
+                sortOrder,
+                variant,
+            };
+            if (isFirstListLoadRef.current) {
+                isFirstListLoadRef.current = false;
+            }
+            if (pageRef.current !== 1) {
+                setPage(1);
+                return;
+            }
+            fetchUsersRef.current({ page: 1, includeCounts, force: true });
+            return;
+        }
+
+        if (isFirstListLoadRef.current) {
+            isFirstListLoadRef.current = false;
+        }
+        fetchUsersRef.current({ page, includeCounts });
+    }, [page, debouncedSearchTerm, filterRole, listTab, sortBy, sortOrder, variant]);
+
+    useEffect(() => {
+        setSelectedUsers([]);
+    }, [listTab, page, debouncedSearchTerm, filterRole, variant]);
 
     useEffect(() => {
         const layout = TABLE_LAYOUT[variant] || TABLE_LAYOUT.staff;
@@ -387,19 +585,17 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (variant === 'teachers') loadTeacherCourseMap(token);
         if (variant === 'parents') {
             loadParentChildrenMap(token);
-            axios
-                .get(`${API_BASE_URL}/api/users`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                    params: { segment: 'people', limit: 500 },
-                })
-                .then((res) => {
-                    if (res.data.success) {
-                        setAllStudentsForLink((res.data.users || []).filter((u) => u.role === 'student'));
-                    }
-                })
-                .catch(() => setAllStudentsForLink([]));
         }
     }, [variant, loadTeacherCourseMap, loadParentChildrenMap]);
+
+    useEffect(() => {
+        if (!showUserModal || variant !== 'parents') return undefined;
+        const delay = parentStudentSearch.trim() ? 300 : 0;
+        const timer = window.setTimeout(() => {
+            fetchStudentsForParentLink(parentStudentSearch);
+        }, delay);
+        return () => window.clearTimeout(timer);
+    }, [showUserModal, variant, parentStudentSearch, fetchStudentsForParentLink]);
 
     // Keep scrolling inside Add/Edit user modal (not the page behind)
     useEffect(() => {
@@ -417,24 +613,10 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     const openCreateModal = () => {
         setEditingUser(null);
+        setTeacherSlots([]);
         setPendingParentLinks([]);
         const defaultRole = variantConfig.fixedRole || variantConfig.defaultRole;
-        if (variant === 'parents') {
-            const token = getAuthToken();
-            if (token && !allStudentsForLink.length) {
-                axios
-                    .get(`${API_BASE_URL}/api/users`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                        params: { segment: 'people', limit: 500 },
-                    })
-                    .then((res) => {
-                        if (res.data.success) {
-                            setAllStudentsForLink((res.data.users || []).filter((u) => u.role === 'student'));
-                        }
-                    })
-                    .catch(() => setAllStudentsForLink([]));
-            }
-        }
+        setParentStudentSearch('');
         setFormData({
             name: '',
             email: '',
@@ -446,9 +628,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             status: 'active',
             mustChangePassword: true,
             assignedCourseIds: [],
-            releaseToTeacherId: '',
         });
-        setCoursesToReassign([]);
         setLinkStudentPick('');
         setParentLinksInModal([]);
         setShowPassword(false);
@@ -456,10 +636,27 @@ const UsersManagement = ({ variant = 'staff' }) => {
         setShowUserModal(true);
     };
 
+    const loadTeacherSlots = async (teacherId, setSlots, setLoading) => {
+        if (!teacherId) {
+            setSlots([]);
+            return;
+        }
+        setLoading(true);
+        try {
+            const res = await lmsAdminGet(`/schedules?teacherId=${encodeURIComponent(teacherId)}`);
+            setSlots(res.success ? res.schedules || [] : []);
+        } catch {
+            setSlots([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const openEditModal = async (user) => {
         if (!user) return;
         
         setEditingUser(user);
+        setTeacherSlots([]);
         const token = getAuthToken();
         let assignedCourseIds = [];
         let linksForModal = [];
@@ -474,7 +671,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
             } catch {
                 assignedCourseIds = (teacherCoursesById[String(user._id)] || []).map((c) => String(c._id));
             }
+            loadTeacherSlots(user._id, setTeacherSlots, setTeacherSlotsLoading);
         }
+        setParentStudentSearch('');
         if (variant === 'parents' && user.role === 'parent' && token) {
             try {
                 const res = await axios.get(`${API_BASE_URL}/api/users/${user._id}/child-links`, {
@@ -482,9 +681,6 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 });
                 if (res.data.success) {
                     linksForModal = res.data.links || [];
-                    if (!allStudentsForLink.length && res.data.students) {
-                        setAllStudentsForLink(res.data.students);
-                    }
                 }
             } catch {
                 linksForModal = parentChildrenById[String(user._id)] || [];
@@ -498,13 +694,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
             confirmPassword: '',
             role: user.role || variantConfig.defaultRole,
             phone: user.phone || '',
-            status: USER_STATUS_OPTIONS.includes(user.status) ? user.status : (user.isActive !== false ? 'active' : 'inactive'),
+            status: isStaffTab
+                ? normalizeStaffStatus(user.status)
+                : (USER_STATUS_OPTIONS.includes(user.status) ? user.status : (user.status === 'pending' ? 'inactive' : (user.isActive !== false ? 'active' : 'inactive'))),
             mustChangePassword: !!user.mustChangePassword,
             assignedCourseIds,
-            releaseToTeacherId: '',
         });
         setParentLinksInModal(linksForModal);
-        setCoursesToReassign([]);
         setLinkStudentPick('');
         setShowPassword(false);
         setShowConfirmPassword(false);
@@ -514,22 +710,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const openViewModal = (user) => {
         if (!user) return;
         setViewUser(user);
-    };
-
-    const openEnrollModal = async (student) => {
-        setEnrollingStudent(student);
-        setShowEnrollModal(true);
-        // Fetch courses lazily when modal opens
-        try {
-            const token = getAuthToken();
-            const response = await axios.get(`${API_BASE_URL}/api/courses`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.courses) {
-                setCoursesForEnroll(response.data.courses);
-            }
-        } catch {
-            setCoursesForEnroll([]);
+        setViewTeacherSlots([]);
+        if (variant === 'teachers' && user.role === 'teacher') {
+            loadTeacherSlots(user._id, setViewTeacherSlots, setViewTeacherSlotsLoading);
         }
     };
 
@@ -540,6 +723,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
             [name]: type === 'checkbox' ? checked : value
         }));
     };
+
+    const closeUserModal = useCallback(() => {
+        if (isSubmitting) return;
+        setShowUserModal(false);
+        setEditingUser(null);
+    }, [isSubmitting]);
+
+    useDialogKeyboard({
+        isOpen: showUserModal,
+        onClose: closeUserModal,
+        blockEscape: isSubmitting,
+    });
 
     const validateForm = () => {
         const email = formData.email.trim();
@@ -576,18 +771,19 @@ const UsersManagement = ({ variant = 'staff' }) => {
             }
         }
         
-        // Password validation for new users
+        // Password validation
         if (!editingUser) {
-            if (!formData.password) {
-                showAlert('Password is required for new users', 'warning');
+            const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword, {
+                required: true,
+            });
+            if (passwordErr) {
+                showAlert(passwordErr, 'warning');
                 return false;
             }
-            if (formData.password.length < 6) {
-                showAlert('Password must be at least 6 characters', 'warning');
-                return false;
-            }
-            if (formData.password !== formData.confirmPassword) {
-                showAlert('Passwords do not match', 'warning');
+        } else {
+            const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
+            if (passwordErr) {
+                showAlert(passwordErr, 'warning');
                 return false;
             }
         }
@@ -602,28 +798,23 @@ const UsersManagement = ({ variant = 'staff' }) => {
             const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
             return { ...prev, assignedCourseIds: next };
         });
-        setCoursesToReassign([]);
     };
 
     const saveTeacherAssignedCourses = async (teacherId, token) => {
         if (variant !== 'teachers') return;
         try {
-            await axios.put(
+            const response = await axios.put(
                 `${API_BASE_URL}/api/users/${teacherId}/assigned-courses`,
                 {
                     courseIds: formData.assignedCourseIds || [],
-                    releaseToTeacherId: formData.releaseToTeacherId || undefined,
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            await loadTeacherCourseMap(token);
+            setTeacherCoursesById((prev) => ({
+                ...prev,
+                [String(teacherId)]: response.data.courses || [],
+            }));
         } catch (error) {
-            const data = error.response?.data;
-            if (data?.coursesToReassign?.length) {
-                setCoursesToReassign(data.coursesToReassign);
-                showAlert(data.error || 'Choose another teacher for removed courses', 'warning');
-                throw error;
-            }
             throw error;
         }
     };
@@ -657,7 +848,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             if (res.data.success) {
                 setParentLinksInModal((prev) => [...prev, res.data.link]);
                 setLinkStudentPick('');
-                await loadParentChildrenMap(token);
+                patchParentChildrenMap(parentId, (prev) => [...prev, res.data.link]);
                 showAlert('Child linked', 'success');
             }
         } catch (error) {
@@ -678,7 +869,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setParentLinksInModal((prev) => prev.filter((l) => String(l._id) !== String(linkId)));
-            await loadParentChildrenMap(token);
+            patchParentChildrenMap(parentId, (prev) => prev.filter((l) => String(l._id) !== String(linkId)));
             showAlert('Link removed', 'success');
         } catch (error) {
             showAlert(error.response?.data?.error || 'Failed to remove link', 'error');
@@ -690,22 +881,19 @@ const UsersManagement = ({ variant = 'staff' }) => {
         
         if (isSubmitting) return;
         if (!validateForm()) return;
-        if (variant === 'teachers' && coursesToReassign.length && !formData.releaseToTeacherId) {
-            showAlert('Select a teacher to take over courses you removed from this teacher', 'warning');
-            return;
-        }
         
         setIsSubmitting(true);
         const token = getAuthToken();
         
         try {
+            const resolvedStatus = isStaffTab ? normalizeStaffStatus(formData.status) : formData.status;
             const payload = {
                 name: formData.name.trim(),
                 email: formData.email.trim(),
                 role: variantConfig.fixedRole || formData.role,
                 phone: formData.phone.trim(),
-                status: formData.status,
-                isActive: formData.status === 'active',
+                status: resolvedStatus,
+                isActive: resolvedStatus === 'active',
                 personalEmail: (formData.personalEmail || '').trim(),
             };
             
@@ -716,7 +904,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 
                 const response = await axios.post(
                     `${API_BASE_URL}/api/users`,
-                    payload,
+                    {
+                        ...payload,
+                        ...(variant === 'parents' && pendingParentLinks.length
+                            ? { studentIds: pendingParentLinks.map((l) => l.studentId) }
+                            : {}),
+                    },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 
@@ -727,43 +920,40 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     await saveTeacherAssignedCourses(created._id, token);
                 }
                 if (variant === 'parents' && created.role === 'parent' && pendingParentLinks.length) {
-                    for (const link of pendingParentLinks) {
-                        await axios.post(
-                            `${API_BASE_URL}/api/users/${created._id}/child-links`,
-                            { studentId: link.studentId },
-                            { headers: { Authorization: `Bearer ${token}` } }
-                        );
+                    if (response.data.parentLinks?.length) {
+                        patchParentChildrenMap(created._id, response.data.parentLinks);
                     }
-                    await loadParentChildrenMap(token);
                     setPendingParentLinks([]);
                 }
             } else {
-                // Update existing user
-                const response = await axios.put(
-                    `${API_BASE_URL}/api/users/${editingUser._id}`,
-                    payload,
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-                
-                showAlert('User updated successfully!', 'success');
-                
-                // Update in list
-                setUsers(prev => prev.map(user => 
-                    user._id === editingUser._id ? response.data.user : user
-                ));
-                
-                // Update password separately if changed
-                if (formData.password && formData.password === formData.confirmPassword) {
-                    await axios.patch(
-                        `${API_BASE_URL}/api/users/${editingUser._id}/password`,
-                        { password: formData.password },
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    showAlert('Password updated successfully!', 'success');
+                const userId = editingUser._id;
+                const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
+                const changingPassword = Boolean(formData.password) && !passwordErr;
+                const updatePayload = { ...payload };
+                if (changingPassword) {
+                    updatePayload.password = formData.password;
+                    updatePayload.mustChangePassword = formData.mustChangePassword;
                 }
 
+                const response = await axios.put(
+                    `${API_BASE_URL}/api/users/${userId}`,
+                    updatePayload,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                showAlert(
+                    changingPassword
+                        ? 'User and password updated successfully!'
+                        : 'User updated successfully!',
+                    'success'
+                );
+
+                setUsers(prev => prev.map(user =>
+                    user._id === userId ? response.data.user : user
+                ));
+
                 if (variant === 'teachers' && editingUser.role === 'teacher') {
-                    await saveTeacherAssignedCourses(editingUser._id, token);
+                    await saveTeacherAssignedCourses(userId, token);
                 }
             }
             
@@ -789,14 +979,16 @@ const UsersManagement = ({ variant = 'staff' }) => {
         );
     };
 
-    const updateUserStatus = async (userId, currentStatus) => {
+    const updateUserStatus = async (userId, currentStatus, targetStatus) => {
         const user = users.find(u => u._id === userId);
         if (user && isRowActionsLocked(user)) return;
-        const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+        const effectiveStatus = isStaffTab ? normalizeStaffStatus(currentStatus) : currentStatus;
+        const newStatus = targetStatus || (effectiveStatus === 'active' ? 'inactive' : 'active');
+        if (newStatus === effectiveStatus) return;
         
         const confirmed = await showConfirm({
             title: 'Change User Status?',
-            message: `Change "${user?.name || 'this user'}" from ${currentStatus} to ${newStatus}?`,
+            message: `Change "${user?.name || 'this user'}" from ${effectiveStatus} to ${newStatus}?`,
             confirmLabel: 'Change Status',
         });
         if (!confirmed) {
@@ -812,13 +1004,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
             );
             
             // Update local state
-            setUsers(prev => prev.map(user => 
-                user._id === userId 
-                    ? { ...user, status: newStatus, isActive: newStatus === 'active' }
-                    : user
+            setUsers(prev => prev.map(row => 
+                row._id === userId 
+                    ? { ...row, status: newStatus, isActive: newStatus === 'active' }
+                    : row
             ));
             
-            showAlert(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`, 'success');
+            showAlert(`User status set to ${newStatus}.`, 'success');
         } catch (error) {
             console.error('Error updating user status:', error);
             showAlert('Failed to update user status', 'error');
@@ -830,9 +1022,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (user && isRowActionsLocked(user)) return;
 
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: `Move "${user?.name || 'this user'}" to trash? They will lose portal and login access. Restore from the Trash tab.`,
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `Move "${user?.name || 'this user'}" to ${QUARANTINE_LABEL}? They will lose portal and login access. Restore from the ${QUARANTINE_LABEL} tab.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) {
             return;
@@ -844,13 +1036,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            await fetchUsers();
+            await reloadAfterMutation();
             setSelectedUsers(prev => prev.filter(id => id !== userId));
             
-            showAlert('User moved to trash.', 'success');
+            showAlert(`User moved to ${QUARANTINE_LABEL}.`, 'success');
         } catch (error) {
-            console.error('Error moving user to trash:', error);
-            showAlert(error.response?.data?.error || 'Failed to move user to trash', 'error');
+            console.error('Error moving user to quarantine:', error);
+            showAlert(error.response?.data?.error || `Failed to move user to ${QUARANTINE_LABEL}`, 'error');
         }
     };
 
@@ -862,12 +1054,87 @@ const UsersManagement = ({ variant = 'staff' }) => {
             await axios.patch(`${API_BASE_URL}/api/users/${userId}/restore`, null, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            await fetchUsers();
+            await reloadAfterMutation();
             showAlert('User restored.', 'success');
         } catch (error) {
             showAlert(error.response?.data?.error || 'Failed to restore user', 'error');
         } finally {
             setTrashBusy(false);
+        }
+    };
+
+    const restoreSelectedUsers = async () => {
+        if (trashBusy || !selectedUsers.length) return;
+        setTrashBusy(true);
+        const token = getAuthToken();
+        const ids = [...selectedUsers];
+        let restored = 0;
+        let failed = 0;
+
+        for (const id of ids) {
+            try {
+                await axios.patch(`${API_BASE_URL}/api/users/${id}/restore`, null, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                restored += 1;
+            } catch {
+                failed += 1;
+            }
+        }
+
+        await reloadAfterMutation();
+        setSelectedUsers([]);
+        setTrashBusy(false);
+
+        if (failed === 0) {
+            showAlert(`${restored} user(s) restored.`, 'success');
+        } else if (restored === 0) {
+            showAlert(`Failed to restore ${failed} user(s).`, 'error');
+        } else {
+            showAlert(`Restored ${restored} user(s). ${failed} could not be restored.`, 'warning');
+        }
+    };
+
+    const permanentDeleteSelectedUsers = async () => {
+        if (trashBusy || !selectedUsers.length || listTab !== 'trash') return;
+
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+
+        setTrashBusy(true);
+        const token = getAuthToken();
+        const ids = [...selectedUsers];
+        let deleted = 0;
+        let failed = 0;
+
+        for (const id of ids) {
+            try {
+                await axios.delete(`${API_BASE_URL}/api/users/${id}/permanent`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                deleted += 1;
+            } catch {
+                failed += 1;
+            }
+        }
+
+        await reloadAfterMutation();
+        setSelectedUsers([]);
+        setTrashBusy(false);
+
+        if (failed === 0) {
+            showAlert(`${deleted} user(s) permanently deleted.`, 'success');
+        } else if (deleted === 0) {
+            showAlert(`Failed to permanently delete ${failed} user(s).`, 'error');
+        } else {
+            showAlert(
+                `Deleted ${deleted} user(s). ${failed} could not be deleted.`,
+                'warning'
+            );
         }
     };
 
@@ -885,7 +1152,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             await axios.delete(`${API_BASE_URL}/api/users/${userId}/permanent`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            await fetchUsers();
+            await reloadAfterMutation();
             setSelectedUsers((prev) => prev.filter((id) => id !== userId));
             showAlert('User permanently deleted.', 'success');
         } catch (error) {
@@ -902,9 +1169,9 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
         
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: `Move ${selectedUsers.length} selected user(s) to trash? They will lose portal and login access.`,
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `Move ${selectedUsers.length} selected user(s) to ${QUARANTINE_LABEL}? They will lose portal and login access.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) {
             return;
@@ -919,10 +1186,10 @@ const UsersManagement = ({ variant = 'staff' }) => {
             );
 
             // Refresh list
-            await fetchUsers();
+            await reloadAfterMutation();
             setSelectedUsers([]);
             
-            showAlert(response.data.message || `${selectedUsers.length} user(s) moved to trash.`, 'success');
+            showAlert(response.data.message || `${selectedUsers.length} user(s) moved to ${QUARANTINE_LABEL}.`, 'success');
         } catch (error) {
             console.error('Error deleting selected users:', error);
             showAlert('Failed to delete users', 'error');
@@ -952,7 +1219,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             );
             
             // Refresh list
-            await fetchUsers();
+            await reloadAfterMutation();
             showAlert(`${selectedUsers.length} user(s) set to ${status} successfully!`, 'success');
         } catch (error) {
             console.error('Error updating selected users status:', error);
@@ -960,91 +1227,112 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
     };
 
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = 
-            user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (user.personalEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesRole = filterRole === 'all' || user.role === filterRole;
-        
-        return matchesSearch && matchesRole;
-    });
-
-    const sortedUsers = [...filteredUsers].sort((a, b) => {
+    const sortedUsers = useMemo(() => {
+        if (sortBy !== 'assignedCourses' && sortBy !== 'children') {
+            return users;
+        }
         const mult = sortOrder === 'asc' ? 1 : -1;
-        const getVal = (u, key) => {
-            if (key === 'user') return (u.name || '').toLowerCase();
-            if (key === 'role') return (u.role || '').toLowerCase();
-            if (key === 'status') return (u.status || '').toLowerCase();
-            if (key === 'phone') return (u.phone || '').toLowerCase();
-            if (key === 'email') return (u.email || '').toLowerCase();
-            if (key === 'personalEmail') return (u.personalEmail || '').toLowerCase();
-            if (key === 'joined') return new Date(u.joinDate || 0).getTime();
-            if (key === 'lastLogin') return new Date(u.lastLogin || 0).getTime();
-            if (key === 'assignedCourses') {
-                return (teacherCoursesById[String(u._id)] || [])
-                    .map((c) => c.title)
-                    .join(', ')
-                    .toLowerCase();
-            }
-            if (key === 'children') {
-                return (parentChildrenById[String(u._id)] || [])
-                    .map((l) => l.student?.name || '')
-                    .join(', ')
-                    .toLowerCase();
-            }
-            return 0;
-        };
-        const va = getVal(a, sortBy);
-        const vb = getVal(b, sortBy);
-        if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
-        return mult * (va < vb ? -1 : va > vb ? 1 : 0);
-    });
+        return [...users].sort((a, b) => {
+            const getVal = (u, key) => {
+                if (key === 'assignedCourses') {
+                    return (teacherCoursesById[String(u._id)] || [])
+                        .map((c) => c.title)
+                        .join(', ')
+                        .toLowerCase();
+                }
+                if (key === 'children') {
+                    return (parentChildrenById[String(u._id)] || [])
+                        .map((l) => l.student?.name || '')
+                        .join(', ')
+                        .toLowerCase();
+                }
+                return '';
+            };
+            const va = getVal(a, sortBy);
+            const vb = getVal(b, sortBy);
+            return mult * va.localeCompare(vb);
+        });
+    }, [users, sortBy, sortOrder, teacherCoursesById, parentChildrenById]);
 
-    const downloadUsersCsv = () => {
-        const rows = (users || []).map((u) => ({
-            studentId: u.role === 'student' ? (u.studentId || '') : '',
-            name: u.name || '',
-            portalEmail: u.email || '',
-            personalEmail: u.personalEmail || '',
-            role: u.role || '',
-            phone: u.phone || '',
-            status: u.status || (u.isActive !== false ? 'active' : 'inactive'),
-            joined: u.joinDate ? new Date(u.joinDate).toISOString().slice(0, 10) : '',
-        }));
+    const totalPages = Math.max(1, Math.ceil(total / USERS_PAGE_SIZE));
+    const statsByRole = listStats?.byRole || {};
 
-        const cols = [
-            ['studentId', 'Student ID'],
-            ['name', 'Name'],
-            ['portalEmail', 'Portal email'],
-            ['personalEmail', 'Personal email'],
-            ['role', 'Role'],
-            ['phone', 'Phone'],
-            ['status', 'Status'],
-            ['joined', 'Joined'],
-        ];
+    const downloadUsersCsv = async () => {
+        try {
+            const token = getAuthToken();
+            const segment = variantConfig.segment;
+            const allRows = [];
+            let exportPage = 1;
+            let exportTotal = 0;
 
-        const esc = (v) => {
-            const s = String(v ?? '');
-            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-        };
+            do {
+                const response = await axios.get(`${API_BASE_URL}/api/users`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: {
+                        segment,
+                        page: exportPage,
+                        limit: 500,
+                        search: debouncedSearchTerm || undefined,
+                        sortBy,
+                        sortOrder,
+                        ...(isStaffTab && filterRole !== 'all' ? { role: filterRole } : {}),
+                        ...(listTab === 'trash' ? { trash: '1' } : {}),
+                    },
+                });
+                if (!response.data?.success) break;
+                const batch = (response.data.users || []).filter((u) => variantConfig.roles.includes(u.role));
+                allRows.push(...batch);
+                exportTotal = Number(response.data.total) || batch.length;
+                exportPage += 1;
+            } while (allRows.length < exportTotal);
 
-        const csv = [
-            cols.map((c) => esc(c[1])).join(','),
-            ...rows.map((r) => cols.map((c) => esc(r[c[0]])).join(',')),
-        ].join('\n');
+            const exportUsers = allRows;
+            const rows = (exportUsers || []).map((u) => ({
+                studentId: u.role === 'student' ? (u.studentId || '') : '',
+                name: u.name || '',
+                portalEmail: u.email || '',
+                personalEmail: u.personalEmail || '',
+                role: u.role || '',
+                phone: u.phone || '',
+                status: isStaffTab
+                    ? normalizeStaffStatus(u.status)
+                    : (u.status || (u.isActive !== false ? 'active' : 'inactive')),
+                joined: u.joinDate ? new Date(u.joinDate).toISOString().slice(0, 10) : '',
+            }));
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `gorythm-${variant}-records-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+            const cols = [
+                ['studentId', 'Student ID'],
+                ['name', 'Name'],
+                ['portalEmail', 'Portal email'],
+                ['personalEmail', 'Personal email'],
+                ['role', 'Role'],
+                ['phone', 'Phone'],
+                ['status', 'Status'],
+                ['joined', 'Joined'],
+            ];
+
+            const esc = (v) => {
+                const s = String(v ?? '');
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+
+            const csv = [
+                cols.map((c) => esc(c[1])).join(','),
+                ...rows.map((r) => cols.map((c) => esc(r[c[0]])).join(',')),
+            ].join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gorythm-${variant}-records-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            showAlert(error.response?.data?.error || error.message || 'Failed to export CSV', 'error');
+        }
     };
 
     const selectableFilteredUsers = sortedUsers.filter((u) => !isRowActionsLocked(u));
@@ -1057,12 +1345,21 @@ const UsersManagement = ({ variant = 'staff' }) => {
         }
     };
 
-    if (loading) {
+    if (loading && !hasLoadedOnce && !users.length) {
         return (
-            <div className="users-management loading">
-                <div className="loading-spinner">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    <p>Loading users...</p>
+            <div className="users-management">
+                <div className="page-header">
+                    <div className="header-left">
+                        <h1>
+                            <i className={`fas ${isLearnerTab ? variantConfig.icon : 'fa-users-cog'}`}></i>{' '}
+                            {variantConfig.pageTitle}
+                        </h1>
+                    </div>
+                </div>
+                <div className="users-table-container users-table-container--skeleton" aria-hidden>
+                    {Array.from({ length: 8 }, (_, i) => (
+                        <div key={i} className="users-table-skeleton-row" />
+                    ))}
                 </div>
             </div>
         );
@@ -1070,17 +1367,6 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
     return (
         <div className="users-management">
-            {/* Enroll Student Modal */}
-            {showEnrollModal && enrollingStudent && (
-                <EnrollStudentModal
-                    isOpen={showEnrollModal}
-                    onClose={() => { setShowEnrollModal(false); setEnrollingStudent(null); }}
-                    onEnrollSuccess={() => { setShowEnrollModal(false); setEnrollingStudent(null); fetchUsers(); }}
-                    courses={coursesForEnroll}
-                    preselectedStudent={enrollingStudent}
-                />
-            )}
-
             {/* User Form Modal */}
             {showUserModal && (
                 <div className="user-modal-overlay">
@@ -1094,10 +1380,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                             </h2>
                             <button 
                                 className="modal-close-btn"
-                                onClick={() => {
-                                    setShowUserModal(false);
-                                    setEditingUser(null);
-                                }}
+                                onClick={closeUserModal}
                                 disabled={isSubmitting}
                             >
                                 <i className="fas fa-times"></i>
@@ -1245,13 +1528,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 onChange={handleFormChange}
                                                 disabled={isSubmitting}
                                             >
-                                                <option value="active">Active</option>
-                                                <option value="pending">Pending</option>
-                                                <option value="inactive">Inactive</option>
-                                                <option value="completed">Completed</option>
+                                                {(isStaffTab ? STAFF_STATUS_OPTIONS : USER_STATUS_OPTIONS).map((status) => (
+                                                    <option key={status} value={status}>
+                                                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <small className="form-hint">
-                                                Only <strong>active</strong> accounts can log in. Pending, inactive, and completed are login-disabled.
+                                                {isStaffTab ? (
+                                                    <>Only <strong>active</strong> accounts can log in.</>
+                                                ) : (
+                                                    <>Only <strong>active</strong> accounts can log in. Pending, inactive, and completed are login-disabled.</>
+                                                )}
                                             </small>
                                         </div>
                                         {!editingUser && (
@@ -1303,13 +1591,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             <small className="form-hint">
                                                 {editingUser 
                                                     ? "Enter new password only if you want to change it"
-                                                    : "Minimum 6 characters"}
+                                                    : `Minimum ${MIN_STUDENT_PASSWORD_LENGTH} characters`}
                                             </small>
                                         </div>
 
-                                        {(formData.password || !editingUser) && (
-                                            <div className="form-group">
-                                                <label>Confirm Password {!editingUser && '*'}</label>
+                                        <div className="form-group">
+                                            <label>Confirm Password {!editingUser && '*'}</label>
                                                 <div className={`password-field ${isSubmitting ? 'is-disabled' : ''}`}>
                                                     <input
                                                         type={showConfirmPassword ? 'text' : 'password'}
@@ -1334,16 +1621,34 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     </button>
                                                 </div>
                                             </div>
-                                        )}
+
+                                        {editingUser && formData.password.trim() ? (
+                                            <div className="form-group">
+                                                <label className="checkbox-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="mustChangePassword"
+                                                        checked={formData.mustChangePassword}
+                                                        onChange={handleFormChange}
+                                                        disabled={isSubmitting}
+                                                    />
+                                                    <span className="checkmark"></span>
+                                                    Force password reset on first login
+                                                </label>
+                                            </div>
+                                        ) : null}
                                     </div>
 
                                     {variant === 'teachers' && (
                                         <div className="form-section">
                                             <h3><i className="fas fa-book"></i> Assigned courses</h3>
-                                            <p className="form-hint">Synced with the Courses tab (instructor field).</p>
+                                            <p className="form-hint">
+                                                Optional. Only published courses are listed. Assigning here updates the
+                                                same teacher list as the Courses tab.
+                                            </p>
                                             <div className="course-assign-list">
                                                 {allCourses.length === 0 ? (
-                                                    <p className="form-hint-muted">No courses loaded.</p>
+                                                    <p className="form-hint-muted">No published courses to assign.</p>
                                                 ) : (
                                                     allCourses.map((c) => (
                                                         <label key={c._id} className="checkbox-label course-assign-item">
@@ -1358,28 +1663,30 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     ))
                                                 )}
                                             </div>
-                                            {coursesToReassign.length > 0 && (
-                                                <div className="form-group">
-                                                    <label>Reassign removed courses to</label>
-                                                    <select
-                                                        name="releaseToTeacherId"
-                                                        value={formData.releaseToTeacherId}
-                                                        onChange={handleFormChange}
-                                                        disabled={isSubmitting}
-                                                    >
-                                                        <option value="">Select teacher</option>
-                                                        {users
-                                                            .filter((u) => u.role === 'teacher' && u._id !== editingUser?._id)
-                                                            .map((t) => (
-                                                                <option key={t._id} value={t._id}>
-                                                                    {t.name}
-                                                                </option>
-                                                            ))}
-                                                    </select>
-                                                    <small className="form-hint">
-                                                        Required for: {coursesToReassign.map((c) => c.title).join(', ')}
-                                                    </small>
-                                                </div>
+                                        </div>
+                                    )}
+
+                                    {variant === 'teachers' && editingUser && (
+                                        <div className="form-section">
+                                            <h3><i className="fas fa-clock"></i> Class schedule slots</h3>
+                                            <p className="form-hint">
+                                                Read-only. Create or edit slots in{' '}
+                                                <Link to="/admin/lms">LMS → Class schedules</Link>.
+                                            </p>
+                                            {teacherSlotsLoading ? (
+                                                <p className="form-hint-muted">Loading slots…</p>
+                                            ) : teacherSlots.length === 0 ? (
+                                                <p className="form-hint-muted">No class slots for this teacher yet.</p>
+                                            ) : (
+                                                <ul className="teacher-slots-readonly">
+                                                    {teacherSlots.map((slot) => (
+                                                        <li key={slot._id}>
+                                                            <strong>{slot.course?.title || 'Course'}</strong>
+                                                            {' — '}
+                                                            {formatScheduleLabel(slot)}
+                                                        </li>
+                                                    ))}
+                                                </ul>
                                             )}
                                         </div>
                                     )}
@@ -1389,7 +1696,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             <h3><i className="fas fa-child"></i> Linked children</h3>
                                             <p className="form-hint">
                                                 Synced with the LMS Parent links tab. Add children here when creating or
-                                                editing a parent.
+                                                editing a parent. Save the parent first if no students appear yet — link
+                                                them after students are enrolled.
                                             </p>
                                             <ul className="parent-children-list">
                                                 {(editingUser ? parentLinksInModal : pendingParentLinks).length === 0 ? (
@@ -1435,12 +1743,25 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 )}
                                             </ul>
                                             <div className="form-group parent-link-add">
+                                                <label className="form-hint-muted" htmlFor="parent-student-search">
+                                                    Search students
+                                                </label>
+                                                <input
+                                                    id="parent-student-search"
+                                                    type="search"
+                                                    placeholder="Name, roll no., email…"
+                                                    value={parentStudentSearch}
+                                                    onChange={(e) => setParentStudentSearch(e.target.value)}
+                                                    disabled={isSubmitting}
+                                                />
                                                 <select
                                                     value={linkStudentPick}
                                                     onChange={(e) => setLinkStudentPick(e.target.value)}
-                                                    disabled={isSubmitting}
+                                                    disabled={isSubmitting || parentStudentsLoading}
                                                 >
-                                                    <option value="">Add child…</option>
+                                                    <option value="">
+                                                        {parentStudentsLoading ? 'Loading students…' : 'Add child…'}
+                                                    </option>
                                                     {allStudentsForLink
                                                         .filter((s) => {
                                                             if (editingUser) {
@@ -1460,6 +1781,14 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                             </option>
                                                         ))}
                                                 </select>
+                                                {!parentStudentsLoading &&
+                                                allStudentsForLink.length === 0 &&
+                                                parentStudentSearch.trim() ? (
+                                                    <p className="form-hint-muted">
+                                                        No students match. Save the parent now and link children after
+                                                        students are enrolled.
+                                                    </p>
+                                                ) : null}
                                                 <button
                                                     type="button"
                                                     className="btn-secondary"
@@ -1488,7 +1817,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="btn-primary"
+                                    className={`btn-primary${editingUser ? ' btn-save' : ' btn-add'}`}
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting ? (
@@ -1516,10 +1845,8 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         {variantConfig.pageTitle}
                     </h1>
                     <p>
-                        {variant === 'students' || variant === 'people' ? (
-                            <>Student portal accounts. Course enrollments and fee status are in <strong>Students data</strong>.</>
-                        ) : variant === 'teachers' ? (
-                            <>Teachers assigned as course instructors in the Courses tab.</>
+                        {variant === 'teachers' ? (
+                            <>Teachers can be created without courses. Assign courses here or from the Courses tab — same list.</>
                         ) : variant === 'parents' ? (
                             <>Parent/guardian accounts (link children in LMS tab).</>
                         ) : (
@@ -1529,7 +1856,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 </div>
                 <div className="header-right">
                     {showAddButton && listTab === 'active' && (
-                        <button className="btn-primary" onClick={openCreateModal}>
+                        <button className="btn-primary btn-add" onClick={openCreateModal}>
                             <i className="fas fa-user-plus"></i>{' '}
                             {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
                         </button>
@@ -1546,7 +1873,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         setSelectedUsers([]);
                     }}
                 >
-                    <i className="fas fa-list" /> Active
+                    <i className="fas fa-list" /> {ACTIVE_RECORDS_LABEL}
                 </button>
                 <button
                     type="button"
@@ -1556,12 +1883,69 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         setSelectedUsers([]);
                     }}
                 >
-                    <i className="fas fa-trash-alt" /> Trash
+                    <i className="fas fa-archive" /> {QUARANTINE_LABEL}
                     {trashCount > 0 ? ` (${trashCount})` : ''}
                 </button>
             </div>
 
-            {/* Bulk Actions Bar */}
+            {/* Search and Filter */}
+            <div className="controls-bar">
+                <div className="search-box">
+                    <i className="fas fa-search"></i>
+                    <input
+                        type="text"
+                        placeholder={
+                            variant === 'parents'
+                                ? 'Search parents by name, email, phone, or child...'
+                                : isLearnerTab
+                                ? 'Search learners by name, email or phone...'
+                                : 'Search users by name, email or phone...'
+                        }
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && fetchUsers({ force: true })}
+                    />
+                </div>
+                
+                <div className="filter-controls">
+                    {variant !== 'parents' ? (
+                        <select
+                            className="role-filter"
+                            value={filterRole}
+                            onChange={(e) => setFilterRole(e.target.value)}
+                        >
+                            {variant === 'teachers' ? (
+                                <>
+                                    <option value="all">All teachers</option>
+                                    <option value="teacher">Teachers</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="all">All staff roles</option>
+                                    <option value="super-admin">Super Admin</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="accountant">Accountant</option>
+                                </>
+                            )}
+                        </select>
+                    ) : null}
+
+                    <button className="refresh-btn" onClick={handleManualRefresh} type="button" title="Refresh" aria-label="Refresh">
+                        <i className="fas fa-sync-alt"></i>
+                    </button>
+                    <button className="btn-secondary download-btn" onClick={downloadUsersCsv}>
+                        <i className="fas fa-file-export"></i> Download CSV
+                    </button>
+                </div>
+            </div>
+
+            {loading && users.length > 0 ? (
+                <div className="users-list-refreshing" aria-live="polite">
+                    <i className="fas fa-spinner fa-spin" aria-hidden /> Refreshing…
+                </div>
+            ) : null}
+
+            {/* Bulk Actions Bar — directly above table */}
             {selectedUsers.length > 0 && (
                 <div className="bulk-actions-bar">
                     <div className="selected-count">
@@ -1587,7 +1971,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                     className="bulk-btn delete" 
                                     onClick={deleteSelectedUsers}
                                 >
-                                    <i className="fas fa-trash"></i> Move to trash
+                                    <i className="fas fa-archive"></i> Move to {QUARANTINE_LABEL}
                                 </button>
                             </>
                         ) : (
@@ -1595,7 +1979,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <button
                                     className="bulk-btn"
                                     disabled={trashBusy}
-                                    onClick={async () => {
+                                    onClick={isStaffTab ? restoreSelectedUsers : async () => {
                                         for (const id of selectedUsers) {
                                             await restoreUser(id);
                                         }
@@ -1607,7 +1991,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <button
                                     className="bulk-btn delete"
                                     disabled={trashBusy}
-                                    onClick={async () => {
+                                    onClick={isStaffTab ? permanentDeleteSelectedUsers : async () => {
                                         const confirmed = await showConfirm({
                                             title: 'Delete permanently?',
                                             message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
@@ -1624,6 +2008,27 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 </button>
                             </>
                         )}
+                        <button
+                            className="bulk-btn edit"
+                            onClick={() => {
+                                if (selectedUsers.length !== 1) {
+                                    showAlert('Please select only one record to edit', 'warning');
+                                    return;
+                                }
+                                const user = users.find((u) => String(u._id) === String(selectedUsers[0]));
+                                if (!user) {
+                                    showAlert('Selected record not found', 'warning');
+                                    return;
+                                }
+                                if (isRowActionsLocked(user)) {
+                                    showAlert('This account cannot be edited from here', 'warning');
+                                    return;
+                                }
+                                openEditModal(user);
+                            }}
+                        >
+                            <i className="fas fa-edit"></i> Edit Selected
+                        </button>
                         <button 
                             className="bulk-btn cancel" 
                             onClick={() => setSelectedUsers([])}
@@ -1633,69 +2038,6 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     </div>
                 </div>
             )}
-
-            {/* Search and Filter */}
-            <div className="controls-bar">
-                <div className="search-box">
-                    <i className="fas fa-search"></i>
-                    <input
-                        type="text"
-                        placeholder={
-                            isLearnerTab
-                                ? 'Search learners by name, email or phone...'
-                                : 'Search users by name, email or phone...'
-                        }
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && fetchUsers()}
-                    />
-                    <button 
-                        className="search-btn"
-                        onClick={fetchUsers}
-                    >
-                        <i className="fas fa-search"></i>
-                    </button>
-                </div>
-                
-                <div className="filter-controls">
-                    <select 
-                        className="role-filter"
-                        value={filterRole}
-                        onChange={(e) => setFilterRole(e.target.value)}
-                    >
-                        {variant === 'students' || variant === 'people' ? (
-                            <>
-                                <option value="all">All students</option>
-                                <option value="student">Students</option>
-                            </>
-                        ) : variant === 'teachers' ? (
-                            <>
-                                <option value="all">All teachers</option>
-                                <option value="teacher">Teachers</option>
-                            </>
-                        ) : variant === 'parents' ? (
-                            <>
-                                <option value="all">All parents</option>
-                                <option value="parent">Parents</option>
-                            </>
-                        ) : (
-                            <>
-                                <option value="all">All staff roles</option>
-                                <option value="super-admin">Super Admin</option>
-                                <option value="manager">Manager</option>
-                                <option value="accountant">Accountant</option>
-                            </>
-                        )}
-                    </select>
-                    
-                    <button className="refresh-btn" onClick={fetchUsers}>
-                        <i className="fas fa-sync-alt"></i> Refresh
-                    </button>
-                    <button className="btn-secondary download-btn" onClick={downloadUsersCsv}>
-                        <i className="fas fa-file-export"></i> Download Excel
-                    </button>
-                </div>
-            </div>
 
             {/* Users Table */}
             <div
@@ -1709,7 +2051,14 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 <table className="users-table">
                     <colgroup>
                         {tableColumnKeys.map((key, idx) => (
-                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
+                            <col
+                                key={key}
+                                style={
+                                    key === 'actions'
+                                        ? { width: '1%' }
+                                        : { width: `${columnWidths[idx]}px` }
+                                }
+                            />
                         ))}
                     </colgroup>
                     <thead>
@@ -1740,7 +2089,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 }
                                 if (colKey === 'actions') {
                                     return (
-                                        <th key={colKey}>
+                                        <th key={colKey} className="action-col">
                                             {COLUMN_LABELS.actions}
                                             <span
                                                 className="col-resizer"
@@ -1802,6 +2151,19 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         );
                                     }
                                     if (colKey === 'user') {
+                                        const showRoleUnderName = variant === 'teachers' || variant === 'parents';
+                                        const roleIcon =
+                                            user.role === 'teacher'
+                                                ? 'chalkboard-teacher'
+                                                : user.role === 'parent'
+                                                  ? 'people-roof'
+                                                  : user.role === 'super-admin'
+                                                    ? 'user-shield'
+                                                    : user.role === 'manager'
+                                                      ? 'user-cog'
+                                                      : user.role === 'accountant'
+                                                        ? 'calculator'
+                                                        : 'user-graduate';
                                         return (
                                             <td key={colKey}>
                                                 <div className="user-info">
@@ -1810,6 +2172,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     </div>
                                                     <div className="user-details">
                                                         <strong>{user.name}</strong>
+                                                        {showRoleUnderName ? (
+                                                            <span className={`user-role-under-name role-badge ${user.role}`}>
+                                                                <i className={`fas fa-${roleIcon}`} aria-hidden="true" />
+                                                                {displayRoleLabel(user.role)}
+                                                            </span>
+                                                        ) : null}
                                                         {user.role === 'student' && user.studentId && (
                                                             <span className="student-id-tag">
                                                                 <i className="fas fa-id-card"></i> {user.studentId}
@@ -1845,37 +2213,75 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         );
                                     }
                                     if (colKey === 'status') {
+                                        const displayStatus = isStaffTab
+                                            ? normalizeStaffStatus(user.status)
+                                            : (user.status === 'pending' ? 'inactive' : (user.status || 'inactive'));
                                         return (
                                             <td key={colKey}>
-                                                <span className={`status-badge ${user.status}`}>
-                                                    <i
-                                                        className={`fas fa-${
-                                                            user.status === 'active'
-                                                                ? 'check-circle'
-                                                                : user.status === 'pending'
-                                                                  ? 'clock'
-                                                                  : user.status === 'completed'
-                                                                    ? 'flag-checkered'
-                                                                    : 'times-circle'
-                                                        }`}
-                                                    ></i>
-                                                    {user.status}
-                                                </span>
+                                                <div className="status-cell">
+                                                    <span className={`status-badge ${displayStatus}`}>
+                                                        <i
+                                                            className={`fas fa-${
+                                                                displayStatus === 'active'
+                                                                    ? 'check-circle'
+                                                                    : displayStatus === 'completed'
+                                                                      ? 'flag-checkered'
+                                                                      : 'times-circle'
+                                                            }`}
+                                                        ></i>
+                                                        {displayStatus}
+                                                    </span>
+                                                    {listTab === 'active' && !isRowActionsLocked(user) ? (
+                                                        <select
+                                                            className="status-select-inline"
+                                                            value={displayStatus}
+                                                            onChange={(e) => updateUserStatus(user._id, displayStatus, e.target.value)}
+                                                            title="Change status"
+                                                        >
+                                                            <option value="active">Active</option>
+                                                            <option value="inactive">Inactive</option>
+                                                            {!isStaffTab ? <option value="completed">Completed</option> : null}
+                                                        </select>
+                                                    ) : null}
+                                                </div>
                                             </td>
                                         );
                                     }
                                     if (colKey === 'assignedCourses') {
                                         const courses = teacherCoursesById[String(user._id)] || [];
+                                        const teacherSlots = teacherSlotsById[String(user._id)] || [];
                                         return (
                                             <td key={colKey} className="cell-meta-col cell-meta-col--stacked">
                                                 {courses.length ? (
                                                     <div className="meta-col-stack">
-                                                        {courses.map((c) => (
-                                                            <div key={c._id} className="meta-col-row">
-                                                                <i className="fas fa-book" aria-hidden="true" />
-                                                                <span>{c.title}</span>
-                                                            </div>
-                                                        ))}
+                                                        {courses.map((c) => {
+                                                            const courseSlots = teacherSlots.filter(
+                                                                (s) =>
+                                                                    String(s.course?._id || s.course) ===
+                                                                    String(c._id)
+                                                            );
+                                                            return (
+                                                                <div key={c._id} className="meta-col-row meta-col-row--course">
+                                                                    <i className="fas fa-book" aria-hidden="true" />
+                                                                    <div className="meta-col-course">
+                                                                        <span className="meta-col-course__title">{c.title}</span>
+                                                                        {courseSlots.length ? (
+                                                                            <ul className="meta-col-course__slots">
+                                                                                {courseSlots.map((slot) => (
+                                                                                    <li key={slot._id}>
+                                                                                        {formatScheduleTimeLabel(slot)}
+                                                                                    </li>
+                                                                                ))}
+                                                                            </ul>
+                                                                        ) : (
+                                                                            <span className="meta-col-course__slots-empty">
+                                                                                No timeslot yet
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 ) : (
                                                     <span className="empty-cell">—</span>
@@ -1963,7 +2369,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                     }
                                     if (colKey === 'actions') {
                                         return (
-                                            <td key={colKey} className="cell-actions">
+                                            <td key={colKey} className="cell-actions action-col">
                                     <div className="action-buttons">
                                         {isRowActionsLocked(user) ? (
                                             <button
@@ -1972,17 +2378,17 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 title="View details (read-only)"
                                                 onClick={() => openViewModal(user)}
                                             >
-                                                <i className="fas fa-eye"></i>
+                                                <i className="fas fa-eye"></i> View
                                             </button>
                                         ) : listTab === 'trash' ? (
                                             <>
                                                 <button
-                                                    className="action-btn status-btn"
-                                                    title="Restore user"
+                                                    className="action-btn restore-btn"
+                                                    title="Restore"
                                                     disabled={trashBusy}
                                                     onClick={() => restoreUser(user._id)}
                                                 >
-                                                    <i className="fas fa-undo"></i>
+                                                    <i className="fas fa-undo"></i> Restore
                                                 </button>
                                                 <button
                                                     className="action-btn delete-btn"
@@ -1990,40 +2396,24 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     disabled={trashBusy}
                                                     onClick={() => permanentDeleteUser(user._id)}
                                                 >
-                                                    <i className="fas fa-trash-alt"></i>
+                                                    <i className="fas fa-times-circle"></i> Delete forever
                                                 </button>
                                             </>
                                         ) : (
                                             <>
-                                                <button 
+                                                <button
                                                     className="action-btn edit-btn"
-                                                    title="Edit User"
+                                                    title="Edit"
                                                     onClick={() => openEditModal(user)}
                                                 >
-                                                    <i className="fas fa-edit"></i>
+                                                    <i className="fas fa-edit"></i> Edit
                                                 </button>
-                                                {variantConfig.showEnroll && user.role === 'student' && user.isActive !== false && (
-                                                    <button
-                                                        className="action-btn enroll-btn"
-                                                        title="Enroll in Course"
-                                                        onClick={() => openEnrollModal(user)}
-                                                    >
-                                                        <i className="fas fa-user-graduate"></i>
-                                                    </button>
-                                                )}
-                                                <button 
-                                                    className={`action-btn status-btn ${user.status}`}
-                                                    title={user.status === 'active' ? 'Deactivate User' : 'Activate User'}
-                                                    onClick={() => updateUserStatus(user._id, user.status)}
-                                                >
-                                                    <i className={`fas fa-${user.status === 'active' ? 'ban' : 'check'}`}></i>
-                                                </button>
-                                                <button 
+                                                <button
                                                     className="action-btn delete-btn"
-                                                    title="Move to trash"
+                                                    title={`Move to ${QUARANTINE_LABEL}`}
                                                     onClick={() => deleteUser(user._id)}
                                                 >
-                                                    <i className="fas fa-trash"></i>
+                                                    <i className="fas fa-trash"></i> Delete
                                                 </button>
                                             </>
                                         )}
@@ -2079,16 +2469,28 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 })()}
             </div>
 
+            <div className="users-list-pagination">
+                <span className="users-list-pagination__count">
+                    {total} record{total === 1 ? '' : 's'}
+                    {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}
+                </span>
+                <AdminTablePagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                />
+            </div>
+
             {/* Stats Summary */}
             <div className="stats-summary">
-                {variantConfig.showEnroll ? (
+                {isLearnerTab ? (
                     <>
                         <div className="stat-card">
                             <div className="stat-icon total">
                                 <i className="fas fa-users"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.length}</h3>
+                                <h3>{listStats?.total ?? total}</h3>
                                 <p>Total learners</p>
                             </div>
                         </div>
@@ -2097,7 +2499,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-user-graduate"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'student').length}</h3>
+                                <h3>{statsByRole.student ?? 0}</h3>
                                 <p>Students</p>
                             </div>
                         </div>
@@ -2106,7 +2508,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-chalkboard-teacher"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'teacher').length}</h3>
+                                <h3>{statsByRole.teacher ?? 0}</h3>
                                 <p>Teachers</p>
                             </div>
                         </div>
@@ -2115,7 +2517,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-people-roof"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'parent').length}</h3>
+                                <h3>{statsByRole.parent ?? 0}</h3>
                                 <p>Parents</p>
                             </div>
                         </div>
@@ -2127,7 +2529,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-users"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.length}</h3>
+                                <h3>{listStats?.total ?? total}</h3>
                                 <p>Staff accounts</p>
                             </div>
                         </div>
@@ -2136,7 +2538,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-user-shield"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'super-admin').length}</h3>
+                                <h3>{statsByRole['super-admin'] ?? 0}</h3>
                                 <p>Super admins</p>
                             </div>
                         </div>
@@ -2145,7 +2547,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-user-cog"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter((u) => u.role === 'manager').length}</h3>
+                                <h3>{statsByRole.manager ?? 0}</h3>
                                 <p>Admins</p>
                             </div>
                         </div>
@@ -2154,7 +2556,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <i className="fas fa-calculator"></i>
                             </div>
                             <div className="stat-details">
-                                <h3>{users.filter(u => u.role === 'accountant').length}</h3>
+                                <h3>{statsByRole.accountant ?? 0}</h3>
                                 <p>Accountants</p>
                             </div>
                         </div>
@@ -2174,18 +2576,44 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         <div className="form-scroll-container">
                             <dl className="user-details-readonly">
                                 <dt>Name</dt><dd>{viewUser.name}</dd>
-                                <dt>Email</dt><dd>{viewUser.email}</dd>
+                                <dt>Email</dt><dd className="admin-email">{viewUser.email}</dd>
                                 {viewUser.role === 'student' && (
                                     <>
                                         <dt>Personal email</dt>
-                                        <dd>{viewUser.personalEmail || '—'}</dd>
+                                        <dd className="admin-email">{viewUser.personalEmail || '—'}</dd>
                                     </>
                                 )}
                                 <dt>Role</dt><dd>{viewUser.role}</dd>
                                 <dt>Phone</dt><dd>{viewUser.phone || '—'}</dd>
-                                <dt>Status</dt><dd>{viewUser.status}</dd>
+                                <dt>Status</dt>
+                                <dd>{isStaffTab ? normalizeStaffStatus(viewUser.status) : viewUser.status}</dd>
                                 <dt>Joined</dt><dd>{viewUser.joinDate ? new Date(viewUser.joinDate).toLocaleString() : '—'}</dd>
                                 <dt>Last login</dt><dd>{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</dd>
+                                {variant === 'teachers' && viewUser.role === 'teacher' && (
+                                    <>
+                                        <dt>Class slots</dt>
+                                        <dd>
+                                            {viewTeacherSlotsLoading ? (
+                                                'Loading…'
+                                            ) : viewTeacherSlots.length === 0 ? (
+                                                'None yet — manage in LMS → Class schedules'
+                                            ) : (
+                                                <ul className="teacher-slots-readonly">
+                                                    {viewTeacherSlots.map((slot) => (
+                                                        <li key={slot._id}>
+                                                            <strong>{slot.course?.title || 'Course'}</strong>
+                                                            {' — '}
+                                                            {formatScheduleLabel(slot)}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                            <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+                                                <Link to="/admin/lms">Open LMS Class schedules</Link> to edit.
+                                            </p>
+                                        </dd>
+                                    </>
+                                )}
                             </dl>
                         </div>
                         <div className="form-actions">
