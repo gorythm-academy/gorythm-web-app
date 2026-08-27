@@ -1,6 +1,9 @@
 const express = require('express');
+const { createShortTtlCache } = require('../utils/shortTtlCache');
+
+const analyticsOverviewCache = createShortTtlCache(120_000);
+const analyticsMetricsCache = createShortTtlCache(120_000);
 const router = express.Router();
-const mongoose = require('mongoose');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Payment = require('../models/Payment');
@@ -14,6 +17,93 @@ const { activeCourseFilter } = require('../utils/courseQuery');
 const { activeUserFilter } = require('../utils/userQuery');
 
 const PAID_PAYMENT_STATUSES = ['paid', 'completed'];
+const STAFF_ROLES = ['manager', 'super-admin', 'accountant'];
+
+const getPeriodBounds = (days) => {
+    const now = new Date();
+    const periodStart = new Date(now);
+    periodStart.setDate(periodStart.getDate() - days);
+    return { now, periodStart };
+};
+
+const getChartGroupFormat = (days) => {
+    if (days <= 31) return '%Y-%m-%d';
+    if (days <= 90) return '%G-%V';
+    return '%Y-%m';
+};
+
+const getChartGrouping = (days) => {
+    if (days <= 31) return 'daily';
+    if (days <= 90) return 'weekly';
+    return 'monthly';
+};
+
+const periodDateRange = (periodStart, now) => ({ $gte: periodStart, $lt: now });
+
+const periodEnrollmentActivityMatch = (periodStart, now) => ({
+    ...activeEnrollmentFilter(),
+    $or: [
+        { enrollmentDate: periodDateRange(periodStart, now) },
+        { completionDate: periodDateRange(periodStart, now) },
+        { lastAccessed: periodDateRange(periodStart, now) },
+    ],
+});
+
+const completedInPeriodMatch = (periodStart, now) => ({
+    status: 'completed',
+    ...activeEnrollmentFilter(),
+    $or: [
+        { completionDate: periodDateRange(periodStart, now) },
+        {
+            $and: [
+                {
+                    $or: [
+                        { completionDate: null },
+                        { completionDate: { $exists: false } },
+                    ],
+                },
+                { enrollmentDate: periodDateRange(periodStart, now) },
+            ],
+        },
+    ],
+});
+
+const buildRoleActivity = (rows = []) => {
+    const activity = {
+        students: { active: 0, inactive: 0 },
+        teachers: { active: 0, inactive: 0 },
+        parents: { active: 0, inactive: 0 },
+        staff: { active: 0, inactive: 0 },
+    };
+
+    rows.forEach((row) => {
+        const role = row._id?.role;
+        const status = row._id?.isActive === false ? 'inactive' : 'active';
+        const count = row.count || 0;
+
+        if (role === 'student') {
+            activity.students[status] += count;
+        } else if (role === 'teacher') {
+            activity.teachers[status] += count;
+        } else if (role === 'parent') {
+            activity.parents[status] += count;
+        } else if (STAFF_ROLES.includes(role)) {
+            activity.staff[status] += count;
+        }
+    });
+
+    return activity;
+};
+
+const periodEnrollmentLookupStages = (periodStart, now) => ([
+    {
+        $match: {
+            $expr: { $eq: ['$course', '$$courseId'] },
+            enrollmentDate: periodDateRange(periodStart, now),
+            ...activeEnrollmentFilter(),
+        },
+    },
+]);
 
 router.use(authMiddleware);
 router.use(validateSessionUser);
@@ -22,83 +112,84 @@ router.use(allowRoles('super-admin', 'manager'));
 // Get comprehensive analytics data
 router.get('/overview', async (req, res) => {
     try {
-        req.log.info('Fetching analytics overview');
+        const days = Math.max(1, parseInt(req.query.days, 10) || 30);
+        const cacheKey = String(days);
+        const cached = analyticsOverviewCache.get();
+        if (cached && cached.key === cacheKey) {
+            return res.json(cached.payload);
+        }
 
-        // Get timeframe (default: last 30 days)
-        const days = parseInt(req.query.days) || 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        
-        // 1. Enrollment Trends (daily for last 30 days)
+        req.log.info('Fetching analytics overview');
+        const { now, periodStart } = getPeriodBounds(days);
+        const chartGroupFormat = getChartGroupFormat(days);
+        const chartGrouping = getChartGrouping(days);
+
         const enrollmentTrend = await Enrollment.aggregate([
             {
                 $match: {
-                    enrollmentDate: { $gte: startDate },
+                    enrollmentDate: periodDateRange(periodStart, now),
                     ...activeEnrollmentFilter(),
                 },
             },
             {
                 $group: {
-                    _id: { 
-                        $dateToString: { 
-                            format: "%Y-%m-%d", 
-                            date: "$enrollmentDate" 
-                        }
+                    _id: {
+                        $dateToString: {
+                            format: chartGroupFormat,
+                            date: '$enrollmentDate',
+                        },
                     },
-                    count: { $sum: 1 }
-                }
+                    count: { $sum: 1 },
+                },
             },
-            {
-                $sort: { _id: 1 }
-            },
+            { $sort: { _id: 1 } },
             {
                 $project: {
-                    date: "$_id",
-                    enrollments: "$count",
-                    _id: 0
-                }
-            }
+                    date: '$_id',
+                    enrollments: '$count',
+                    _id: 0,
+                },
+            },
         ]);
 
-        // 2. Revenue Analysis
         const revenueData = await Payment.aggregate([
             {
                 $match: {
                     status: { $in: PAID_PAYMENT_STATUSES },
-                    createdAt: { $gte: startDate },
+                    createdAt: periodDateRange(periodStart, now),
                     ...activePaymentFilter(),
                 },
             },
             {
                 $group: {
                     _id: {
-                        month: { $month: "$createdAt" },
-                        year: { $year: "$createdAt" }
+                        $dateToString: {
+                            format: chartGroupFormat,
+                            date: '$createdAt',
+                        },
                     },
-                    totalRevenue: { $sum: "$amount" },
-                    transactionCount: { $sum: 1 }
-                }
+                    totalRevenue: { $sum: '$amount' },
+                    transactionCount: { $sum: 1 },
+                },
             },
+            { $sort: { _id: 1 } },
             {
-                $sort: { "_id.year": 1, "_id.month": 1 }
-            }
+                $project: {
+                    date: '$_id',
+                    totalRevenue: 1,
+                    transactionCount: 1,
+                    _id: 0,
+                },
+            },
         ]);
 
-        // 3. Course Popularity
         const coursePopularity = await Course.aggregate([
             { $match: { ...activeCourseFilter() } },
             {
                 $lookup: {
                     from: 'enrollments',
                     let: { courseId: '$_id' },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: { $eq: ['$course', '$$courseId'] },
-                                ...activeEnrollmentFilter(),
-                            },
-                        },
-                    ],
+                    pipeline: periodEnrollmentLookupStages(periodStart, now),
                     as: 'enrollments',
                 },
             },
@@ -107,149 +198,205 @@ router.get('/overview', async (req, res) => {
                     title: 1,
                     category: 1,
                     price: 1,
-                    enrollmentCount: { $size: "$enrollments" },
-                    revenue: { 
-                        $multiply: [
-                            { $size: "$enrollments" },
-                            "$price"
-                        ]
-                    }
-                }
+                    isPublished: 1,
+                    enrollmentCount: { $size: '$enrollments' },
+                    revenue: {
+                        $multiply: [{ $size: '$enrollments' }, '$price'],
+                    },
+                },
             },
-            {
-                $sort: { enrollmentCount: -1 }
-            },
-            {
-                $limit: 10
-            }
+            { $match: { enrollmentCount: { $gt: 0 } } },
+            { $sort: { enrollmentCount: -1 } },
+            { $limit: 10 },
         ]);
 
-        // 4. Course Category Distribution
         const categoryDistribution = await Course.aggregate([
             { $match: { ...activeCourseFilter() } },
             {
                 $lookup: {
                     from: 'enrollments',
                     let: { courseId: '$_id' },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: { $eq: ['$course', '$$courseId'] },
-                                ...activeEnrollmentFilter(),
-                            },
-                        },
-                    ],
+                    pipeline: periodEnrollmentLookupStages(periodStart, now),
                     as: 'enrollments',
                 },
             },
             {
                 $group: {
-                    _id: "$category",
+                    _id: '$category',
                     courseCount: { $sum: 1 },
-                    enrollmentCount: { $sum: { $size: "$enrollments" } }
-                }
+                    enrollmentCount: { $sum: { $size: '$enrollments' } },
+                },
             },
-            {
-                $sort: { enrollmentCount: -1 }
-            }
+            { $match: { enrollmentCount: { $gt: 0 } } },
+            { $sort: { enrollmentCount: -1 } },
         ]);
 
-        // 5. Completion Rates
-        const completedEnrollments = await Enrollment.countDocuments({
-            status: 'completed',
+        const periodEnrollments = await Enrollment.countDocuments({
+            enrollmentDate: periodDateRange(periodStart, now),
             ...activeEnrollmentFilter(),
         });
-        const totalEnrollments = await Enrollment.countDocuments(activeEnrollmentFilter());
-        const completionRate = totalEnrollments > 0 ? 
-            ((completedEnrollments / totalEnrollments) * 100).toFixed(1) : "0";
+        const completedEnrollments = await Enrollment.countDocuments(
+            completedInPeriodMatch(periodStart, now)
+        );
+        const completionDenominator = await Enrollment.countDocuments(
+            periodEnrollmentActivityMatch(periodStart, now)
+        );
+        const completionRate = completionDenominator > 0
+            ? ((completedEnrollments / completionDenominator) * 100).toFixed(1)
+            : '0';
 
-        // 6. Active vs Inactive Users
-        const userActivity = await User.aggregate([
+        const roleActivityRows = await User.aggregate([
             { $match: { ...activeUserFilter() } },
             {
                 $group: {
-                    _id: '$isActive',
+                    _id: { role: '$role', isActive: '$isActive' },
                     count: { $sum: 1 },
                 },
             },
         ]);
+        const roleActivity = buildRoleActivity(roleActivityRows);
 
-        const paymentMethods = await Payment.aggregate([
-            { $match: { ...activePaymentFilter() } },
-            {
-                $group: {
-                    _id: '$paymentMethod',
-                    count: { $sum: 1 },
-                    totalAmount: { $sum: '$amount' },
+        const [
+            totalStudents,
+            totalTeachers,
+            totalParents,
+            newStudentsInPeriod,
+            newTeachersInPeriod,
+            newParentsInPeriod,
+            publishedCourses,
+            draftCourses,
+            activeUsers,
+            activeEnrollmentCount,
+            inactiveEnrollmentCount,
+            coursesWithEnrollmentsResult,
+            recentEnrollments,
+        ] = await Promise.all([
+            User.countDocuments({ role: 'student', ...activeUserFilter() }),
+            User.countDocuments({ role: 'teacher', ...activeUserFilter() }),
+            User.countDocuments({ role: 'parent', ...activeUserFilter() }),
+            User.countDocuments({
+                role: 'student',
+                createdAt: periodDateRange(periodStart, now),
+                ...activeUserFilter(),
+            }),
+            User.countDocuments({
+                role: 'teacher',
+                createdAt: periodDateRange(periodStart, now),
+                ...activeUserFilter(),
+            }),
+            User.countDocuments({
+                role: 'parent',
+                createdAt: periodDateRange(periodStart, now),
+                ...activeUserFilter(),
+            }),
+            Course.countDocuments({ isPublished: true, ...activeCourseFilter() }),
+            Course.countDocuments({ isPublished: false, ...activeCourseFilter() }),
+            User.countDocuments({
+                isActive: { $ne: false },
+                role: { $in: STAFF_ROLES },
+                ...activeUserFilter(),
+            }),
+            Enrollment.countDocuments({
+                status: 'active',
+                enrollmentDate: periodDateRange(periodStart, now),
+                ...activeEnrollmentFilter(),
+            }),
+            Enrollment.countDocuments({
+                status: { $in: ['inactive', null] },
+                enrollmentDate: periodDateRange(periodStart, now),
+                ...activeEnrollmentFilter(),
+            }),
+            Enrollment.aggregate([
+                {
+                    $match: {
+                        course: { $ne: null },
+                        enrollmentDate: periodDateRange(periodStart, now),
+                        ...activeEnrollmentFilter(),
+                    },
                 },
-            },
+                { $group: { _id: '$course' } },
+                { $count: 'total' },
+            ]),
+            Enrollment.find({
+                enrollmentDate: periodDateRange(periodStart, now),
+                ...activeEnrollmentFilter(),
+            })
+                .populate('student', 'name')
+                .populate('course', 'title')
+                .sort({ enrollmentDate: -1 })
+                .limit(5)
+                .lean(),
         ]);
 
-        const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
-        const totalTeachers = await User.countDocuments({ role: 'teacher', ...activeUserFilter() });
-        const totalParents = await User.countDocuments({ role: 'parent', ...activeUserFilter() });
-        const activeUsers = await User.countDocuments({
-            isActive: true,
-            role: { $in: ['manager', 'super-admin', 'accountant'] },
-            ...activeUserFilter(),
-        });
-        const activeEnrollmentCount = await Enrollment.countDocuments({
-            status: 'active',
-            ...activeEnrollmentFilter(),
-        });
-        const pendingEnrollmentCount = await Enrollment.countDocuments({
-            status: 'pending',
-            ...activeEnrollmentFilter(),
-        });
+        const coursesWithEnrollments = coursesWithEnrollmentsResult[0]?.total || 0;
+        const periodRevenue = revenueData.reduce((sum, item) => sum + (item.totalRevenue || 0), 0);
+        const topCourses = coursePopularity.slice(0, 3).map((course) => ({
+            _id: String(course._id),
+            title: course.title,
+            price: course.price || 0,
+            students: course.enrollmentCount || 0,
+            status: course.isPublished ? 'published' : 'draft',
+        }));
 
-        res.json({
+        const payload = {
             success: true,
             timeframe: `${days} days`,
+            chartGrouping,
             data: {
                 enrollmentTrend,
                 revenueData,
                 coursePopularity,
                 categoryDistribution,
+                recentEnrollments,
+                topCourses,
                 completionRates: [
                     { status: 'completed', count: completedEnrollments, percentage: completionRate },
                     {
                         status: 'active',
                         count: activeEnrollmentCount,
                         percentage:
-                            totalEnrollments > 0
-                                ? ((activeEnrollmentCount / totalEnrollments) * 100).toFixed(1)
+                            periodEnrollments > 0
+                                ? ((activeEnrollmentCount / periodEnrollments) * 100).toFixed(1)
                                 : '0',
                     },
                     {
-                        status: 'pending',
-                        count: pendingEnrollmentCount,
+                        status: 'inactive',
+                        count: inactiveEnrollmentCount,
                         percentage:
-                            totalEnrollments > 0
-                                ? ((pendingEnrollmentCount / totalEnrollments) * 100).toFixed(1)
+                            periodEnrollments > 0
+                                ? ((inactiveEnrollmentCount / periodEnrollments) * 100).toFixed(1)
                                 : '0',
                     },
                 ],
-                userActivity,
-                paymentMethods,
+                roleActivity,
                 summary: {
                     totalStudents,
                     totalTeachers,
                     totalParents,
-                    totalCourses: await Course.countDocuments(activeCourseFilter()),
-                    totalEnrollments,
-                    totalRevenue: revenueData.reduce((sum, item) => sum + item.totalRevenue, 0),
+                    newStudentsInPeriod,
+                    newTeachersInPeriod,
+                    newParentsInPeriod,
+                    publishedCourses,
+                    draftCourses,
+                    coursesWithEnrollments,
+                    totalCourses: publishedCourses,
+                    totalEnrollments: periodEnrollments,
+                    completionDenominator,
+                    periodRevenue,
                     activeUsers,
                     activeEnrollments: activeEnrollmentCount,
                     completionRate,
+                    roleActivity,
                 },
-            }
-        });
-
+            },
+        };
+        analyticsOverviewCache.set({ key: cacheKey, payload });
+        res.json(payload);
     } catch (error) {
         req.log.error('Analytics overview error', { err: error });
         res.status(500).json({
             success: false,
-            error: 'Failed to fetch analytics data'
+            error: 'Failed to fetch analytics data',
         });
     }
 });
@@ -297,32 +444,28 @@ router.get('/student-progress', async (req, res) => {
             },
             {
                 $project: {
-                    studentName: "$studentInfo.name",
-                    courseTitle: "$courseInfo.title",
-                    progress: "$progress",
-                    status: "$status",
+                    studentName: '$studentInfo.name',
+                    courseTitle: '$courseInfo.title',
+                    progress: '$progress',
+                    status: '$status',
                     enrollmentDate: 1,
-                    lastAccessed: 1
-                }
+                    lastAccessed: 1,
+                },
             },
-            {
-                $sort: { progress: -1 }
-            },
-            {
-                $limit: 20
-            }
+            { $sort: { progress: -1 } },
+            { $limit: 20 },
         ]);
 
         res.json({
             success: true,
-            data: studentProgress
+            data: studentProgress,
         });
     } catch (error) {
         req.log.error('Student progress analytics error', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch student progress',
-            data: []
+            data: [],
         });
     }
 });
@@ -331,22 +474,22 @@ router.get('/student-progress', async (req, res) => {
 router.get('/revenue', async (req, res) => {
     try {
         const { period = 'monthly', start, end } = req.query;
-        let groupFormat = "%Y-%m"; // Default monthly
-        
-        if (period === 'daily') groupFormat = "%Y-%m-%d";
-        if (period === 'weekly') groupFormat = "%Y-%U";
-        if (period === 'yearly') groupFormat = "%Y";
-        
+        let groupFormat = '%Y-%m';
+
+        if (period === 'daily') groupFormat = '%Y-%m-%d';
+        if (period === 'weekly') groupFormat = '%Y-%U';
+        if (period === 'yearly') groupFormat = '%Y';
+
         const matchStage = {
             status: { $in: PAID_PAYMENT_STATUSES },
             ...activePaymentFilter(),
         };
-        
+
         if (start) matchStage.createdAt = { $gte: new Date(start) };
         if (end) {
             matchStage.createdAt = {
                 ...matchStage.createdAt,
-                $lte: new Date(end)
+                $lte: new Date(end),
             };
         }
 
@@ -355,30 +498,30 @@ router.get('/revenue', async (req, res) => {
             {
                 $group: {
                     _id: {
-                        $dateToString: { 
-                            format: groupFormat, 
-                            date: "$createdAt" 
-                        }
+                        $dateToString: {
+                            format: groupFormat,
+                            date: '$createdAt',
+                        },
                     },
-                    revenue: { $sum: "$amount" },
+                    revenue: { $sum: '$amount' },
                     transactions: { $sum: 1 },
-                    averageValue: { $avg: "$amount" }
-                }
+                    averageValue: { $avg: '$amount' },
+                },
             },
-            { $sort: { _id: 1 } }
+            { $sort: { _id: 1 } },
         ]);
 
         res.json({
             success: true,
             period,
-            data: revenueAnalytics
+            data: revenueAnalytics,
         });
     } catch (error) {
         req.log.error('Revenue analytics error', { err: error });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch revenue analytics',
-            data: []
+            data: [],
         });
     }
 });
@@ -387,52 +530,55 @@ router.get('/revenue', async (req, res) => {
 router.get('/metrics', async (req, res) => {
     try {
         const days = Math.max(1, parseInt(req.query.days, 10) || 30);
+        const cacheKey = String(days);
+        const cached = analyticsMetricsCache.get();
+        if (cached && cached.key === cacheKey) {
+            return res.json(cached.payload);
+        }
+
         req.log.info('Fetching performance metrics', { days });
 
-        const now = new Date();
-        const periodStart = new Date(now);
-        periodStart.setDate(periodStart.getDate() - days);
+        const { now, periodStart } = getPeriodBounds(days);
         const previousPeriodStart = new Date(periodStart);
         previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
 
-        // 1. Enrollment Rate (new students in selected period vs total)
         const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
         const newStudents = await User.countDocuments({
             role: 'student',
-            createdAt: { $gte: periodStart, $lt: now },
+            createdAt: periodDateRange(periodStart, now),
             ...activeUserFilter(),
         });
-        const enrollmentRate = totalStudents > 0 ? 
-            ((newStudents / totalStudents) * 100).toFixed(1) + '%' : '0%';
-        
-        // 2. Course Completion Rate in selected period
-        const completedEnrollments = await Enrollment.countDocuments({
-            status: 'completed',
-            enrollmentDate: { $gte: periodStart, $lt: now },
-            ...activeEnrollmentFilter(),
-        });
-        const totalEnrollments = await Enrollment.countDocuments({
-            enrollmentDate: { $gte: periodStart, $lt: now },
-            ...activeEnrollmentFilter(),
-        });
-        const completionRate = totalEnrollments > 0 ? 
-            ((completedEnrollments / totalEnrollments) * 100).toFixed(1) + '%' : '0%';
-        
-        // 3. Student Satisfaction proxy in selected period
+        const enrollmentRate = totalStudents > 0
+            ? `${((newStudents / totalStudents) * 100).toFixed(1)}%`
+            : '0%';
+
+        const completedEnrollments = await Enrollment.countDocuments(
+            completedInPeriodMatch(periodStart, now)
+        );
+        const completionDenominator = await Enrollment.countDocuments(
+            periodEnrollmentActivityMatch(periodStart, now)
+        );
+        const completionRate = completionDenominator > 0
+            ? `${((completedEnrollments / completionDenominator) * 100).toFixed(1)}%`
+            : '0%';
+
         const highProgressEnrollments = await Enrollment.countDocuments({
             progress: { $gte: 70 },
-            enrollmentDate: { $gte: periodStart, $lt: now },
             ...activeEnrollmentFilter(),
+            $or: [
+                { enrollmentDate: periodDateRange(periodStart, now) },
+                { lastAccessed: periodDateRange(periodStart, now) },
+            ],
         });
-        const satisfactionScore = totalEnrollments > 0 ? 
-            ((highProgressEnrollments / totalEnrollments) * 4.8).toFixed(1) : '0.0';
-        
-        // 4. Revenue Growth (selected period vs previous period)
+        const highProgressRate = completionDenominator > 0
+            ? `${((highProgressEnrollments / completionDenominator) * 100).toFixed(1)}%`
+            : '0%';
+
         const currentRevenueResult = await Payment.aggregate([
             {
                 $match: {
                     status: { $in: PAID_PAYMENT_STATUSES },
-                    createdAt: { $gte: periodStart, $lt: now },
+                    createdAt: periodDateRange(periodStart, now),
                     ...activePaymentFilter(),
                 },
             },
@@ -443,16 +589,16 @@ router.get('/metrics', async (req, res) => {
             {
                 $match: {
                     status: { $in: PAID_PAYMENT_STATUSES },
-                    createdAt: { $gte: previousPeriodStart, $lt: periodStart },
+                    createdAt: periodDateRange(previousPeriodStart, periodStart),
                     ...activePaymentFilter(),
                 },
             },
             { $group: { _id: null, total: { $sum: '$amount' } } },
         ]);
-        
+
         const currentRevenue = currentRevenueResult[0]?.total || 0;
         const previousRevenue = previousRevenueResult[0]?.total || 0;
-        
+
         let revenueGrowth;
         if (previousRevenue === 0 && currentRevenue === 0) {
             revenueGrowth = '+0%';
@@ -460,36 +606,29 @@ router.get('/metrics', async (req, res) => {
             revenueGrowth = '+100%';
         } else {
             const growth = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
-            revenueGrowth = (growth >= 0 ? '+' : '') + growth.toFixed(0) + '%';
+            revenueGrowth = `${growth >= 0 ? '+' : ''}${growth.toFixed(0)}%`;
         }
-        
-        res.json({
+
+        const payload = {
             success: true,
             timeframe: `${days} days`,
             metrics: {
                 enrollmentRate,
                 completionRate,
-                satisfactionScore,
+                highProgressRate,
                 revenueGrowth,
                 currentPeriodRevenue: currentRevenue,
                 previousPeriodRevenue: previousRevenue,
-                newStudentsInPeriod: newStudents
-            }
-        });
-        
+                newStudentsInPeriod: newStudents,
+            },
+        };
+        analyticsMetricsCache.set({ key: cacheKey, payload });
+        res.json(payload);
     } catch (error) {
         req.log.error('Performance metrics error', { err: error });
         res.status(500).json({
             success: false,
-            metrics: {
-                enrollmentRate: '0%',
-                completionRate: '0%',
-                satisfactionScore: '0.0',
-                revenueGrowth: '+0%',
-                currentPeriodRevenue: 0,
-                previousPeriodRevenue: 0,
-                newStudentsInPeriod: 0
-            }
+            error: 'Failed to fetch performance metrics',
         });
     }
 });

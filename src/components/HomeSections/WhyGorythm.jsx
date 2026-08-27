@@ -1,4 +1,4 @@
-// Why Choose GoRythm section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, CTA
+// Why Choose Gorythm section – two columns: left = staggered images with + and popup; right = 03, eyebrow, title, description, CTA
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -109,12 +109,13 @@ const WhyGorythmSection = () => {
             03
           </span>
           <div className="why-gorythm-content">
-            <p className="why-gorythm-eyebrow why-gorythm_anim">Why Choose GoRythm</p>
+            <p className="why-gorythm-eyebrow why-gorythm_anim">Why Choose Gorythm</p>
             <h2 className="why-gorythm-title why-gorythm_anim">
-              A learning experience designed with purpose & values
+              A learning experience designed with purpose and values
             </h2>
             <p className="why-gorythm-description why-gorythm_anim">
-            Gorythm is not about collecting information. It is about refining your capacity to use it. Our research is organic & each study is connected to the next, forming a coherent picture of human development. At Gorythm, we have qualified educators, original research & a curriculum built around your intellect, your life & your presence in the world.</p>
+            Gorythm is not about collecting information. It is about refining your capacity to use it. Our research is organic and each study is connected to the next, forming a coherent picture of human development.
+            At Gorythm, we have qualified educators, original research, and a curriculum built around your intellect, your life, and your presence in the world. </p>
             <Link to="/contact" className="why-gorythm-cta why-gorythm_anim">
               Contact Us
             </Link>

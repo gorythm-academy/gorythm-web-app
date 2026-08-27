@@ -23,7 +23,9 @@ const AccountantReports = () => {
     Promise.all([portalGet('/accountant/payments'), payrollGet('/runs')])
       .then(([pRes, rRes]) => {
         if (pRes.success) setPayments(pRes.payments || []);
-        setRuns(rRes.runs || []);
+        else setLoadError(pRes.error || 'Failed to load student payments');
+        if (rRes.success) setRuns(rRes.runs || []);
+        else setLoadError((prev) => prev || rRes.error || 'Failed to load payroll runs');
       })
       .catch((err) => setLoadError(err.message || 'Failed to load reports'))
       .finally(() => setLoading(false));
@@ -119,7 +121,7 @@ const AccountantReports = () => {
     <div className="portal-page">
       <PortalPageHeader title="Reports" subtitle="Structured financial summaries with export to PDF" />
 
-      {loadError ? <PortalAlert variant="error">{loadError}</PortalAlert> : null}
+      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
 
       <div className="portal-hero portal-hero--accountant">
         <div className="portal-hero__icon" aria-hidden="true">

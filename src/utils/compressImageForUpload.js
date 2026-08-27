@@ -8,6 +8,7 @@ const MIN_QUALITY = 0.55;
 export const IMAGE_UPLOAD_PRESETS = {
   course: { maxDimension: 960, maxBytes: 2 * 1024 * 1024 },
   promoThumbnail: { maxDimension: 1280, maxBytes: 2.5 * 1024 * 1024 },
+  subscribePopup: { maxDimension: 1280, maxBytes: 2.5 * 1024 * 1024 },
   research: { maxDimension: 1920, maxBytes: 3.5 * 1024 * 1024 },
   lms: { maxDimension: 1600, maxBytes: 3 * 1024 * 1024 },
   paymentProof: { maxDimension: 1400, maxBytes: 950 * 1024 },

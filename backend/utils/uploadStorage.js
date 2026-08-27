@@ -2,7 +2,9 @@ const path = require('path');
 const fs = require('fs');
 const { resolveStoredFilename } = require('./safeFilename');
 
-const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+    ? path.resolve(process.env.UPLOAD_ROOT)
+    : path.join(__dirname, '..', 'uploads');
 
 /** admin / teacher / student subfolders under these */
 const ROLE_SUBDIR_CATEGORIES = new Set(['assignments', 'quizzes']);

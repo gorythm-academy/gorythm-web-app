@@ -1,10 +1,9 @@
-import React, { useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import HeroSection from './components/HomeSections/Hero';
-// Newsletter popup disabled for now
-// import SubscribePopup from './components/HomeSections/SubscribePopup';
+import SubscribePopup from './components/HomeSections/SubscribePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
@@ -14,16 +13,18 @@ import SubscribeSection from './components/HomeSections/Subscribe';
 import WhyGorythmSection from './components/HomeSections/WhyGorythm';
 import ResearchSection from './components/HomeSections/ResearchSection';
 import StudentTestimonialsSection from './components/HomeSections/StudentTestimonials';
-import SocialSidebar from './components/SocialSidebar/SocialSidebar';
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
 import Cursor from './components/Cursor/Cursor';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 // Side icon: floating WhatsApp button fixed on the left of the viewport
 // import WhatsAppFloat from './components/WhatsAppFloat/WhatsAppFloat';
 import './styles/App.scss';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { AUTH_REALM } from './utils/authStorage';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { usePageCanonical } from './hooks/usePageCanonical';
+import { RoutePageMeta } from './hooks/usePageMeta';
 
 const AllCourses = lazy(() => import('./components/Pages/AllCourses'));
 const SingleCourse = lazy(() =>
@@ -32,14 +33,14 @@ const SingleCourse = lazy(() =>
 const Login = lazy(() => import('./components/Pages/Login'));
 const AboutPage = lazy(() => import('./components/Pages/AboutPage'));
 const ContactPage = lazy(() => import('./components/Pages/ContactPage'));
-const SatelliteMaintenancePage = lazy(() =>
-  import('./components/Pages/MissionPages').then((m) => ({ default: m.SatelliteMaintenancePage }))
+const IqMissionPage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.IqMissionPage }))
 );
-const ExplorationMissionsPage = lazy(() =>
-  import('./components/Pages/MissionPages').then((m) => ({ default: m.ExplorationMissionsPage }))
+const EqMissionPage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.EqMissionPage }))
 );
-const ResearchObservationPage = lazy(() =>
-  import('./components/Pages/MissionPages').then((m) => ({ default: m.ResearchObservationPage }))
+const PhqMissionPage = lazy(() =>
+  import('./components/Pages/MissionPages').then((m) => ({ default: m.PhqMissionPage }))
 );
 const AdminLogin = lazy(() => import('./components/Admin/pages/Login'));
 const UsersManagement = lazy(() => import('./components/Admin/pages/UsersManagement'));
@@ -59,15 +60,9 @@ const Subscribers = lazy(() => import('./components/Admin/pages/Subscribers'));
 const PromoVideosManagement = lazy(() => import('./components/Admin/pages/PromoVideosManagement'));
 const DashboardLayout = lazy(() => import('./components/Admin/DashboardLayout'));
 const DashboardHome = lazy(() => import('./components/Admin/DashboardHome'));
-const PortfolioPage = lazy(() =>
-  import('./components/Pages/PortfolioPages').then((m) => ({ default: m.PortfolioPage }))
-);
-const PortfolioItemPage = lazy(() =>
-  import('./components/Pages/PortfolioPages').then((m) => ({ default: m.PortfolioItemPage }))
-);
 const ResearchMainPage = lazy(() => import('./components/Pages/ResearchMainPage'));
-const ResearchCategoryPage = lazy(() => import('./components/Pages/ResearchCategoryPage'));
 const ResearchPostPage = lazy(() => import('./components/Pages/ResearchPostPage'));
+const NotFoundPage = lazy(() => import('./components/Pages/NotFoundPage'));
 const PortalLayout = lazy(() => import('./components/Portals/PortalLayout'));
 const LmsManagement = lazy(() => import('./components/Admin/pages/LmsManagement'));
 const ResourcesManagement = lazy(() => import('./components/Admin/pages/ResourcesManagement'));
@@ -88,11 +83,13 @@ const TeacherMyAttendance = lazy(() => import('./components/Portals/teacher/Teac
 const TeacherQuizzes = lazy(() => import('./components/Portals/teacher/TeacherQuizzes'));
 const ParentDashboard = lazy(() => import('./components/Portals/parent/ParentDashboard'));
 const ParentChildren = lazy(() => import('./components/Portals/parent/ParentChildren'));
+const ParentSchedule = lazy(() => import('./components/Portals/parent/ParentSchedule'));
 const ParentProgress = lazy(() => import('./components/Portals/parent/ParentProgress'));
 const AccountantDashboard = lazy(() => import('./components/Portals/accountant/AccountantDashboard'));
 const AccountantPayments = lazy(() => import('./components/Portals/accountant/AccountantPayments'));
 const AccountantPayroll = lazy(() => import('./components/Portals/accountant/AccountantPayroll'));
 const AccountantReports = lazy(() => import('./components/Portals/accountant/AccountantReports'));
+const PortalAccountSettings = lazy(() => import('./components/Portals/shared/PortalAccountSettings'));
 
 function RouteFallback() {
   return (
@@ -117,7 +114,7 @@ function RouteFallback() {
 const Home = () => {
   return (
     <div className="front_page">
-      {/* <SubscribePopup /> */}
+      <SubscribePopup />
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
 
@@ -135,23 +132,9 @@ const Home = () => {
   );
 };
 
-function LegacyBlogRedirect() {
-  const { slug, categorySlug } = useParams();
-  const location = useLocation();
-  if (categorySlug) {
-    return <Navigate to={`/research/category/${categorySlug}${location.search}`} replace />;
-  }
-  if (slug) {
-    return <Navigate to={`/research/${slug}${location.hash}`} replace />;
-  }
-  return <Navigate to="/research" replace />;
-}
-
 function AppLayout() {
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  const closeSidebar = () => setIsSidebarOpen(false);
+  usePageCanonical();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isPortalLmsRoute = /^\/(student|teacher|parent|accountant)(\/|$)/.test(location.pathname);
   const isPublicLoginRoute = location.pathname === '/login';
@@ -160,6 +143,7 @@ function AppLayout() {
 
   return (
     <SmoothScroll>
+      <RoutePageMeta />
       <div
         className={[
           'academy-app',
@@ -172,19 +156,14 @@ function AppLayout() {
       >
         {showCustomCursor ? <Cursor /> : null}
 
-        {/* Header is already correctly positioned here */}
-        <Header toggleSidebar={toggleSidebar} />
-
-        {/* Pass state and close function to Sidebar */}
-        <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        {/* Side icon: floating WhatsApp button fixed on the left of the viewport */}
-        {/* <WhatsAppFloat /> */}
+        <Header />
 
         <ScrollToTop />
 
         <main className="main-content">
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/courses" element={<AllCourses />} />
@@ -192,37 +171,22 @@ function AppLayout() {
               <Route path="/payment" element={<PaymentGateway />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/payment-cancel" element={<PaymentCancel />} />
-              <Route
-                path="/instructors"
-                element={
-                  <div className="content-container">
-                    <h1>Instructors</h1>
-                    <p>Page content.</p>
-                  </div>
-                }
-              />
+              <Route path="/instructors" element={<Navigate to="/about" replace />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/schedule" element={<ContactPage />} />
 
               {/* Mission detail pages */}
-              <Route path="/mission/satellite-maintenance" element={<SatelliteMaintenancePage />} />
-              <Route path="/mission/exploration-missions" element={<ExplorationMissionsPage />} />
-              <Route path="/mission/research-and-observation" element={<ResearchObservationPage />} />
+              <Route path="/mission/iq" element={<IqMissionPage />} />
+              <Route path="/mission/eq" element={<EqMissionPage />} />
+              <Route path="/mission/phq" element={<PhqMissionPage />} />
+              <Route path="/mission/satellite-maintenance" element={<Navigate to="/mission/iq" replace />} />
+              <Route path="/mission/exploration-missions" element={<Navigate to="/mission/eq" replace />} />
+              <Route path="/mission/research-and-observation" element={<Navigate to="/mission/phq" replace />} />
 
-              {/* Portfolio pages */}
-              <Route path="/portfolio" element={<PortfolioPage />} />
-              <Route path="/portfolio/:slug" element={<PortfolioItemPage />} />
-
-              {/* Research: main listing, category view, single article */}
-              <Route path="/research/category/:categorySlug" element={<ResearchCategoryPage />} />
+              {/* Research */}
               <Route path="/research/:slug" element={<ResearchPostPage />} />
               <Route path="/research" element={<ResearchMainPage />} />
-              {/* Legacy blog URLs → research */}
-              <Route path="/blog/category/:categorySlug" element={<LegacyBlogRedirect />} />
-              <Route path="/blog/:slug" element={<LegacyBlogRedirect />} />
-              <Route path="/blog" element={<Navigate to="/research" replace />} />
 
               {/* Admin Login Route */}
               <Route path="/admin/login" element={<AdminLogin />} />
@@ -280,6 +244,8 @@ function AppLayout() {
                   <Route path="content" element={<StudentContent />} />
                   <Route path="schedule" element={<StudentSchedule />} />
                   <Route path="attendance" element={<StudentAttendance />} />
+                  <Route path="account" element={<PortalAccountSettings subtitle="Manage your student portal password." />} />
+                  <Route path="*" element={<Navigate to="/student" replace />} />
                 </Route>
               </Route>
 
@@ -302,6 +268,8 @@ function AppLayout() {
                   <Route path="schedule" element={<Navigate to="/teacher/classes" replace />} />
                   <Route path="my-attendance" element={<TeacherMyAttendance />} />
                   <Route path="quizzes" element={<TeacherQuizzes />} />
+                  <Route path="account" element={<PortalAccountSettings subtitle="Manage your teacher portal password." />} />
+                  <Route path="*" element={<Navigate to="/teacher" replace />} />
                 </Route>
               </Route>
 
@@ -317,7 +285,10 @@ function AppLayout() {
                 <Route path="/parent/*" element={<PortalLayout role="parent" title="Parent Portal" />}>
                   <Route index element={<ParentDashboard />} />
                   <Route path="children" element={<ParentChildren />} />
+                  <Route path="schedule" element={<ParentSchedule />} />
                   <Route path="progress" element={<ParentProgress />} />
+                  <Route path="account" element={<PortalAccountSettings subtitle="Manage your parent portal password." />} />
+                  <Route path="*" element={<Navigate to="/parent" replace />} />
                 </Route>
               </Route>
 
@@ -335,13 +306,16 @@ function AppLayout() {
                   <Route path="payments" element={<AccountantPayments />} />
                   <Route path="payroll" element={<AccountantPayroll />} />
                   <Route path="reports" element={<AccountantReports />} />
+                  <Route path="account" element={<PortalAccountSettings subtitle="Manage your finance portal password." />} />
+                  <Route path="*" element={<Navigate to="/accountant" replace />} />
                 </Route>
               </Route>
 
               {/* Redirect to home */}
-              <Route path="*" element={<Navigate to="/" />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
+          </ErrorBoundary>
         </main>
         {!hideSiteFooter && <FooterSimple />}
       </div>

@@ -292,6 +292,8 @@ const AttendancePeriodView = ({
       return;
     }
     setLoadingView(true);
+    setData(null);
+    setError('');
     const q = new URLSearchParams({
       courseId,
       period,

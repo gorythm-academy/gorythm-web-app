@@ -44,6 +44,10 @@ import fatimaPng from '../../assets/images/our team/fatima.png';
 import fatimaWebp from '../../assets/images/our team/fatima.webp';
 import fatimaAvif from '../../assets/images/our team/fatima.avif';
 
+import asmaSeherPng from '../../assets/images/our team/asma-seher.png';
+import asmaSeherWebp from '../../assets/images/our team/asma-seher.webp';
+import asmaSeherAvif from '../../assets/images/our team/asma-seher.avif';
+
 import farhanPng from '../../assets/images/our team/farhan.png';
 import farhanWebp from '../../assets/images/our team/farhan.webp';
 import farhanAvif from '../../assets/images/our team/farhan.avif';
@@ -64,27 +68,27 @@ const values = [
   {
     title: 'Integrity',
     description:
-      'Integrity is the alignment of knowledge & wisdom. Every asset, lesson & concept we publish is the result of intensive research & precise execution. We operate with the understanding that credibility is built on consistent & uncompromising truth.',
+      'Integrity is the alignment of knowledge and wisdom. Every asset, lesson, and concept we publish is the result of intensive research and precise execution. We operate with the understanding that credibility is built on consistent and uncompromising truth.',
   },
   {
     title: 'Community',
     description:
-      'True learning is a shared pursuit. We curate environments where individuals do not merely study in parallel—they evolve in community. At Gorythm, you are recognized by your unique perspective, your distinct journey & the vital purpose you bring to the collective space.',
+      'True learning is a shared pursuit. We curate environments where individuals do not merely study in parallel—they evolve in community. At Gorythm, you are recognized by your unique perspective, your distinct journey, and the vital purpose you bring to the collective space.',
   },
   {
     title: 'Excellence',
     description:
-      'From the way we build our courses to the way we support our students, we refuse to settle for "good enough." We are committed to constant improvement—not for the applause, but because our mission demands it & our community deserves it.',
+      'From the way we build our courses to the way we support our students, we refuse to settle for "good enough." We are committed to constant improvement—not for the applause, but because our mission demands it and our community deserves it.',
   },
   {
     title: 'Faith',
     description:
-      'Gorythm prioritizes timeless truths over changing trends. Faith is not a separate piece of what we do—it is the core reality of who we are. It is the uncompromised foundation from which every program, insight & framework we offer is built.',
+      'Gorythm prioritizes timeless truths over changing trends. Faith is not a separate piece of what we do—it is the core reality of who we are. It is the uncompromised foundation from which every program, insight, and framework we offer is built.',
   },
 ];
 
 // Typewriter words (change these; keep longest word in spacer below for layout)
-const statementWords = ['emotional', 'intellectual', 'physical'];
+const statementWords = ['emotionally', 'physically', 'intellectually'];
 
 const teamMembers = [
   {
@@ -95,7 +99,7 @@ const teamMembers = [
   },
   {
     name: 'Sufiyan Nadeem',
-    role: 'CEO, Earth movers International',
+    role: 'CEO, Earth Movers International',
     country: 'United Arab Emirates',
     raster: { avif: sufiyanAvif, webp: sufiyanWebp, png: sufiyanPng },
   },
@@ -116,6 +120,13 @@ const teamMembers = [
     role: 'Communications Specialist, Gorythm',
     country: 'Pakistan',
     raster: { avif: fatimaAvif, webp: fatimaWebp, png: fatimaPng },
+  },
+  {
+    name: 'Asma Seher',
+    role: 'Operations Manager, Gorythm',
+    country: 'Pakistan',
+    imageFit: 'contain',
+    raster: { avif: asmaSeherAvif, webp: asmaSeherWebp, png: asmaSeherPng },
   },
   {
     name: 'Muhammad Munim Ansari',
@@ -153,13 +164,13 @@ const academyHighlights = [
   {
     title: 'Our Mission',
     description:
-      'To make rigorous & meaningful education accessible to all. By strengthening the intellectual, emotional & physical foundations of our learners, we empower them to live with purpose & clarity.',
+      'To make rigorous and meaningful education accessible to all. By strengthening the intellectual, emotional, and physical foundations of our learners, we empower them to live with purpose and clarity.',
     raster: { avif: academyMissionAvif, webp: academyMissionWebp, png: academyMissionPng },
   },
   {
     title: 'Our Vision',
     description:
-      'To be a global platform for human development—a place where research, character & knowledge meet, & where faith guides everything we teach. We exist to empower people to discover who they are, understand their purpose & live it out with intention.',
+      'To be a global platform for human development—a place where research, character, and knowledge meet, and where faith guides everything we teach. We exist to empower people to discover who they are, understand their purpose, and live it out with intention.',
     raster: { avif: academyVisionAvif, webp: academyVisionWebp, png: academyVisionPng },
   },
 ];
@@ -263,7 +274,7 @@ const AboutPage = () => {
   const academyTitleFocus = academyTitleParts ? academyTitleParts[2] : '';
 
   return (
-    <>
+    <div className="about-page">
       <section className="about-page-dark">
         <div className="about-page-dark__page-header">
           <h1 className="about-page-dark__page-title">About Us</h1>
@@ -279,7 +290,7 @@ const AboutPage = () => {
                   avifSrc={aboutIntroAvif}
                   webpSrc={aboutIntroWebp}
                   fallbackSrc={aboutIntroPng}
-                  alt="About Al Farhan Academy"
+                  alt="About Gorythm"
                   loading="lazy"
                   width={800}
                   height={500}
@@ -290,20 +301,23 @@ const AboutPage = () => {
             <div className="about-page-dark__intro-copy">
               <h2>Four principles behind every program</h2>
               <p>
-              Everything you learn at Gorythm is well-researched, developed, reviewed & carefully structured to deliver clear & defined concepts.
+              Everything you learn at Gorythm is well-researched, developed, reviewed, and carefully structured to deliver clear, and defined concepts.
               </p>
               <ul className="about-page-dark__intro-points">
                 <li>
-                  <strong>Concepts First:</strong> We teach the principle before the process. Our curriculum is built to develop understanding, not memorisation.
+                  <strong>Concepts First:</strong> We teach the principle before the process. Our curriculum is built to develop understanding, not memorisation
+                  </li>
+                <li>
+                  <strong>Interactive Sessions:</strong> Every session is a conversation. Our content is designed to create a space for reflection, dialogue, and focused engagement
+
                 </li>
                 <li>
-                  <strong>Interactive Sessions:</strong> Every session is a conversation. Our content is designed to create a space for reflection, dialogue & focused engagement.
+                  <strong>Led by Values:</strong> Each lesson connects to real life. Our material is written to build judgement, not just to deliver answers
+
                 </li>
                 <li>
-                  <strong>Led by Values:</strong> Each lesson connects to real life. Our material is written to build judgement, not just to deliver answers.
-                </li>
-                <li>
-                  <strong>Personality Development:</strong> Academic progress is only a small part of the journey. Our courses are designed to nurture confidence, discipline, self-awareness & the skills needed for lifelong growth.
+                  <strong>Personality Development:</strong> Academic progress is only a small part of the journey. Our courses are designed to nurture confidence, discipline, self-awareness, and the skills needed for lifelong growth
+ 
                 </li>
               </ul>
               <div className="about-page-dark__intro-actions">
@@ -344,29 +358,32 @@ const AboutPage = () => {
           <section className="about-page-dark__about-gorythm">
             <div className="about-page-dark__about-gorythm-block">
               <span className="about-page-dark__eyebrow about-page-dark__eyebrow--center">
-                About GoRythm
+                About Gorythm
               </span>
               <div className="about-page-dark__section-copy">
                 <p>
-                  Gorythm began with a single, unshakeable conviction: education was never meant to be mere content delivery. It was always meant to be transformation.
+                  Born from Al Farhan Academy. Built for transformation.
                 </p>
                 <p>
-                  We kept witnessing the exact same modern symptom—students who knew more but understood less; individuals who could absorb information but could not reflect; & knowledge that accumulated in the mind but never deepened into wisdom, character or faith.
+                Gorythm began with a single, unshakeable conviction: education was never meant to be mere content delivery. It was always meant to be transformation.
                 </p>
                 <p>
-                  Gorythm was built to fix that exact detachment.
+                We kept witnessing the exact same modern symptom—students who knew more but understood less; individuals who could absorb information but could not reflect; and knowledge that accumulated in the mind but never deepened into wisdom, character, or faith.
                 </p>
                 <p>
-                  The ultimate goal was never to discard knowledge, but to challenge the illusions of what we think is correct.
+                Gorythm was built to fix that exact detachment.
                 </p>
                 <p>
-                  We believe that human beings were created with inherent depth across all dimensions. To neglect any single dimension is to compromise the whole; but bringing them into alignment is what unlocks the true capability.
+                The ultimate goal was never to discard knowledge, but to challenge the illusions of what we think is correct.
                 </p>
                 <p>
-                  Our curriculum & experiences are engineered for precise outcomes such as building self-awareness, securing your faith & empowering you to live with absolute clarity in an increasingly fragmented world.
+                We believe that human beings were created with inherent depth across all dimensions. To neglect any single dimension is to compromise the whole; but bringing them into alignment is what unlocks the true capability.
                 </p>
                 <p>
-                  That is what Gorythm is here for.
+                Our curriculum and experiences are engineered for precise outcomes such as building self-awareness, securing your faith, and empowering you to live with absolute clarity in an increasingly fragmented world.
+                </p>
+                <p>
+                That is what Gorythm is here for.
                 </p>
               </div>
             </div>
@@ -375,7 +392,7 @@ const AboutPage = () => {
           </section>
 
           <section className="about-page-dark__values">
-            <span className="about-page-dark__eyebrow">Our core values</span>
+            <span className="about-page-dark__eyebrow">Our Core Values</span>
             <div className="about-page-dark__value-grid">
               {values.map((item) => (
                 <article key={item.title} className="about-page-dark__value-card">
@@ -400,7 +417,11 @@ const AboutPage = () => {
           <div className="about-page-team__grid">
             {teamMembers.map((member) => (
               <article key={member.name} className="about-page-team__card">
-                <div className="about-page-team__media">
+                <div
+                  className={`about-page-team__media${
+                    member.imageFit === 'contain' ? ' about-page-team__media--contain' : ''
+                  }`}
+                >
                   <OptimizedPicture
                     avifSrc={member.raster.avif}
                     webpSrc={member.raster.webp}
@@ -489,7 +510,7 @@ const AboutPage = () => {
           </div> */}
         </div>
       </section>
-    </>
+    </div>
   );
 };
 

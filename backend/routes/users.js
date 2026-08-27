@@ -656,7 +656,8 @@ router.put(
         }
 
         if (password !== undefined && String(password).trim() !== '') {
-            if (String(password).length < 8) {
+            const trimmedPassword = String(password).trim();
+            if (trimmedPassword.length < 8) {
                 return res.status(400).json({
                     success: false,
                     error: 'Password must be at least 8 characters',
@@ -668,7 +669,7 @@ router.put(
                     error: 'You cannot change this account password',
                 });
             }
-            user.password = password;
+            user.password = trimmedPassword;
             if (mustChangePassword !== undefined) {
                 user.mustChangePassword = !!mustChangePassword;
             }

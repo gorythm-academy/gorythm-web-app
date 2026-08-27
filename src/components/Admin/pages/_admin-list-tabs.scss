@@ -1,4 +1,4 @@
-// Shared Active / Trash list tabs (Students, Courses, Users, Payments, etc.)
+// Shared Active Records / Quarantine list tabs (Students, Courses, Users, Payments, etc.)
 .admin-list-tab-badge {
     min-width: 20px;
     height: 20px;
@@ -15,14 +15,16 @@
 }
 
 .students-list-tabs,
-.payments-list-tabs {
+.payments-list-tabs,
+.contact-list-tabs {
     display: flex;
     gap: 10px;
     margin-bottom: 16px;
     flex-wrap: wrap;
 
     .students-list-tab,
-    .payments-list-tab {
+    .payments-list-tab,
+    .contact-list-tab {
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -86,4 +88,73 @@
 // Legacy alias used on Payments page
 .payments-tab-badge {
     @extend .admin-list-tab-badge;
+}
+
+// Shared table row action buttons (Students, Parents, Teachers, Staff, Courses, Payments)
+.action-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+
+    .action-btn {
+        width: auto !important;
+        height: auto !important;
+        min-width: 0;
+        padding: 6px 12px;
+        flex: 0 0 auto;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        background: #fff !important;
+        color: #64748b !important;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.2;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+
+        i {
+            font-size: 12px;
+            color: inherit;
+        }
+
+        &:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        &.edit-btn:hover:not(:disabled),
+        &.restore-btn:hover:not(:disabled),
+        &.invoice-btn:hover:not(:disabled) {
+            background: #f0fdf4 !important;
+            color: #059669 !important;
+            border-color: #86efac;
+        }
+
+        &.delete-btn:hover:not(:disabled) {
+            background: #fef2f2 !important;
+            color: #dc2626 !important;
+            border-color: #fecaca;
+        }
+
+        &.view-btn:hover:not(:disabled),
+        &.status-btn:hover:not(:disabled),
+        &.receipt-btn:hover:not(:disabled),
+        &.students-btn:hover:not(:disabled) {
+            background: #f8fafc !important;
+            color: #1e293b !important;
+            border-color: #cbd5e1;
+        }
+    }
 }

@@ -3,9 +3,22 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import AdminTablePagination from '../shared/AdminTablePagination';
 import '../Admin.scss';
 
 const idKey = (id) => String(id);
+
+const handleAdminAuthError = (error) => {
+  if (error.response?.status === 401) {
+    window.location.assign('/admin/login');
+    return true;
+  }
+  return false;
+};
+
+const summarizeBulkFailures = (results) =>
+  results.filter((result) => result.status === 'rejected').length;
 
 /** True if message was soft-deleted (API may still return it in edge cases). */
 const isTrashedMessage = (m) => {
@@ -19,6 +32,10 @@ const ContactMessages = () => {
   const [messages, setMessages] = useState([]);
   const [trashCount, setTrashCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+  const [listTruncated, setListTruncated] = useState(false);
+  const [listTotalCount, setListTotalCount] = useState(null);
+  const [statusCounts, setStatusCounts] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -112,10 +129,32 @@ const ContactMessages = () => {
     };
   }, [endTableDragScroll]);
 
+  const applyMessagesResponse = (data) => {
+    setMessages(data?.messages || []);
+    if (typeof data?.trashCount === 'number') {
+      setTrashCount(data.trashCount);
+    }
+    setListTruncated(Boolean(data?.truncated));
+    setListTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : null);
+    setStatusCounts(data?.statusCounts || null);
+  };
+
+  const reportLoadError = (error) => {
+    if (handleAdminAuthError(error)) return;
+    setMessages([]);
+    setListTruncated(false);
+    setListTotalCount(null);
+    setStatusCounts(null);
+    setFetchError(
+      error.response?.data?.error || error.message || 'Failed to load contact messages.'
+    );
+  };
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setFetchError('');
       setSelectedMessages([]);
       try {
         const token = getAuthToken();
@@ -124,12 +163,9 @@ const ContactMessages = () => {
           params: listTab === 'trash' ? { trash: '1' } : {},
         });
         if (cancelled) return;
-        setMessages(response.data?.messages || []);
-        if (typeof response.data?.trashCount === 'number') {
-          setTrashCount(response.data.trashCount);
-        }
+        applyMessagesResponse(response.data);
       } catch (error) {
-        if (!cancelled) setMessages([]);
+        if (!cancelled) reportLoadError(error);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -152,18 +188,16 @@ const ContactMessages = () => {
 
   const fetchMessages = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const token = getAuthToken();
       const response = await axios.get(`${API_BASE_URL}/api/contact/admin/messages`, {
         headers: { Authorization: `Bearer ${token}` },
         params: listTab === 'trash' ? { trash: '1' } : {},
       });
-      setMessages(response.data?.messages || []);
-      if (typeof response.data?.trashCount === 'number') {
-        setTrashCount(response.data.trashCount);
-      }
+      applyMessagesResponse(response.data);
     } catch (error) {
-      setMessages([]);
+      reportLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -176,12 +210,13 @@ const ContactMessages = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: listTab === 'trash' ? { trash: '1' } : {},
       });
-      setMessages(response.data?.messages || []);
-      if (typeof response.data?.trashCount === 'number') {
-        setTrashCount(response.data.trashCount);
-      }
+      applyMessagesResponse(response.data);
+      setFetchError('');
     } catch (error) {
-      console.warn('Failed to refresh messages:', error.response?.data || error.message);
+      if (handleAdminAuthError(error)) return;
+      setFetchError(
+        error.response?.data?.error || error.message || 'Failed to refresh contact messages.'
+      );
     }
   };
 
@@ -196,7 +231,8 @@ const ContactMessages = () => {
 
   const handleStatusChange = async (messageId, nextStatus) => {
     if (listTab !== 'inbox') return;
-    // Optimistic UI: update Status column immediately
+    const previousStatus =
+      messages.find((message) => idKey(message._id) === idKey(messageId))?.status || 'new';
     setMessages((prev) =>
       prev.map((message) =>
         idKey(message._id) === idKey(messageId) ? { ...message, status: nextStatus } : message
@@ -211,8 +247,15 @@ const ContactMessages = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch (error) {
-      // Keep UI update even if backend persistence fails for now.
-      console.warn('Failed to persist contact status update:', error.response?.data || error.message);
+      setMessages((prev) =>
+        prev.map((message) =>
+          idKey(message._id) === idKey(messageId) ? { ...message, status: previousStatus } : message
+        )
+      );
+      showAlert(
+        error.response?.data?.error || 'Failed to save status. Please try again.',
+        'error'
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -233,25 +276,33 @@ const ContactMessages = () => {
         (message.name || '').toLowerCase().includes(q) ||
         (message.email || '').toLowerCase().includes(q) ||
         (message.phone || '').toLowerCase().includes(q) ||
+        (message.subject || '').toLowerCase().includes(q) ||
         (message.message || '').toLowerCase().includes(q)
       );
 
       const matchesStatus =
         listTab === 'trash' || filterStatus === 'all' || (message.status || 'new') === filterStatus;
 
-      const createdAt = new Date(message.createdAt);
-      const now = new Date();
+      const dateValue = listTab === 'trash' ? message.deletedAt : message.createdAt;
       let matchesDate = true;
-      if (dateRange === 'today') {
-        matchesDate = createdAt.toDateString() === now.toDateString();
-      } else if (dateRange === 'week') {
-        const weekAgo = new Date();
-        weekAgo.setDate(now.getDate() - 7);
-        matchesDate = createdAt >= weekAgo;
-      } else if (dateRange === 'month') {
-        const monthAgo = new Date();
-        monthAgo.setMonth(now.getMonth() - 1);
-        matchesDate = createdAt >= monthAgo;
+      if (dateRange !== 'all') {
+        if (!dateValue) {
+          matchesDate = false;
+        } else {
+          const referenceDate = new Date(dateValue);
+          const now = new Date();
+          if (dateRange === 'today') {
+            matchesDate = referenceDate.toDateString() === now.toDateString();
+          } else if (dateRange === 'week') {
+            const weekAgo = new Date();
+            weekAgo.setDate(now.getDate() - 7);
+            matchesDate = referenceDate >= weekAgo;
+          } else if (dateRange === 'month') {
+            const monthAgo = new Date();
+            monthAgo.setMonth(now.getMonth() - 1);
+            matchesDate = referenceDate >= monthAgo;
+          }
+        }
       }
 
       return matchesSearch && matchesStatus && matchesDate;
@@ -264,6 +315,7 @@ const ContactMessages = () => {
     data.sort((a, b) => {
       const getValue = (item, key) => {
         if (key === 'contact') return `${item.name || ''} ${item.email || ''}`.toLowerCase();
+        if (key === 'subject') return (item.subject || '').toLowerCase();
         if (key === 'message') return (item.message || '').toLowerCase();
         if (key === 'status') return (item.status || 'new').toLowerCase();
         if (key === 'deleted') return new Date(item.deletedAt || 0).getTime();
@@ -288,11 +340,27 @@ const ContactMessages = () => {
     };
   }, [messages]);
 
+  const displayStats = useMemo(() => {
+    if (statusCounts) {
+      return {
+        newCount: statusCounts.new ?? 0,
+        inProgressCount: statusCounts.inProgress ?? 0,
+        resolvedCount: statusCounts.resolved ?? 0,
+        totalCount: statusCounts.total ?? 0,
+      };
+    }
+    return statusStats;
+  }, [statusCounts, statusStats]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterStatus, dateRange, sortBy, sortOrder, listTab]);
 
   const totalPages = Math.max(1, Math.ceil(sortedMessages.length / ITEMS_PER_PAGE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
   const pageStart = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedMessages = sortedMessages.slice(pageStart, pageStart + ITEMS_PER_PAGE);
 
@@ -329,25 +397,33 @@ const ContactMessages = () => {
     const n = selectedMessages.length;
     const label = n === 1 ? 'this message' : `${n} messages`;
     const confirmed = await showConfirm({
-      title: 'Move To Deleted?',
-      message: `Move ${label} to Deleted? You can open Deleted messages below and restore them later.`,
-      confirmLabel: 'Move To Deleted',
+      title: `Move to ${QUARANTINE_LABEL}?`,
+      message: `Move ${label} to ${QUARANTINE_LABEL}? You can open ${QUARANTINE_LABEL} below and restore them later.`,
+      confirmLabel: `Move to ${QUARANTINE_LABEL}`,
     });
     if (!confirmed) return;
 
     setDeleting(true);
     const token = getAuthToken();
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         selectedMessages.map((id) =>
           axios.delete(`${API_BASE_URL}/api/contact/admin/messages/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
         )
       );
+      const failedCount = summarizeBulkFailures(results);
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      setCurrentPage(1);
+      if (failedCount > 0) {
+        showAlert(
+          failedCount === n
+            ? 'Failed to move selected contact messages.'
+            : `${failedCount} of ${results.length} messages could not be moved. The list was refreshed.`,
+          'error'
+        );
+      }
     } catch (error) {
       console.warn('Failed to delete contact message(s):', error.response?.data || error.message);
       showAlert('Failed to move selected contact messages.', 'error');
@@ -371,6 +447,10 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to restore message:', error.response?.data || error.message);
+      showAlert(
+        error.response?.data?.error || 'Failed to restore this message. Please try again.',
+        'error'
+      );
       await fetchMessages();
     } finally {
       setRestoring(false);
@@ -391,7 +471,7 @@ const ContactMessages = () => {
     setRestoring(true);
     const token = getAuthToken();
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         selectedMessages.map((id) =>
           axios.post(
             `${API_BASE_URL}/api/contact/admin/messages/${id}/restore`,
@@ -400,9 +480,17 @@ const ContactMessages = () => {
           )
         )
       );
+      const failedCount = summarizeBulkFailures(results);
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      setCurrentPage(1);
+      if (failedCount > 0) {
+        showAlert(
+          failedCount === n
+            ? 'Failed to restore selected messages.'
+            : `${failedCount} of ${results.length} messages could not be restored. The list was refreshed.`,
+          'error'
+        );
+      }
     } catch (error) {
       console.warn('Failed to restore message(s):', error.response?.data || error.message);
       showAlert('Failed to restore selected messages.', 'error');
@@ -451,16 +539,24 @@ const ContactMessages = () => {
     setPurging(true);
     const token = getAuthToken();
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         selectedMessages.map((id) =>
           axios.delete(`${API_BASE_URL}/api/contact/admin/messages/${id}/permanent`, {
             headers: { Authorization: `Bearer ${token}` },
           })
         )
       );
+      const failedCount = summarizeBulkFailures(results);
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      setCurrentPage(1);
+      if (failedCount > 0) {
+        showAlert(
+          failedCount === n
+            ? 'Failed to permanently delete selected messages.'
+            : `${failedCount} of ${results.length} messages could not be deleted. The list was refreshed.`,
+          'error'
+        );
+      }
     } catch (error) {
       console.warn('Failed to permanently delete:', error.response?.data || error.message);
       showAlert('Failed to permanently delete selected messages.', 'error');
@@ -473,12 +569,20 @@ const ContactMessages = () => {
   const trashActionsBusy = purging || restoring;
 
   const tabMessageCount = useMemo(() => {
+    if (listTotalCount != null) return listTotalCount;
     if (listTab === 'inbox') return messages.filter((m) => !isTrashedMessage(m)).length;
     return messages.length;
-  }, [messages, listTab]);
+  }, [messages, listTab, listTotalCount]);
 
   return (
     <div className="settings-page contact-messages-page">
+      {fetchError ? <div className="admin-fetch-error" role="alert">{fetchError}</div> : null}
+      {listTruncated && listTotalCount != null ? (
+        <div className="admin-fetch-warning" role="status">
+          Showing the newest 500 of {listTotalCount} messages in this view. Older messages are not
+          listed here.
+        </div>
+      ) : null}
       <div className="settings-header">
         <h1><i className="fas fa-envelope-open-text"></i> Contact Messages</h1>
         <p>Messages sent from the public contact form.</p>
@@ -489,28 +593,28 @@ const ContactMessages = () => {
             <div className="stat-icon new"><i className="fas fa-exclamation-triangle"></i></div>
             <div className="stat-text">
               <span>New Messages</span>
-              <strong>{statusStats.newCount}</strong>
+              <strong>{displayStats.newCount}</strong>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon in-progress"><i className="fas fa-clock"></i></div>
             <div className="stat-text">
               <span>In Progress</span>
-              <strong>{statusStats.inProgressCount}</strong>
+              <strong>{displayStats.inProgressCount}</strong>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon resolved"><i className="fas fa-check-circle"></i></div>
             <div className="stat-text">
               <span>Resolved</span>
-              <strong>{statusStats.resolvedCount}</strong>
+              <strong>{displayStats.resolvedCount}</strong>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon total"><i className="fas fa-eye"></i></div>
             <div className="stat-text">
               <span>Total</span>
-              <strong>{statusStats.totalCount}</strong>
+              <strong>{displayStats.totalCount}</strong>
             </div>
           </div>
         </div>
@@ -537,7 +641,7 @@ const ContactMessages = () => {
                 className={`contact-list-tab ${listTab === 'trash' ? 'active' : ''}`}
                 onClick={() => setListTab('trash')}
               >
-                <i className="fas fa-trash-alt"></i> Deleted messages
+                <i className="fas fa-archive"></i> {QUARANTINE_LABEL}
                 {trashCount > 0 && <span className="contact-tab-badge">{trashCount}</span>}
               </button>
             </div>
@@ -546,28 +650,28 @@ const ContactMessages = () => {
                 <i className="fas fa-search"></i>
                 <input
                   type="text"
-                  placeholder="Search by name, email, phone, or message..."
+                  placeholder="Search by name, email, phone, subject, or message..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="filter-controls">
                 {listTab === 'inbox' && (
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="status-filter">
                     <option value="all">All Status</option>
                     <option value="new">New</option>
                     <option value="in-progress">In-progress</option>
                     <option value="resolved">Resolved</option>
                   </select>
                 )}
-                <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="status-filter">
                   <option value="all">All Time</option>
                   <option value="today">Today</option>
                   <option value="week">Last 7 Days</option>
                   <option value="month">Last 30 Days</option>
                 </select>
-                <button type="button" className="refresh-btn" onClick={fetchMessages}>
-                  <i className="fas fa-sync-alt"></i> Refresh
+                <button type="button" className="refresh-btn" onClick={fetchMessages} title="Refresh" aria-label="Refresh">
+                  <i className="fas fa-sync-alt"></i>
                 </button>
               </div>
             </div>
@@ -647,6 +751,9 @@ const ContactMessages = () => {
                       <th className="sortable" onClick={() => handleSort('contact')}>
                         Contact {sortBy === 'contact' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
+                      <th className="sortable" onClick={() => handleSort('subject')}>
+                        Subject {sortBy === 'subject' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
+                      </th>
                       <th className="sortable" onClick={() => handleSort('message')}>
                         Message {sortBy === 'message' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
@@ -683,9 +790,12 @@ const ContactMessages = () => {
                         <td>
                           <div className="contact-meta">
                             <strong>{m.name || 'Unknown'}</strong>
-                            <span>{m.email || 'No email'}</span>
+                            <span className="admin-email">{m.email || 'No email'}</span>
                             <span>{m.phone || 'No phone'}</span>
                           </div>
+                        </td>
+                        <td>
+                          <div className="message-cell">{m.subject?.trim() ? m.subject : '—'}</div>
                         </td>
                         <td>
                           <div className="message-cell">{m.message || '-'}</div>
@@ -757,31 +867,11 @@ const ContactMessages = () => {
               </div>
             </div>
             {sortedMessages.length > ITEMS_PER_PAGE && (
-              <div className="contact-pagination">
-                <button
-                  className="page-btn"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Prev
-                </button>
-                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
-                  <button
-                    key={pageNumber}
-                    className={`page-btn ${currentPage === pageNumber ? 'active' : ''}`}
-                    onClick={() => setCurrentPage(pageNumber)}
-                  >
-                    {pageNumber}
-                  </button>
-                ))}
-                <button
-                  className="page-btn"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                >
-                  Next
-                </button>
-              </div>
+              <AdminTablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             )}
           </div>
         </div>

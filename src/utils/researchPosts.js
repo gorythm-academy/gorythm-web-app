@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
 import { resolveMediaUrl } from './resolveMediaUrl';
+import { sanitizeHtml } from './sanitizeHtml';
 
 export function slugifyResearchTitle(text) {
   return String(text || '')
@@ -44,12 +45,12 @@ export async function fetchPublishedResearchPosts() {
         const db = new Date(b.publishedAt || b.date || 0).getTime();
         return db - da;
       });
-      return posts;
+      return { posts, error: null };
     }
+    return { posts: [], error: 'Could not load research posts.' };
   } catch {
-    /* API unavailable */
+    return { posts: [], error: 'Research posts are unavailable. Check your connection and try again.' };
   }
-  return [];
 }
 
 export async function fetchResearchPostBySlug(slug) {
@@ -81,37 +82,23 @@ export function getResearchPostImage(post) {
   return null;
 }
 
-function titleCaseFromSlug(slug) {
-  return String(slug || '')
-    .split('-')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
-export function researchCategoryFromSlug(slug, posts = []) {
-  if (!slug) return null;
-  const normalized = String(slug).toLowerCase();
-  for (const post of posts) {
-    const postSlug = String(post.category || '')
-      .toLowerCase()
-      .replace(/\s+/g, '-');
-    if (postSlug === normalized) {
-      return { slug: normalized, name: post.category, description: '' };
-    }
-  }
-  return { slug: normalized, name: titleCaseFromSlug(normalized), description: '' };
-}
-
 export function researchTagFromSlug(slug) {
   if (!slug) return null;
   const normalized = String(slug).toLowerCase();
-  return { slug: normalized, name: normalized, description: '' };
+  return {
+    slug: normalized,
+    name: normalized
+      .split('-')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' '),
+    description: '',
+  };
 }
 
 export function formatResearchContentHtml(content) {
   if (!content) return '';
-  if (/<[a-z][\s\S]*>/i.test(content)) return content;
+  if (/<[a-z][\s\S]*>/i.test(content)) return sanitizeHtml(content);
   return content
     .split(/\n\n+/)
     .map((block) => block.trim())

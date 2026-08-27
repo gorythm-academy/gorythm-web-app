@@ -4,13 +4,13 @@
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
-const BlogComment = require('../models/BlogComment');
+const ResearchComment = require('../models/ResearchComment');
 
 async function main() {
     if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not set');
     await mongoose.connect(process.env.MONGODB_URI);
 
-    const test = await BlogComment.create({
+    const test = await ResearchComment.create({
         postSlug: '__delete-test-slug__',
         authorName: 'Delete Test',
         authorEmail: 'test@example.com',
@@ -19,10 +19,10 @@ async function main() {
     const id = test._id;
     console.log('Created:', id.toString());
 
-    const before = await BlogComment.countDocuments({ _id: id });
-    const del = await BlogComment.deleteMany({ _id: { $in: [id] } });
-    const after = await BlogComment.countDocuments({ _id: id });
-    const publicList = await BlogComment.find({ postSlug: '__delete-test-slug__' }).lean();
+    const before = await ResearchComment.countDocuments({ _id: id });
+    const del = await ResearchComment.deleteMany({ _id: { $in: [id] } });
+    const after = await ResearchComment.countDocuments({ _id: id });
+    const publicList = await ResearchComment.find({ postSlug: '__delete-test-slug__' }).lean();
 
     console.log('Before delete:', before);
     console.log('deleteMany deletedCount:', del.deletedCount);

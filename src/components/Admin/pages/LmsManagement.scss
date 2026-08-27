@@ -171,12 +171,30 @@
   }
 
   .lms-btn-secondary {
-    padding: 0.5rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.42rem 0.75rem;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    background: #fff;
+    background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+    color: #475569;
     cursor: pointer;
+    font-size: 0.82rem;
     font-weight: 600;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: #eff6ff;
+      border-color: #93c5fd;
+      color: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
 
   .lms-form {
@@ -728,6 +746,15 @@
         border-color: #fecaca;
       }
     }
+
+    &--approve {
+      color: #047857;
+
+      &:hover {
+        background: #ecfdf5;
+        border-color: #6ee7b7;
+      }
+    }
   }
 
   .lms-btn-edit {
@@ -738,15 +765,6 @@
     cursor: pointer;
     font-size: 0.85rem;
     color: #1e40af;
-  }
-
-  .lms-link-btn {
-    background: none;
-    border: none;
-    color: #dc2626;
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 0.25rem 0.5rem;
   }
 
   .lms-empty {
@@ -838,17 +856,17 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.42rem 0.75rem;
-    border: 1px solid #93c5fd;
+    border: 1px solid #6ee7b7;
     border-radius: 8px;
-    background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-    color: #1d4ed8;
+    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+    color: #047857;
     cursor: pointer;
     font-size: 0.82rem;
     font-weight: 600;
     transition: background 0.15s ease, transform 0.15s ease;
 
     &:hover:not(:disabled) {
-      background: #dbeafe;
+      background: #d1fae5;
       transform: translateY(-1px);
     }
 
@@ -1373,14 +1391,15 @@
     .lms-attendance-refresh-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.5rem 0.9rem;
+      justify-content: center;
+      width: 2.55rem;
+      height: 2.55rem;
+      padding: 0;
       border-radius: 8px;
       border: 1px solid #cbd5e1;
       background: #fff;
       color: #334155;
-      font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
 
@@ -1885,6 +1904,15 @@
       &:hover {
         background: #fef3c7;
       }
+
+      &--monthly {
+        border-color: #93c5fd;
+        color: #1d4ed8;
+
+        &:hover {
+          background: #eff6ff;
+        }
+      }
     }
 
     .lms-payroll-reject-note {
@@ -2214,14 +2242,15 @@
     .lms-payroll-refresh-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.5rem 0.9rem;
+      justify-content: center;
+      width: 2.55rem;
+      height: 2.55rem;
+      padding: 0;
       border-radius: 8px;
       border: 1px solid #cbd5e1;
       background: #fff;
       color: #334155;
-      font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
 
@@ -2573,6 +2602,201 @@
 }
 
 .resources-management {
+  .lms-material-preview-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .lms-material-preview {
+    background: #fff;
+    border-radius: 14px;
+    width: min(42rem, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+    padding: 1.25rem 1.35rem 1rem;
+
+    &__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+
+      h3 {
+        margin: 0.15rem 0 0;
+        font-size: 1.15rem;
+        color: #0f172a;
+      }
+    }
+
+    &__kicker {
+      margin: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    &__close {
+      border: none;
+      background: #f1f5f9;
+      color: #475569;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      flex-shrink: 0;
+
+      &:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+    }
+
+    &__meta {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 1rem;
+      margin: 0 0 1rem;
+      font-size: 0.88rem;
+
+      dt {
+        margin: 0;
+        font-weight: 600;
+        color: #64748b;
+      }
+
+      dd {
+        margin: 0;
+        color: #0f172a;
+      }
+    }
+
+    &__section {
+      margin-bottom: 1rem;
+
+      h4 {
+        margin: 0 0 0.5rem;
+        font-size: 0.92rem;
+        color: #334155;
+      }
+    }
+
+    &__description {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      color: #334155;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.85rem 0.95rem;
+      max-height: 14rem;
+      overflow: auto;
+    }
+
+    &__files {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.45rem;
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #1d4ed8;
+        font-weight: 600;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+
+    &__empty {
+      margin: 0;
+      color: #64748b;
+      font-size: 0.88rem;
+    }
+
+    &--research {
+      width: min(52rem, 100%);
+    }
+
+    &__cover {
+      display: block;
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+
+    &__excerpt {
+      margin: 0;
+      color: #475569;
+      line-height: 1.55;
+    }
+
+    &__article {
+      color: #334155;
+      line-height: 1.65;
+      max-height: 22rem;
+      overflow: auto;
+      padding-right: 0.25rem;
+
+      p {
+        margin: 0 0 0.75rem;
+      }
+
+      h2,
+      h3,
+      h4 {
+        margin: 1rem 0 0.5rem;
+        color: #0f172a;
+      }
+
+      ul,
+      ol {
+        margin: 0 0 0.75rem 1.25rem;
+      }
+
+      img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+      }
+    }
+
+    &__open-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      margin-right: auto;
+    }
+
+    &__actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+  }
+
   .lms-list-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -2663,5 +2887,175 @@
     text-transform: capitalize;
     background: #f1f5f9;
     color: #475569;
+  }
+
+  .lms-panel-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    min-height: 10rem;
+    color: #64748b;
+
+    &__spinner {
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 3px solid #e2e8f0;
+      border-top-color: var(--color-accent, #3b82f6);
+      border-radius: 50%;
+      animation: lms-panel-spin 0.9s linear infinite;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.92rem;
+    }
+  }
+
+  @keyframes lms-panel-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .lms-parent-links-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .lms-parent-links-search {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1 1 14rem;
+    max-width: 24rem;
+
+    span {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    input {
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
+  }
+
+  .lms-parent-links-count {
+    font-size: 0.88rem;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .lms-parent-links-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: #64748b;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+  }
+
+  .lms-parent-links-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+
+    button {
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    span {
+      font-size: 0.88rem;
+      color: #64748b;
+    }
+  }
+
+  .lms-parent-links-list {
+    margin-top: 0.35rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 8px 24px rgba(15, 23, 42, 0.04);
+
+    li {
+      padding: 1rem 1.15rem;
+      border-bottom: 1px solid #e8eef4;
+      border-left: 3px solid transparent;
+      transition:
+        background-color 0.18s ease,
+        border-left-color 0.18s ease;
+
+      &:nth-child(even) {
+        background: #fbfdff;
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &:hover {
+        background: #f1f5f9;
+        border-left-color: #3b82f6;
+      }
+    }
+  }
+
+  .lms-parent-link-line {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: #64748b;
+    letter-spacing: 0.01em;
+
+    strong {
+      color: #0f172a;
+      font-weight: 650;
+    }
+
+    &__relation {
+      color: #94a3b8;
+      font-size: 0.92em;
+      font-weight: 500;
+    }
+  }
+
+  .lms-schedule-timezone {
+    font-size: 0.82rem;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  .lms-attendance-btn--view {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+
+  .lms-attendance-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 }

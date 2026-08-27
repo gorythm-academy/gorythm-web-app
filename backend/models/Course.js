@@ -12,55 +12,38 @@ const courseSchema = new mongoose.Schema({
     duration: { 
         type: String, 
         default: '8 weeks'
-        // REMOVED enum to allow any duration like "12 weeks", "16 weeks"
     },
     level: { 
         type: String, 
         enum: ['beginner', 'intermediate', 'advanced'],
         default: 'beginner'
     },
+    /** Legacy mirror of first assigned teacher (optional). Prefer `instructors`. */
     instructor: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User', 
-        required: true 
+        default: null,
+        required: false,
     },
     instructorName: { type: String, default: '' },
-    modules: [{
-        title: String,
-        videos: [{
-            title: String,
-            url: String,
-            duration: Number, // in minutes
-            description: String
-        }],
-        documents: [{
-            title: String,
-            fileUrl: String
-        }],
-        quizzes: [{
-            title: String,
-            questions: [{
-                question: String,
-                options: [String],
-                correctAnswer: Number
-            }]
-        }]
-    }],
+    /** Assigned teachers for this course (shared by Courses + Teachers tabs). */
+    instructors: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     imageUrl: { type: String, default: '' },
     homepageImage: { type: String, default: '' },
     displayOrder: { type: Number, default: 9999 },
-    masonryColumn: { type: Number, enum: [1, 2, 3], default: null },
+    masonryColumn: { type: Number, enum: [1, 2, 3, null], default: null },
     slug: { type: String },
     isPublished: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now }
 });
 
-// Keep slug unique when present, while allowing legacy empty values.
 courseSchema.index(
     { slug: 1 },
     { unique: true, partialFilterExpression: { slug: { $exists: true, $type: 'string' } } }
 );
+courseSchema.index({ deletedAt: 1, createdAt: -1 });
+courseSchema.index({ isPublished: 1, deletedAt: 1 });
 
 module.exports = mongoose.model('Course', courseSchema);

@@ -5,6 +5,7 @@ import { getAuthUserJson } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
 import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
+import { rememberPaymentCourseId } from '../../../utils/paymentCourseContext';
 import './PaymentGateway.scss';
 
 const BANK_STEPS = {
@@ -15,9 +16,9 @@ const BANK_STEPS = {
 const PROOF_MAX_BYTES = 1024 * 1024;
 const PROOF_MAX_MB = 1;
 
-function collectBankValidationIssues({ formData, proofFile, hasBankInfo, resolvedAmount, validateEmail }) {
+function collectBankValidationIssues({ formData, proofFile, hasBankInfo, resolvedAmount, validateEmail, selectedCourse }) {
     const issues = [];
-    if (!formData.courseName) {
+    if (!selectedCourse?._id) {
         issues.push('Please select a course.');
     }
     if (!formData.studentName?.trim()) {
@@ -90,7 +91,7 @@ function PaymentNoticeModal({ notice, onClose }) {
 
 const PaymentGateway = () => {
     const location = useLocation();
-    const { currency, baseCurrency, formatFromUsd, rateDate } = useCurrency();
+    const { currency, baseCurrency, formatFromUsd, rateDate, applyCurrencyCode, isLoading: currencyLoading } = useCurrency();
     const [paymentMethod, setPaymentMethod] = useState('stripe');
     const [courseOptions, setCourseOptions] = useState([]);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -102,8 +103,13 @@ const PaymentGateway = () => {
     const [bankSubmitting, setBankSubmitting] = useState(false);
     const proofInputRef = useRef(null);
     const successPanelRef = useRef(null);
+    const didInitFromUrl = useRef(false);
+    const [coursesLoaded, setCoursesLoaded] = useState(false);
+    const [coursesFetchError, setCoursesFetchError] = useState('');
+    const [urlCourseError, setUrlCourseError] = useState('');
     const [notice, setNotice] = useState(null);
     const [validationModal, setValidationModal] = useState({ open: false, title: '', issues: [] });
+    const [selectedCourseId, setSelectedCourseId] = useState('');
 
     const showNotice = (title, message, type = 'info') => {
         setNotice({ title, message, type });
@@ -112,32 +118,71 @@ const PaymentGateway = () => {
         studentName: '',
         phone: '',
         email: '',
-        courseName: '',
     });
 
     const paymentDetails = useMemo(() => {
         const params = new URLSearchParams(location.search);
-        const courseName = params.get('courseName') || '';
+        const courseId = params.get('courseId') || '';
+        const legacyCourseName = params.get('courseName') || '';
         const amount = params.get('amount') || '0';
         const feePlan = params.get('feePlan') || 'one-time';
-        return { courseName, amount, feePlan };
+        const displayCurrency = (params.get('displayCurrency') || '').trim().toUpperCase();
+        return { courseId, legacyCourseName, amount, feePlan, displayCurrency };
     }, [location.search]);
+
+    useEffect(() => {
+        didInitFromUrl.current = false;
+        setSelectedCourseId('');
+        if (paymentDetails.courseId) {
+            setUrlCourseError('');
+        } else if (paymentDetails.legacyCourseName) {
+            setUrlCourseError(
+                'This link uses an old course name. Please select your course from the list below.'
+            );
+        } else {
+            setUrlCourseError('');
+        }
+    }, [paymentDetails.courseId, paymentDetails.legacyCourseName]);
+
+    useEffect(() => {
+        if (!paymentDetails.displayCurrency || currencyLoading) return;
+        applyCurrencyCode(paymentDetails.displayCurrency);
+    }, [paymentDetails.displayCurrency, currencyLoading, applyCurrencyCode]);
+
+    useEffect(() => {
+        if (selectedCourseId) rememberPaymentCourseId(selectedCourseId);
+    }, [selectedCourseId]);
 
     useEffect(() => {
         let cancelled = false;
         const fetchCourses = async () => {
+            setCoursesFetchError('');
             try {
                 const response = await fetch(`${API_BASE_URL}/api/courses/public`);
                 if (!response.ok) {
-                    if (!cancelled) setCourseOptions([]);
+                    if (!cancelled) {
+                        setCourseOptions([]);
+                        setCoursesFetchError('Could not load courses. Check your connection and refresh the page.');
+                    }
                     return;
                 }
                 const data = await response.json();
                 if (!cancelled) {
-                    setCourseOptions(Array.isArray(data?.courses) ? data.courses : []);
+                    if (!data?.success) {
+                        setCourseOptions([]);
+                        setCoursesFetchError('Could not load courses. Please try again in a moment.');
+                        return;
+                    }
+                    const courses = Array.isArray(data?.courses) ? data.courses : [];
+                    setCourseOptions(courses.filter((course) => Number(course?.price) > 0));
                 }
             } catch {
-                if (!cancelled) setCourseOptions([]);
+                if (!cancelled) {
+                    setCourseOptions([]);
+                    setCoursesFetchError('Could not load courses. Check your connection and refresh the page.');
+                }
+            } finally {
+                if (!cancelled) setCoursesLoaded(true);
             }
         };
 
@@ -167,11 +212,55 @@ const PaymentGateway = () => {
     }, []);
 
     useEffect(() => {
-        setFormData((prev) => ({
-            ...prev,
-            courseName: paymentDetails.courseName || prev.courseName || '',
-        }));
-    }, [paymentDetails.courseName]);
+        const urlCourseId = paymentDetails.courseId;
+        if (!urlCourseId || !coursesLoaded) return;
+        if (courseOptions.some((course) => String(course._id) === String(urlCourseId))) {
+            setUrlCourseError('');
+            return;
+        }
+
+        let cancelled = false;
+        const fetchUrlCourse = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/payments/course/${urlCourseId}`);
+                const data = await response.json().catch(() => ({}));
+                if (cancelled) return;
+                if (!response.ok || !data.success || !data.course) {
+                    setUrlCourseError(data.error || 'This course is not open for enrollment.');
+                    setSelectedCourseId('');
+                    return;
+                }
+                setUrlCourseError('');
+                setCourseOptions((prev) => {
+                    if (prev.some((course) => String(course._id) === String(data.course._id))) {
+                        return prev;
+                    }
+                    return [...prev, data.course];
+                });
+            } catch {
+                if (!cancelled) {
+                    setUrlCourseError('Could not load course from link.');
+                    setSelectedCourseId('');
+                }
+            }
+        };
+
+        fetchUrlCourse();
+        return () => {
+            cancelled = true;
+        };
+    }, [paymentDetails.courseId, coursesLoaded, courseOptions]);
+
+    useEffect(() => {
+        if (didInitFromUrl.current || !paymentDetails.courseId) return;
+        const match = courseOptions.find(
+            (course) => String(course._id) === String(paymentDetails.courseId)
+        );
+        if (match) {
+            setSelectedCourseId(String(match._id));
+            didInitFromUrl.current = true;
+        }
+    }, [paymentDetails.courseId, courseOptions]);
 
     useEffect(() => {
         const handlePageShow = () => {
@@ -192,8 +281,8 @@ const PaymentGateway = () => {
     }, [paymentMethod]);
 
     const selectedCourse = useMemo(
-        () => courseOptions.find((course) => course?.title === formData.courseName) || null,
-        [courseOptions, formData.courseName]
+        () => courseOptions.find((course) => String(course._id) === String(selectedCourseId)) || null,
+        [courseOptions, selectedCourseId]
     );
     const resolvedAmount = Number(selectedCourse?.price ?? paymentDetails.amount) || 0;
 
@@ -284,6 +373,7 @@ const PaymentGateway = () => {
             hasBankInfo,
             resolvedAmount,
             validateEmail: validateRegistrationEmail,
+            selectedCourse,
         });
         if (issues.length > 0) {
             setValidationModal({
@@ -294,15 +384,23 @@ const PaymentGateway = () => {
             return;
         }
 
-        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
+        if (!selectedCourse?._id) {
+            setValidationModal({
+                open: true,
+                title: 'Please check the following',
+                issues: ['Please select a valid course.'],
+            });
+            return;
+        }
 
+        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
         setBankSubmitting(true);
         try {
             const form = new FormData();
             form.append('studentName', formData.studentName.trim());
             form.append('email', formData.email.trim());
             form.append('phone', normalizedPhone);
-            form.append('courseName', formData.courseName);
+            form.append('courseId', String(selectedCourse._id));
             form.append('file', proofFile);
 
             const response = await fetch(`${API_BASE_URL}/api/payments/register-bank`, {
@@ -338,6 +436,7 @@ const PaymentGateway = () => {
             return;
         }
         setCheckoutLoading(true);
+        rememberPaymentCourseId(selectedCourse._id);
         try {
             let userId;
             try {
@@ -406,7 +505,7 @@ const PaymentGateway = () => {
 
                     <div className="payment-summary-banner">
                         <span className="payment-summary-course">
-                            {formData.courseName || paymentDetails.courseName || 'Select a course'}
+                            {selectedCourse?.title || 'Select a course'}
                         </span>
                         <strong>Total Amount: {localizedAmount}</strong>
                     </div>
@@ -435,24 +534,32 @@ const PaymentGateway = () => {
                                     <div className="form-group form-group-wide">
                                         <label>Select Course *</label>
                                         <select
-                                            value={formData.courseName}
-                                            onChange={(e) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    courseName: e.target.value,
-                                                }))
-                                            }
+                                            value={selectedCourseId}
+                                            onChange={(e) => {
+                                                didInitFromUrl.current = true;
+                                                setSelectedCourseId(e.target.value);
+                                            }}
                                             required
                                         >
                                             <option value="" disabled>
                                                 Choose a course
                                             </option>
                                             {courseOptions.map((course) => (
-                                                <option key={course._id || course.title} value={course.title}>
+                                                <option key={course._id} value={String(course._id)}>
                                                     {course.title}
                                                 </option>
                                             ))}
                                         </select>
+                                        {coursesFetchError ? (
+                                            <p className="payment-url-course-error" role="alert">
+                                                {coursesFetchError}
+                                            </p>
+                                        ) : null}
+                                        {urlCourseError ? (
+                                            <p className="payment-url-course-error" role="alert">
+                                                {urlCourseError}
+                                            </p>
+                                        ) : null}
                                     </div>
 
                                     {paymentMethod === 'bank' ? (

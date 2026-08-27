@@ -1,4 +1,5 @@
 const AdminSettings = require('../models/AdminSettings');
+const { canonicalizeScheduleTimezone, DEFAULT_ACADEMY_TIMEZONE } = require('../utils/scheduleTimezone');
 
 const SETTINGS_KEY = 'academy-settings';
 
@@ -30,6 +31,16 @@ const SECTION_CONFIG = {
             'bankIban',
             'bankSwift',
             'bankExtraNote',
+        ],
+    },
+    marketing: {
+        roles: ['super-admin', 'manager'],
+        fields: [
+            'subscribePopupEnabled',
+            'subscribePopupDelaySeconds',
+            'subscribePopupHeadline',
+            'subscribePopupButtonText',
+            'subscribePopupImagePath',
         ],
     },
 };
@@ -64,7 +75,24 @@ const applySettingsUpdateForRole = async ({ body, role, userId }) => {
         const sanitized = sanitizeSection(body[section], cfg.fields);
         if (Object.keys(sanitized).length === 0) continue;
 
-        settings[section] = { ...settings[section], ...sanitized };
+        if (section === 'general' && sanitized.timezone !== undefined) {
+            sanitized.timezone = canonicalizeScheduleTimezone(
+                sanitized.timezone,
+                DEFAULT_ACADEMY_TIMEZONE
+            );
+        }
+
+        if (section === 'marketing' && sanitized.subscribePopupDelaySeconds !== undefined) {
+            const n = parseInt(sanitized.subscribePopupDelaySeconds, 10);
+            sanitized.subscribePopupDelaySeconds = Number.isFinite(n)
+                ? Math.min(300, Math.max(0, n))
+                : 10;
+        }
+
+        settings[section] = { ...(settings[section]?.toObject?.() || settings[section] || {}), ...sanitized };
+        if (typeof settings.markModified === 'function') {
+            settings.markModified(section);
+        }
         updatedSections.push(section);
     }
 

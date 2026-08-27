@@ -12,7 +12,7 @@
 }
 
 .contact-page__wrap {
-  width: min(1180px, calc(100% - 40px));
+  width: min(1280px, calc(100% - 40px));
   margin: 0 auto;
   padding: 0 20px;
 }
@@ -50,8 +50,8 @@
 
 .contact-page__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
-  gap: 48px 56px;
+  grid-template-columns: minmax(0, 1fr) minmax(520px, 1.45fr);
+  gap: 48px 64px;
   align-items: start;
 }
 
@@ -162,8 +162,9 @@
 .contact-page__form-wrap {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #0d0d0d;
-  padding: 32px 28px;
+  padding: 36px 32px;
   border-radius: 6px;
+  width: 100%;
 }
 
 .contact-page__form {
@@ -176,6 +177,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+
+  // Single field in a row (e.g. WhatsApp) must span full width so placeholder is not clipped
+  > .contact-page__field:only-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .contact-page__field {

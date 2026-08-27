@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../../../config/constants';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
 import { useAdminDialog } from '../AdminDialogContext';
+import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import './PaymentsManagement.scss';
 
 const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
@@ -36,10 +37,17 @@ const COLUMN_DEFS = [
     'date',
     'actions',
 ];
-const DEFAULT_COLUMN_WIDTHS = [60, 132, 200, 200, 120, 200, 130, 110, 110, 170, 140];
-const COLUMN_MIN_WIDTHS = [50, 88, 140, 140, 90, 140, 96, 100, 100, 130, 120];
-const COLUMN_MAX_WIDTHS = [90, 280, 360, 360, 220, 420, 220, 220, 220, 320, 260];
+const DEFAULT_COLUMN_WIDTHS = [60, 132, 200, 200, 120, 200, 130, 110, 110, 170, 1];
+const COLUMN_MIN_WIDTHS = [50, 88, 140, 140, 90, 140, 96, 100, 100, 130, 90];
+const COLUMN_MAX_WIDTHS = [90, 280, 360, 360, 220, 420, 220, 220, 220, 320, 280];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const PAYMENTS_PAGE_SIZE = 25;
+
+const csvEscape = (value) => {
+    const text = String(value ?? '');
+    if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+    return text;
+};
 
 const EMPTY_BANK_FORM = {
     bankAccountName: '',
@@ -63,6 +71,12 @@ const PaymentsManagement = () => {
     const { showAlert, showConfirm } = useAdminDialog();
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const hasLoadedOnceRef = useRef(false);
+    const [lastFetchedAt, setLastFetchedAt] = useState(null);
+    const [page, setPage] = useState(1);
+    const [totalPayments, setTotalPayments] = useState(0);
+    const [fetchError, setFetchError] = useState('');
     const [bankForm, setBankForm] = useState(EMPTY_BANK_FORM);
     const [bankConfigOpen, setBankConfigOpen] = useState(false);
     const [listTab, setListTab] = useState('active');
@@ -118,44 +132,68 @@ const PaymentsManagement = () => {
             }
             setBankForm(bankDetailsToForm(response.data.bankDetails));
             setBankMessage('Bank transfer details saved.');
-            await showAlert('Bank transfer details saved.');
         } catch (error) {
             const msg = error.response?.data?.error || error.message || 'Failed to save bank details';
             setBankMessage(msg);
-            await showAlert(msg, { type: 'error' });
+            await showAlert(msg, 'error');
         } finally {
             setBankSaving(false);
         }
     };
 
-    const fetchPayments = useCallback(async () => {
-        try {
+    const fetchPayments = useCallback(async ({ soft = false, page: pageOverride } = {}) => {
+        if (!soft && !hasLoadedOnceRef.current) {
             setLoading(true);
-
-            try {
-                const token = getAuthToken();
-                const response = await axios.get(`${API_BASE_URL}/api/payments`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                    params: listTab === 'trash' ? { trash: '1' } : {},
-                });
-                const fetchedPayments = Array.isArray(response.data.payments) ? response.data.payments : [];
-                setPayments(fetchedPayments);
-                if (typeof response.data.trashCount === 'number') {
-                    setTrashCount(response.data.trashCount);
-                }
-                if (listTab === 'active') {
-                    calculateStats(fetchedPayments);
-                }
-            } catch {
-                setPayments([]);
-                if (listTab === 'active') calculateStats([]);
-            }
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching payments:', error);
-            setLoading(false);
+        } else {
+            setRefreshing(true);
         }
-    }, [listTab]);
+        setFetchError('');
+
+        try {
+            const token = getAuthToken();
+            const effectivePage = pageOverride ?? page;
+            const response = await axios.get(`${API_BASE_URL}/api/payments`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    page: effectivePage,
+                    limit: PAYMENTS_PAGE_SIZE,
+                    search: searchTerm.trim() || undefined,
+                    status: filterStatus !== 'all' ? filterStatus : undefined,
+                    dateRange: dateRange !== 'all' ? dateRange : undefined,
+                    sortBy,
+                    sortOrder,
+                    ...(listTab === 'trash' ? { trash: '1' } : {}),
+                    includeCounts: 1,
+                    includeStats: listTab === 'active' ? 1 : 0,
+                },
+            });
+            const fetchedPayments = Array.isArray(response.data.payments) ? response.data.payments : [];
+            setPayments(fetchedPayments);
+            setTotalPayments(Number(response.data.total) || fetchedPayments.length);
+            if (typeof response.data.trashCount === 'number') {
+                setTrashCount(response.data.trashCount);
+            }
+            if (response.data.stats && listTab === 'active') {
+                setStats(response.data.stats);
+            } else if (listTab === 'active') {
+                calculateStats(fetchedPayments);
+            }
+            hasLoadedOnceRef.current = true;
+            setLastFetchedAt(new Date());
+        } catch (err) {
+            setPayments([]);
+            setTotalPayments(0);
+            if (listTab === 'active') calculateStats([]);
+            if (err.response?.status === 401) {
+                window.location.assign('/admin/login');
+                return;
+            }
+            setFetchError(err.response?.data?.error || err.message || 'Failed to load payments.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [listTab, page, searchTerm, filterStatus, dateRange, sortBy, sortOrder]);
 
     useEffect(() => {
         fetchPayments();
@@ -164,10 +202,25 @@ const PaymentsManagement = () => {
 
     useEffect(() => {
         setSelectedPayments([]);
+        setPage(1);
         if (listTab === 'trash') {
             setFilterStatus('all');
         }
     }, [listTab]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setPage(1);
+            fetchPayments({ soft: true, page: 1 });
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [searchTerm, filterStatus, dateRange, sortBy, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (page !== 1 || hasLoadedOnceRef.current) {
+            fetchPayments({ soft: true, page });
+        }
+    }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const startTableDragScroll = (e) => {
         if (e.button !== 0) return;
@@ -271,7 +324,7 @@ const PaymentsManagement = () => {
             if (isPaymentPaid(payment.status)) {
                 stats.totalRevenue += payment.amount;
                 stats.successfulPayments++;
-            } else if (payment.status === 'pending' || payment.status === 'awaiting_review') {
+            } else if (payment.status === 'pending') {
                 stats.pendingPayments++;
             } else if (payment.status === 'failed') {
                 stats.failedPayments++;
@@ -283,81 +336,34 @@ const PaymentsManagement = () => {
         setStats(stats);
     };
 
-    const filteredPayments = payments.filter(payment => {
-        const matchesSearch = 
-            (payment.user?.name || payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (paymentRegistrationEmail(payment) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (payment.course?.title || payment.courseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (payment.transactionId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (payment.phone || '').toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesStatus =
-            filterStatus === 'all' ||
-            payment.status === filterStatus ||
-            (filterStatus === 'paid' && payment.status === 'completed');
-        
-        // Date filtering (simplified)
-        const paymentDate = new Date(payment.createdAt);
-        const now = new Date();
-        let matchesDate = true;
-        
-        if (dateRange === 'today') {
-            matchesDate = paymentDate.toDateString() === now.toDateString();
-        } else if (dateRange === 'week') {
-            const weekAgo = new Date(now.setDate(now.getDate() - 7));
-            matchesDate = paymentDate >= weekAgo;
-        } else if (dateRange === 'month') {
-            const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-            matchesDate = paymentDate >= monthAgo;
-        }
-        
-        return matchesSearch && matchesStatus && matchesDate;
-    });
+    const sortedPayments = payments;
+
+    const totalPages = Math.max(1, Math.ceil(totalPayments / PAYMENTS_PAGE_SIZE));
+    const currentPage = Math.min(page, totalPages);
+    const paginatedPayments = sortedPayments;
 
     useEffect(() => {
-        const visibleIds = new Set(filteredPayments.map((payment) => payment._id));
-        setSelectedPayments((prev) => {
-            const next = prev.filter((id) => visibleIds.has(id));
-            return next.length === prev.length ? prev : next;
-        });
-    }, [filteredPayments]);
-
-    const sortedPayments = [...filteredPayments].sort((a, b) => {
-        const mult = sortOrder === 'asc' ? 1 : -1;
-        const getVal = (p, key) => {
-            if (key === 'transactionId') return (p.transactionId || '').toLowerCase();
-            if (key === 'student') return (p.user?.name || p.studentName || '').toLowerCase();
-            if (key === 'course') return (p.course?.title || p.courseName || '').toLowerCase();
-            if (key === 'amount') return Number(p.amount) || 0;
-            if (key === 'email') return paymentRegistrationEmail(p).toLowerCase();
-            if (key === 'phone') return (p.phone || '').toLowerCase();
-            if (key === 'status') return (p.status || '').toLowerCase();
-            if (key === 'method') return (p.paymentMethod || '').toLowerCase();
-            if (key === 'date') return new Date(p.createdAt || 0).getTime();
-            return 0;
-        };
-        const va = getVal(a, sortBy);
-        const vb = getVal(b, sortBy);
-        if (typeof va === 'string' && typeof vb === 'string') return mult * va.localeCompare(vb);
-        return mult * (va < vb ? -1 : va > vb ? 1 : 0);
-    });
+        if (page > totalPages) {
+            setPage(totalPages);
+        }
+    }, [page, totalPages]);
 
     const toggleAllPayments = () => {
-        const visibleIds = sortedPayments.map((payment) => payment._id);
+        const visibleIds = paginatedPayments.map((payment) => payment._id);
         const allVisibleSelected = visibleIds.every((id) => selectedPayments.includes(id));
         if (visibleIds.length > 0 && allVisibleSelected) {
-            setSelectedPayments([]);
+            setSelectedPayments((prev) => prev.filter((id) => !visibleIds.includes(id)));
         } else {
-            setSelectedPayments(visibleIds);
+            setSelectedPayments((prev) => [...new Set([...prev, ...visibleIds])]);
         }
     };
 
     const handleDeleteSelectedPayments = async () => {
         if (!selectedPayments.length || listTab !== 'active') return;
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: `Move ${selectedPayments.length} selected payment record(s) to trash? You can restore them from the Trash tab.`,
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `Move ${selectedPayments.length} selected payment record(s) to ${QUARANTINE_LABEL}? You can restore them from the ${QUARANTINE_LABEL} tab.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) return;
 
@@ -411,16 +417,26 @@ const PaymentsManagement = () => {
         setTrashBusy(true);
         try {
             const token = getAuthToken();
-            await Promise.all(
+            const results = await Promise.allSettled(
                 selectedPayments.map((id) =>
                     axios.patch(`${API_BASE_URL}/api/payments/${id}/restore`, null, {
                         headers: { Authorization: `Bearer ${token}` },
                     })
                 )
             );
+            const failed = results.filter((r) => r.status === 'rejected');
             setSelectedPayments([]);
-            await fetchPayments();
-            showAlert('Selected payments restored.', 'success');
+            await fetchPayments({ soft: true });
+            if (failed.length === 0) {
+                showAlert('Selected payments restored.', 'success');
+            } else if (failed.length < results.length) {
+                showAlert(
+                    `${results.length - failed.length} restored, ${failed.length} failed.`,
+                    'warning'
+                );
+            } else {
+                showAlert('Failed to restore selected payments.', 'error');
+            }
         } catch (error) {
             showAlert(error.response?.data?.error || 'Failed to restore payments.', 'error');
         } finally {
@@ -491,23 +507,32 @@ const PaymentsManagement = () => {
         }
     };
 
-    const selectedVisibleCount = sortedPayments.filter((payment) => selectedPayments.includes(payment._id)).length;
+    const selectedVisibleCount = paginatedPayments.filter((payment) => selectedPayments.includes(payment._id)).length;
 
     useEffect(() => {
         if (!selectAllRef.current) return;
         const isIndeterminate =
-            sortedPayments.length > 0 &&
+            paginatedPayments.length > 0 &&
             selectedVisibleCount > 0 &&
-            selectedVisibleCount < sortedPayments.length;
+            selectedVisibleCount < paginatedPayments.length;
         selectAllRef.current.indeterminate = isIndeterminate;
-    }, [selectedVisibleCount, sortedPayments.length]);
+    }, [selectedVisibleCount, paginatedPayments.length]);
+
+    useEffect(() => {
+        if (!receiptModal) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') setReceiptModal(null);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [receiptModal]);
 
     const handleDeletePayment = async (paymentId) => {
         if (listTab !== 'active') return;
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: 'Move this payment record to trash? You can restore it from the Trash tab.',
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `Move this payment record to ${QUARANTINE_LABEL}? You can restore it from the ${QUARANTINE_LABEL} tab.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) return;
 
@@ -625,24 +650,28 @@ const PaymentsManagement = () => {
         doc.save(fileName);
     };
 
-    const exportPayments = () => {
-        if (!filteredPayments.length) return;
+    const exportPayments = async () => {
+        if (!totalPayments) {
+            await showAlert('No payments to export. Adjust your search or filters.', 'warning');
+            return;
+        }
 
-        const csvData = filteredPayments.map((p) => ({
+        const csvData = payments.map((p) => ({
             'Transaction ID': p.transactionId,
             Student: p.user?.name || p.studentName || 'Unknown',
             Email: paymentRegistrationEmail(p),
             Phone: p.phone || '',
             Course: p.course?.title || p.courseName || 'Unknown Course',
             Amount: `$${p.amount}`,
-            Status: p.status,
+            Status: formatPaymentStatus(p.status),
             'Payment Method': p.paymentMethod,
             'Date & Time': new Date(p.createdAt).toLocaleString(),
         }));
 
+        const headers = Object.keys(csvData[0]);
         const csvContent = [
-            Object.keys(csvData[0]).join(','),
-            ...csvData.map((row) => Object.values(row).join(',')),
+            headers.map(csvEscape).join(','),
+            ...csvData.map((row) => headers.map((key) => csvEscape(row[key])).join(',')),
         ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -651,6 +680,7 @@ const PaymentsManagement = () => {
         a.href = url;
         a.download = `payments_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
+        window.URL.revokeObjectURL(url);
     };
 
     const onStatCardKeyDown = (event, status) => {
@@ -660,7 +690,7 @@ const PaymentsManagement = () => {
         }
     };
 
-    if (loading) {
+    if (loading && !lastFetchedAt && !fetchError) {
         return (
             <div className="payments-management loading">
                 <div className="loading-spinner">
@@ -673,16 +703,14 @@ const PaymentsManagement = () => {
 
     return (
         <div className="payments-management">
+            {fetchError ? (
+                <div className="admin-fetch-error" role="alert">{fetchError}</div>
+            ) : null}
             {/* Header */}
             <div className="page-header">
                 <div className="header-left">
                     <h1><i className="fas fa-credit-card"></i> Payment Management</h1>
                     <p>Monitor and manage all payment transactions</p>
-                </div>
-                <div className="header-right">
-                    <button className="btn-primary" onClick={exportPayments}>
-                        <i className="fas fa-download"></i> Export CSV
-                    </button>
                 </div>
             </div>
 
@@ -692,14 +720,14 @@ const PaymentsManagement = () => {
                     className={`payments-list-tab ${listTab === 'active' ? 'active' : ''}`}
                     onClick={() => setListTab('active')}
                 >
-                    <i className="fas fa-list" /> Payments
+                    <i className="fas fa-list" /> {ACTIVE_RECORDS_LABEL}
                 </button>
                 <button
                     type="button"
                     className={`payments-list-tab payments-list-tab--trash ${listTab === 'trash' ? 'active' : ''}`}
                     onClick={() => setListTab('trash')}
                 >
-                    <i className="fas fa-trash-alt" /> Trash
+                    <i className="fas fa-archive" /> {QUARANTINE_LABEL}
                     {trashCount > 0 ? <span className="admin-list-tab-badge">{trashCount}</span> : null}
                 </button>
             </div>
@@ -783,7 +811,7 @@ const PaymentsManagement = () => {
                             {bankMessage ? <span className="payments-bank-config__msg">{bankMessage}</span> : null}
                             <button
                                 type="button"
-                                className="btn-primary"
+                                className="btn-primary btn-save"
                                 onClick={saveBankDetails}
                                 disabled={bankSaving}
                             >
@@ -800,12 +828,12 @@ const PaymentsManagement = () => {
             {listTab === 'active' ? (
             <div className="stats-grid">
                 <div
-                    className={`stat-card revenue ${filterStatus === 'all' ? 'filter-active' : ''}`}
+                    className={`stat-card revenue ${filterStatus === 'paid' ? 'filter-active' : ''}`}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setFilterStatus('all')}
-                    onKeyDown={(e) => onStatCardKeyDown(e, 'all')}
-                    title="Show all payments"
+                    onClick={() => setFilterStatus('paid')}
+                    onKeyDown={(e) => onStatCardKeyDown(e, 'paid')}
+                    title="Show paid payments"
                 >
                     <div className="stat-icon revenue">
                         <i className="fas fa-dollar-sign"></i>
@@ -904,6 +932,7 @@ const PaymentsManagement = () => {
                         <option value="paid">Paid</option>
                         <option value="awaiting_review">Awaiting review</option>
                         <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
                         <option value="rejected">Rejected</option>
                         <option value="failed">Failed</option>
                         <option value="refunded">Refunded</option>
@@ -920,8 +949,18 @@ const PaymentsManagement = () => {
                         <option value="month">Last 30 Days</option>
                     </select>
                     
-                    <button className="refresh-btn" onClick={fetchPayments}>
-                        <i className="fas fa-sync-alt"></i> Refresh
+                    <button
+                        className={`refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
+                        onClick={() => fetchPayments({ soft: true })}
+                        disabled={refreshing}
+                        type="button"
+                        title="Refresh"
+                        aria-label="Refresh"
+                    >
+                        <i className={`fas fa-sync-alt ${refreshing ? 'fa-spin' : ''}`}></i>
+                    </button>
+                    <button type="button" className="btn-secondary download-btn" onClick={exportPayments}>
+                        <i className="fas fa-file-export"></i> Download CSV
                     </button>
                 </div>
             </div>
@@ -946,7 +985,7 @@ const PaymentsManagement = () => {
                                 className="bulk-btn delete-btn"
                                 onClick={handleDeleteSelectedPayments}
                             >
-                                <i className="fas fa-trash"></i> Move to trash
+                                <i className="fas fa-archive"></i> Move to {QUARANTINE_LABEL}
                             </button>
                         ) : (
                             <>
@@ -984,7 +1023,14 @@ const PaymentsManagement = () => {
                 <table className="payments-table">
                     <colgroup>
                         {COLUMN_DEFS.map((key, idx) => (
-                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
+                            <col
+                                key={key}
+                                style={
+                                    key === 'actions'
+                                        ? { width: '1%' }
+                                        : { width: `${columnWidths[idx]}px` }
+                                }
+                            />
                         ))}
                     </colgroup>
                     <thead>
@@ -993,7 +1039,7 @@ const PaymentsManagement = () => {
                                 <input
                                     ref={selectAllRef}
                                     type="checkbox"
-                                    checked={sortedPayments.length > 0 && selectedVisibleCount === sortedPayments.length}
+                                    checked={paginatedPayments.length > 0 && selectedVisibleCount === paginatedPayments.length}
                                     onChange={toggleAllPayments}
                                 />
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
@@ -1043,14 +1089,14 @@ const PaymentsManagement = () => {
                                 {sortBy === 'date' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 9)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(9); }} />
                             </th>
-                            <th>
+                            <th className="action-col">
                                 Actions
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 10)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(10); }} />
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedPayments.map((payment) => (
+                        {paginatedPayments.map((payment) => (
                             <tr key={payment._id} className={selectedPayments.includes(payment._id) ? 'selected' : ''}>
                                 <td className="checkbox-cell">
                                     <input
@@ -1106,7 +1152,9 @@ const PaymentsManagement = () => {
                                     </span>
                                 </td>
                                 <td>
-                                    {paymentRegistrationEmail(payment) || 'No email'}
+                                    <span className="admin-email">
+                                        {paymentRegistrationEmail(payment) || 'No email'}
+                                    </span>
                                 </td>
                                 <td className="phone-cell">{payment.phone || '—'}</td>
                                 <td>
@@ -1114,6 +1162,11 @@ const PaymentsManagement = () => {
                                         <i className={`fas fa-${getStatusIcon(payment.status)}`}></i>
                                         {formatPaymentStatus(payment.status)}
                                     </span>
+                                    {payment.failureReason ? (
+                                        <div className="payment-failure-reason" title={payment.failureReason}>
+                                            {payment.failureReason}
+                                        </div>
+                                    ) : null}
                                 </td>
                                 <td>
                                     <span className={`method-badge ${methodBadgeClass(payment.paymentMethod)}`}>
@@ -1128,7 +1181,7 @@ const PaymentsManagement = () => {
                                             : '—'
                                         : new Date(payment.createdAt).toLocaleString()}
                                 </td>
-                                <td>
+                                <td className="action-col cell-actions">
                                     <div className="action-buttons">
                                         {listTab === 'active' ? (
                                             <>
@@ -1138,7 +1191,7 @@ const PaymentsManagement = () => {
                                                         title="View receipt"
                                                         onClick={() => setReceiptModal(payment)}
                                                     >
-                                                        <i className="fas fa-receipt"></i>
+                                                        <i className="fas fa-receipt"></i> Receipt
                                                     </button>
                                                 ) : null}
                                                 {canOpenStudentFromPayment(payment) ? (
@@ -1147,7 +1200,7 @@ const PaymentsManagement = () => {
                                                         title="Open in Students"
                                                         to={`/admin/students?email=${encodeURIComponent(paymentRegistrationEmail(payment) || '')}`}
                                                     >
-                                                        <i className="fas fa-user-graduate"></i>
+                                                        <i className="fas fa-user-graduate"></i> Student
                                                     </Link>
                                                 ) : null}
                                                 <button
@@ -1155,14 +1208,14 @@ const PaymentsManagement = () => {
                                                     title="Download Invoice"
                                                     onClick={() => downloadInvoice(payment)}
                                                 >
-                                                    <i className="fas fa-file-invoice"></i>
+                                                    <i className="fas fa-file-invoice"></i> Invoice
                                                 </button>
                                                 <button
                                                     className="action-btn delete-btn"
-                                                    title="Move to trash"
+                                                    title={`Move to ${QUARANTINE_LABEL}`}
                                                     onClick={() => handleDeletePayment(payment._id)}
                                                 >
-                                                    <i className="fas fa-trash"></i>
+                                                    <i className="fas fa-trash"></i> Delete
                                                 </button>
                                             </>
                                         ) : (
@@ -1173,7 +1226,7 @@ const PaymentsManagement = () => {
                                                     disabled={trashBusy}
                                                     onClick={() => handleRestorePayment(payment._id)}
                                                 >
-                                                    <i className="fas fa-undo"></i>
+                                                    <i className="fas fa-undo"></i> Restore
                                                 </button>
                                                 <button
                                                     className="action-btn delete-btn"
@@ -1181,7 +1234,7 @@ const PaymentsManagement = () => {
                                                     disabled={trashBusy}
                                                     onClick={() => handlePermanentDelete(payment._id)}
                                                 >
-                                                    <i className="fas fa-trash-alt"></i>
+                                                    <i className="fas fa-times-circle"></i> Delete forever
                                                 </button>
                                             </>
                                         )}
@@ -1201,24 +1254,51 @@ const PaymentsManagement = () => {
                 )}
             </div>
 
+            {sortedPayments.length > 0 ? (
+                <div className="payments-pagination">
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={currentPage <= 1 || refreshing}
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    >
+                        <i className="fas fa-chevron-left" /> Prev
+                    </button>
+                    <span className="payments-pagination__info">
+                        Page {currentPage} of {totalPages} | {totalPayments} matching payment
+                        {sortedPayments.length === 1 ? '' : 's'}
+                    </span>
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={currentPage >= totalPages || refreshing}
+                        onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                    >
+                        Next <i className="fas fa-chevron-right" />
+                    </button>
+                </div>
+            ) : null}
+
             {/* Summary Footer */}
             <div className="summary-footer">
                 <div className="summary-item">
                     <span className="summary-label">Showing</span>
-                    <span className="summary-value">{filteredPayments.length} of {payments.length} payments</span>
+                    <span className="summary-value">{totalPayments} payment{totalPayments === 1 ? '' : 's'}</span>
                 </div>
                 <div className="summary-item">
                     <span className="summary-label">Filtered Revenue</span>
                     <span className="summary-value">
-                        ${filteredPayments
+                        ${payments
                             .filter((p) => isPaymentPaid(p.status))
-                            .reduce((sum, p) => sum + p.amount, 0)
+                            .reduce((sum, p) => sum + Number(p.amount || 0), 0)
                             .toFixed(2)}
                     </span>
                 </div>
                 <div className="summary-item">
                     <span className="summary-label">Last Updated</span>
-                    <span className="summary-value">{new Date().toLocaleTimeString()}</span>
+                    <span className="summary-value">
+                        {lastFetchedAt ? lastFetchedAt.toLocaleString() : '—'}
+                    </span>
                 </div>
             </div>
 

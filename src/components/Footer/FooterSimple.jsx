@@ -20,15 +20,15 @@ const FooterSimple = () => {
           loading="lazy"
           pictureClassName="footer-milky-bg-picture"
           className="footer-milky-bg-img"
-          width={1024}
-          height={576}
+          width={1920}
+          height={600}
         />
       </div>
 
       <div className="footer-milky-inner">
         <div className="footer-milky-top">
           <div className="footer-milky-copy">
-            <h2 className="footer-milky-title">Learn, Reflect & Know Yourself!</h2>
+            <h2 className="footer-milky-title">Learn, Reflect, and Know Yourself!</h2>
             <p className="footer-milky-subtitle">Gorythm: An initiative of Al-Farhan Institute</p>
 
             <nav className="footer-milky-nav" aria-label="Footer navigation">
@@ -84,7 +84,7 @@ const FooterSimple = () => {
 
         <div className="footer-milky-bottom">
           <div className="footer-milky-copyright">
-            GorythmAcademy © 2026. All rights reserved.
+            Gorythm Academy © 2026. All rights reserved.
           </div>
         </div>
       </div>

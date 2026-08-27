@@ -5,7 +5,8 @@ const { allowRoles } = require('../middleware/authorize');
 const ResearchPost = require('../models/ResearchPost');
 const { deleteImageFile } = require('../utils/researchImageStorage');
 const { activeLmsFilter, trashedLmsFilter, parseTrashQuery } = require('../utils/lmsTrashQuery');
-const { softDeleteMany, restoreMany, permanentDeleteMany, countTrashed } = require('../services/lmsTrashOps');
+const { countTrashed } = require('../services/lmsTrashOps');
+const { sanitizeHtml } = require('../utils/sanitizeHtml');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -53,7 +54,7 @@ function serializePost(doc) {
         slug: o.slug,
         title: o.title,
         excerpt: o.excerpt || '',
-        content: o.content || '',
+        content: sanitizeHtml(o.content || ''),
         contentFormat: o.contentFormat || 'article',
         seriesData: o.seriesData || null,
         imagePath: o.imagePath || '',

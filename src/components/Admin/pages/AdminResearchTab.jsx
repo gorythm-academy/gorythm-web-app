@@ -1,18 +1,25 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
-import { getAuthToken } from '../../../utils/authStorage';
-import { API_BASE_URL } from '../../../config/constants';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  adminApiDelete,
+  adminApiGet,
+  adminApiPatch,
+  adminApiPost,
+} from '../../../utils/adminApi';
 import {
   cleanupResearchImage,
   deleteResearchGalleryImage,
+  fetchResearchGalleryImages,
   renameResearchImage,
   uploadResearchImage,
 } from '../../../utils/fileUploadApi';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { slugifyResearchTitle } from '../../../utils/researchPosts';
 import { useAdminDialog } from '../AdminDialogContext';
+import AdminMediaGallery from '../shared/AdminMediaGallery';
 import LmsTrashTabs from '../shared/LmsTrashTabs';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import LmsCollapsibleFormPanel from '../shared/LmsCollapsibleFormPanel';
+import LmsMaterialPreviewModal from '../shared/LmsMaterialPreviewModal';
 
 const baseNameFromImagePath = (imagePath) => {
   if (!imagePath) return '';
@@ -67,46 +74,44 @@ const AdminResearchTab = () => {
   const [listMode, setListMode] = useState('active');
   const [trashCount, setTrashCount] = useState(0);
   const [formExpanded, setFormExpanded] = useState(true);
+  const [researchPreview, setResearchPreview] = useState(null);
   const savedImageRef = useRef('');
+  const sessionUploadedPathsRef = useRef(new Set());
   const imageUploadLockRef = useRef(false);
   const imageDragCounterRef = useRef(0);
   const imageInputRef = useRef(null);
   const slugTouchedRef = useRef(false);
 
-  const authHeaders = useCallback(() => {
-    const token = getAuthToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
-
   const loadPosts = useCallback(async () => {
     setLoading(true);
     try {
       const trashQ = listMode === 'trash' ? '?trash=1' : '';
-      const res = await axios.get(`${API_BASE_URL}/api/admin/research${trashQ}`, { headers: authHeaders() });
-      setPosts(res.data?.posts || []);
-      if (typeof res.data?.trashCount === 'number') setTrashCount(res.data.trashCount);
+      const data = await adminApiGet(`/research${trashQ}`);
+      setPosts(data?.posts || []);
+      if (typeof data?.trashCount === 'number') setTrashCount(data.trashCount);
     } catch (err) {
-      showAlert(err.response?.data?.error || err.message, 'error');
+      showAlert(err.message, 'error');
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, showAlert, listMode]);
+  }, [showAlert, listMode]);
 
   const fetchGalleryImages = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) return;
     setGalleryLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/admin/research-images`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setGalleryImages(res.data?.images || []);
+      const images = await fetchResearchGalleryImages();
+      setGalleryImages(images);
     } catch {
       setGalleryImages([]);
     } finally {
       setGalleryLoading(false);
     }
   }, []);
+
+  const brokenGalleryCount = useMemo(
+    () => galleryImages.filter((img) => img.onDisk === false).length,
+    [galleryImages]
+  );
 
   useEffect(() => {
     loadPosts();
@@ -116,13 +121,15 @@ const AdminResearchTab = () => {
   const resetForm = () => {
     const pending = form.imagePath;
     const saved = savedImageRef.current;
+    const sessionUploads = sessionUploadedPathsRef.current;
     setForm(EMPTY_FORM);
     setEditingId(null);
     setImageFileName('');
     setPendingImageExt('.webp');
     savedImageRef.current = '';
     slugTouchedRef.current = false;
-    if (pending && pending !== saved) {
+    sessionUploadedPathsRef.current = new Set();
+    if (pending && pending !== saved && sessionUploads.has(pending)) {
       cleanupResearchImage(pending);
     }
   };
@@ -130,6 +137,7 @@ const AdminResearchTab = () => {
   const startEdit = (post) => {
     setFormExpanded(true);
     savedImageRef.current = post.imagePath || '';
+    sessionUploadedPathsRef.current = new Set();
     slugTouchedRef.current = true;
     setEditingId(post.id);
     setForm({
@@ -180,10 +188,10 @@ const AdminResearchTab = () => {
     }
 
     imageUploadLockRef.current = true;
-    const replacePath = form.imagePath;
     setUploadingImage(true);
     try {
-      const path = await uploadResearchImage(file, replacePath, filenameForUpload);
+      const path = await uploadResearchImage(file, '', filenameForUpload);
+      sessionUploadedPathsRef.current.add(path);
       setForm((f) => ({ ...f, imagePath: path }));
       setImageFileName(baseNameFromImagePath(path));
       setPendingImageExt(extFromFileName(path.split('/').pop()));
@@ -246,25 +254,19 @@ const AdminResearchTab = () => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
     if (!image?.path) return;
-    if (image.usedBy > 0) {
-      const names = image.usedByTitles?.filter(Boolean).join(', ');
-      showAlert(
-        names
-          ? `Used by: ${names}. Edit those articles, clear the image, save, then delete.`
-          : `This image is used by ${image.usedBy} article(s). Clear it from those articles first.`,
-        'warning'
-      );
-      return;
-    }
     const confirmed = await showConfirm({
       title: 'Delete image?',
-      message: 'This will permanently remove the file from the server.',
+      message:
+        image.usedBy > 0
+          ? `Used by ${image.usedBy} article(s). Delete anyway and clear it from those articles?`
+          : 'This will permanently remove the file from the server.',
       confirmLabel: 'Delete',
+      destructive: true,
     });
     if (!confirmed) return;
 
     try {
-      await deleteResearchGalleryImage(image.path);
+      await deleteResearchGalleryImage(image.path, { force: image.usedBy > 0 });
       if (form.imagePath === image.path) {
         setForm((f) => ({ ...f, imagePath: '' }));
         setImageFileName('');
@@ -316,19 +318,17 @@ const AdminResearchTab = () => {
     };
     try {
       if (editingId) {
-        await axios.patch(`${API_BASE_URL}/api/admin/research/${editingId}`, payload, {
-          headers: authHeaders(),
-        });
+        await adminApiPatch(`/research/${editingId}`, payload);
         showAlert('Research article updated.', 'success');
       } else {
-        await axios.post(`${API_BASE_URL}/api/admin/research`, payload, { headers: authHeaders() });
+        await adminApiPost('/research', payload);
         showAlert('Research article published.', 'success');
       }
       savedImageRef.current = imagePath;
       resetForm();
       await Promise.all([loadPosts(), fetchGalleryImages()]);
     } catch (err) {
-      showAlert(err.response?.data?.error || err.message, 'error');
+      showAlert(err.message, 'error');
     } finally {
       setSaving(false);
     }
@@ -356,25 +356,23 @@ const AdminResearchTab = () => {
     if (!ok) return;
     setDeleting(true);
     try {
-      const headers = authHeaders();
-      let res;
+      let data;
       if (action === 'trash') {
-        res =
+        data =
           idList.length === 1
-            ? await axios.delete(`${API_BASE_URL}/api/admin/research/${idList[0]}`, { headers })
-            : await axios.post(`${API_BASE_URL}/api/admin/research/bulk-delete`, { ids: idList }, { headers });
+            ? await adminApiDelete(`/research/${idList[0]}`)
+            : await adminApiPost('/research/bulk-delete', { ids: idList });
       } else if (action === 'restore') {
-        res =
+        data =
           idList.length === 1
-            ? await axios.patch(`${API_BASE_URL}/api/admin/research/${idList[0]}/restore`, {}, { headers })
-            : await axios.post(`${API_BASE_URL}/api/admin/research/bulk-restore`, { ids: idList }, { headers });
+            ? await adminApiPatch(`/research/${idList[0]}/restore`, {})
+            : await adminApiPost('/research/bulk-restore', { ids: idList });
       } else {
-        res =
+        data =
           idList.length === 1
-            ? await axios.delete(`${API_BASE_URL}/api/admin/research/${idList[0]}/permanent`, { headers })
-            : await axios.post(`${API_BASE_URL}/api/admin/research/bulk-permanent-delete`, { ids: idList }, { headers });
+            ? await adminApiDelete(`/research/${idList[0]}/permanent`)
+            : await adminApiPost('/research/bulk-permanent-delete', { ids: idList });
       }
-      const data = res.data || {};
       const n = data.deletedCount ?? data.restoredCount ?? idList.length;
       const verb = action === 'trash' ? 'moved to trash' : action === 'restore' ? 'restored' : 'deleted forever';
       showAlert(`${n} article${n !== 1 ? 's' : ''} ${verb}.`, 'success');
@@ -382,7 +380,7 @@ const AdminResearchTab = () => {
       if (editingId && idList.includes(editingId)) resetForm();
       await Promise.all([loadPosts(), fetchGalleryImages()]);
     } catch (err) {
-      showAlert(err.response?.data?.error || err.message, 'error');
+      showAlert(err.message, 'error');
     } finally {
       setDeleting(false);
     }
@@ -520,40 +518,27 @@ const AdminResearchTab = () => {
                 <p className="research-image-upload__hint">JPEG, PNG, WebP or AVIF · large images are auto-compressed · drag &amp; drop supported</p>
               </div>
             </div>
-            {galleryImages.length > 0 ? (
+            {galleryImages.length > 0 || galleryLoading ? (
               <div className="research-image-upload__gallery">
-                {galleryImages.map((img) => {
-                  const isSelected = form.imagePath === img.path;
-                  return (
-                    <div
-                      key={img.path}
-                      className={`course-image-section__tile${isSelected ? ' is-selected' : ''}`}
-                      style={{ margin: 0 }}
-                    >
-                      <button
-                        type="button"
-                        className="course-image-section__tile-select"
-                        onClick={() => selectGalleryImage(img.path)}
-                        title={img.usedByTitles?.join(', ') || 'Select image'}
-                      >
-                        <img src={resolveMediaUrl(img.path)} alt="" loading="lazy" />
-                        {isSelected ? (
-                          <span className="course-image-section__tile-badge">
-                            <i className="fas fa-check" aria-hidden />
-                          </span>
-                        ) : null}
-                      </button>
-                      <button
-                        type="button"
-                        className="course-image-section__tile-delete"
-                        onClick={(e) => handleDeleteGalleryImage(img, e)}
-                        title="Delete image"
-                      >
-                        <i className="fas fa-trash-alt" aria-hidden />
-                      </button>
-                    </div>
-                  );
-                })}
+                {brokenGalleryCount > 0 ? (
+                  <p className="promo-thumb-gallery__warning" role="status">
+                    <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+                    <strong>
+                      {brokenGalleryCount} image file{brokenGalleryCount === 1 ? '' : 's'} missing on disk
+                    </strong>
+                    — re-upload and save the article to fix.
+                  </p>
+                ) : null}
+                <AdminMediaGallery
+                  images={galleryImages}
+                  loading={galleryLoading}
+                  selectedPath={form.imagePath}
+                  onSelect={selectGalleryImage}
+                  onDelete={handleDeleteGalleryImage}
+                  showFilename={false}
+                  emptyMessage="No cover images uploaded yet."
+                  gridClassName="research-image-upload__gallery-grid"
+                />
               </div>
             ) : null}
           </div>
@@ -585,7 +570,11 @@ const AdminResearchTab = () => {
         </label>
 
         <div className="lms-form-actions" style={{ gridColumn: '1 / -1' }}>
-          <button type="submit" disabled={saving || uploadingImage}>
+          <button
+            type="submit"
+            className={`btn-primary ${editingId ? 'btn-save' : 'btn-add'}`}
+            disabled={saving || uploadingImage}
+          >
             {saving ? 'Saving…' : editingId ? 'Save changes' : 'Publish article'}
           </button>
           {editingId ? (
@@ -718,6 +707,13 @@ const AdminResearchTab = () => {
                         </>
                       ) : (
                         <>
+                          <button
+                            type="button"
+                            className="lms-btn-secondary"
+                            onClick={() => setResearchPreview(post)}
+                          >
+                            <i className="fas fa-eye" aria-hidden /> Preview
+                          </button>
                           <button type="button" className="lms-btn-secondary" onClick={() => startEdit(post)}>
                             Edit
                           </button>
@@ -727,7 +723,7 @@ const AdminResearchTab = () => {
                             onClick={() => handlePosts('trash', [post.id], 'Move this article to trash?')}
                             disabled={deleting}
                           >
-                            <i className="fas fa-trash" aria-hidden /> Trash
+                            <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
                           </button>
                         </>
                       )}
@@ -739,13 +735,19 @@ const AdminResearchTab = () => {
             {!posts.length ? (
               <p className="lms-empty">
                 {isTrashView
-                  ? 'Trash is empty.'
+                  ? `${QUARANTINE_LABEL} is empty.`
                   : 'No uploaded articles yet. Built-in research posts remain on the site until you add new ones here.'}
               </p>
             ) : null}
           </div>
         ) : null}
       </div>
+      <LmsMaterialPreviewModal
+        open={Boolean(researchPreview)}
+        kind="research"
+        item={researchPreview}
+        onClose={() => setResearchPreview(null)}
+      />
     </div>
   );
 };

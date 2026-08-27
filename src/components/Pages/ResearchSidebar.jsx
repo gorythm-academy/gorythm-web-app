@@ -1,12 +1,14 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ResearchPostImage from './ResearchPostImage';
+import { buildResearchListQuery, formatTagLabel } from '../../utils/researchListParams';
 
 const ResearchSidebar = ({
   posts = [],
   searchInputValue,
   setSearchInputValue,
   onSearchSubmit,
+  activeTagSlug = '',
   asideRef,
   stickyRef,
   stickyMode = 'static',
@@ -24,22 +26,22 @@ const ResearchSidebar = ({
       });
     });
     return Object.entries(counts)
-      .map(([slug, count]) => ({ slug, name: slug, count }))
+      .map(([slug, count]) => ({ slug, name: formatTagLabel(slug), count }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [posts]);
 
   return (
-    <aside ref={asideRef} className="blog-sidebar" style={asideStyle}>
+    <aside ref={asideRef} className="research-sidebar" style={asideStyle}>
       <div
         ref={stickyRef}
-        className={`blog-sidebar-sticky blog-sidebar-sticky--${stickyMode}`}
+        className={`research-sidebar-sticky research-sidebar-sticky--${stickyMode}`}
         style={stickyStyle}
       >
-        <div className="blog-widget blog-widget-search">
-          <h3 className="blog-widget-title">Search</h3>
-          <div className="blog-search-wrap">
+        <div className="research-widget research-widget-search">
+          <h3 className="research-widget-title">Search</h3>
+          <div className="research-search-wrap">
             <form
-              className="blog-search-form"
+              className="research-search-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (isControlled) onSearchSubmit();
@@ -50,25 +52,25 @@ const ResearchSidebar = ({
               <input
                 type="search"
                 placeholder="Search by keywords..."
-                className="blog-search-input"
+                className="research-search-input"
                 value={isControlled ? searchInputValue : undefined}
                 onChange={isControlled ? (e) => setSearchInputValue(e.target.value) : undefined}
-                aria-label="Search research (press Enter to search)"
+                aria-label="Search research"
               />
-              <span className="blog-search-icon" aria-hidden="true">
+              <button type="submit" className="research-search-submit" aria-label="Search">
                 ⌕
-              </span>
+              </button>
             </form>
           </div>
         </div>
 
-        <div className="blog-widget blog-widget-recent">
-          <h3 className="blog-widget-title">Recent Articles</h3>
-          <ul className="blog-recent-list">
+        <div className="research-widget research-widget-recent">
+          <h3 className="research-widget-title">Recent Articles</h3>
+          <ul className="research-recent-list">
             {posts.slice(0, 3).map((post) => (
               <li key={post.id || post.slug}>
-                <Link to={`/research/${post.slug}`} className="blog-recent-item">
-                  <span className="blog-recent-thumb research-image-canvas research-image-canvas--thumb">
+                <Link to={`/research/${post.slug}`} className="research-recent-item">
+                  <span className="research-recent-thumb research-image-canvas research-image-canvas--thumb">
                     <ResearchPostImage
                       post={post}
                       loading="lazy"
@@ -77,9 +79,9 @@ const ResearchSidebar = ({
                       sizes="280px"
                     />
                   </span>
-                  <span className="blog-recent-text">
-                    <span className="blog-recent-title">{post.title}</span>
-                    <span className="blog-recent-date">{post.date}</span>
+                  <span className="research-recent-text">
+                    <span className="research-recent-title">{post.title}</span>
+                    <span className="research-recent-date">{post.date}</span>
                   </span>
                 </Link>
               </li>
@@ -88,11 +90,16 @@ const ResearchSidebar = ({
         </div>
 
         {tagEntries.length > 0 ? (
-          <div className="blog-widget blog-widget-tags">
-            <h3 className="blog-widget-title">Tags</h3>
-            <div className="blog-tags-wrap">
+          <div className="research-widget research-widget-tags">
+            <h3 className="research-widget-title">Tags</h3>
+            <div className="research-tags-wrap">
               {tagEntries.map((tag) => (
-                <Link key={tag.slug} to={`/research?tag=${tag.slug}`} className="blog-tag">
+                <Link
+                  key={tag.slug}
+                  to={`/research${buildResearchListQuery({ tag: tag.slug })}`}
+                  className={`research-tag${activeTagSlug === tag.slug ? ' research-tag--active' : ''}`}
+                  aria-current={activeTagSlug === tag.slug ? 'true' : undefined}
+                >
                   {tag.name} ({tag.count})
                 </Link>
               ))}

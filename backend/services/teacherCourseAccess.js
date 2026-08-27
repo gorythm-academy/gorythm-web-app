@@ -7,8 +7,8 @@ async function teacherCanAccessCourse(teacherId, courseId) {
 
     const asInstructor = await Course.findOne({
         _id: courseId,
-        instructor: teacherId,
         ...activeCourseFilter(),
+        $or: [{ instructor: teacherId }, { instructors: teacherId }],
     }).select('_id');
 
     if (asInstructor) return true;
@@ -34,8 +34,8 @@ async function getTeacherCourseIds(teacherId) {
     if (!teacherId) return [];
 
     const instructorIds = await Course.find({
-        instructor: teacherId,
         ...activeCourseFilter(),
+        $or: [{ instructor: teacherId }, { instructors: teacherId }],
     }).distinct('_id');
 
     const scheduleCourseIds = await ClassSchedule.find({ teacher: teacherId }).distinct('course');

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader, PortalCourseToolbar } from '../shared/PortalUi';
-import { absFileUrl } from '../../../utils/fileUrl';
+import SubmissionFiles from '../shared/SubmissionFiles';
 import { markPortalPageVisited } from '../../../utils/portalNewItems';
 import './StudentContent.scss';
 
@@ -13,8 +13,16 @@ function resourceTypeLabel(type) {
   return 'File';
 }
 
+function resourceAttachments(resource) {
+  if (Array.isArray(resource.attachments) && resource.attachments.length) {
+    return resource.attachments.filter(Boolean);
+  }
+  return resource.fileUrl ? [resource.fileUrl] : [];
+}
+
 function ResourceRow({ resource }) {
-  const { type, title, fileUrl, description } = resource;
+  const { type, title, description } = resource;
+  const attachments = resourceAttachments(resource);
 
   if (type === 'note') {
     return (
@@ -25,9 +33,24 @@ function ResourceRow({ resource }) {
         </td>
         <td>{resourceTypeLabel(type)}</td>
         <td>
-          {fileUrl ? (
-            <a href={absFileUrl(fileUrl)} target="_blank" rel="noreferrer">
-              Open attachment
+          {attachments.length ? <SubmissionFiles attachments={attachments} /> : '—'}
+        </td>
+      </tr>
+    );
+  }
+
+  if (type === 'link') {
+    const href = attachments[0] || null;
+    return (
+      <tr>
+        <td>
+          <strong>{title || 'Resource'}</strong>
+        </td>
+        <td>{resourceTypeLabel(type)}</td>
+        <td>
+          {href ? (
+            <a href={href} target="_blank" rel="noreferrer">
+              Open link
             </a>
           ) : (
             '—'
@@ -37,8 +60,6 @@ function ResourceRow({ resource }) {
     );
   }
 
-  const href = fileUrl ? (type === 'link' ? fileUrl : absFileUrl(fileUrl)) : null;
-
   return (
     <tr>
       <td>
@@ -46,13 +67,7 @@ function ResourceRow({ resource }) {
       </td>
       <td>{resourceTypeLabel(type)}</td>
       <td>
-        {href ? (
-          <a href={href} target="_blank" rel="noreferrer">
-            {type === 'link' ? 'Open link' : 'Download'}
-          </a>
-        ) : (
-          '—'
-        )}
+        {attachments.length ? <SubmissionFiles attachments={attachments} /> : '—'}
       </td>
     </tr>
   );
@@ -85,11 +100,6 @@ const StudentContent = () => {
     () => courses.map((c) => ({ _id: c._id, title: c.title })),
     [courses]
   );
-
-  const filteredCourses = useMemo(() => {
-    if (!courseFilter || courseFilter === 'all') return courses;
-    return courses.filter((c) => String(c._id) === String(courseFilter));
-  }, [courses, courseFilter]);
 
   const filteredResources = useMemo(() => {
     if (!courseFilter || courseFilter === 'all') return resources;
@@ -142,7 +152,7 @@ const StudentContent = () => {
           <h2>Content & resources</h2>
           <p>
             Materials your teachers upload per course (files, links, notes). Use the course filter to focus on one
-            class. Structured course modules from admin appear at the bottom.
+            class.
           </p>
         </div>
       </div>
@@ -187,72 +197,6 @@ const StudentContent = () => {
                 </div>
               </section>
             ))
-          )}
-        </div>
-      </div>
-
-      <div className="portal-panel student-content__modules-panel">
-        <div className="portal-panel__head">
-          <div>
-            <h2>Course modules</h2>
-            <p>Structured lessons (videos & documents) added by admin on each course</p>
-          </div>
-        </div>
-        <div className="portal-panel__body portal-panel__body--padded">
-          {filteredCourses.length === 0 ? (
-            <p className="portal-empty">No course modules for this selection.</p>
-          ) : (
-            <div className="portal-content-grid">
-              {filteredCourses.map((c) => (
-                <article key={c._id} className="portal-content-course-card">
-                  <h3>{c.title}</h3>
-                  {(c.modules || []).length === 0 ? (
-                    <p className="portal-empty">No modules uploaded.</p>
-                  ) : (
-                    <ul className="student-content__module-list">
-                      {c.modules.map((m, i) => (
-                        <li key={i}>
-                          <strong>{m.title}</strong>
-                          {m.videos?.length ? (
-                            <ul>
-                              {m.videos.map((v, vi) => (
-                                <li key={vi}>
-                                  {v.url ? (
-                                    <a href={v.url} target="_blank" rel="noreferrer">
-                                      {v.title || `Video ${vi + 1}`}
-                                    </a>
-                                  ) : (
-                                    v.title || `Video ${vi + 1}`
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                          {m.documents?.length ? (
-                            <ul>
-                              {m.documents.map((d, di) => (
-                                <li key={di}>
-                                  {d.fileUrl ? (
-                                    <a href={absFileUrl(d.fileUrl)} target="_blank" rel="noreferrer">
-                                      {d.title || `Document ${di + 1}`}
-                                    </a>
-                                  ) : (
-                                    d.title || `Document ${di + 1}`
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                          {!m.videos?.length && !m.documents?.length ? (
-                            <span className="student-content__module-empty">No files in this module yet.</span>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </article>
-              ))}
-            </div>
           )}
         </div>
       </div>

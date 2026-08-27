@@ -120,7 +120,7 @@ const SubscribeSection = () => {
     <section ref={sectionRef} className={`subscribe-section scheme_dark${isInView ? ' subscribe-inview' : ''}`}>
       <div className="subscribe-section-inner">
         {isSubmitted ? (
-          <div className="subscribe-success">
+          <div className="subscribe-success" role="status" aria-live="polite">
             <p>Thank you for subscribing.</p>
           </div>
         ) : (

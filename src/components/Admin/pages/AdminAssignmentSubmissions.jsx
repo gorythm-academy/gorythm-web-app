@@ -1,12 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { lmsAdminGet, lmsAdminPost, lmsAdminDelete, lmsAdminPatch } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import PortalModal from '../../Portals/shared/PortalModal';
 import SubmissionFiles from '../../Portals/shared/SubmissionFiles';
 import QuizReviewPanel from '../../Portals/shared/QuizReviewPanel';
 import LmsTrashTabs from '../shared/LmsTrashTabs';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import { formatScore } from '../../../utils/formatScore';
+import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
+import AdminTablePagination from '../shared/AdminTablePagination';
 import './AdminAssignmentSubmissions.scss';
+
+const SUBMISSIONS_PAGE_SIZE = 25;
 
 function CollapsibleSubmissionTable({
   title,
@@ -74,7 +79,7 @@ function CollapsibleSubmissionTable({
                 ) : (
                   <button type="button" className="lms-btn-trash" onClick={onBulkTrash} disabled={deleting}>
                     <i className="fas fa-trash" aria-hidden />
-                    {deleting ? 'Working…' : `Move to trash (${selectedCount})`}
+                    {deleting ? 'Working…' : `Move to ${QUARANTINE_LABEL} (${selectedCount})`}
                   </button>
                 )}
               </div>
@@ -98,11 +103,13 @@ const AdminAssignmentSubmissions = () => {
   const [submissions, setSubmissions] = useState([]);
   const [quizAttempts, setQuizAttempts] = useState([]);
   const [courseFilter, setCourseFilter] = useState('all');
-  const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [assignmentDetail, setAssignmentDetail] = useState(null);
   const [quizDetail, setQuizDetail] = useState(null);
+  const [loadingAssignmentDetail, setLoadingAssignmentDetail] = useState(false);
+  const [loadingQuizDetail, setLoadingQuizDetail] = useState(false);
   const [assignmentTableExpanded, setAssignmentTableExpanded] = useState(false);
   const [quizTableExpanded, setQuizTableExpanded] = useState(false);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState(() => new Set());
@@ -112,89 +119,160 @@ const AdminAssignmentSubmissions = () => {
   const [listMode, setListMode] = useState('active');
   const [submissionTrashCount, setSubmissionTrashCount] = useState(0);
   const [quizTrashCount, setQuizTrashCount] = useState(0);
+  const [assignmentPage, setAssignmentPage] = useState(1);
+  const [quizPage, setQuizPage] = useState(1);
+  const [assignmentPages, setAssignmentPages] = useState(1);
+  const [quizPages, setQuizPages] = useState(1);
+  const [assignmentTotal, setAssignmentTotal] = useState(0);
+  const [quizTotal, setQuizTotal] = useState(0);
+  const assignCacheRef = useRef(createListCache());
+  const quizCacheRef = useRef(createListCache());
+  const coursesLoadedRef = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoadingCourses(true);
-    lmsAdminGet('/assignments')
-      .then((res) => {
-        if (cancelled) return;
-        if (res.success) setCourses(res.courses || []);
-      })
-      .catch((err) => {
-        if (!cancelled) showAlert(err.message, 'error');
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingCourses(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showAlert]);
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
-  const loadData = useCallback(async () => {
-    if (!courseFilter) {
-      setSubmissions([]);
-      setQuizAttempts([]);
-      return;
-    }
-    setLoadingData(true);
-    try {
-      const courseQuery =
-        courseFilter === 'all' ? '' : `?courseId=${encodeURIComponent(courseFilter)}`;
-      const trashQ = listMode === 'trash' ? (courseQuery ? '&trash=1' : '?trash=1') : '';
-      const [subRes, quizRes] = await Promise.all([
-        lmsAdminGet(`/submissions${courseQuery}${trashQ}`),
-        lmsAdminGet(`/quiz-attempts${courseQuery}${trashQ}`),
-      ]);
-      if (subRes.success) {
-        setSubmissions(subRes.submissions || []);
-        if (typeof subRes.trashCount === 'number') setSubmissionTrashCount(subRes.trashCount);
+  const invalidateSubmissionCaches = useCallback(() => {
+    assignCacheRef.current.clear();
+    quizCacheRef.current.clear();
+    coursesLoadedRef.current = false;
+  }, []);
+
+  const buildListUrl = useCallback(
+    (basePath, page, { includeMeta = false } = {}) => {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(SUBMISSIONS_PAGE_SIZE));
+      if (includeMeta) params.set('includeMeta', '1');
+      if (courseFilter && courseFilter !== 'all') params.set('courseId', courseFilter);
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (listMode === 'trash') params.set('trash', '1');
+      return `${basePath}?${params.toString()}`;
+    },
+    [courseFilter, debouncedSearch, listMode]
+  );
+
+  const loadData = useCallback(
+    async ({ force = false } = {}) => {
+      if (!courseFilter) {
+        setSubmissions([]);
+        setQuizAttempts([]);
+        return;
       }
-      if (quizRes.success) {
-        setQuizAttempts(quizRes.attempts || []);
-        if (typeof quizRes.trashCount === 'number') setQuizTrashCount(quizRes.trashCount);
+      setLoadingData(true);
+      try {
+        const includeMeta = !coursesLoadedRef.current;
+        const assignCacheKey = buildListCacheKey({
+          kind: 'assignments',
+          courseFilter,
+          listMode,
+          page: assignmentPage,
+          search: debouncedSearch,
+        });
+        const quizCacheKey = buildListCacheKey({
+          kind: 'quizzes',
+          courseFilter,
+          listMode,
+          page: quizPage,
+          search: debouncedSearch,
+        });
+
+        let subRes = !force ? assignCacheRef.current.get(assignCacheKey) : null;
+        let quizRes = !force ? quizCacheRef.current.get(quizCacheKey) : null;
+
+        const pending = [];
+        if (!subRes) {
+          pending.push(
+            lmsAdminGet(buildListUrl('/submissions', assignmentPage, { includeMeta })).then((res) => {
+              if (res.success) assignCacheRef.current.set(assignCacheKey, res);
+              return { kind: 'sub', res };
+            })
+          );
+        }
+        if (!quizRes) {
+          pending.push(
+            lmsAdminGet(buildListUrl('/quiz-attempts', quizPage)).then((res) => {
+              if (res.success) quizCacheRef.current.set(quizCacheKey, res);
+              return { kind: 'quiz', res };
+            })
+          );
+        }
+
+        if (pending.length) {
+          const results = await Promise.all(pending);
+          for (const item of results) {
+            if (item.kind === 'sub') subRes = item.res;
+            if (item.kind === 'quiz') quizRes = item.res;
+          }
+        }
+
+        if (subRes?.success) {
+          setSubmissions(subRes.submissions || []);
+          setAssignmentPages(subRes.pages || 1);
+          setAssignmentTotal(subRes.total ?? subRes.submissions?.length ?? 0);
+          if (typeof subRes.trashCount === 'number') setSubmissionTrashCount(subRes.trashCount);
+          if (subRes.courses?.length) {
+            setCourses(subRes.courses);
+            coursesLoadedRef.current = true;
+          }
+        }
+        if (quizRes?.success) {
+          setQuizAttempts(quizRes.attempts || []);
+          setQuizPages(quizRes.pages || 1);
+          setQuizTotal(quizRes.total ?? quizRes.attempts?.length ?? 0);
+          if (typeof quizRes.trashCount === 'number') setQuizTrashCount(quizRes.trashCount);
+          if (quizRes.courses?.length) {
+            setCourses(quizRes.courses);
+            coursesLoadedRef.current = true;
+          }
+        }
+        setSelectedAssignmentIds(new Set());
+        setSelectedQuizIds(new Set());
+      } catch (err) {
+        showAlert(err.message, 'error');
+      } finally {
+        setLoadingData(false);
       }
-      setSelectedAssignmentIds(new Set());
-      setSelectedQuizIds(new Set());
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      setLoadingData(false);
-    }
-  }, [courseFilter, listMode, showAlert]);
+    },
+    [assignmentPage, buildListUrl, courseFilter, debouncedSearch, listMode, quizPage, showAlert]
+  );
+
+  useEffect(() => {
+    setAssignmentPage(1);
+    setQuizPage(1);
+  }, [debouncedSearch, listMode]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const filteredAssignments = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return submissions;
-    return submissions.filter((s) => {
-      const name = (s.student?.name || '').toLowerCase();
-      const roll = (s.student?.studentId || '').toLowerCase();
-      const assign = (s.assignment?.title || '').toLowerCase();
-      const teacher = (s.assignment?.teacher?.name || '').toLowerCase();
-      return name.includes(q) || roll.includes(q) || assign.includes(q) || teacher.includes(q);
-    });
-  }, [submissions, search]);
+  const openAssignmentDetail = async (row) => {
+    setLoadingAssignmentDetail(true);
+    try {
+      const res = await lmsAdminGet(`/submissions/${row._id}`);
+      if (!res.success || !res.submission) throw new Error(res.error || 'Failed to load submission');
+      setAssignmentDetail(res.submission);
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setLoadingAssignmentDetail(false);
+    }
+  };
 
-  const filteredQuizzes = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return quizAttempts;
-    return quizAttempts.filter((a) => {
-      const name = (a.student?.name || '').toLowerCase();
-      const roll = (a.student?.studentId || '').toLowerCase();
-      const quiz = (a.quiz?.title || '').toLowerCase();
-      const teacher = (a.quiz?.teacher?.name || '').toLowerCase();
-      return name.includes(q) || roll.includes(q) || quiz.includes(q) || teacher.includes(q);
-    });
-  }, [quizAttempts, search]);
-
-  const assignmentStats = useMemo(() => {
-    return { total: filteredAssignments.length };
-  }, [filteredAssignments]);
+  const openQuizDetail = async (row) => {
+    setLoadingQuizDetail(true);
+    try {
+      const res = await lmsAdminGet(`/quiz-attempts/${row._id}`);
+      if (!res.success || !res.attempt) throw new Error(res.error || 'Failed to load quiz attempt');
+      setQuizDetail(res.attempt);
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setLoadingQuizDetail(false);
+    }
+  };
 
   const courseSelected = Boolean(courseFilter);
 
@@ -209,7 +287,7 @@ const AdminAssignmentSubmissions = () => {
   };
 
   const toggleAllAssignments = () => {
-    const allIds = filteredAssignments.map((s) => String(s._id));
+    const allIds = submissions.map((s) => String(s._id));
     const allSelected = allIds.length > 0 && allIds.every((id) => selectedAssignmentIds.has(id));
     setSelectedAssignmentIds(allSelected ? new Set() : new Set(allIds));
   };
@@ -225,7 +303,7 @@ const AdminAssignmentSubmissions = () => {
   };
 
   const toggleAllQuizzes = () => {
-    const allIds = filteredQuizzes.map((a) => String(a._id));
+    const allIds = quizAttempts.map((a) => String(a._id));
     const allSelected = allIds.length > 0 && allIds.every((id) => selectedQuizIds.has(id));
     setSelectedQuizIds(allSelected ? new Set() : new Set(allIds));
   };
@@ -260,7 +338,8 @@ const AdminAssignmentSubmissions = () => {
       showAlert(`${n} submission${n === 1 ? '' : 's'} ${verb}.`, 'success');
       if (assignmentDetail && idList.includes(String(assignmentDetail._id))) setAssignmentDetail(null);
       setSelectedAssignmentIds(new Set());
-      await loadData();
+      invalidateSubmissionCaches();
+      await loadData({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -298,7 +377,8 @@ const AdminAssignmentSubmissions = () => {
       showAlert(`${n} quiz attempt${n === 1 ? '' : 's'} ${verb}.`, 'success');
       if (quizDetail && idList.includes(String(quizDetail._id))) setQuizDetail(null);
       setSelectedQuizIds(new Set());
-      await loadData();
+      invalidateSubmissionCaches();
+      await loadData({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -310,12 +390,12 @@ const AdminAssignmentSubmissions = () => {
   const combinedTrashCount = submissionTrashCount + quizTrashCount;
 
   const assignmentEmptyMessage = isTrashView
-    ? 'Trash is empty for assignment submissions.'
+    ? `${QUARANTINE_LABEL} is empty for assignment submissions.`
     : courseFilter === 'all'
       ? 'No assignment submissions yet.'
       : 'No assignment submissions for this course.';
   const quizEmptyMessage = isTrashView
-    ? 'Trash is empty for quiz attempts.'
+    ? `${QUARANTINE_LABEL} is empty for quiz attempts.`
     : courseFilter === 'all'
       ? 'No quiz attempts yet.'
       : 'No quiz attempts for this course.';
@@ -329,7 +409,7 @@ const AdminAssignmentSubmissions = () => {
         <div>
           <h2>Student submissions</h2>
           <p>
-            Use Trash to move records out of active lists. Restore or delete forever from the Trash tab.
+            Use {QUARANTINE_LABEL} to move records out of active lists. Restore or delete forever from the {QUARANTINE_LABEL} tab.
           </p>
         </div>
       </div>
@@ -337,11 +417,11 @@ const AdminAssignmentSubmissions = () => {
       <div className="admin-submissions__stats">
         <div className="admin-submissions__stat">
           <span>Assignments</span>
-          <strong>{courseSelected ? assignmentStats.total : '—'}</strong>
+          <strong>{courseSelected ? assignmentTotal : '—'}</strong>
         </div>
         <div className="admin-submissions__stat admin-submissions__stat--pending">
           <span>Quiz attempts</span>
-          <strong>{courseSelected ? filteredQuizzes.length : '—'}</strong>
+          <strong>{courseSelected ? quizTotal : '—'}</strong>
         </div>
       </div>
 
@@ -353,8 +433,10 @@ const AdminAssignmentSubmissions = () => {
             onChange={(e) => {
               setCourseFilter(e.target.value);
               setSearch('');
+              setAssignmentPage(1);
+              setQuizPage(1);
             }}
-            disabled={loadingCourses}
+            disabled={loadingData && !courses.length}
           >
             <option value="all">All courses</option>
             {courses.map((c) => (
@@ -388,9 +470,7 @@ const AdminAssignmentSubmissions = () => {
         }}
       />
 
-      {loadingCourses ? (
-        <p className="admin-submissions__loading">Loading courses…</p>
-      ) : loadingData ? (
+      {loadingData && !submissions.length && !quizAttempts.length ? (
         <p className="admin-submissions__loading">Loading submissions…</p>
       ) : (
         <>
@@ -399,7 +479,7 @@ const AdminAssignmentSubmissions = () => {
             icon="fa-file-alt"
             expanded={assignmentTableExpanded}
             onToggle={() => setAssignmentTableExpanded((v) => !v)}
-            count={filteredAssignments.length}
+            count={assignmentTotal}
             selectedCount={selectedAssignmentIds.size}
             onClearSelection={() => setSelectedAssignmentIds(new Set())}
             isTrashView={isTrashView}
@@ -426,8 +506,8 @@ const AdminAssignmentSubmissions = () => {
                     <input
                       type="checkbox"
                       checked={
-                        filteredAssignments.length > 0 &&
-                        filteredAssignments.every((s) => selectedAssignmentIds.has(String(s._id)))
+                        submissions.length > 0 &&
+                        submissions.every((s) => selectedAssignmentIds.has(String(s._id)))
                       }
                       onChange={toggleAllAssignments}
                       aria-label="Select all assignment submissions"
@@ -443,7 +523,7 @@ const AdminAssignmentSubmissions = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredAssignments.map((s) => {
+                {submissions.map((s) => {
                   const sid = String(s._id);
                   const selected = selectedAssignmentIds.has(sid);
                   return (
@@ -466,7 +546,8 @@ const AdminAssignmentSubmissions = () => {
                         <button
                           type="button"
                           className="admin-submissions__view-btn"
-                          onClick={() => setAssignmentDetail(s)}
+                          onClick={() => openAssignmentDetail(s)}
+                          disabled={loadingAssignmentDetail}
                         >
                           View
                         </button>
@@ -506,7 +587,7 @@ const AdminAssignmentSubmissions = () => {
                               handleSubmissions('trash', [sid], `Move submission from ${s.student?.name || 'student'} to trash?`)
                             }
                           >
-                            <i className="fas fa-trash" aria-hidden /> Trash
+                            <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
                           </button>
                         )}
                       </td>
@@ -515,6 +596,11 @@ const AdminAssignmentSubmissions = () => {
                 })}
               </tbody>
             </table>
+            <AdminTablePagination
+              currentPage={assignmentPage}
+              totalPages={assignmentPages}
+              onPageChange={setAssignmentPage}
+            />
           </CollapsibleSubmissionTable>
 
           <CollapsibleSubmissionTable
@@ -522,7 +608,7 @@ const AdminAssignmentSubmissions = () => {
             icon="fa-clipboard-check"
             expanded={quizTableExpanded}
             onToggle={() => setQuizTableExpanded((v) => !v)}
-            count={filteredQuizzes.length}
+            count={quizTotal}
             selectedCount={selectedQuizIds.size}
             onClearSelection={() => setSelectedQuizIds(new Set())}
             isTrashView={isTrashView}
@@ -549,8 +635,8 @@ const AdminAssignmentSubmissions = () => {
                     <input
                       type="checkbox"
                       checked={
-                        filteredQuizzes.length > 0 &&
-                        filteredQuizzes.every((a) => selectedQuizIds.has(String(a._id)))
+                        quizAttempts.length > 0 &&
+                        quizAttempts.every((a) => selectedQuizIds.has(String(a._id)))
                       }
                       onChange={toggleAllQuizzes}
                       aria-label="Select all quiz attempts"
@@ -567,7 +653,7 @@ const AdminAssignmentSubmissions = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuizzes.map((a) => {
+                {quizAttempts.map((a) => {
                   const aid = String(a._id);
                   const selected = selectedQuizIds.has(aid);
                   return (
@@ -588,7 +674,12 @@ const AdminAssignmentSubmissions = () => {
                       <td>{a.scoreDisplay || formatScore(a.score, a.quiz?.totalMarks)}</td>
                       <td>{a.createdAt ? new Date(a.createdAt).toLocaleString() : '—'}</td>
                       <td className="admin-submissions__actions">
-                        <button type="button" className="admin-submissions__view-btn" onClick={() => setQuizDetail(a)}>
+                        <button
+                          type="button"
+                          className="admin-submissions__view-btn"
+                          onClick={() => openQuizDetail(a)}
+                          disabled={loadingQuizDetail}
+                        >
                           View
                         </button>
                         {isTrashView ? (
@@ -627,7 +718,7 @@ const AdminAssignmentSubmissions = () => {
                               handleQuizzes('trash', [aid], `Move quiz attempt from ${a.student?.name || 'student'} to trash?`)
                             }
                           >
-                            <i className="fas fa-trash" aria-hidden /> Trash
+                            <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
                           </button>
                         )}
                       </td>
@@ -636,6 +727,7 @@ const AdminAssignmentSubmissions = () => {
                 })}
               </tbody>
             </table>
+            <AdminTablePagination currentPage={quizPage} totalPages={quizPages} onPageChange={setQuizPage} />
           </CollapsibleSubmissionTable>
         </>
       )}
@@ -647,7 +739,7 @@ const AdminAssignmentSubmissions = () => {
               <strong>Roll no.:</strong> {assignmentDetail.student?.studentId || '—'}
             </p>
             <p>
-              <strong>Email:</strong> {assignmentDetail.student?.email || '—'}
+              <strong>Email:</strong> <span className="admin-email">{assignmentDetail.student?.email || '—'}</span>
             </p>
             <p>
               <strong>Assignment:</strong> {assignmentDetail.assignment?.title}

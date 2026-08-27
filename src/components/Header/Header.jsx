@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
 import './Header.scss';
 import BrandLogo from '../BrandLogo/BrandLogo';
 import {
@@ -43,6 +44,15 @@ const Header = () => {
   const showCooldownTimerRef = useRef(0);
   /** Hysteresis for frosted header: avoids flicker/jump at a single pixel line */
   const scrolledLatchRef = useRef(false);
+
+  const portalUser = parseAuthUser(AUTH_REALM.PORTAL);
+  const portalHomeByRole = {
+    student: '/student',
+    teacher: '/teacher',
+    parent: '/parent',
+    accountant: '/accountant',
+  };
+  const portalHome = portalUser?.role ? portalHomeByRole[portalUser.role] : null;
 
   const menuItems = [
     { id: 1, title: 'Home', path: '/', hasDropdown: false },
@@ -303,7 +313,7 @@ const Header = () => {
               <div className="header-logo">
                 <Link to="/" className="logo-link" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
+                    <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
                   </div>
 
                 </Link>
@@ -350,9 +360,15 @@ const Header = () => {
                       </li>
                     ))}
                     <li className="nav-item nav-item--login">
-                      <NavLink to="/login" className="nav-link nav-link--login">
-                        Login
-                      </NavLink>
+                      {portalHome ? (
+                        <NavLink to={portalHome} className="nav-link nav-link--login">
+                          My portal
+                        </NavLink>
+                      ) : (
+                        <NavLink to="/login" className="nav-link nav-link--login">
+                          Login
+                        </NavLink>
+                      )}
                     </li>
                   </ul>
                 </nav>
@@ -418,7 +434,7 @@ const Header = () => {
               <div className="mobile-logo">
                 <Link to="/" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
+                    <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
                   </div>
                 </Link>
               </div>
@@ -499,7 +515,11 @@ const Header = () => {
                 </nav>
                 <div className="mobile-menu-left-divider" aria-hidden="true" />
                 <div className="mobile-auth-buttons mobile-auth-anim">
-                  <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
+                  {portalHome ? (
+                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My portal</Link>
+                  ) : (
+                    <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
+                  )}
                 </div>
                 <div className="mobile-menu-social mobile-social-anim">
                   {socialLinks.map(link => (
@@ -515,6 +535,35 @@ const Header = () => {
                       {renderSocialGlyph(link)}
                     </a>
                   ))}
+                </div>
+                <div className="mobile-menu-portrait-cta mobile-right-anim">
+                  <div className="mobile-menu-right-gp">
+                    <p className="mobile-menu-gp-title">Have A Question?</p>
+                    <a
+                      href={`mailto:${INFO_EMAIL}`}
+                      className="mobile-menu-email"
+                      aria-label={`Send email to ${INFO_EMAIL}`}
+                      onClick={(e) => {
+                        navigateToMailto(INFO_EMAIL, e);
+                        closeMobileMenu();
+                      }}
+                    >
+                      {INFO_EMAIL}
+                    </a>
+                  </div>
+                  <div className="mobile-menu-right-gp">
+                    <p className="mobile-menu-gp-title">Where To Find Us?</p>
+                    <Link to="/contact" className="mobile-menu-look-here" onClick={closeMobileMenu}>
+                      <span>Look here</span>
+                      <span className="mobile-menu-arrow" aria-hidden="true">→</span>
+                    </Link>
+                  </div>
+                  <div className="mobile-menu-right-gp">
+                    <p className="mobile-menu-gp-title">Want To Get Register?</p>
+                    <Link to="/payment" className="mobile-menu-enroll" onClick={closeMobileMenu}>
+                      Enroll Now
+                    </Link>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -583,7 +632,11 @@ const Header = () => {
                   </nav>
                   <div className="mobile-menu-left-divider" aria-hidden="true" />
                   <div className="mobile-auth-buttons mobile-auth-anim">
+                    {portalHome ? (
+                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My portal</Link>
+                  ) : (
                     <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
+                  )}
                   </div>
                   <div className="mobile-menu-social mobile-social-anim">
                     {socialLinks.map(link => (
@@ -646,7 +699,7 @@ const Header = () => {
           <div className="menu-grid-header">
             <div className="menu-grid-logo">
               <div className="logo-text">
-                <BrandLogo className="logo-image" alt="GoRythm" width={40} height={40} />
+                <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
               </div>
 
             </div>

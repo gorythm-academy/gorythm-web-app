@@ -2,7 +2,9 @@ const path = require('path');
 const fs = require('fs');
 
 const IMAGE_SUBDIR = 'research-images';
-const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+    ? path.resolve(process.env.UPLOAD_ROOT)
+    : path.join(__dirname, '..', 'uploads');
 const IMAGE_DIR = path.join(UPLOAD_ROOT, IMAGE_SUBDIR);
 
 function ensureImageDir() {

@@ -31,6 +31,7 @@ const REL_PNG_PATHS = [
   'src/assets/images/our team/Muhammad Munim Ansari.png',
   'src/assets/images/our team/Usman Ali.png',
   'src/assets/images/our team/fatima.png',
+  'src/assets/images/our team/asma-seher.png',
   'src/assets/images/our team/farhan.png',
   'src/assets/images/our team/shahmeer.png',
   'src/assets/images/our team/Gülsen Yazici.png',

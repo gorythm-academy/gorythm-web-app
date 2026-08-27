@@ -2,29 +2,41 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { formatScheduleLabel } from '../../../utils/formatScheduleLabel';
+import { portalEmailDisplayLabel } from '../../../utils/studentPortalEmail';
+import {
+    ENROLLMENT_STATUS_BUTTONS,
+    FEE_STATUS_VALUES,
+    sortPublishedCourses,
+    validatePersonalEmail,
+    validateStudentId,
+} from '../../../utils/studentAdminValidation';
 import './EnrollStudentModal.scss';
-
-const ENROLLMENT_STATUS_VALUES = ['active', 'pending', 'completed', 'inactive'];
-
-const enrollmentStatusFromUser = (status) =>
-    ENROLLMENT_STATUS_VALUES.includes(status) ? status : 'pending';
+import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 
 /**
- * EnrollStudentModal
- *
- * Props:
- *  isOpen             - boolean
- *  onClose            - fn
- *  onEnrollSuccess    - fn(newEnrollment)
- *  courses            - array of course objects (passed from parent)
- *  preselectedStudent - optional: { _id, name, email, studentId, personalEmail, phone, status } – skips student dropdown
+ * Enroll an existing student in a course.
+ * When preselectedStudent is set (Add course flow): only name, course, and timeslot.
  */
-const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, preselectedStudent }) => {
+const EnrollStudentModal = ({
+    isOpen,
+    onClose,
+    onEnrollSuccess,
+    courses,
+    preselectedStudent,
+    /** Optional defaults for status/fee when adding another course */
+    defaultsFromEnrollment = null,
+}) => {
+    const isAddCourseMode = Boolean(preselectedStudent);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [students, setStudents] = useState([]);
     const [studentsLoading, setStudentsLoading] = useState(false);
+    const [courseSchedules, setCourseSchedules] = useState([]);
+    const [schedulesLoading, setSchedulesLoading] = useState(false);
+    const [studentSearch, setStudentSearch] = useState('');
 
     const [formData, setFormData] = useState({
         studentUserId: preselectedStudent?._id || '',
@@ -32,61 +44,92 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
         personalEmail: preselectedStudent?.personalEmail || '',
         phone: preselectedStudent?.phone || '',
         courseId: '',
-        status: enrollmentStatusFromUser(preselectedStudent?.status),
+        assignedScheduleId: '',
+        status: defaultsFromEnrollment?.status || 'active',
+        paymentStatus: defaultsFromEnrollment?.paymentStatus || 'pending',
     });
 
-    const statusOptions = [
-        { value: 'active',    label: 'Active',     color: '#10b981' },
-        { value: 'pending',   label: 'Pending',   color: '#f59e0b' },
-        { value: 'completed', label: 'Completed',  color: 'var(--color-accent)' },
-        { value: 'inactive',  label: 'Inactive',   color: '#64748b' }
-    ];
+    const sortedCourses = useMemo(() => sortPublishedCourses(courses), [courses]);
 
-    const sortedCourses = useMemo(() => {
-        const list = Array.isArray(courses)
-            ? courses.filter((course) => course?.status === 'published' || course?.isPublished === true)
-            : [];
-        const getDisplayOrder = (course) => {
-            const order = Number(course?.displayOrder);
-            return Number.isFinite(order) ? order : 9999;
-        };
-
-        return list.sort((a, b) => {
-            const orderA = getDisplayOrder(a);
-            const orderB = getDisplayOrder(b);
-            if (orderA !== orderB) return orderA - orderB;
-            return String(a?.title || '').localeCompare(String(b?.title || ''));
+    const filteredStudents = useMemo(() => {
+        const q = studentSearch.trim().toLowerCase();
+        if (!q) return students;
+        return students.filter((s) => {
+            const haystack = [s.name, s.email, s.personalEmail, s.studentId, s.phone]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return haystack.includes(q);
         });
-    }, [courses]);
+    }, [students, studentSearch]);
 
-    // Lock body scroll
     useEffect(() => {
-        if (isOpen) {
-            const prev = document.body.style.overflow;
-            document.body.style.overflow = 'hidden';
-            return () => { document.body.style.overflow = prev || ''; };
-        }
+        if (!isOpen) return undefined;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev || '';
+        };
     }, [isOpen]);
 
-    // Reset form when modal opens
     useEffect(() => {
-        if (isOpen) {
-            setFormData({
-                studentUserId: preselectedStudent?._id || '',
-                studentId: preselectedStudent?.studentId || '',
-                personalEmail: preselectedStudent?.personalEmail || '',
-                phone: preselectedStudent?.phone || '',
-                courseId: '',
-                status: enrollmentStatusFromUser(preselectedStudent?.status),
-            });
-            setError('');
-            setSuccess('');
-            if (!preselectedStudent) {
-                fetchStudents();
-            }
-        }
+        if (!isOpen) return;
+        const inheritedStatus = defaultsFromEnrollment?.status || 'active';
+        const inheritedFee = defaultsFromEnrollment?.paymentStatus || 'pending';
+        setFormData({
+            studentUserId: preselectedStudent?._id || '',
+            studentId: preselectedStudent?.studentId || '',
+            personalEmail: preselectedStudent?.personalEmail || '',
+            phone: preselectedStudent?.phone || '',
+            courseId: '',
+            assignedScheduleId: '',
+            status: inheritedStatus,
+            paymentStatus: inheritedFee,
+        });
+        setError('');
+        setSuccess('');
+        setStudentSearch('');
+        if (!preselectedStudent) fetchStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, preselectedStudent]);
+    }, [isOpen, preselectedStudent, defaultsFromEnrollment]);
+
+    useEffect(() => {
+        if (!isOpen || preselectedStudent) return undefined;
+        const timer = window.setTimeout(() => {
+            fetchStudents();
+        }, 300);
+        return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [studentSearch, isOpen, preselectedStudent]);
+
+    useEffect(() => {
+        if (!isOpen || !formData.courseId) {
+            setCourseSchedules([]);
+            return undefined;
+        }
+        let cancelled = false;
+        const loadSchedules = async () => {
+            setSchedulesLoading(true);
+            try {
+                const token = getAuthToken();
+                const response = await axios.get(
+                    `${API_BASE_URL}/api/enrollments/course-schedules/${formData.courseId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                if (!cancelled && response.data.success) {
+                    setCourseSchedules(response.data.schedules || []);
+                }
+            } catch {
+                if (!cancelled) setCourseSchedules([]);
+            } finally {
+                if (!cancelled) setSchedulesLoading(false);
+            }
+        };
+        loadSchedules();
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, formData.courseId]);
 
     const fetchStudents = async () => {
         try {
@@ -99,24 +142,22 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             }
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
-                params: { segment: 'students', limit: 500 }
+                params: {
+                    segment: 'students',
+                    limit: 50,
+                    search: studentSearch.trim() || undefined,
+                    sortBy: 'student',
+                    sortOrder: 'asc',
+                },
             });
             if (response.data.success) {
-                // All learner accounts with role student — include pending/inactive.
-                // Backend sets isActive=false when portal login is not allowed yet; those
-                // users must still be assignable to courses from this modal.
-                const studentUsers = (response.data.users || []).filter((u) => u.role === 'student');
-                setStudents(studentUsers);
+                setStudents((response.data.users || []).filter((u) => u.role === 'student'));
             } else {
                 setError(response.data.error || 'Failed to load students.');
                 setStudents([]);
             }
         } catch (err) {
-            setError(
-                err.response?.data?.error ||
-                    err.message ||
-                    'Failed to load students. Check the Students tab and API connection.'
-            );
+            setError(err.response?.data?.error || err.message || 'Failed to load students.');
             setStudents([]);
         } finally {
             setStudentsLoading(false);
@@ -130,18 +171,21 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
             setFormData((prev) => ({
                 ...prev,
                 studentUserId: value,
-                studentId: s ? (s.studentId || '') : '',
-                personalEmail: s ? (s.personalEmail || '') : '',
-                phone: s ? (s.phone || '') : '',
-                status: s ? enrollmentStatusFromUser(s.status) : 'pending',
+                studentId: s ? s.studentId || '' : '',
+                personalEmail: s ? s.personalEmail || '' : '',
+                phone: s ? s.phone || '' : '',
             }));
+            return;
+        }
+        if (name === 'courseId') {
+            setFormData((prev) => ({ ...prev, courseId: value, assignedScheduleId: '' }));
             return;
         }
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleStatusSelect = (statusValue) => {
-        setFormData(prev => ({ ...prev, status: statusValue }));
+        setFormData((prev) => ({ ...prev, status: statusValue }));
     };
 
     const getSelectedStudent = () => {
@@ -156,89 +200,109 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
         setSuccess('');
 
         try {
-            if (!formData.studentUserId) {
-                throw new Error('Please select a student');
-            }
-            if (!formData.courseId) {
-                throw new Error('Please select a course');
-            }
-
-            const personalTrim = (formData.personalEmail || '').trim();
-            if (personalTrim && personalTrim !== personalTrim.toLowerCase()) {
-                throw new Error('Personal email must be in lowercase letters.');
-            }
-            if (personalTrim && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(personalTrim)) {
-                throw new Error('Please enter a valid personal email format, or leave it blank.');
-            }
-
-            const studentIdTrim = (formData.studentId || '').trim();
-            if (studentIdTrim && !/^GRT-\d{4}-\d{3}$/.test(studentIdTrim)) {
-                throw new Error('Student ID must match GRT-YYYY-### (e.g. GRT-2026-001) or be left blank.');
+            if (!formData.studentUserId) throw new Error('Please select a student');
+            if (!formData.courseId) throw new Error('Please select a course');
+            if (!schedulesLoading && courseSchedules.length > 0 && !formData.assignedScheduleId) {
+                throw new Error('Please select a class timeslot (includes teacher) for this course.');
             }
 
             const token = getAuthToken();
-            if (!token) {
-                throw new Error('Admin session expired. Please login again.');
-            }
+            if (!token) throw new Error('Admin session expired. Please login again.');
 
-            const selected = getSelectedStudent();
-            const currentPersonal = String(selected?.personalEmail || '').trim();
-            const currentStudentId = String(selected?.studentId || '').trim();
-            const currentPhone = String(selected?.phone || '').trim();
-            const phoneTrim = (formData.phone || '').trim();
+            if (!isAddCourseMode) {
+                const personalTrim = (formData.personalEmail || '').trim();
+                const personalErr = validatePersonalEmail(personalTrim);
+                if (personalErr) throw new Error(personalErr);
 
-            const personalChanged = personalTrim !== currentPersonal;
-            const studentIdChanged = !!studentIdTrim && studentIdTrim !== currentStudentId;
-            const phoneChanged = phoneTrim !== currentPhone;
+                const studentIdTrim = (formData.studentId || '').trim();
+                const studentIdErr = validateStudentId(studentIdTrim);
+                if (studentIdErr) throw new Error(studentIdErr);
 
-            // Only pre-update the user if something actually changed.
-            // Backend PUT /api/users/:id requires name + email, so always send them.
-            if (selected?._id && (personalChanged || studentIdChanged || phoneChanged)) {
-                await axios.put(
-                    `${API_BASE_URL}/api/users/${selected._id}`,
-                    {
-                        name: selected.name || '',
-                        email: selected.email || '',
-                        personalEmail: personalTrim,
-                        phone: phoneTrim,
-                        ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
-                    },
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            'Content-Type': 'application/json',
+                const selected = getSelectedStudent();
+                const currentPersonal = String(selected?.personalEmail || '').trim();
+                const currentStudentId = String(selected?.studentId || '').trim();
+                const currentPhone = String(selected?.phone || '').trim();
+                const phoneTrim = (formData.phone || '').trim();
+
+                if (
+                    selected?._id &&
+                    (personalTrim !== currentPersonal ||
+                        (!!studentIdTrim && studentIdTrim !== currentStudentId) ||
+                        phoneTrim !== currentPhone)
+                ) {
+                    await axios.put(
+                        `${API_BASE_URL}/api/users/${selected._id}`,
+                        {
+                            name: selected.name || '',
+                            email: selected.email || '',
+                            personalEmail: personalTrim,
+                            phone: phoneTrim,
+                            ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
                         },
-                    }
-                );
+                        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+                    );
+                }
             }
-
-            const payload = {
-                studentUserId: formData.studentUserId,
-                courseId: formData.courseId,
-                status: formData.status,
-            };
 
             const response = await axios.post(
                 `${API_BASE_URL}/api/enrollments`,
-                payload,
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
+                    studentUserId: formData.studentUserId,
+                    courseId: formData.courseId,
+                    status: formData.status,
+                    paymentStatus: formData.paymentStatus,
+                    assignedScheduleId: formData.assignedScheduleId || undefined,
+                    forceNew: isAddCourseMode,
+                },
+                { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
             );
 
             if (response.data.success) {
-                setSuccess('Student enrolled successfully!');
-                if (onEnrollSuccess) {
-                    onEnrollSuccess(response.data.enrollment);
-                }
-                setTimeout(() => { handleClose(); }, 1500);
+                setSuccess(isAddCourseMode ? 'Course added successfully!' : 'Student enrolled successfully!');
+                onEnrollSuccess?.(response.data.enrollment);
+                setTimeout(() => handleClose(), 1200);
             } else {
                 throw new Error(response.data.message || 'Failed to enroll student');
             }
         } catch (err) {
+            if (err.response?.status === 409 && err.response?.data?.code === 'TRASHED_COURSE_EXISTS') {
+                const ok = window.confirm(
+                    `${err.response.data.message}\n\nCreate a new active enrollment anyway?`
+                );
+                if (ok) {
+                    try {
+                        const token = getAuthToken();
+                        const retry = await axios.post(
+                            `${API_BASE_URL}/api/enrollments`,
+                            {
+                                studentUserId: formData.studentUserId,
+                                courseId: formData.courseId,
+                                status: formData.status,
+                                paymentStatus: formData.paymentStatus,
+                                assignedScheduleId: formData.assignedScheduleId || undefined,
+                                forceNew: isAddCourseMode,
+                                confirmRestoreTrashed: true,
+                            },
+                            { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+                        );
+                        if (retry.data.success) {
+                            setSuccess(isAddCourseMode ? 'Course added successfully!' : 'Student enrolled successfully!');
+                            onEnrollSuccess?.(retry.data.enrollment);
+                            setTimeout(() => handleClose(), 1200);
+                            return;
+                        }
+                    } catch (retryErr) {
+                        setError(
+                            retryErr.response?.data?.message
+                            || retryErr.message
+                            || 'Failed to enroll after confirm'
+                        );
+                        return;
+                    }
+                }
+                setError(err.response.data.message || 'Course exists in Quarantine.');
+                return;
+            }
             if (err.response) {
                 const data = err.response.data || {};
                 setError(data.error || data.message || 'Server error. Please try again.');
@@ -253,18 +317,16 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
     };
 
     const handleClose = () => {
-        setFormData({
-            studentUserId: preselectedStudent?._id || '',
-            studentId: preselectedStudent?.studentId || '',
-            personalEmail: preselectedStudent?.personalEmail || '',
-            phone: preselectedStudent?.phone || '',
-            courseId: '',
-            status: enrollmentStatusFromUser(preselectedStudent?.status),
-        });
         setError('');
         setSuccess('');
         onClose();
     };
+
+    useDialogKeyboard({
+        isOpen,
+        onClose: handleClose,
+        blockEscape: loading || Boolean(success),
+    });
 
     const getSelectedCourse = () => sortedCourses.find((c) => c._id === formData.courseId);
 
@@ -274,15 +336,15 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
 
     return (
         <div className="modal-overlay enroll-modal-overlay">
-            <div className="modal-container enroll-modal-container">
+            <div className={`modal-container enroll-modal-container${isAddCourseMode ? ' enroll-modal-container--add-course' : ''}`}>
                 <div className="modal-header enroll-modal-header">
                     <h2>
-                        <i className="fas fa-user-plus"></i>{' '}
-                        {preselectedStudent
-                            ? `Enroll ${preselectedStudent.name} in a Course`
-                            : 'Enroll Student in Course'}
+                        <i className={`fas ${isAddCourseMode ? 'fa-plus' : 'fa-user-graduate'}`}></i>{' '}
+                        {isAddCourseMode
+                            ? `Add course — ${preselectedStudent.name}`
+                            : 'Enroll Existing Student'}
                     </h2>
-                    <button type="button" className="close-btn" onClick={handleClose} disabled={loading}>
+                    <button type="button" className="close-btn" onClick={handleClose} disabled={loading} aria-label="Close">
                         <i className="fas fa-times"></i>
                     </button>
                 </div>
@@ -309,148 +371,117 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                 <form onSubmit={handleSubmit} className="enrollment-form">
                     <div className="enrollment-form-scroll">
                         <div className="form-grid">
-
-                            {/* Student Selection */}
                             <div className="form-section form-card">
                                 <h3><i className="fas fa-user-graduate"></i> Student</h3>
 
-                                {preselectedStudent ? (
+                                {isAddCourseMode ? (
                                     <div className="preselected-student-card">
                                         <div className="student-avatar-large">
                                             {preselectedStudent.name.charAt(0).toUpperCase()}
                                         </div>
                                         <div className="student-info-details">
                                             <strong>{preselectedStudent.name}</strong>
-                                            {preselectedStudent.studentId && (
-                                                <span className="student-id-badge">
-                                                    <i className="fas fa-id-card"></i> {preselectedStudent.studentId}
-                                                </span>
-                                            )}
+                                            <small className="form-hint" style={{ display: 'block', marginTop: 6 }}>
+                                                Profile, fee defaults, and status are taken from this student’s existing record.
+                                            </small>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="form-group">
-                                        <label>
-                                            <i className="fas fa-search"></i> Select Student *
-                                        </label>
-                                        {studentsLoading ? (
-                                            <div className="loading-inline">
-                                                <i className="fas fa-spinner fa-spin"></i> Loading students...
-                                            </div>
-                                        ) : (
-                                            <select
-                                                name="studentUserId"
-                                                value={formData.studentUserId}
-                                                onChange={handleChange}
-                                                required
-                                                className="form-select"
-                                                disabled={loading || success || students.length === 0}
-                                            >
-                                                <option value="">
-                                                    {students.length === 0
-                                                        ? 'No students — add a student from the Students tab'
-                                                        : 'Choose a student...'}
-                                                </option>
-                                                {students.map(s => (
-                                                    <option key={s._id} value={s._id}>
-                                                        {s.studentId ? `[${s.studentId}] ` : ''}{s.name} — {s.email}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        )}
-                                        {students.length === 0 && !studentsLoading && (
-                                            <small className="form-error">
-                                                This list only includes student accounts from the Students tab.
-                                                Teachers and parents do not appear here.
-                                            </small>
-                                        )}
-                                        {selectedStudent && (
-                                            <div className="selected-student-preview">
-                                                <i className="fas fa-user-check"></i>
-                                                <span>{selectedStudent.name}</span>
-                                                {selectedStudent.studentId && (
-                                                    <span className="student-id-badge">
-                                                        {selectedStudent.studentId}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {(preselectedStudent || formData.studentUserId) && selectedStudent && (
                                     <>
                                         <div className="form-group">
-                                            <label>
-                                                <i className="fas fa-key"></i> Portal login email
-                                            </label>
-                                            <div className="portal-email-readonly">
-                                                {selectedStudent.email || '—'}
-                                            </div>
-                                            <small className="form-hint">Used to sign in to the Gorythm student portal. Edit this in Students if needed.</small>
-                                        </div>
-                                        <div className="form-group">
-                                            <label htmlFor="enroll-student-id">
-                                                <i className="fas fa-id-card"></i> Student ID (GRT-YYYY-###)
-                                            </label>
+                                            <label><i className="fas fa-search"></i> Select Student *</label>
                                             <input
-                                                id="enroll-student-id"
-                                                type="text"
-                                                name="studentId"
-                                                value={formData.studentId}
-                                                onChange={handleChange}
+                                                type="search"
                                                 className="form-input"
-                                                placeholder="GRT-2026-001"
+                                                placeholder="Search by name, ID, email, or phone…"
+                                                value={studentSearch}
+                                                onChange={(e) => setStudentSearch(e.target.value)}
                                                 disabled={loading || success}
                                             />
-                                            <small className="form-hint">Optional. If entered, it will be saved to the student account.</small>
+                                            {studentsLoading ? (
+                                                <div className="loading-inline">
+                                                    <i className="fas fa-spinner fa-spin"></i> Loading students...
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    name="studentUserId"
+                                                    value={formData.studentUserId}
+                                                    onChange={handleChange}
+                                                    required
+                                                    className="form-select"
+                                                    disabled={loading || success || filteredStudents.length === 0}
+                                                >
+                                                    <option value="">
+                                                        {filteredStudents.length === 0
+                                                            ? 'No students match your search'
+                                                            : 'Choose a student...'}
+                                                    </option>
+                                                    {filteredStudents.map((s) => (
+                                                        <option key={s._id} value={s._id}>
+                                                            {s.studentId ? `[${s.studentId}] ` : ''}
+                                                            {s.name} — {portalEmailDisplayLabel(s.email)}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
                                         </div>
-                                        <div className="form-group">
-                                            <label htmlFor="enroll-personal-email">
-                                                <i className="fas fa-envelope"></i> Personal email (optional)
-                                            </label>
-                                            <input
-                                                id="enroll-personal-email"
-                                                type="email"
-                                                name="personalEmail"
-                                                value={formData.personalEmail}
-                                                onChange={handleChange}
-                                                className="form-input"
-                                                placeholder="gmail.com, hotmail.com, etc."
-                                                autoComplete="email"
-                                                disabled={loading || success}
-                                            />
-                                            <small className="form-hint">Separate from portal login; for contact only.</small>
-                                        </div>
-                                        <div className="form-group">
-                                            <label htmlFor="enroll-phone">
-                                                <i className="fas fa-phone"></i> Phone number (optional)
-                                            </label>
-                                            <input
-                                                id="enroll-phone"
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleChange}
-                                                className="form-input"
-                                                placeholder="+1 (123) 456-7890"
-                                                autoComplete="tel"
-                                                disabled={loading || success}
-                                            />
-                                            <small className="form-hint">Shown in Students data.</small>
-                                        </div>
+                                        {(formData.studentUserId) && selectedStudent && (
+                                            <>
+                                                <div className="form-group">
+                                                    <label><i className="fas fa-key"></i> Portal login email</label>
+                                                    <div className="portal-email-readonly">
+                                                        <span className="admin-email">{portalEmailDisplayLabel(selectedStudent.email)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label htmlFor="enroll-student-id">
+                                                        <i className="fas fa-id-card"></i> Student ID
+                                                    </label>
+                                                    <input
+                                                        id="enroll-student-id"
+                                                        type="text"
+                                                        name="studentId"
+                                                        value={formData.studentId}
+                                                        onChange={handleChange}
+                                                        className="form-input"
+                                                        disabled={loading || success}
+                                                    />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label htmlFor="enroll-personal-email">Personal email</label>
+                                                    <input
+                                                        id="enroll-personal-email"
+                                                        type="email"
+                                                        name="personalEmail"
+                                                        value={formData.personalEmail}
+                                                        onChange={handleChange}
+                                                        className="form-input"
+                                                        disabled={loading || success}
+                                                    />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label htmlFor="enroll-phone">Phone</label>
+                                                    <input
+                                                        id="enroll-phone"
+                                                        type="tel"
+                                                        name="phone"
+                                                        value={formData.phone}
+                                                        onChange={handleChange}
+                                                        className="form-input"
+                                                        disabled={loading || success}
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </div>
 
-                            {/* Course & status */}
                             <div className="form-section form-card">
-                                <h3><i className="fas fa-book"></i> Course &amp; status</h3>
+                                <h3><i className="fas fa-book"></i> Course &amp; timeslot</h3>
 
                                 <div className="form-group">
-                                    <label>
-                                        <i className="fas fa-graduation-cap"></i> Select Course *
-                                    </label>
+                                    <label><i className="fas fa-graduation-cap"></i> Select Course *</label>
                                     <select
                                         name="courseId"
                                         value={formData.courseId}
@@ -462,95 +493,134 @@ const EnrollStudentModal = ({ isOpen, onClose, onEnrollSuccess, courses, presele
                                         <option value="">
                                             {sortedCourses.length === 0 ? 'No courses available' : 'Choose a course...'}
                                         </option>
-                                        {sortedCourses.map(course => (
+                                        {sortedCourses.map((course) => (
                                             <option key={course._id} value={course._id}>
-                                                {course.title} ({course.category})
+                                                {course.title}
                                             </option>
                                         ))}
                                     </select>
-                                    {sortedCourses.length === 0 && (
-                                        <small className="form-error">Create courses first in Courses Management</small>
-                                    )}
                                 </div>
 
-                                <div className="form-group">
-                                    <label>
-                                        <i className="fas fa-toggle-on"></i> Enrollment status (this course)
-                                    </label>
-                                    <small className="form-hint enrollment-status-hint">
-                                        Applies only to this course row in Students data. To change the learner’s
-                                        account / portal status, edit them in <strong>Students</strong>.
-                                    </small>
-                                    <div className="status-buttons">
-                                        {statusOptions.map((status) => (
-                                            <button
-                                                key={status.value}
-                                                type="button"
-                                                className={`status-btn ${formData.status === status.value ? 'active' : ''}`}
-                                                onClick={() => handleStatusSelect(status.value)}
-                                                style={{ borderLeftColor: status.color }}
+                                {formData.courseId ? (
+                                    <div className="form-group">
+                                        <label>
+                                            <i className="fas fa-clock"></i> Teacher &amp; timeslot
+                                            {courseSchedules.length > 0 ? ' *' : ''}
+                                        </label>
+                                        <select
+                                            name="assignedScheduleId"
+                                            value={formData.assignedScheduleId}
+                                            onChange={handleChange}
+                                            className="form-select"
+                                            disabled={loading || success || schedulesLoading}
+                                            required={courseSchedules.length > 0}
+                                        >
+                                            <option value="">
+                                                {schedulesLoading
+                                                    ? 'Loading timeslots…'
+                                                    : courseSchedules.length
+                                                      ? 'Select teacher & timeslot…'
+                                                      : 'No timeslots yet — create in LMS'}
+                                            </option>
+                                            {courseSchedules.map((slot) => (
+                                                <option key={slot._id} value={slot._id}>
+                                                    {formatScheduleLabel(slot)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {!schedulesLoading && courseSchedules.length === 0 ? (
+                                            <small className="form-hint">
+                                                This course has no class slots. Add them under LMS → Class schedules.
+                                            </small>
+                                        ) : (
+                                            <small className="form-hint">
+                                                Each timeslot includes the assigned teacher.
+                                            </small>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                {!isAddCourseMode ? (
+                                    <>
+                                        <div className="form-group">
+                                            <label>Enrollment status</label>
+                                            <div className="status-buttons">
+                                                {ENROLLMENT_STATUS_BUTTONS.map((status) => (
+                                                    <button
+                                                        key={status.value}
+                                                        type="button"
+                                                        className={`status-btn ${formData.status === status.value ? 'active' : ''}`}
+                                                        onClick={() => handleStatusSelect(status.value)}
+                                                        style={{ borderLeftColor: status.color }}
+                                                        disabled={loading || success}
+                                                    >
+                                                        <i className="fas fa-circle" style={{ color: status.color }}></i>
+                                                        {status.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="form-group">
+                                            <label htmlFor="enroll-fee-status">Fee status</label>
+                                            <select
+                                                id="enroll-fee-status"
+                                                name="paymentStatus"
+                                                value={formData.paymentStatus}
+                                                onChange={handleChange}
+                                                className="form-select"
                                                 disabled={loading || success}
                                             >
-                                                <i className="fas fa-circle" style={{ color: status.color }}></i>
-                                                {status.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                                                {FEE_STATUS_VALUES.map((s) => (
+                                                    <option key={s.value} value={s.value}>
+                                                        {s.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                ) : null}
                             </div>
                         </div>
 
-                        {/* Preview */}
-                        <div className="preview-section">
-                            <h3><i className="fas fa-eye"></i> Preview</h3>
-                            <div className="preview-card">
-                                <div className="preview-header">
-                                    <span className="preview-student">
-                                        <i className="fas fa-user"></i>{' '}
-                                        {selectedStudent?.name || '—'}
-                                        {selectedStudent?.studentId && (
-                                            <span className="student-id-badge" style={{ marginLeft: 8 }}>
-                                                {selectedStudent.studentId}
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className={`preview-status ${formData.status}`}>
-                                        {formData.status}
-                                    </span>
-                                </div>
-                                <div className="preview-body">
-                                    <div className="preview-grid">
-                                        <div>
-                                            <p><strong>Portal email:</strong> {selectedStudent?.email || '—'}</p>
-                                            <p><strong>Student ID:</strong> {formData.studentId?.trim() || selectedStudent?.studentId || '—'}</p>
-                                            <p><strong>Personal email:</strong> {formData.personalEmail?.trim() || '—'}</p>
-                                            <p><strong>Phone:</strong> {formData.phone?.trim() || '—'}</p>
-                                            <p><strong>Course:</strong> {getSelectedCourse()?.title || '—'}</p>
-                                        </div>
+                        {!isAddCourseMode ? (
+                            <div className="preview-section">
+                                <h3><i className="fas fa-eye"></i> Preview</h3>
+                                <div className="preview-card">
+                                    <div className="preview-header">
+                                        <span className="preview-student">
+                                            <i className="fas fa-user"></i> {selectedStudent?.name || '—'}
+                                        </span>
+                                        <span className={`preview-status ${formData.status}`}>{formData.status}</span>
+                                    </div>
+                                    <div className="preview-body">
+                                        <p><strong>Course:</strong> {getSelectedCourse()?.title || '—'}</p>
+                                        <p><strong>Fee status:</strong> {formData.paymentStatus}</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : null}
                     </div>
 
                     <div className="form-actions">
-                        <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={handleClose}
-                            disabled={loading}
-                        >
+                        <button type="button" className="btn-secondary" onClick={handleClose} disabled={loading}>
                             <i className="fas fa-times"></i> Cancel
                         </button>
                         <button
                             type="submit"
-                            className="btn-primary"
-                            disabled={loading || success || sortedCourses.length === 0 || (!preselectedStudent && students.length === 0)}
+                            className="btn-primary btn-add"
+                            disabled={
+                                loading ||
+                                success ||
+                                sortedCourses.length === 0 ||
+                                (!preselectedStudent && students.length === 0)
+                            }
                         >
                             {loading ? (
                                 <><i className="fas fa-spinner fa-spin"></i> Saving...</>
                             ) : success ? (
-                                <><i className="fas fa-check"></i> Enrolled!</>
+                                <><i className="fas fa-check"></i> {isAddCourseMode ? 'Added!' : 'Enrolled!'}</>
+                            ) : isAddCourseMode ? (
+                                <><i className="fas fa-plus"></i> Add course</>
                             ) : (
                                 <><i className="fas fa-user-graduate"></i> Enroll Student</>
                             )}

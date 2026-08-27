@@ -9,7 +9,7 @@ const { isDashboardLoginRole } = require('../constants/dashboardRoles');
 
 const createToken = (user, rememberMe = false) => {
     const expiresIn = rememberMe
-        ? (process.env.JWT_EXPIRES_REMEMBER || '90d')
+        ? (process.env.JWT_EXPIRES_REMEMBER || '30d')
         : (process.env.JWT_EXPIRES_SESSION || '12h');
     return jwt.sign(
         { userId: String(user._id), role: user.role, email: user.email },
@@ -142,11 +142,58 @@ router.post(
     }
 });
 
+router.post(
+    '/change-password',
+    authMiddleware,
+    validateSessionUser,
+    validate([
+        rules.requiredString('currentPassword', 'Current password'),
+        rules.requiredString('newPassword', 'New password', 8),
+    ]),
+    async (req, res) => {
+        try {
+            const { currentPassword, newPassword } = req.body;
+            const user = await User.findById(req.user.userId);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+
+            const isMatch = await user.comparePassword(String(currentPassword));
+            if (!isMatch) {
+                return res.status(400).json({ error: 'Current password is incorrect' });
+            }
+
+            if (String(currentPassword) === String(newPassword)) {
+                return res.status(400).json({ error: 'New password must differ from current password' });
+            }
+
+            user.password = String(newPassword);
+            user.mustChangePassword = false;
+            user.updatedAt = Date.now();
+            await user.save();
+
+            return res.json({
+                success: true,
+                message: 'Password changed successfully',
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    avatar: user.avatar,
+                    mustChangePassword: false,
+                },
+            });
+        } catch (error) {
+            req.log.error('POST /change-password error', { err: error });
+            return res.status(500).json({ error: 'Failed to change password' });
+        }
+    }
+);
+
 router.post('/change-initial-password', authMiddleware, validateSessionUser, async (req, res) => {
     try {
         const { newPassword } = req.body;
-        if (!newPassword || String(newPassword).length < 6) {
-            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        if (!newPassword || String(newPassword).length < 8) {
+            return res.status(400).json({ error: 'New password must be at least 8 characters' });
         }
 
         const user = await User.findById(req.user.userId);

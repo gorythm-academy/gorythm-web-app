@@ -39,7 +39,7 @@ const StudentSchedule = () => {
   return (
     <div className="portal-page student-schedule">
       <PortalPageHeader
-        title="Classes schedules"
+        title="Class schedules"
         subtitle="Your class timings and meeting links for enrolled courses."
       />
 

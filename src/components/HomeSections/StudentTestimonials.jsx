@@ -236,7 +236,7 @@ const StudentTestimonialsSection = () => {
       </button>
 
       <div className="student-testimonials-content">
-        <h3 className="student-testimonials-heading">Student Testimonials</h3>
+        <h2 className="student-testimonials-heading">Student Testimonials</h2>
         <div className="student-testimonials-quote-mark" aria-hidden="true">
           ”
         </div>

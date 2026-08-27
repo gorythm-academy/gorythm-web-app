@@ -10,6 +10,13 @@ export function displayPortalEmail(email) {
     return isUnsetPortalEmail(email) ? '' : String(email || '').trim();
 }
 
+/** Table-friendly label when portal email is not assigned yet. */
+export function portalEmailDisplayLabel(email) {
+    if (isUnsetPortalEmail(email)) return 'Not assigned yet';
+    const trimmed = String(email || '').trim();
+    return trimmed || 'Not assigned yet';
+}
+
 export function localFromPortalEmail(email) {
     if (isUnsetPortalEmail(email)) return '';
     const lower = String(email || '').trim().toLowerCase();

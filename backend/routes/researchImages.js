@@ -4,13 +4,11 @@ const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const ResearchPost = require('../models/ResearchPost');
+const { buildGallery, cleanupOrphan, deleteMedia } = require('../services/mediaLibrary');
 const {
     ensureImageDir,
     imagePublicPath,
-    deleteImageFile,
-    listImageFilenames,
     renameImageFile,
-    publicPathForFilename,
     IMAGE_DIR,
     ALLOWED_EXT,
 } = require('../utils/researchImageStorage');
@@ -78,46 +76,7 @@ const uploadResearchImage = diskStorage
     : null;
 
 async function deleteResearchImageIfOrphan(publicPath) {
-    const normalized = String(publicPath || '').trim();
-    if (!normalized) return;
-    const inUse = await ResearchPost.countDocuments({ imagePath: normalized });
-    if (inUse === 0) deleteImageFile(normalized);
-}
-
-async function countPostsUsingImage(imagePath) {
-    return ResearchPost.countDocuments({ imagePath });
-}
-
-async function getPostsUsingImage(imagePath) {
-    return ResearchPost.find({ imagePath }).select('title').lean();
-}
-
-async function buildResearchImageGallery() {
-    const filenames = listImageFilenames();
-    const paths = filenames.map((name) => publicPathForFilename(name));
-    const usageRows = paths.length
-        ? await ResearchPost.find({ imagePath: { $in: paths } }).select('title imagePath').lean()
-        : [];
-
-    const usageByPath = new Map();
-    usageRows.forEach((row) => {
-        const key = row.imagePath;
-        if (!usageByPath.has(key)) usageByPath.set(key, []);
-        usageByPath.get(key).push(row.title || 'Untitled');
-    });
-
-    return filenames
-        .map((filename) => {
-            const imagePath = publicPathForFilename(filename);
-            const usedByTitles = usageByPath.get(imagePath) || [];
-            return {
-                filename,
-                path: imagePath,
-                usedBy: usedByTitles.length,
-                usedByTitles,
-            };
-        })
-        .sort((a, b) => b.filename.localeCompare(a.filename));
+    await cleanupOrphan('research-images', publicPath);
 }
 
 const router = express.Router();
@@ -125,7 +84,7 @@ router.use(...adminOnly);
 
 router.get('/', async (req, res) => {
     try {
-        const images = await buildResearchImageGallery();
+        const images = await buildGallery('research-images');
         return res.json({ success: true, images });
     } catch (error) {
         req.log?.error?.('Error listing research images', { err: error });
@@ -160,10 +119,6 @@ router.post('/', (req, res) => {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
         }
         const imagePath = imagePublicPath(req.file.filename);
-        const replacePath = String(req.body?.replacePath || '').trim();
-        if (replacePath && replacePath !== imagePath) {
-            await deleteResearchImageIfOrphan(replacePath);
-        }
         return res.status(201).json({
             success: true,
             imagePath,
@@ -209,19 +164,21 @@ router.post('/delete', async (req, res) => {
         if (!imagePath) {
             return res.status(400).json({ success: false, error: 'imagePath is required' });
         }
-        const inUse = await countPostsUsingImage(imagePath);
-        if (inUse > 0) {
-            const posts = await getPostsUsingImage(imagePath);
-            const names = posts.map((p) => p.title || 'Untitled').join(', ');
-            return res.status(400).json({
-                success: false,
-                error: `Image is used by ${inUse} article(s): ${names}. Clear the image on those articles first.`,
-            });
-        }
-        deleteImageFile(imagePath);
-        return res.json({ success: true });
+        const force =
+            req.body?.force === true ||
+            req.body?.force === 1 ||
+            req.body?.force === '1' ||
+            req.body?.force === 'true';
+        const result = await deleteMedia('research-images', imagePath, { force });
+        return res.json({ success: true, ...result });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message || 'Delete failed' });
+        const status = error.statusCode || 500;
+        return res.status(status).json({
+            success: false,
+            inUse: Boolean(error.inUse),
+            usedByTitles: error.usedByTitles || [],
+            error: error.message || 'Delete failed',
+        });
     }
 });
 

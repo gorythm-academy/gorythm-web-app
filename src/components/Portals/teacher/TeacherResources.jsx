@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { portalGet, portalPost, portalPatch } from '../shared/portalApi';
+import { hasLmsUploadValue, resolveLmsUploadValue } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
-import { PortalLoading, PortalPageHeader } from '../shared/PortalUi';
+import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { absFileUrl } from '../../../utils/fileUrl';
 import { portalDocId } from '../../../utils/portalDocId';
 import './TeacherResources.scss';
@@ -35,11 +36,17 @@ const TeacherResources = () => {
   const [showForm, setShowForm] = useState(false);
   const savingRef = useRef(false);
 
+  const [loadError, setLoadError] = useState('');
+
   const reload = () =>
-    Promise.all([portalGet('/teacher/courses'), portalGet('/teacher/resources')]).then(([c, r]) => {
-      if (c.success) setCourses(c.courses || []);
-      if (r.success) setResources(r.resources || []);
-    });
+    Promise.all([portalGet('/teacher/courses'), portalGet('/teacher/resources')])
+      .then(([c, r]) => {
+        if (c.success) setCourses(c.courses || []);
+        else setLoadError(c.error || 'Failed to load courses');
+        if (r.success) setResources(r.resources || []);
+        else setLoadError((prev) => prev || r.error || 'Failed to load resources');
+      })
+      .catch((err) => setLoadError(err.message || 'Failed to load resources'));
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
@@ -104,13 +111,18 @@ const TeacherResources = () => {
     savingRef.current = true;
     setSaving(true);
     setMsg('');
-    if (resourceForm.type === 'file' && !resourceForm.fileUrl?.trim()) {
-      setMsg('Upload a file for this resource.');
+    if (resourceForm.type === 'file' && !hasLmsUploadValue(resourceForm.fileUrl)) {
+      setMsg('Choose a file for this resource.');
       savingRef.current = false;
       setSaving(false);
       return;
     }
     try {
+      const fileUrl =
+        resourceForm.type === 'file'
+          ? await resolveLmsUploadValue(resourceForm.fileUrl, 'content/books')
+          : resourceForm.fileUrl;
+      const payload = { ...resourceForm, fileUrl };
       if (editingResourceId) {
         const id = portalDocId(editingResourceId);
         if (!id) {
@@ -119,10 +131,10 @@ const TeacherResources = () => {
           setSaving(false);
           return;
         }
-        await portalPatch(`/teacher/resources/${id}`, resourceForm);
+        await portalPatch(`/teacher/resources/${id}`, payload);
         setMsg('Resource updated.');
       } else {
-        await portalPost('/teacher/resources', resourceForm);
+        await portalPost('/teacher/resources', payload);
         setMsg('Resource added.');
       }
       resetResourceForm();
@@ -204,9 +216,12 @@ const TeacherResources = () => {
   if (!courses.length) {
     return (
       <div className="portal-page teacher-resources">
+        {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
         <PortalPageHeader
           title="Course resources"
-          subtitle="No courses assigned yet. Ask admin to set your account as instructor on a course."
+          subtitle={loadError
+            ? 'Could not load your courses. Refresh the page or try again later.'
+            : 'No courses assigned yet. Ask admin to set your account as instructor on a course.'}
         />
       </div>
     );
@@ -218,6 +233,7 @@ const TeacherResources = () => {
         title="Course resources"
         subtitle="Upload files, add links, or post notes. Select multiple items to delete at once."
       />
+      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
 
       <div className="teacher-resources__layout">
         {showForm ? (

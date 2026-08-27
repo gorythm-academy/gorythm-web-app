@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String, default: '' },
     status: {
         type: String,
-        enum: ['active', 'pending', 'inactive', 'completed'],
+        enum: ['active', 'inactive', 'completed'],
         default: 'active'
     },
     isActive: { type: Boolean, default: true },
@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema({
     isSystemAccount: { type: Boolean, default: false },
     enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     lastLogin: { type: Date },
+    /** Per-admin: hide dashboard activity feed items at or before this time. */
+    adminActivitiesClearedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
@@ -56,5 +58,8 @@ userSchema.methods.toJSON = function() {
     delete user.password;
     return user;
 };
+
+userSchema.index({ role: 1, deletedAt: 1 });
+userSchema.index({ studentId: 1 });
 
 module.exports = mongoose.model('User', userSchema);

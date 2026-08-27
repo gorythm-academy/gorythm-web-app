@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -6,18 +6,20 @@ import {
     getAuthToken,
     getAuthUserJson,
     setAuthUserJson,
+    getAuthSession,
     AUTH_REALM,
 } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { validatePasswordPair } from '../../../utils/studentAdminValidation';
 import BrandLogo from '../../BrandLogo/BrandLogo';
 import './Login.scss';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const isResetMode = useMemo(() => {
+    const isSetPasswordMode = useMemo(() => {
         const q = new URLSearchParams(location.search);
-        return q.get('reset') === '1';
+        return q.get('set-password') === '1';
     }, [location.search]);
 
     const [email, setEmail] = useState('');
@@ -47,7 +49,7 @@ const AdminLogin = () => {
             setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.ADMIN);
 
             if (response.data.user?.mustChangePassword) {
-                navigate('/admin/login?reset=1', { replace: true });
+                navigate('/admin/login?set-password=1', { replace: true });
                 return;
             }
             const from = location.state?.from;
@@ -65,12 +67,9 @@ const AdminLogin = () => {
     const handlePasswordReset = async (e) => {
         e.preventDefault();
         setError('');
-        if (!newPassword || newPassword.length < 6) {
-            setError('New password must be at least 6 characters');
-            return;
-        }
-        if (newPassword !== confirmNewPassword) {
-            setError('Passwords do not match');
+        const passwordErr = validatePasswordPair(newPassword, confirmNewPassword, { required: true });
+        if (passwordErr) {
+            setError(passwordErr);
             return;
         }
         const token = getAuthToken(AUTH_REALM.ADMIN);
@@ -90,7 +89,7 @@ const AdminLogin = () => {
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
             setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.ADMIN);
-            navigate('/admin', { replace: true });
+            navigate(adminDestAfterAuth(), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
         } finally {
@@ -98,7 +97,32 @@ const AdminLogin = () => {
         }
     };
 
-    if (isResetMode) {
+    const adminDestAfterAuth = () => {
+        const from = location.state?.from;
+        return typeof from === 'string' && from.startsWith('/admin') ? from : '/admin';
+    };
+
+    useEffect(() => {
+        if (isSetPasswordMode) return;
+        const { token, user } = getAuthSession(AUTH_REALM.ADMIN);
+        if (!token || !user) return;
+        if (user.mustChangePassword) {
+            navigate('/admin/login?set-password=1', { replace: true });
+            return;
+        }
+        navigate(adminDestAfterAuth(), { replace: true });
+    }, [isSetPasswordMode, location.state, navigate]);
+
+    useEffect(() => {
+        if (!isSetPasswordMode) return;
+        const token = getAuthToken(AUTH_REALM.ADMIN);
+        const rawUser = getAuthUserJson(AUTH_REALM.ADMIN);
+        if (!token || !rawUser) {
+            navigate('/admin/login', { replace: true });
+        }
+    }, [isSetPasswordMode, navigate]);
+
+    if (isSetPasswordMode) {
         return (
             <div className="auth-login auth-login--admin">
                 <div className="auth-login__center">
@@ -127,6 +151,7 @@ const AdminLogin = () => {
                                         type={showNewPassword ? 'text' : 'password'}
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="At least 8 characters"
                                         autoComplete="new-password"
                                         required
                                     />

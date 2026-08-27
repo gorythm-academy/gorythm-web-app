@@ -16,11 +16,13 @@ export const BANK_TRANSFER_NOTE =
   BANK_TRANSFER_NOTE_CUSTOM ||
   `${BANK_TRANSFER_NOTE_DEFAULT_LEAD} ${CONTACT_EMAIL}.`;
 export const INFO_EMAIL = 'gorythm.academy@gmail.com';
-export const CONTACT_PHONE = '+31 684 427 025';
+/** Only this account is the system super-admin; cannot be deleted from the dashboard. */
+export const PROTECTED_SUPER_ADMIN_EMAIL = INFO_EMAIL;
+export const CONTACT_PHONE = '+31 638 938 387';
 export const CONTACT_ADDRESS = 'Eindhoven, Netherlands';
 export const FACEBOOK_URL = 'https://www.facebook.com/share/1B437rw5Dk/';
 /** E.164 digits only (no +), for wa.me / api / deep links. */
-export const WHATSAPP_PHONE_DIGITS = '31684427025';
+export const WHATSAPP_PHONE_DIGITS = '0031638938387';
 export const WHATSAPP_PRESET_MESSAGE = "I'm interested in your courses";
 
 /** Universal link; often shows an intermediate “app or web” screen in the browser. */

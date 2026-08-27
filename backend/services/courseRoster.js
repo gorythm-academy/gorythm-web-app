@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activeUserFilter } = require('../utils/userQuery');
 
-const ROSTER_STATUSES = ['active', 'pending', 'completed'];
+const ROSTER_STATUSES = ['active', 'completed'];
 
 /**
  * All students registered on a course (enrollments + course.students), excluding inactive.

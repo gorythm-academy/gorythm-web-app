@@ -2,13 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch, lmsAdminDelete } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
+import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../../Portals/shared/FileUploadField';
 import { AUTH_REALM } from '../../../utils/authStorage';
 import AdminAssignmentSubmissions from './AdminAssignmentSubmissions';
 import AdminResearchTab from './AdminResearchTab';
 import ResearchComments from './ResearchComments';
 import LmsTrashTabs from '../shared/LmsTrashTabs';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import LmsCollapsibleFormPanel from '../shared/LmsCollapsibleFormPanel';
+import LmsMaterialPreviewModal from '../shared/LmsMaterialPreviewModal';
+import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import './LmsManagement.scss';
 
 const TABS = [
@@ -24,7 +28,7 @@ const EMPTY_ASSIGNMENT = {
   title: '',
   description: '',
   dueDate: '',
-  fileUrl: '',
+  attachments: [],
 };
 
 const EMPTY_RESOURCE = {
@@ -32,7 +36,15 @@ const EMPTY_RESOURCE = {
   title: '',
   description: '',
   fileUrl: '',
+  attachments: [],
   type: 'file',
+};
+
+const listAttachments = (record) => {
+  if (Array.isArray(record?.attachments) && record.attachments.length) {
+    return record.attachments.filter(Boolean);
+  }
+  return record?.fileUrl ? [record.fileUrl] : [];
 };
 
 const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
@@ -71,16 +83,60 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const [assignFormExpanded, setAssignFormExpanded] = useState(true);
   const [resourceFormExpanded, setResourceFormExpanded] = useState(true);
   const [researchSubTab, setResearchSubTab] = useState('articles');
+  const [materialPreview, setMaterialPreview] = useState(null);
+  const assignListCacheRef = useRef(createListCache());
+  const resourceListCacheRef = useRef(createListCache());
+  const assignMetaLoadedRef = useRef(false);
+  const resourceMetaLoadedRef = useRef(false);
 
-  const loadAssignments = useCallback(async () => {
+  const invalidateAssignCache = useCallback(() => {
+    assignListCacheRef.current.clear();
+    assignMetaLoadedRef.current = false;
+  }, []);
+
+  const invalidateResourceCache = useCallback(() => {
+    resourceListCacheRef.current.clear();
+    resourceMetaLoadedRef.current = false;
+  }, []);
+
+  const ensureAssignMeta = useCallback(async () => {
+    if (assignMetaLoadedRef.current && courses.length) return;
+    const meta = await lmsAdminGet('/assignments?metaOnly=1');
+    if (meta.success) {
+      setCourses(meta.courses || []);
+      setTeachers(meta.teachers || []);
+      if (typeof meta.trashCount === 'number') setAssignTrashCount(meta.trashCount);
+      assignMetaLoadedRef.current = true;
+    }
+  }, [courses.length]);
+
+  const ensureResourceMeta = useCallback(async () => {
+    if (resourceMetaLoadedRef.current && courses.length) return;
+    const meta = await lmsAdminGet('/resources?metaOnly=1');
+    if (meta.success) {
+      if (meta.courses?.length) setCourses(meta.courses);
+      if (typeof meta.trashCount === 'number') setResourceTrashCount(meta.trashCount);
+      resourceMetaLoadedRef.current = true;
+    }
+  }, [courses.length]);
+
+  const loadAssignments = useCallback(async ({ force = false } = {}) => {
     try {
-      const meta = await lmsAdminGet('/assignments');
-      if (meta.success) {
-        setCourses(meta.courses || []);
-        setTeachers(meta.teachers || []);
-      }
       if (!assignListCourseFilter) {
+        await ensureAssignMeta();
         setAssignments([]);
+        return;
+      }
+      const cacheKey = buildListCacheKey({
+        course: assignListCourseFilter,
+        mode: assignListMode,
+      });
+      if (!force && assignListCacheRef.current.has(cacheKey)) {
+        const cached = assignListCacheRef.current.get(cacheKey);
+        setAssignments(cached.assignments || []);
+        if (cached.courses?.length) setCourses(cached.courses);
+        if (cached.teachers?.length) setTeachers(cached.teachers);
+        if (typeof cached.trashCount === 'number') setAssignTrashCount(cached.trashCount);
         return;
       }
       const path =
@@ -90,20 +146,34 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const trashQ = assignListMode === 'trash' ? (path.includes('?') ? '&trash=1' : '?trash=1') : '';
       const res = await lmsAdminGet(`${path}${trashQ}`);
       if (res.success) {
+        assignListCacheRef.current.set(cacheKey, res);
+        assignMetaLoadedRef.current = true;
         setAssignments(res.assignments || []);
+        if (res.courses?.length) setCourses(res.courses);
+        if (res.teachers?.length) setTeachers(res.teachers);
         if (typeof res.trashCount === 'number') setAssignTrashCount(res.trashCount);
       }
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }, [assignListCourseFilter, assignListMode, showAlert]);
+  }, [assignListCourseFilter, assignListMode, ensureAssignMeta, showAlert]);
 
-  const loadResources = useCallback(async () => {
+  const loadResources = useCallback(async ({ force = false } = {}) => {
     try {
-      const meta = await lmsAdminGet('/resources');
-      if (meta.success && meta.courses?.length) setCourses(meta.courses);
       if (!resourceListCourseFilter) {
+        await ensureResourceMeta();
         setResources([]);
+        return;
+      }
+      const cacheKey = buildListCacheKey({
+        course: resourceListCourseFilter,
+        mode: resourceListMode,
+      });
+      if (!force && resourceListCacheRef.current.has(cacheKey)) {
+        const cached = resourceListCacheRef.current.get(cacheKey);
+        setResources(cached.resources || []);
+        if (cached.courses?.length) setCourses(cached.courses);
+        if (typeof cached.trashCount === 'number') setResourceTrashCount(cached.trashCount);
         return;
       }
       const path =
@@ -113,6 +183,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const trashQ = resourceListMode === 'trash' ? (path.includes('?') ? '&trash=1' : '?trash=1') : '';
       const res = await lmsAdminGet(`${path}${trashQ}`);
       if (res.success) {
+        resourceListCacheRef.current.set(cacheKey, res);
+        resourceMetaLoadedRef.current = true;
         setResources(res.resources || []);
         if (typeof res.trashCount === 'number') setResourceTrashCount(res.trashCount);
         if (res.courses?.length) setCourses(res.courses);
@@ -120,7 +192,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }, [resourceListCourseFilter, resourceListMode, showAlert]);
+  }, [resourceListCourseFilter, resourceListMode, ensureResourceMeta, showAlert]);
 
   useEffect(() => {
     const nextTab =
@@ -182,29 +254,36 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       title: a.title || '',
       description: a.description || '',
       dueDate: a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : '',
-      fileUrl: (a.attachments && a.attachments[0]) || '',
+      attachments: listAttachments(a),
     });
   };
 
   const startEditResource = (r) => {
     setResourceFormExpanded(true);
     setEditingResourceId(r._id);
+    const type = r.type || 'file';
     setResourceForm({
       courseId: String(r.course?._id || r.course || ''),
       title: r.title || '',
       description: r.description || '',
-      fileUrl: r.fileUrl || '',
-      type: r.type || 'file',
+      fileUrl: type === 'link' ? r.fileUrl || '' : '',
+      attachments: type === 'file' ? listAttachments(r) : [],
+      type,
     });
   };
 
   const saveAssignment = async (e) => {
     e.preventDefault();
-    const payload = {
-      ...assignForm,
-      attachments: assignForm.fileUrl ? [assignForm.fileUrl] : [],
-    };
     try {
+      const attachments = await resolveLmsUploadList(
+        assignForm.attachments,
+        'assignments',
+        AUTH_REALM.ADMIN
+      );
+      const payload = {
+        ...assignForm,
+        attachments,
+      };
       if (editingAssignId) {
         await lmsAdminPatch(`/assignments/${editingAssignId}`, payload);
         showAlert('Assignment updated.', 'success');
@@ -213,7 +292,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         showAlert('Assignment published. Visible in teacher & student portals.', 'success');
       }
       resetAssignForm();
-      loadAssignments();
+      invalidateAssignCache();
+      await loadAssignments({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -225,15 +305,47 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     savingResourceRef.current = true;
     setSavingResource(true);
     try {
+      if (
+        resourceForm.type === 'file' &&
+        !hasLmsUploadValue(resourceForm.attachments) &&
+        !resourceForm.fileUrl?.trim() &&
+        !editingResourceId
+      ) {
+        showAlert('Choose at least one file or paste an external URL.', 'error');
+        return;
+      }
+      let attachments = [];
+      let fileUrl = '';
+      if (resourceForm.type === 'file') {
+        attachments = await resolveLmsUploadList(
+          resourceForm.attachments,
+          'content/books',
+          AUTH_REALM.ADMIN
+        );
+        const external = resourceForm.fileUrl?.trim();
+        if (external && !attachments.includes(external)) attachments.push(external);
+        fileUrl = attachments[0] || '';
+      } else if (resourceForm.type === 'link') {
+        fileUrl = resourceForm.fileUrl?.trim() || '';
+      }
+      const payload = {
+        courseId: resourceForm.courseId,
+        title: resourceForm.title,
+        description: resourceForm.description,
+        type: resourceForm.type,
+        fileUrl,
+        attachments,
+      };
       if (editingResourceId) {
-        await lmsAdminPatch(`/resources/${editingResourceId}`, resourceForm);
+        await lmsAdminPatch(`/resources/${editingResourceId}`, payload);
         showAlert('Resource updated.', 'success');
       } else {
-        await lmsAdminPost('/resources', resourceForm);
+        await lmsAdminPost('/resources', payload);
         showAlert('Resource added.', 'success');
       }
       resetResourceForm();
-      await loadResources();
+      invalidateResourceCache();
+      await loadResources({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -257,7 +369,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       showAlert(`${moved} assignment${moved !== 1 ? 's' : ''} moved to trash.`, 'success');
       setSelectedAssignmentIds(new Set());
       if (editingAssignId && idList.includes(String(editingAssignId))) resetAssignForm();
-      await loadAssignments();
+      invalidateAssignCache();
+      await loadAssignments({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -276,7 +389,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const restored = res.restoredCount ?? idList.length;
       showAlert(`${restored} assignment${restored !== 1 ? 's' : ''} restored.`, 'success');
       setSelectedAssignmentIds(new Set());
-      await loadAssignments();
+      invalidateAssignCache();
+      await loadAssignments({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -298,7 +412,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const removed = res.deletedCount ?? idList.length;
       showAlert(`${removed} assignment${removed !== 1 ? 's' : ''} deleted forever.`, 'success');
       setSelectedAssignmentIds(new Set());
-      await loadAssignments();
+      invalidateAssignCache();
+      await loadAssignments({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -375,7 +490,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       showAlert(`${moved} resource${moved !== 1 ? 's' : ''} moved to trash.`, 'success');
       setSelectedResourceIds(new Set());
       if (editingResourceId && idList.includes(String(editingResourceId))) resetResourceForm();
-      await loadResources();
+      invalidateResourceCache();
+      await loadResources({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -394,7 +510,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const restored = res.restoredCount ?? idList.length;
       showAlert(`${restored} resource${restored !== 1 ? 's' : ''} restored.`, 'success');
       setSelectedResourceIds(new Set());
-      await loadResources();
+      invalidateResourceCache();
+      await loadResources({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -415,7 +532,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const removed = res.deletedCount ?? idList.length;
       showAlert(`${removed} resource${removed !== 1 ? 's' : ''} deleted forever.`, 'success');
       setSelectedResourceIds(new Set());
-      await loadResources();
+      invalidateResourceCache();
+      await loadResources({ force: true });
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
@@ -535,11 +653,10 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               />
             </label>
             <FileUploadField
-              label="Attachment (PDF / file)"
-              value={assignForm.fileUrl}
-              onChange={(url) => setAssignForm({ ...assignForm, fileUrl: url })}
-              realm={AUTH_REALM.ADMIN}
-              category="assignments"
+              label="Attachments (PDF / files)"
+              value={assignForm.attachments}
+              onChange={(attachments) => setAssignForm({ ...assignForm, attachments })}
+              multiple
             />
             <div className="lms-form-actions">
               <button type="submit">{editingAssignId ? 'Save changes' : 'Publish assignment'}</button>
@@ -684,6 +801,13 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                               </>
                             ) : (
                               <>
+                                <button
+                                  type="button"
+                                  className="lms-btn-secondary"
+                                  onClick={() => setMaterialPreview({ kind: 'assignment', item: a })}
+                                >
+                                  <i className="fas fa-eye" aria-hidden /> Preview
+                                </button>
                                 <button type="button" className="lms-btn-secondary" onClick={() => startEditAssignment(a)}>
                                   Edit
                                 </button>
@@ -693,7 +817,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                                   onClick={() => removeAssignment(a._id)}
                                   disabled={deletingAssignments}
                                 >
-                                  <i className="fas fa-trash" aria-hidden /> Trash
+                                  <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
                                 </button>
                               </>
                             )}
@@ -723,7 +847,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               className={researchSubTab === 'comments' ? 'active' : ''}
               onClick={() => setResearchSubTab('comments')}
             >
-              Comments
+              Queries & feedback
             </button>
           </div>
           {researchSubTab === 'comments' ? (
@@ -772,29 +896,52 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               <span>Type</span>
               <select
                 value={resourceForm.type}
-                onChange={(e) => setResourceForm({ ...resourceForm, type: e.target.value })}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  setResourceForm({
+                    ...resourceForm,
+                    type,
+                    attachments: type === 'file' ? resourceForm.attachments : [],
+                    fileUrl: type === 'link' ? resourceForm.fileUrl : '',
+                  });
+                }}
               >
                 <option value="file">File / PDF</option>
                 <option value="link">Link</option>
                 <option value="note">Note</option>
               </select>
             </label>
-            <FileUploadField
-              label="Upload file or paste URL below"
-              value={resourceForm.fileUrl}
-              onChange={(url) => setResourceForm({ ...resourceForm, fileUrl: url })}
-              realm={AUTH_REALM.ADMIN}
-              category="content/books"
-            />
-            <label className="lms-field-label">
-              <span>Or external URL</span>
-              <input
-                placeholder="Paste a link to a PDF or external resource"
-                value={resourceForm.fileUrl}
-                onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
-                autoComplete="off"
-              />
-            </label>
+            {resourceForm.type === 'file' ? (
+              <>
+                <FileUploadField
+                  label="Upload files or paste URL below"
+                  value={resourceForm.attachments}
+                  onChange={(attachments) => setResourceForm({ ...resourceForm, attachments })}
+                  multiple
+                />
+                <label className="lms-field-label">
+                  <span>Or external URL</span>
+                  <input
+                    placeholder="Paste a link to a PDF or external resource"
+                    value={resourceForm.fileUrl}
+                    onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
+                    autoComplete="off"
+                  />
+                </label>
+              </>
+            ) : null}
+            {resourceForm.type === 'link' ? (
+              <label className="lms-field-label">
+                <span>Link URL</span>
+                <input
+                  placeholder="https://…"
+                  value={resourceForm.fileUrl}
+                  onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
+                  required={!editingResourceId}
+                  autoComplete="off"
+                />
+              </label>
+            ) : null}
             <label className="lms-field-label">
               <span>Description</span>
               <textarea
@@ -852,7 +999,12 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
               <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view resources.</p>
             ) : null}
 
-            {resourceListCourseFilter && selectedResourceIds.size > 0 ? (
+            {resourceListCourseFilter ? (
+            <div className="lms-table-wrap">
+              <p className="lms-resources-library__count" style={{ padding: '0.5rem 0 0.75rem', margin: 0 }}>
+                {resources.length} shown
+              </p>
+              {selectedResourceIds.size > 0 ? (
               <div className="lms-resources-bulk-bar">
                 <span>{selectedResourceIds.size} selected</span>
                 <div className="lms-form-actions">
@@ -889,13 +1041,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                   ) : null}
                 </div>
               </div>
-            ) : null}
-
-            {resourceListCourseFilter ? (
-            <div className="lms-table-wrap">
-              <p className="lms-resources-library__count" style={{ padding: '0.5rem 0 0.75rem', margin: 0 }}>
-                {resources.length} shown
-              </p>
+              ) : null}
               <table className="lms-table lms-table--resources">
                 <thead>
                   <tr>
@@ -931,15 +1077,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                             aria-label={`Select ${r.title}`}
                           />
                         </td>
-                        <td>
-                          {r.fileUrl ? (
-                            <a href={r.fileUrl} target="_blank" rel="noreferrer">
-                              {r.title}
-                            </a>
-                          ) : (
-                            r.title
-                          )}
-                        </td>
+                        <td>{r.title}</td>
                         <td>{r.course?.title}</td>
                         <td>
                           <span className="lms-resource-type-pill">{r.type}</span>
@@ -970,6 +1108,13 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                             </>
                           ) : (
                             <>
+                              <button
+                                type="button"
+                                className="lms-btn-secondary"
+                                onClick={() => setMaterialPreview({ kind: 'resource', item: r })}
+                              >
+                                <i className="fas fa-eye" aria-hidden /> Preview
+                              </button>
                               <button type="button" className="lms-btn-secondary" onClick={() => startEditResource(r)}>
                                 Edit
                               </button>
@@ -979,7 +1124,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
                                 onClick={() => removeResource(r._id)}
                                 disabled={deletingResources}
                               >
-                                <i className="fas fa-trash" aria-hidden /> Trash
+                                <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
                               </button>
                             </>
                           )}
@@ -999,6 +1144,12 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           <AdminAssignmentSubmissions />
         </div>
       )}
+      <LmsMaterialPreviewModal
+        open={Boolean(materialPreview)}
+        kind={materialPreview?.kind}
+        item={materialPreview?.item}
+        onClose={() => setMaterialPreview(null)}
+      />
     </div>
   );
 };

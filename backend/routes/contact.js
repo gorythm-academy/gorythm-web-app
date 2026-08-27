@@ -7,6 +7,7 @@ const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
 const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
+const { escapeHtml } = require('../utils/escapeHtml');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -17,6 +18,8 @@ const activeMessageFilter = () => ({
 const trashedMessageFilter = () => ({
   deletedAt: { $exists: true, $ne: null },
 });
+
+const CONTACT_MESSAGE_LIST_LIMIT = 500;
 
 // Helper: create transporter from settings
 async function createTransporter() {
@@ -104,6 +107,11 @@ router.post(
           ? `[Gorythm Contact] ${subject.trim()}`
           : '[Gorythm Contact] New enquiry';
 
+      const safeName = escapeHtml(name);
+      const safeEmail = escapeHtml(email);
+      const safePhone = escapeHtml(phoneStr);
+      const safeMessage = escapeHtml(message);
+
       const textBody =
         `New contact enquiry from Gorythm website:\n\n` +
         `Name: ${name}\n` +
@@ -117,13 +125,13 @@ router.post(
       const htmlBody =
         `<p>New contact enquiry from <strong>Gorythm</strong> website.</p>` +
         `<ul>` +
-        `<li><strong>Name:</strong> ${name}</li>` +
-        `<li><strong>Email:</strong> ${email}</li>` +
-        (phoneStr ? `<li><strong>Whatsapp Number:</strong> ${phoneStr}</li>` : '') +
+        `<li><strong>Name:</strong> ${safeName}</li>` +
+        `<li><strong>Email:</strong> ${safeEmail}</li>` +
+        (phoneStr ? `<li><strong>Whatsapp Number:</strong> ${safePhone}</li>` : '') +
         `<li><strong>Consent:</strong> ${consent ? 'Yes' : 'No'}</li>` +
         `</ul>` +
         `<p><strong>Message:</strong></p>` +
-        `<p>${message.replace(/\n/g, '<br/>')}</p>` +
+        `<p>${safeMessage.replace(/\n/g, '<br/>')}</p>` +
         `<hr/>` +
         `<p>Message ID: ${contactMessage._id}</p>` +
         `<p>Submitted at: ${contactMessage.createdAt.toISOString()}</p>`;
@@ -164,12 +172,46 @@ router.get('/admin/messages', ...adminOnly, async (req, res) => {
     const filter = trash ? trashedMessageFilter() : activeMessageFilter();
     const sort = trash ? { deletedAt: -1 } : { createdAt: -1 };
 
-    const [messages, trashCount] = await Promise.all([
-      ContactMessage.find(filter).sort(sort).limit(500).lean(),
-      ContactMessage.countDocuments(trashedMessageFilter()),
-    ]);
+    const activeFilter = activeMessageFilter();
 
-    return res.json({ success: true, messages, trashCount });
+    const queries = [
+      ContactMessage.find(filter).sort(sort).limit(CONTACT_MESSAGE_LIST_LIMIT).lean(),
+      ContactMessage.countDocuments(trashedMessageFilter()),
+      ContactMessage.countDocuments(filter),
+    ];
+
+    if (!trash) {
+      queries.push(
+        ContactMessage.countDocuments({ ...activeFilter, status: 'new' }),
+        ContactMessage.countDocuments({ ...activeFilter, status: 'in-progress' }),
+        ContactMessage.countDocuments({ ...activeFilter, status: 'resolved' })
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const messages = results[0];
+    const trashCount = results[1];
+    const totalCount = results[2];
+
+    const payload = {
+      success: true,
+      messages,
+      trashCount,
+      totalCount,
+      listLimit: CONTACT_MESSAGE_LIST_LIMIT,
+      truncated: totalCount > CONTACT_MESSAGE_LIST_LIMIT,
+    };
+
+    if (!trash) {
+      payload.statusCounts = {
+        new: results[3],
+        inProgress: results[4],
+        resolved: results[5],
+        total: totalCount,
+      };
+    }
+
+    return res.json(payload);
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to fetch contact messages' });
   }

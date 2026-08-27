@@ -74,6 +74,7 @@ const ContactPage = () => {
     consent: false,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationModal, setValidationModal] = useState({
     open: false,
     title: '',
@@ -96,6 +97,7 @@ const ContactPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const issues = collectContactValidationIssues(form);
     if (issues.length > 0) {
       setValidationModal({
@@ -107,6 +109,7 @@ const ContactPage = () => {
     }
 
     setSubmitted(false);
+    setIsSubmitting(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/contact`, {
@@ -148,6 +151,8 @@ const ContactPage = () => {
         title: 'Connection problem',
         issues: ['Network error. Please check your connection and try again.'],
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -224,6 +229,20 @@ const ContactPage = () => {
                   />
                 </label>
                 <label className="contact-page__field">
+                  <span className="contact-page__field-icon" aria-hidden="true"><FaWhatsapp /></span>
+                  <input
+                    type="tel"
+                    name="phone"
+                    placeholder="WhatsApp Number"
+                    value={form.phone}
+                    onChange={handlePhoneChange}
+                    autoComplete="tel"
+                    inputMode="numeric"
+                  />
+                </label>
+              </div>
+              <div className="contact-page__form-row">
+                <label className="contact-page__field">
                   <span className="contact-page__field-icon" aria-hidden="true"><FiMail /></span>
                   <input
                     type="email"
@@ -234,20 +253,6 @@ const ContactPage = () => {
                     required
                     maxLength={EMAIL_MAX_LEN}
                     autoComplete="email"
-                  />
-                </label>
-              </div>
-              <div className="contact-page__form-row">
-                <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><FaWhatsapp /></span>
-                  <input
-                    type="tel"
-                    name="phone"
-                    placeholder="WhatsApp number (digits only, with country code)"
-                    value={form.phone}
-                    onChange={handlePhoneChange}
-                    autoComplete="tel"
-                    inputMode="numeric"
                   />
                 </label>
               </div>
@@ -263,9 +268,9 @@ const ContactPage = () => {
                 />
               </label>
               <div className="contact-page__form-actions">
-                <button type="submit" className="contact-page__submit">
+                <button type="submit" className="contact-page__submit" disabled={isSubmitting}>
                   <FiSend className="contact-page__submit-icon" aria-hidden="true" />
-                  Get in Touch
+                  {isSubmitting ? 'Sending…' : 'Get in Touch'}
                 </button>
                 <label className="contact-page__consent">
                   <input

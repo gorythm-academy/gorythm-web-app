@@ -6,6 +6,16 @@ const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
+const { validateCriticalEnv } = require('./utils/validateEnv');
+
+try {
+    validateCriticalEnv();
+} catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[startup] ${err.message}`);
+    process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const courseRoutes = require('./routes/courses');
@@ -14,7 +24,6 @@ const enrollmentsRoute = require('./routes/enrollments');
 const paymentRoutes = require('./routes/payments');
 const stripeWebhookHandler = require('./routes/stripeWebhook');
 const analyticsRoutes = require('./routes/analytics');
-const blogCommentRoutes = require('./routes/blogComments');
 const researchCommentRoutes = require('./routes/researchComments');
 const { publicRouter: researchPublicRoutes, adminRouter: researchAdminRoutes } = require('./routes/research');
 const researchImageRoutes = require('./routes/researchImages');
@@ -27,7 +36,11 @@ const lmsAdminRoutes = require('./routes/lmsAdmin');
 const uploadRoutes = require('./routes/upload');
 const promoVideoRoutes = require('./routes/promoVideos');
 const promoVideoAdminRoutes = require('./routes/promoVideos').adminRouter;
+const mediaRoutes = require('./routes/media');
 const payrollRoutes = require('./routes/payroll');
+const subscribePopupAdminRoutes = require('./routes/subscribePopupAdmin');
+const settingsRoutes = require('./routes/settings');
+const siteRoutes = require('./routes/site');
 const { authRateLimiter } = require('./middleware/security');
 const { protectedUploadsGate } = require('./middleware/protectedUploads');
 const requestContext = require('./middleware/requestContext');
@@ -35,10 +48,13 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const User = require('./models/User');
 const { ensureAllCategoryDirs } = require('./utils/uploadStorage');
+const { migrateLegacyPendingStatuses } = require('./utils/migrateLegacyStatuses');
+const { migrateScheduleTimezones } = require('./utils/migrateScheduleTimezones');
 const { ensureImageDir } = require('./utils/researchImageStorage');
 const { ensureProofDir } = require('./utils/paymentProofStorage');
 const { ensureImageDir: ensureCourseImageDir } = require('./utils/courseImageStorage');
 const { ensureThumbDir } = require('./utils/promoThumbnailStorage');
+const { ensureImageDir: ensureSubscribePopupImageDir } = require('./utils/subscribePopupImageStorage');
 
 const app = express();
 
@@ -73,7 +89,15 @@ const ensureDefaultAdmin = async () => {
             return;
         }
         const adminEmail = String(rawEmail).toLowerCase().trim();
-        const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+        const adminPassword = String(process.env.DEFAULT_ADMIN_PASSWORD || '').trim();
+        if (!adminPassword) {
+            logger.warn('DEFAULT_ADMIN_EMAIL is set but DEFAULT_ADMIN_PASSWORD is missing; skipping default admin seed');
+            return;
+        }
+        if (adminPassword.length < 8) {
+            logger.warn('DEFAULT_ADMIN_PASSWORD is too short (min 8); skipping default admin seed');
+            return;
+        }
         const existing = await User.findOne({ email: adminEmail });
         if (existing) return;
 
@@ -152,6 +176,12 @@ const connectDB = async () => {
         logger.info('MongoDB connected');
         isConnecting = false;
         ensureDefaultAdmin();
+        migrateLegacyPendingStatuses().catch((err) => {
+            logger.warn('Legacy status migration skipped', { err });
+        });
+        migrateScheduleTimezones().catch((err) => {
+            logger.warn('Schedule timezone migration skipped', { err });
+        });
     } catch (err) {
         isConnecting = false;
         logger.error('MongoDB connection error', { err });
@@ -162,7 +192,7 @@ const connectDB = async () => {
 connectDB();
 
 // Middleware: ensure DB is connected before handling API requests
-const DB_BYPASS_PATHS = new Set(['/health', '/api/payments/webhook']);
+const DB_BYPASS_PATHS = new Set(['/health', '/api/health', '/api/payments/webhook']);
 
 app.use(async (req, res, next) => {
     if (DB_BYPASS_PATHS.has(req.path)) {
@@ -189,12 +219,15 @@ app.post(
 
 app.use(express.json());
 
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = process.env.UPLOAD_ROOT
+    ? path.resolve(process.env.UPLOAD_ROOT)
+    : path.join(__dirname, 'uploads');
 ensureAllCategoryDirs();
 ensureImageDir();
 ensureProofDir();
 ensureCourseImageDir();
 ensureThumbDir();
+ensureSubscribePopupImageDir();
 app.use('/api/uploads', protectedUploadsGate);
 app.use(
     '/api/uploads',
@@ -209,18 +242,19 @@ app.use(
 
 // Routes
 app.use('/api/auth', authRateLimiter, authRoutes);
+app.use('/api/admin/media', mediaRoutes);
 app.use('/api/admin/promo-videos', promoVideoAdminRoutes);
 app.use('/api/admin/course-images', courseImageRoutes);
 app.use('/api/admin/research', researchAdminRoutes);
 app.use('/api/admin/research-images', researchImageRoutes);
 app.use('/api/admin/research-comments', adminResearchCommentRoutes);
+app.use('/api/admin/subscribe-popup', subscribePopupAdminRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/payments', paymentRoutes); 
 app.use('/api/enrollments', enrollmentsRoute);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/blog', blogCommentRoutes);
 app.use('/api/research', researchPublicRoutes);
 app.use('/api/research', researchCommentRoutes);
 app.use('/api/contact', contactRoutes);
@@ -230,34 +264,23 @@ app.use('/api/lms-admin', lmsAdminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/promo-videos', promoVideoRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/site', siteRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
+// Health check (also at /api/health for same-origin nginx proxy on production)
+const healthHandler = (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    const payload = {
+    res.status(dbStatus === 'connected' ? 200 : 503).json({
         status: dbStatus === 'connected' ? 'ok' : 'degraded',
         service: 'Gorythm Academy API',
         version: '1.0.0',
         database: dbStatus,
         timestamp: new Date().toISOString(),
-        endpoints: [
-    'GET  /health',
-    'POST /api/auth/login',
-    'GET  /api/admin/dashboard',
-    'GET  /api/courses',
-    'GET  /api/users',
-    'POST /api/courses',
-    'PATCH /api/courses/:id/status',
-    'DELETE /api/courses/:id',  
-    'GET  /api/payments',
-    'POST /api/payments/create-checkout',
-    'GET  /api/payments/verify-session',
-    'POST /api/payments/webhook',
-    'POST /api/payments/:id/refund'
-      ]
-    };
-    res.status(dbStatus === 'connected' ? 200 : 503).json(payload);
-});
+    });
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Basic route
 app.get('/', (req, res) => {

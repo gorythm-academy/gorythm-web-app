@@ -25,58 +25,8 @@
             }
         }
     }
-    
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-        padding: 1.5rem;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        
-        .header-left {
-            h1 {
-                font-size: 1.8rem;
-                color: #1e293b;
-                margin: 0;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                
-                i {
-                    color: var(--color-accent);
-                }
-            }
-            
-            p {
-                color: #64748b;
-                margin: 0.5rem 0 0;
-            }
-        }
-        
-        .header-right {
-            .btn-primary {
-                background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
-                color: white;
-                border: none;
-                padding: 0.8rem 1.5rem;
-                border-radius: 8px;
-                font-weight: 500;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                transition: all 0.3s;
-                
-                &:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 5px 15px rgba(var(--color-accent-rgb), 0.3);
-                }
-            }
-        }
-    }
+    /* Header: shared in _admin-page-chrome.scss */
+
     
     .stats-grid {
         display: grid;
@@ -165,95 +115,7 @@
         }
     }
     
-    .controls-bar {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        
-        .search-box {
-            flex: 1;
-            min-width: 300px;
-            position: relative;
-            
-            i {
-                position: absolute;
-                left: 1rem;
-                top: 50%;
-                transform: translateY(-50%);
-                color: var(--color-muted);
-            }
-            
-            input {
-                width: 100%;
-                padding: 0.8rem 1rem 0.8rem 2.5rem;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                font-size: 1rem;
-                color: #1e293b;
-                transition: all 0.3s;
-                
-                &:focus {
-                    outline: none;
-                    border-color: var(--color-accent);
-                }
-                
-                &::placeholder {
-                    color: var(--color-muted);
-                }
-            }
-        }
-        
-        .filter-controls {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            
-            select {
-                padding: 0.8rem 2rem 0.8rem 1rem;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                font-size: 1rem;
-                color: #1e293b;
-                background: white;
-                cursor: pointer;
-                appearance: none;
-                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-                background-repeat: no-repeat;
-                background-position: right 0.7rem center;
-                background-size: 1rem;
-                
-                &:focus {
-                    outline: none;
-                    border-color: var(--color-accent);
-                }
-            }
-            
-            .refresh-btn {
-                padding: 0.8rem 1.2rem;
-                background: #f1f5f9;
-                border: none;
-                border-radius: 8px;
-                color: #64748b;
-                font-weight: 500;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                transition: all 0.3s;
-                
-                &:hover {
-                    background: #e2e8f0;
-                }
-            }
-        }
-    }
+    /* Controls bar: shared in _admin-controls-bar.scss */
 
     .selection-action-bar {
         background: #eff6ff;
@@ -579,6 +441,14 @@
                 }
             }
             
+            .payment-failure-reason {
+                margin-top: 6px;
+                max-width: 220px;
+                font-size: 0.75rem;
+                line-height: 1.35;
+                color: #b45309;
+            }
+            
             .method-badge {
                 display: inline-flex;
                 align-items: center;
@@ -605,74 +475,12 @@
             }
             
             .action-buttons {
-                display: flex;
-                gap: 6px;
-                flex-wrap: nowrap;
-                white-space: nowrap;
-                
-                .action-btn {
-                    width: 32px;
-                    height: 32px;
-                    flex: 0 0 auto;
-                    border: none;
-                    border-radius: 6px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    color: white;
-                    
-                    &:hover {
-                        transform: translateY(-2px);
-                    }
-                    
-                    &.receipt-btn {
-                        background: #6366f1;
-
-                        &:hover {
-                            background: #4f46e5;
-                        }
-                    }
-
-                    &.students-btn {
-                        background: #c5a45c;
-                        text-decoration: none;
-
-                        &:hover {
-                            background: #a88a45;
-                        }
-                    }
-
-                    &.invoice-btn {
-                        background: #10b981;
-                        
-                        &:hover {
-                            background: #059669;
-                        }
-                    }
-
-                    &.restore-btn {
-                        background: #6366f1;
-
-                        &:hover {
-                            background: #4f46e5;
-                        }
-                    }
-
-                    &.delete-btn {
-                        background: #ef4444;
-
-                        &:hover {
-                            background: #dc2626;
-                        }
-                    }
-                }
+                // Shared outline + label styles come from _admin-list-tabs.scss
             }
         }
 
         .bulk-btn.restore-btn {
-            background: #6366f1;
+            background: #10b981;
             color: #fff;
         }
         
@@ -863,8 +671,8 @@
 
             &:focus {
                 outline: none;
-                border-color: #6366f1;
-                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+                border-color: var(--color-accent);
+                box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.12);
             }
         }
     }
@@ -876,6 +684,7 @@
         gap: 12px;
         margin-top: 16px;
         flex-wrap: wrap;
+        /* Save button color: shared .btn-save in _admin-page-chrome.scss */
     }
 
     &__msg {
@@ -959,5 +768,40 @@
         color: #b91c1c;
         text-decoration: none;
         font-weight: 600;
+    }
+}
+
+.payments-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1rem 0 1.5rem;
+    flex-wrap: wrap;
+
+    .btn-secondary {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #334155;
+        border-radius: 8px;
+        padding: 0.5rem 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+    }
+
+    &__info {
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+}
+
+.payments-management {
+    .refresh-btn.is-refreshing {
+        opacity: 0.85;
     }
 }

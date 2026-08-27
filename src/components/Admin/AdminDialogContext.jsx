@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { useDialogKeyboard } from '../../hooks/useDialogKeyboard';
 
 const AdminDialogContext = createContext(null);
 
@@ -8,6 +9,65 @@ const getIconClass = (type) => {
   if (type === 'warning') return 'fas fa-exclamation-triangle';
   return 'fas fa-info-circle';
 };
+
+function AdminDialogOverlay({ dialog, onClose }) {
+  useDialogKeyboard({
+    isOpen: true,
+    onClose: () => onClose(false),
+    onConfirm: () => onClose(true),
+    confirmEnabled: !dialog.choices?.length,
+  });
+
+  return (
+    <div className="admin-dialog-overlay" role="presentation">
+      <div
+        className={`admin-dialog admin-dialog--${dialog.type}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-dialog-title"
+      >
+        <div className="admin-dialog__icon">
+          <i className={getIconClass(dialog.type)}></i>
+        </div>
+        <div className="admin-dialog__content">
+          <h2 id="admin-dialog-title">{dialog.title}</h2>
+          <p>{dialog.message}</p>
+        </div>
+        <div className="admin-dialog__actions">
+          {dialog.showCancel && (
+            <button
+              type="button"
+              className="admin-dialog__btn admin-dialog__btn--secondary"
+              onClick={() => onClose(false)}
+            >
+              {dialog.cancelLabel}
+            </button>
+          )}
+          {dialog.choices?.length ? (
+            dialog.choices.map((choice) => (
+              <button
+                type="button"
+                key={choice.value}
+                className="admin-dialog__btn admin-dialog__btn--primary"
+                onClick={() => onClose(choice.value)}
+              >
+                {choice.label}
+              </button>
+            ))
+          ) : (
+            <button
+              type="button"
+              className="admin-dialog__btn admin-dialog__btn--primary"
+              onClick={() => onClose(true)}
+            >
+              {dialog.confirmLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const AdminDialogProvider = ({ children }) => {
   const [dialog, setDialog] = useState(null);
@@ -94,55 +154,7 @@ export const AdminDialogProvider = ({ children }) => {
   return (
     <AdminDialogContext.Provider value={{ showAlert, showConfirm, showChoice }}>
       {children}
-      {dialog && (
-        <div className="admin-dialog-overlay" role="presentation">
-          <div
-            className={`admin-dialog admin-dialog--${dialog.type}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="admin-dialog-title"
-          >
-            <div className="admin-dialog__icon">
-              <i className={getIconClass(dialog.type)}></i>
-            </div>
-            <div className="admin-dialog__content">
-              <h2 id="admin-dialog-title">{dialog.title}</h2>
-              <p>{dialog.message}</p>
-            </div>
-            <div className="admin-dialog__actions">
-              {dialog.showCancel && (
-                <button
-                  type="button"
-                  className="admin-dialog__btn admin-dialog__btn--secondary"
-                  onClick={() => closeDialog(false)}
-                >
-                  {dialog.cancelLabel}
-                </button>
-              )}
-              {dialog.choices?.length ? (
-                dialog.choices.map((choice) => (
-                  <button
-                    type="button"
-                    key={choice.value}
-                    className="admin-dialog__btn admin-dialog__btn--primary"
-                    onClick={() => closeDialog(choice.value)}
-                  >
-                    {choice.label}
-                  </button>
-                ))
-              ) : (
-                <button
-                  type="button"
-                  className="admin-dialog__btn admin-dialog__btn--primary"
-                  onClick={() => closeDialog(true)}
-                >
-                  {dialog.confirmLabel}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {dialog ? <AdminDialogOverlay dialog={dialog} onClose={closeDialog} /> : null}
     </AdminDialogContext.Provider>
   );
 };

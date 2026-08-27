@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
+import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
 import PortalModal from '../shared/PortalModal';
 import QuizReviewPanel from '../shared/QuizReviewPanel';
@@ -44,7 +45,10 @@ const TeacherQuizzes = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM, questions: [{ ...EMPTY_Q }] });
 
+  const [loadError, setLoadError] = useState('');
+
   const reload = async () => {
+    setLoadError('');
     const results = await Promise.allSettled([
       portalGet('/teacher/courses'),
       portalGet('/teacher/quizzes'),
@@ -52,11 +56,13 @@ const TeacherQuizzes = () => {
     ]);
     const [c, q, a] = results;
     if (c.status === 'fulfilled' && c.value.success) setCourses(c.value.courses || []);
+    else setLoadError((prev) => prev || (c.status === 'fulfilled' ? c.value.error : c.reason?.message) || 'Could not load courses.');
     if (q.status === 'fulfilled' && q.value.success) setQuizzes(q.value.quizzes || []);
+    else setLoadError((prev) => prev || (q.status === 'fulfilled' ? q.value.error : q.reason?.message) || 'Could not load quizzes.');
     if (a.status === 'fulfilled' && a.value.success) {
       setAttempts(a.value.attempts || []);
-    } else if (a.status === 'rejected') {
-      setMsg(a.reason?.message || 'Could not load quiz submissions.');
+    } else {
+      setLoadError((prev) => prev || (a.status === 'fulfilled' ? a.value.error : a.reason?.message) || 'Could not load quiz submissions.');
     }
   };
 
@@ -161,10 +167,11 @@ const TeacherQuizzes = () => {
       totalMarks: form.totalMarks === '' ? null : Number(form.totalMarks),
       dueDate: form.dueDate || null,
       resourceLink: form.resourceLink || '',
-      resourceFileUrl: form.resourceFileUrl || '',
+      resourceFileUrl: '',
       questions,
     };
     try {
+      body.resourceFileUrl = await resolveLmsUploadValue(form.resourceFileUrl, 'quizzes');
       if (editingId) {
         const id = portalDocId(editingId);
         if (!id) {
@@ -315,6 +322,8 @@ const TeacherQuizzes = () => {
         title="Quizzes"
         subtitle="Build multiple-choice quizzes. Students see green/red feedback after submitting."
       />
+      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
+      {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
 
       <div className="teacher-quizzes__layout">
         {showForm ? (

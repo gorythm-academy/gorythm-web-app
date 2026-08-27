@@ -1,0 +1,283 @@
+// Shared admin list toolbar (search + filters) — Students, Teachers, Parents,
+// Staff, Courses, Payments, Contact, Subscribers.
+// Sidebar-aware search width: shorter when sidebar is expanded.
+
+$admin-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+
+@mixin admin-filter-select {
+    padding: 0.7rem 2rem 0.7rem 0.9rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1e293b;
+    background-color: #fff;
+    cursor: pointer;
+    appearance: none;
+    background-image: $admin-select-chevron;
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1rem;
+    min-width: 0;
+    max-width: 11.5rem;
+    flex: 0 1 auto;
+
+    &:focus {
+        outline: none;
+        border-color: var(--color-accent);
+    }
+}
+
+.controls-bar,
+.contact-controls-bar {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    .search-box {
+        position: relative;
+        flex: 1 1 280px;
+        min-width: 160px;
+        max-width: 360px;
+        transition: flex-basis 0.2s ease, max-width 0.2s ease, min-width 0.2s ease;
+
+        > i.fas.fa-search,
+        > i.fa-search {
+            position: absolute;
+            left: 0.9rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--color-muted, #94a3b8);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0.7rem 1rem 0.7rem 2.4rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #1e293b;
+            background: #f8fafc;
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+
+            &:focus {
+                outline: none;
+                border-color: var(--color-accent);
+                background: #fff;
+                box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb, 37, 99, 235), 0.12);
+            }
+
+            &::placeholder {
+                color: var(--color-muted, #94a3b8);
+            }
+        }
+
+        // Optional trailing search button (Teachers/Users) — keep compact & consistent
+        .search-btn {
+            position: absolute;
+            right: 0.35rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2.1rem;
+            height: 2.1rem;
+            padding: 0;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+
+            &:hover {
+                background: #e2e8f0;
+                color: var(--color-accent);
+            }
+
+            i {
+                position: static;
+                transform: none;
+            }
+        }
+
+        &:has(.search-btn) input {
+            padding-right: 2.6rem;
+        }
+    }
+
+    .filter-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex: 0 1 auto;
+        flex-wrap: nowrap;
+        min-width: 0;
+        margin-left: auto;
+
+        .status-filter,
+        .role-filter,
+        .date-filter,
+        select {
+            @include admin-filter-select;
+        }
+
+        .refresh-btn {
+            width: 2.55rem;
+            height: 2.55rem;
+            padding: 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f1f5f9;
+            color: #64748b;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+
+            &:hover {
+                background: #e2e8f0;
+                color: var(--color-accent);
+                border-color: #cbd5e1;
+            }
+        }
+
+        .enroll-btn,
+        .download-btn,
+        .btn-primary.enroll-btn,
+        .btn-secondary.enroll-btn,
+        .btn-secondary.download-btn {
+            border: none;
+            padding: 0.7rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+
+        .enroll-btn.btn-primary,
+        .btn-primary.enroll-btn {
+            background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark, #1d4ed8));
+            color: #fff;
+
+            &:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgba(var(--color-accent-rgb, 37, 99, 235), 0.28);
+            }
+        }
+
+        .enroll-btn.btn-secondary,
+        .btn-secondary.enroll-btn {
+            background: #fff;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+
+            &:hover {
+                background: #f8fafc;
+                border-color: #cbd5e1;
+            }
+        }
+
+        .download-btn,
+        .btn-secondary.download-btn {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+
+            &:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgba(34, 197, 94, 0.28);
+            }
+        }
+    }
+}
+
+// Sidebar expanded → shorter search so toolbar fits
+.admin-dashboard .admin-sidebar.open ~ .admin-main {
+    .controls-bar .search-box,
+    .contact-controls-bar .search-box {
+        flex: 0 1 180px !important;
+        min-width: 140px !important;
+        max-width: 200px !important;
+    }
+}
+
+// Sidebar collapsed → roomier search
+.admin-dashboard .admin-sidebar.closed ~ .admin-main {
+    .controls-bar .search-box,
+    .contact-controls-bar .search-box {
+        flex: 1 1 300px !important;
+        min-width: 220px !important;
+        max-width: 400px !important;
+    }
+}
+
+// Action columns: shrink to button label width
+.action-col,
+.cell-actions,
+td.cell-actions {
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.action-col .action-buttons,
+.cell-actions .action-buttons,
+td.cell-actions .action-buttons {
+    width: max-content;
+    max-width: 100%;
+}
+
+@media (max-width: 900px) {
+    .controls-bar,
+    .contact-controls-bar {
+        flex-wrap: wrap;
+        overflow: visible;
+
+        .search-box {
+            flex: 1 1 100%;
+            max-width: none;
+            min-width: 0;
+        }
+
+        .filter-controls {
+            flex-wrap: wrap;
+            margin-left: 0;
+            width: 100%;
+        }
+    }
+
+    .admin-dashboard .admin-sidebar.open ~ .admin-main,
+    .admin-dashboard .admin-sidebar.closed ~ .admin-main {
+        .controls-bar .search-box,
+        .contact-controls-bar .search-box {
+            flex: 1 1 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+        }
+    }
+}

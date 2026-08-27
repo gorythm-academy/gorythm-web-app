@@ -132,8 +132,7 @@ export function setAuthSession(token, user, rememberMe, realm = AUTH_REALM.PORTA
   const userObj = parseUserObject(user);
   const userStr = userObj ? JSON.stringify(userObj) : typeof user === 'string' ? user : JSON.stringify(user);
   const { token: tokenKey, user: userKey } = realmKeys(realm);
-  const persist =
-    rememberMe || (realm === AUTH_REALM.ADMIN && userObj?.role && ADMIN_ROLES.has(userObj.role));
+  const persist = Boolean(rememberMe);
 
   if (realm === AUTH_REALM.PORTAL) {
     clearAdminPortalPreviewFlag();

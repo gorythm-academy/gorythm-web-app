@@ -4,7 +4,7 @@ import CoursesSection from '../HomeSections/Courses';
 
 const faqs = [
   {
-    question: 'Who can enroll in GoRythm courses?',
+    question: 'Who can enroll in Gorythm courses?',
     answer:
       'Our courses are designed for kids, teens, and adults of all levels. Whether you are a beginner or looking to improve your existing knowledge, we have structured programs to suit your needs.',
   },

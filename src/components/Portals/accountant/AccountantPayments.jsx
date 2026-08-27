@@ -8,6 +8,7 @@ import {
   countPendingBankReviews,
 } from '../../../hooks/useAccountantPortalBadges';
 import './AccountantPayments.scss';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 
 const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
 
@@ -367,7 +368,7 @@ const AccountantPayments = () => {
       setToast({
         type: 'success',
         title: 'Moved to trash',
-        message: 'You can restore or delete it permanently from the Trash tab.',
+        message: `You can restore or delete it permanently from the ${QUARANTINE_LABEL} tab.`,
       });
       loadPayments();
     } catch (err) {
@@ -464,7 +465,7 @@ const AccountantPayments = () => {
     review: 'Review',
     all: 'All payments',
     final: 'Final',
-    trash: 'Trash',
+    trash: QUARANTINE_LABEL,
   };
 
   return (
@@ -525,7 +526,7 @@ const AccountantPayments = () => {
           title="View trashed payments — restore or delete permanently"
         >
           <i className="fas fa-trash-alt" aria-hidden />
-          <span>Trash</span>
+          <span>{QUARANTINE_LABEL}</span>
           {trashCount > 0 ? (
             <span className="accountant-payments-trash-entry__count">{trashCount}</span>
           ) : null}
@@ -535,16 +536,16 @@ const AccountantPayments = () => {
       {!isTrashView ? (
         <p className="accountant-payments-hint">
           <i className="fas fa-info-circle" aria-hidden />
-          Use row checkboxes to select multiple payments. <strong>Trash</strong> hides records; open{' '}
+          Use row checkboxes to select multiple payments. <strong>{QUARANTINE_LABEL}</strong> hides records; open{' '}
           <button type="button" className="accountant-payments-hint__link" onClick={openTrash}>
-            Trash
+            {QUARANTINE_LABEL}
           </button>{' '}
           to restore or permanently delete them.
         </p>
       ) : (
         <p className="accountant-payments-hint accountant-payments-hint--trash">
           <i className="fas fa-trash-alt" aria-hidden />
-          Trashed records stay in the database but are hidden from active lists. Select rows with checkboxes, then use{' '}
+          Records in {QUARANTINE_LABEL} stay in the database but are hidden from active lists. Select rows with checkboxes, then use{' '}
           <strong>Restore</strong> or <strong>Delete permanently</strong> to bring them back or remove them from the database.
         </p>
       )}
@@ -630,7 +631,7 @@ const AccountantPayments = () => {
               onClick={openTrash}
             >
               <i className="fas fa-trash-alt" aria-hidden />
-              Trash ({trashCount})
+              {QUARANTINE_LABEL} ({trashCount})
             </button>
           ) : null}
         </div>
@@ -639,7 +640,7 @@ const AccountantPayments = () => {
           <div className="portal-panel__body" id="accountant-payments-table-body">
             {filtered.length === 0 ? (
               <p className="accountant-payments-empty">
-                {isTrashView ? 'Trash is empty.' : 'No payments in this filter.'}
+                {isTrashView ? `${QUARANTINE_LABEL} is empty.` : 'No payments in this filter.'}
               </p>
             ) : (
               <div className="portal-data-table-wrap accountant-payments-table-wrap">
@@ -663,7 +664,7 @@ const AccountantPayments = () => {
                       <th>Status</th>
                       <th>Method</th>
                       <th>Date</th>
-                      {isTrashView ? <th>Trashed</th> : null}
+                      {isTrashView ? <th>{QUARANTINE_LABEL}</th> : null}
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -820,7 +821,7 @@ const AccountantPayments = () => {
         type={bulkModal?.type === 'permanent' ? 'warning' : 'info'}
         title={
           bulkModal?.type === 'trash'
-            ? 'Move selected to trash?'
+            ? 'Move selected to quarantine?'
             : bulkModal?.type === 'restore'
               ? 'Restore selected payments?'
               : 'Delete permanently?'
@@ -828,7 +829,7 @@ const AccountantPayments = () => {
         message={
           bulkModal?.ids?.length
             ? bulkModal.type === 'trash'
-              ? `Move ${bulkModal.ids.length} selected payment record(s) to trash? You can restore them from the Trash tab.`
+              ? `Move ${bulkModal.ids.length} selected payment record(s) to ${QUARANTINE_LABEL}? You can restore them from the ${QUARANTINE_LABEL} tab.`
               : bulkModal.type === 'restore'
                 ? `Restore ${bulkModal.ids.length} selected payment record(s) to your active lists?`
                 : `Are you sure you want to permanently delete ${bulkModal.ids.length} selected payment(s)? They cannot be restored later.`
@@ -872,13 +873,13 @@ const AccountantPayments = () => {
       <PortalActionModal
         open={!!trashModal}
         type="info"
-        title="Move to trash?"
+        title={`Move to ${QUARANTINE_LABEL}?`}
         message={
           trashModal
-            ? `Move payment for ${trashModal.studentName || 'student'} ($${Number(trashModal.amount || 0).toFixed(2)}) to trash? You can restore it later from the Trash tab.`
+            ? `Move payment for ${trashModal.studentName || 'student'} ($${Number(trashModal.amount || 0).toFixed(2)}) to ${QUARANTINE_LABEL}? You can restore it later from the ${QUARANTINE_LABEL} tab.`
             : ''
         }
-        confirmLabel="Move to trash"
+        confirmLabel={`Move to ${QUARANTINE_LABEL}`}
         cancelLabel="Cancel"
         loading={!!actionLoading}
         onConfirm={handleMoveToTrash}

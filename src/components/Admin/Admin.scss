@@ -1,6 +1,26 @@
 @import '../../styles/breakpoints';
 @import './admin-dashboard-layout';
 @import './pages/admin-list-tabs';
+@import './pages/admin-controls-bar';
+@import './pages/admin-page-chrome';
+
+.admin-fetch-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.admin-fetch-warning {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
 
 // Keep admin form fields consistently readable across all tabs.
 .admin-dashboard {
@@ -14,6 +34,25 @@
     input:not([type='checkbox']):not([type='radio']):not([type='color'])::placeholder,
     textarea::placeholder {
         color: #94a3b8;
+    }
+
+    // Email text (tables, sidebars, cards) — admin dashboard only
+    --admin-email-color: #0066ff;
+
+    .admin-email,
+    .email-cell,
+    .student-email,
+    .student-email-cell,
+    .user-email,
+    .portal-email-readonly,
+    .cell-email,
+    a[href^='mailto:'] {
+        color: var(--admin-email-color) !important;
+    }
+
+    .email-cell.personal-email-cell i,
+    .admin-email i {
+        color: var(--admin-email-color) !important;
     }
 }
 
@@ -51,6 +90,142 @@
             color: #64748b;
             font-weight: 500;
         }
+    }
+
+    .analytics-refresh-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding: 0.5rem 0.85rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .analytics-chart-grouping {
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .analytics-metrics-unavailable {
+        color: #92400e;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .metric-card--unavailable {
+        .metric-content h4 {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        .metric-content small {
+            color: #94a3b8;
+        }
+    }
+
+    &.is-refreshing {
+        .stats-grid,
+        .dashboard-card,
+        .dashboard-grid {
+            opacity: 0.72;
+            pointer-events: none;
+        }
+
+        .time-filter-buttons button:not(:disabled) {
+            pointer-events: auto;
+        }
+    }
+
+    .stat-subtitle {
+        display: block;
+        color: #94a3b8;
+        font-size: 0.75rem;
+        margin: 0 0 0.35rem;
+    }
+
+    .spinner-sm {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #bfdbfe;
+        border-top-color: #1d4ed8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        flex-shrink: 0;
+    }
+
+    .analytics-charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .analytics-chart-panel {
+        h4 {
+            margin: 0 0 1rem;
+            color: #334155;
+            font-size: 0.95rem;
+        }
+    }
+
+    .analytics-chart-empty {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        padding: 1.5rem 0;
+        text-align: center;
+    }
+
+    .analytics-bar-chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5rem;
+        min-height: 180px;
+        padding-top: 0.5rem;
+    }
+
+    .analytics-bar-item {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .analytics-bar-track {
+        width: 100%;
+        height: 120px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+
+    .analytics-bar-fill {
+        width: 70%;
+        max-width: 36px;
+        background: linear-gradient(180deg, var(--color-accent), #6366f1);
+        border-radius: 6px 6px 2px 2px;
+        min-height: 0;
+        transition: height 0.3s ease;
+    }
+
+    .analytics-bar-label,
+    .analytics-bar-value {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-align: center;
+        line-height: 1.2;
+        word-break: break-word;
+    }
+
+    .analytics-bar-value {
+        color: #334155;
+        font-weight: 600;
     }
 
     .stats-grid {
@@ -718,27 +893,7 @@
 .settings-page {
     padding: 1rem;
 
-    .settings-header {
-        margin-bottom: 2rem;
-
-        h1 {
-            font-size: 1.8rem;
-            color: #1e293b;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-
-            i {
-                color: var(--color-accent);
-            }
-        }
-
-        p {
-            color: #64748b;
-            margin: 0.5rem 0 0;
-        }
-    }
+    /* .settings-header: shared in _admin-page-chrome.scss */
 
     .save-message {
         padding: 1rem;
@@ -1372,50 +1527,9 @@
     }
 
     .contact-controls-bar {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-
-        .search-box {
-            flex: 1;
-            min-width: 280px;
-            position: relative;
-
-            i {
-                position: absolute;
-                left: 10px;
-                top: 50%;
-                transform: translateY(-50%);
-                color: #94a3b8;
-            }
-
-            input {
-                width: 100%;
-                border: 1px solid #cbd5e1;
-                border-radius: 8px;
-                padding: 0.65rem 0.75rem 0.65rem 2rem;
-            }
-        }
+        /* Base layout/search styles: _admin-controls-bar.scss */
 
         .filter-controls {
-            display: flex;
-            gap: 0.7rem;
-            align-items: center;
-
-            select {
-                border: 1px solid #cbd5e1;
-                border-radius: 8px;
-                padding: 0.55rem 0.7rem;
-                background: white;
-            }
-
             .refresh-btn,
             .download-btn {
                 border: none;
@@ -1432,6 +1546,9 @@
             }
 
             .refresh-btn {
+                width: 2.55rem;
+                height: 2.55rem;
+                padding: 0;
                 background: #f1f5f9;
                 color: #334155;
 
@@ -1746,6 +1863,20 @@
             &:disabled {
                 opacity: 0.5;
                 cursor: not-allowed;
+            }
+
+            &--ellipsis {
+                cursor: default;
+                border-color: transparent;
+                background: transparent;
+                min-width: 28px;
+                padding: 0 0.25rem;
+                color: #94a3b8;
+
+                &:hover {
+                    border-color: transparent;
+                    color: #94a3b8;
+                }
             }
         }
     }

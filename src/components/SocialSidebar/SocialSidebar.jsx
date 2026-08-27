@@ -1,6 +1,6 @@
 import React from 'react';
 import { SiTiktok } from 'react-icons/si';
-import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL, CONTACT_PHONE, INFO_EMAIL, WHATSAPP_URL } from '../../config/constants';
+import { FACEBOOK_URL, INSTAGRAM_URL, YOUTUBE_URL, TIKTOK_URL, CONTACT_PHONE, INFO_EMAIL, getWhatsAppDirectUrl, onWhatsAppAnchorClick } from '../../config/constants';
 import { navigateToMailto } from '../../utils/mailto';
 import './SocialSidebar.scss';
 
@@ -60,7 +60,16 @@ const SocialSidebar = ({ isOpen, onClose }) => {
               <i className="fas fa-whatsapp contact-icon"></i>
               <div className="contact-details">
                 <span className="contact-label">WhatsApp</span>
-                <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="contact-value">{CONTACT_PHONE}</a>
+                <a
+                  href={getWhatsAppDirectUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onWhatsAppAnchorClick}
+                  className="contact-value"
+                  aria-label={`WhatsApp ${CONTACT_PHONE}`}
+                >
+                  {CONTACT_PHONE}
+                </a>
               </div>
             </div>
             <div className="contact-item">

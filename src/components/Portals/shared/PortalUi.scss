@@ -52,6 +52,51 @@
   color: var(--color-accent, #3b82f6);
 }
 
+.portal-file-remove {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background: #fee2e2;
+  }
+
+  &--all {
+    margin-top: 0.5rem;
+  }
+}
+
+.portal-file-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .portal-file-list-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    word-break: break-all;
+  }
+}
+
 .portal-attendance-grid {
   display: grid;
   gap: 0.5rem;

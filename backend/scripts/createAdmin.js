@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 async function createAdmin() {
     try {
         const adminEmail = String(process.env.DEFAULT_ADMIN_EMAIL || '').toLowerCase().trim();
-        const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+        const adminPassword = String(process.env.DEFAULT_ADMIN_PASSWORD || '').trim();
         const adminName = process.env.DEFAULT_ADMIN_NAME || 'Super Admin';
 
         if (!process.env.MONGODB_URI) {
@@ -15,6 +15,12 @@ async function createAdmin() {
         }
         if (!adminEmail) {
             throw new Error('DEFAULT_ADMIN_EMAIL is not defined in .env (required for this script)');
+        }
+        if (!adminPassword) {
+            throw new Error('DEFAULT_ADMIN_PASSWORD is not defined in .env (required for this script)');
+        }
+        if (adminPassword.length < 8) {
+            throw new Error('DEFAULT_ADMIN_PASSWORD must be at least 8 characters');
         }
 
         logger.info('Connecting to MongoDB');
@@ -44,7 +50,6 @@ async function createAdmin() {
 
         await admin.save();
         logger.info('Admin user created', { email: adminEmail });
-        logger.warn('Change DEFAULT_ADMIN_PASSWORD after first login if you used a default');
     } catch (error) {
         logger.error('Error creating admin', { err: error });
         logger.info('Troubleshooting: ensure backend/.env has MONGODB_URI and DEFAULT_ADMIN_EMAIL; MongoDB must be running');

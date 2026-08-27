@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   convertFromUsd,
   detectUserCurrency,
@@ -49,6 +49,13 @@ export const CurrencyProvider = ({ children }) => {
     };
   }, []);
 
+  const applyCurrencyCode = useCallback((code) => {
+    const next = String(code || '').trim().toUpperCase();
+    if (!next || next.length !== 3) return;
+    if (rates[next] == null && next !== USD_CURRENCY) return;
+    setCurrency(next);
+  }, [rates]);
+
   const value = useMemo(() => {
     const convertUsd = (amountUsd) => convertFromUsd(amountUsd, currency, rates);
 
@@ -75,8 +82,9 @@ export const CurrencyProvider = ({ children }) => {
       formatFromUsdWhole,
       formatCurrency: (amount) => formatCurrency(amount, currency, locale),
       baseCurrency: USD_CURRENCY,
+      applyCurrencyCode,
     };
-  }, [countryCode, currency, isLoading, locale, rateDate, rates, source]);
+  }, [applyCurrencyCode, countryCode, currency, isLoading, locale, rateDate, rates, source]);
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 };

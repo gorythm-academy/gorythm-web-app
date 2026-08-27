@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
+import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
 import PortalModal from '../shared/PortalModal';
 import SubmissionFiles from '../shared/SubmissionFiles';
@@ -83,11 +84,12 @@ const TeacherContent = () => {
     savingRef.current = true;
     setSaving(true);
     setMsg('');
-    const payload = {
-      ...assignForm,
-      attachments: assignForm.fileUrl ? [assignForm.fileUrl] : [],
-    };
     try {
+      const fileUrl = await resolveLmsUploadValue(assignForm.fileUrl, 'assignments');
+      const payload = {
+        ...assignForm,
+        attachments: fileUrl ? [fileUrl] : [],
+      };
       if (editingAssignId) {
         const id = portalDocId(editingAssignId);
         if (!id) {
@@ -379,9 +381,12 @@ const TeacherContent = () => {
   if (!courses.length) {
     return (
       <div className="portal-page teacher-assignments">
+        {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
         <PortalPageHeader
           title="Assignments"
-          subtitle="No courses assigned yet. Ask admin to set your account as instructor on a course."
+          subtitle={loadError
+            ? 'Could not load your courses. Refresh the page or try again later.'
+            : 'No courses assigned yet. Ask admin to set your account as instructor on a course.'}
         />
       </div>
     );

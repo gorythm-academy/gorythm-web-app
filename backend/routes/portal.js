@@ -52,6 +52,7 @@ const { isValidAttendanceStatus } = require('../constants/attendanceStatuses');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activeCourseFilter, isCourseTrashed } = require('../utils/courseQuery');
 const { activeUserFilter, isUserTrashed } = require('../utils/userQuery');
+const { activeLmsFilter, trashedLmsFilter } = require('../utils/lmsTrashQuery');
 const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter, studentPaymentsFilter } = require('../utils/paymentQuery');
 const { serializePayments } = require('../utils/serializePayment');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
@@ -59,8 +60,6 @@ const {
     assertTeacherOwnsCourse,
     getTeacherCourseIds,
 } = require('../services/teacherCourseAccess');
-const { stripCourseModulesForStudent } = require('../utils/stripCourseModulesForStudent');
-
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 router.use(authMiddleware);
@@ -184,7 +183,11 @@ function teacherAssignmentScopeFilter(teacherId, courseIds) {
 async function findQuizForTeacher(teacherId, quizId) {
     if (!teacherId) return null;
     const courseIds = await getTeacherCourseIds(teacherId);
-    return Quiz.findOne({ _id: quizId, ...teacherQuizScopeFilter(teacherId, courseIds) });
+    return Quiz.findOne({
+        _id: quizId,
+        ...teacherQuizScopeFilter(teacherId, courseIds),
+        ...activeLmsFilter(),
+    });
 }
 
 function formatScoreDisplay(score, maxPoints) {
@@ -501,17 +504,25 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
         const attendanceRate = attendancePresentRate(attendance);
 
         const now = new Date();
-        const assignments = await Assignment.find({ course: { $in: courseIds }, status: 'published' })
+        const assignments = await Assignment.find({
+            course: { $in: courseIds },
+            status: 'published',
+            ...activeLmsFilter(),
+        })
             .populate('course', 'title')
             .sort({ dueDate: 1 })
             .limit(50);
-        const submissions = await AssignmentSubmission.find({ student: studentId });
+        const submissions = await AssignmentSubmission.find({ student: studentId, ...activeLmsFilter() });
         const submittedIds = new Set(submissions.map((s) => String(s.assignment)));
         const dueAssignments = assignments.filter(
             (a) => !submittedIds.has(String(a._id)) && a.dueDate && new Date(a.dueDate) >= now
         );
 
-        const quizzes = await Quiz.find({ course: { $in: courseIds }, status: 'published' }).limit(20);
+        const quizzes = await Quiz.find({
+            course: { $in: courseIds },
+            status: 'published',
+            ...activeLmsFilter(),
+        }).limit(20);
 
         const pendingFees = enrollments.filter((e) => e.paymentStatus === 'pending' && e.course).length;
 
@@ -615,10 +626,14 @@ router.get('/student/assignments', allowPortalRoles('student'), async (req, res)
         const studentId = getPortalActorId(req);
         if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
-        const assignments = await Assignment.find({ course: { $in: courseIds }, status: 'published' })
+        const assignments = await Assignment.find({
+            course: { $in: courseIds },
+            status: 'published',
+            ...activeLmsFilter(),
+        })
             .populate('course', 'title')
             .sort({ dueDate: 1 });
-        const submissions = await AssignmentSubmission.find({ student: studentId });
+        const submissions = await AssignmentSubmission.find({ student: studentId, ...activeLmsFilter() });
         const byAssignment = Object.fromEntries(submissions.map((s) => [String(s.assignment), s]));
         res.json({
             success: true,
@@ -636,13 +651,17 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const quiz = await Quiz.findById(req.params.quizId).populate('course', 'title');
+        const quiz = await Quiz.findOne({ _id: req.params.quizId, ...activeLmsFilter() }).populate('course', 'title');
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
         const courseIds = await getStudentCourseIds(studentId);
         if (!courseIds.some((id) => String(id) === String(quiz.course._id || quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
-        const attempt = await QuizAttempt.findOne({ quiz: quiz._id, student: studentId });
+        const attempt = await QuizAttempt.findOne({
+            quiz: quiz._id,
+            student: studentId,
+            ...activeLmsFilter(),
+        });
         if (quiz.status !== 'published' && !attempt) {
             return res.status(403).json({ success: false, error: 'Quiz is not available' });
         }
@@ -667,7 +686,7 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
         const studentId = getPortalActorId(req);
         if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
-        const attempts = await QuizAttempt.find({ student: studentId });
+        const attempts = await QuizAttempt.find({ student: studentId, ...activeLmsFilter() });
         const attemptQuizIds = attempts.map((a) => a.quiz).filter(Boolean);
         const quizzes = await Quiz.find({
             $or: [
@@ -676,6 +695,7 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
                     ? [{ _id: { $in: attemptQuizIds }, course: { $in: courseIds } }]
                     : []),
             ],
+            ...activeLmsFilter(),
         })
             .populate('course', 'title')
             .select('-questions.correctAnswer');
@@ -697,13 +717,13 @@ router.get('/student/content', allowPortalRoles('student'), async (req, res) => 
         const studentId = getPortalActorId(req);
         if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
-        const courses = await Course.find({ _id: { $in: courseIds } }).select('title modules');
-        const resources = await Resource.find({ course: { $in: courseIds } })
+        const courses = await Course.find({ _id: { $in: courseIds } }).select('title');
+        const resources = await Resource.find({ course: { $in: courseIds }, ...activeLmsFilter() })
             .populate('course', 'title')
             .sort({ createdAt: -1 });
         res.json({
             success: true,
-            courses: courses.map(stripCourseModulesForStudent),
+            courses,
             resources,
         });
     } catch (error) {
@@ -765,7 +785,13 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
         if (!hasText && !hasFiles) {
             return res.status(400).json({ success: false, error: 'Add a written answer or attach a file' });
         }
-        const assignment = await Assignment.findById(assignmentId);
+        const { validateStudentSubmissionAttachments } = require('../utils/validateStudentAttachments');
+        const attachmentCheck = validateStudentSubmissionAttachments(attachments);
+        if (!attachmentCheck.ok) {
+            return res.status(400).json({ success: false, error: attachmentCheck.error });
+        }
+        const safeAttachments = attachmentCheck.attachments;
+        const assignment = await Assignment.findOne({ _id: assignmentId, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         if (assignment.status !== 'published') {
             return res.status(403).json({ success: false, error: 'Assignment is not available' });
@@ -781,9 +807,10 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
         let submission;
         if (existing) {
             existing.text = text || '';
-            existing.attachments = Array.isArray(attachments) ? attachments : [];
+            existing.attachments = safeAttachments;
             existing.submittedAt = new Date();
             existing.status = 'submitted';
+            existing.deletedAt = null;
             await existing.save();
             submission = existing;
         } else {
@@ -791,7 +818,7 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
                 assignment: assignmentId,
                 student: studentId,
                 text: text || '',
-                attachments: Array.isArray(attachments) ? attachments : [],
+                attachments: safeAttachments,
             });
         }
         res.status(201).json({ success: true, submission });
@@ -805,7 +832,7 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const { quizId, answers = [] } = req.body;
-        const quiz = await Quiz.findById(quizId);
+        const quiz = await Quiz.findOne({ _id: quizId, ...activeLmsFilter() });
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
         if (quiz.status !== 'published') {
             return res.status(403).json({ success: false, error: 'Quiz is not available' });
@@ -814,17 +841,35 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
         if (!courseIds.some((id) => String(id) === String(quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
-        const prior = await QuizAttempt.findOne({ quiz: quizId, student: studentId });
-        if (prior) {
+        const priorActive = await QuizAttempt.findOne({
+            quiz: quizId,
+            student: studentId,
+            ...activeLmsFilter(),
+        });
+        if (priorActive) {
             return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
         }
         const review = buildQuizReviewPayload(quiz, answers);
-        const attempt = await QuizAttempt.create({
+        const trashedAttempt = await QuizAttempt.findOne({
             quiz: quizId,
             student: studentId,
-            answers,
-            score: review.score,
+            ...trashedLmsFilter(),
         });
+        let attempt;
+        if (trashedAttempt) {
+            trashedAttempt.answers = answers;
+            trashedAttempt.score = review.score;
+            trashedAttempt.deletedAt = null;
+            await trashedAttempt.save();
+            attempt = trashedAttempt;
+        } else {
+            attempt = await QuizAttempt.create({
+                quiz: quizId,
+                student: studentId,
+                answers,
+                score: review.score,
+            });
+        }
         res.status(201).json({
             success: true,
             attempt,
@@ -845,11 +890,21 @@ router.get('/teacher/dashboard', allowPortalRoles('teacher'), async (req, res) =
         if (!teacherId) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const courseIds = await getTeacherCourseIds(teacherId);
         const courses = await Course.find({ _id: { $in: courseIds } }).select('title category');
-        const assignmentsCount = await Assignment.countDocuments(teacherAssignmentScopeFilter(teacherId, courseIds));
-        const quizzesCount = await Quiz.countDocuments(teacherQuizScopeFilter(teacherId, courseIds));
-        const myAssignmentIds = await Assignment.find(teacherAssignmentScopeFilter(teacherId, courseIds)).distinct('_id');
+        const assignmentsCount = await Assignment.countDocuments({
+            ...teacherAssignmentScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        });
+        const quizzesCount = await Quiz.countDocuments({
+            ...teacherQuizScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        });
+        const myAssignmentIds = await Assignment.find({
+            ...teacherAssignmentScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        }).distinct('_id');
         const submissionCount = await AssignmentSubmission.countDocuments({
             assignment: { $in: myAssignmentIds },
+            ...activeLmsFilter(),
         });
         res.json({
             success: true,
@@ -893,7 +948,10 @@ router.get('/teacher/assignments', allowPortalRoles('teacher'), async (req, res)
     try {
         const teacherId = req.portalActorId;
         const courseIds = await getTeacherCourseIds(teacherId);
-        const assignments = await Assignment.find(teacherAssignmentScopeFilter(teacherId, courseIds))
+        const assignments = await Assignment.find({
+            ...teacherAssignmentScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        })
             .populate('course', 'title')
             .populate('teacher', 'name')
             .sort({ dueDate: -1 });
@@ -907,9 +965,12 @@ router.get('/teacher/submissions', allowPortalRoles('teacher'), async (req, res)
     try {
         const teacherId = req.portalActorId;
         const courseIds = await getTeacherCourseIds(teacherId);
-        const myAssignments = await Assignment.find(teacherAssignmentScopeFilter(teacherId, courseIds)).select('_id');
+        const myAssignments = await Assignment.find({
+            ...teacherAssignmentScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        }).select('_id');
         const ids = myAssignments.map((a) => a._id);
-        const filter = { assignment: { $in: ids } };
+        const filter = { assignment: { $in: ids }, ...activeLmsFilter() };
         const submissions = await AssignmentSubmission.find(filter)
             .populate('student', 'name email studentId')
             .populate({
@@ -926,11 +987,15 @@ router.get('/teacher/submissions', allowPortalRoles('teacher'), async (req, res)
 
 router.delete('/teacher/submissions/:id', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const submission = await AssignmentSubmission.findById(req.params.id).populate('assignment');
+        const submission = await AssignmentSubmission.findOne({
+            _id: req.params.id,
+            ...activeLmsFilter(),
+        }).populate('assignment');
         if (!submission) return res.status(404).json({ success: false, error: 'Submission not found' });
         await assertTeacherOwnsCourse(req.portalActorId, submission.assignment.course);
-        await AssignmentSubmission.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        submission.deletedAt = new Date();
+        await submission.save();
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to delete submission' });
@@ -943,18 +1008,19 @@ router.post('/teacher/submissions/bulk-delete', allowPortalRoles('teacher'), asy
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        const submissions = await AssignmentSubmission.find({ _id: { $in: ids } }).populate('assignment');
+        const submissions = await AssignmentSubmission.find({ _id: { $in: ids }, ...activeLmsFilter() }).populate('assignment');
         let deleted = 0;
         for (const submission of submissions) {
             try {
                 await assertTeacherOwnsCourse(req.portalActorId, submission.assignment.course);
-                await AssignmentSubmission.findByIdAndDelete(submission._id);
+                submission.deletedAt = new Date();
+                await submission.save();
                 deleted += 1;
             } catch {
                 /* skip if not teacher's course */
             }
         }
-        res.json({ success: true, deletedCount: deleted });
+        res.json({ success: true, deletedCount: deleted, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete submissions' });
     }
@@ -964,11 +1030,14 @@ router.get('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) => 
     try {
         const teacherId = req.portalActorId;
         const courseIds = await getTeacherCourseIds(teacherId);
-        const quizzes = await Quiz.find(teacherQuizScopeFilter(teacherId, courseIds))
+        const quizzes = await Quiz.find({
+            ...teacherQuizScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        })
             .populate('course', 'title')
             .sort({ createdAt: -1 });
         const attemptCounts = await QuizAttempt.aggregate([
-            { $match: { quiz: { $in: quizzes.map((q) => q._id) } } },
+            { $match: { quiz: { $in: quizzes.map((q) => q._id) }, ...activeLmsFilter() } },
             { $group: { _id: '$quiz', count: { $sum: 1 } } },
         ]);
         const countByQuiz = Object.fromEntries(attemptCounts.map((r) => [String(r._id), r.count]));
@@ -988,8 +1057,11 @@ router.get('/teacher/quiz-attempts', allowPortalRoles('teacher'), async (req, re
     try {
         const teacherId = req.portalActorId;
         const courseIds = await getTeacherCourseIds(teacherId);
-        const quizIds = await Quiz.find(teacherQuizScopeFilter(teacherId, courseIds)).distinct('_id');
-        const attempts = await QuizAttempt.find({ quiz: { $in: quizIds } })
+        const quizIds = await Quiz.find({
+            ...teacherQuizScopeFilter(teacherId, courseIds),
+            ...activeLmsFilter(),
+        }).distinct('_id');
+        const attempts = await QuizAttempt.find({ quiz: { $in: quizIds }, ...activeLmsFilter() })
             .populate('student', 'name email studentId')
             .populate({
                 path: 'quiz',
@@ -1017,7 +1089,7 @@ router.get('/teacher/quiz-attempts', allowPortalRoles('teacher'), async (req, re
 router.get('/teacher/resources', allowPortalRoles('teacher'), async (req, res) => {
     try {
         const courseIds = await getTeacherCourseIds(req.portalActorId);
-        const resources = await Resource.find({ course: { $in: courseIds } })
+        const resources = await Resource.find({ course: { $in: courseIds }, ...activeLmsFilter() })
             .populate('course', 'title')
             .populate('uploadedBy', 'name role')
             .sort({ createdAt: -1 });
@@ -1374,7 +1446,7 @@ router.patch('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req
         if (!req.params.id || req.params.id === 'undefined') {
             return res.status(400).json({ success: false, error: 'Assignment id is required' });
         }
-        const assignment = await Assignment.findById(req.params.id);
+        const assignment = await Assignment.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         await assertTeacherOwnsCourse(req.portalActorId, assignment.course);
         const { title, description, dueDate, status, attachments } = req.body;
@@ -1396,12 +1468,17 @@ router.patch('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req
 
 router.delete('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const assignment = await Assignment.findById(req.params.id);
+        const assignment = await Assignment.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         await assertTeacherOwnsCourse(req.portalActorId, assignment.course);
-        await AssignmentSubmission.deleteMany({ assignment: assignment._id });
-        await Assignment.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        const trashedAt = new Date();
+        assignment.deletedAt = trashedAt;
+        await assignment.save();
+        await AssignmentSubmission.updateMany(
+            { assignment: assignment._id, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } }
+        );
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to delete assignment' });
@@ -1414,19 +1491,24 @@ router.post('/teacher/assignments/bulk-delete', allowPortalRoles('teacher'), asy
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        const assignments = await Assignment.find({ _id: { $in: ids } });
+        const assignments = await Assignment.find({ _id: { $in: ids }, ...activeLmsFilter() });
         let deleted = 0;
+        const trashedAt = new Date();
         for (const assignment of assignments) {
             try {
                 await assertTeacherOwnsCourse(req.portalActorId, assignment.course);
-                await AssignmentSubmission.deleteMany({ assignment: assignment._id });
-                await Assignment.findByIdAndDelete(assignment._id);
+                assignment.deletedAt = trashedAt;
+                await assignment.save();
+                await AssignmentSubmission.updateMany(
+                    { assignment: assignment._id, ...activeLmsFilter() },
+                    { $set: { deletedAt: trashedAt } }
+                );
                 deleted += 1;
             } catch {
                 /* skip assignments the teacher does not own */
             }
         }
-        res.json({ success: true, deletedCount: deleted });
+        res.json({ success: true, deletedCount: deleted, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete assignments' });
     }
@@ -1438,18 +1520,20 @@ router.post('/teacher/resources/bulk-delete', allowPortalRoles('teacher'), async
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        const resources = await Resource.find({ _id: { $in: ids } });
+        const resources = await Resource.find({ _id: { $in: ids }, ...activeLmsFilter() });
         let deleted = 0;
+        const trashedAt = new Date();
         for (const resource of resources) {
             try {
                 await assertTeacherOwnsCourse(req.portalActorId, resource.course);
-                await Resource.findByIdAndDelete(resource._id);
+                resource.deletedAt = trashedAt;
+                await resource.save();
                 deleted += 1;
             } catch {
                 /* skip resources the teacher does not own */
             }
         }
-        res.json({ success: true, deletedCount: deleted });
+        res.json({ success: true, deletedCount: deleted, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete resources' });
     }
@@ -1457,10 +1541,10 @@ router.post('/teacher/resources/bulk-delete', allowPortalRoles('teacher'), async
 
 router.patch('/teacher/resources/:id', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const resource = await Resource.findById(req.params.id);
+        const resource = await Resource.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
         await assertTeacherOwnsCourse(req.portalActorId, resource.course);
-        const { title, description, fileUrl, type, courseId } = req.body;
+        const { courseId, title, description, fileUrl, type } = req.body;
         if (courseId) await assertTeacherOwnsCourse(req.portalActorId, courseId);
         if (courseId) resource.course = courseId;
         if (title !== undefined) resource.title = String(title).trim();
@@ -1480,11 +1564,12 @@ router.patch('/teacher/resources/:id', allowPortalRoles('teacher'), async (req, 
 
 router.delete('/teacher/resources/:id', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const resource = await Resource.findById(req.params.id);
+        const resource = await Resource.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
         await assertTeacherOwnsCourse(req.portalActorId, resource.course);
-        await Resource.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        resource.deletedAt = new Date();
+        await resource.save();
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to delete resource' });
@@ -1498,7 +1583,7 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
         }
         const quiz = await findQuizForTeacher(req.portalActorId, req.params.id);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
-        const attemptCount = await QuizAttempt.countDocuments({ quiz: quiz._id });
+        const attemptCount = await QuizAttempt.countDocuments({ quiz: quiz._id, ...activeLmsFilter() });
         const { courseId, title, questions, totalMarks, dueDate, status, resourceLink, resourceFileUrl } =
             req.body;
         if (courseId) {
@@ -1541,9 +1626,14 @@ router.delete('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, r
     try {
         const quiz = await findQuizForTeacher(req.portalActorId, req.params.id);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
-        await QuizAttempt.deleteMany({ quiz: quiz._id });
-        await Quiz.findByIdAndDelete(quiz._id);
-        res.json({ success: true });
+        const trashedAt = new Date();
+        quiz.deletedAt = trashedAt;
+        await quiz.save();
+        await QuizAttempt.updateMany(
+            { quiz: quiz._id, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } }
+        );
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete quiz' });
     }
@@ -1556,7 +1646,7 @@ router.get('/teacher/quizzes/:quizId/attempts', allowPortalRoles('teacher'), asy
         }
         const quiz = await findQuizForTeacher(req.portalActorId, req.params.quizId);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
-        const attempts = await QuizAttempt.find({ quiz: quiz._id })
+        const attempts = await QuizAttempt.find({ quiz: quiz._id, ...activeLmsFilter() })
             .populate('student', 'name email studentId')
             .sort({ createdAt: -1 });
         res.json({
@@ -1807,7 +1897,7 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
                       course: { $in: enrolledCourseIds },
                   })
                 : [];
-        const quizAttempts = await QuizAttempt.find({ student: { $in: studentIds } });
+        const quizAttempts = await QuizAttempt.find({ student: { $in: studentIds }, ...activeLmsFilter() });
         const emailByStudentId = {};
         for (const link of activeLinks) {
             if (link.student?._id) {
@@ -1874,6 +1964,38 @@ router.get('/parent/children/:studentId/attendance/view', allowPortalRoles('pare
     }
 });
 
+router.get('/parent/children/:studentId/schedule', allowPortalRoles('parent'), async (req, res) => {
+    try {
+        if (!req.portalActorId) return unauthorized(res);
+        await assertParentChild(req.portalActorId, req.params.studentId);
+        const studentId = req.params.studentId;
+
+        const enrollments = await Enrollment.find({
+            ...withActiveEnrollments(studentId),
+            status: 'active',
+            course: { $ne: null },
+            assignedSchedule: { $ne: null },
+        }).select('assignedSchedule');
+
+        const scheduleIds = enrollments.map((e) => e.assignedSchedule).filter(Boolean);
+        if (!scheduleIds.length) {
+            return res.json({ success: true, schedules: [], dayLabels: DAY_LABELS });
+        }
+
+        const schedules = await ClassSchedule.find({ _id: { $in: scheduleIds } })
+            .populate('course', 'title deletedAt')
+            .populate('teacher', 'name deletedAt')
+            .sort({ dayOfWeek: 1, startTime: 1 });
+        const activeSchedules = schedules.filter(
+            (s) => s.course && !isCourseTrashed(s.course) && s.teacher && !isUserTrashed(s.teacher)
+        );
+        res.json({ success: true, schedules: activeSchedules, dayLabels: DAY_LABELS });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to load schedule' });
+    }
+});
+
 router.get('/parent/children/:studentId', allowPortalRoles('parent'), async (req, res) => {
     try {
         if (!req.portalActorId) return unauthorized(res);
@@ -1903,11 +2025,11 @@ router.get('/parent/children/:studentId', allowPortalRoles('parent'), async (req
                   .sort({ date: -1 })
                   .limit(50)
             : [];
-        const submissions = await AssignmentSubmission.find({ student: studentId })
+        const submissions = await AssignmentSubmission.find({ student: studentId, ...activeLmsFilter() })
             .populate('assignment', 'title')
             .sort({ submittedAt: -1 })
             .limit(30);
-        const quizAttempts = await QuizAttempt.find({ student: studentId })
+        const quizAttempts = await QuizAttempt.find({ student: studentId, ...activeLmsFilter() })
             .populate('quiz', 'title totalMarks')
             .sort({ createdAt: -1 })
             .limit(30);

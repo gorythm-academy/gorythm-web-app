@@ -3,12 +3,19 @@ import { createPortal } from 'react-dom';
 import './SubscribePopup.scss';
 import popupVisual from '../../assets/images/home/subscribe.png';
 import { API_BASE_URL, SUBSCRIBE_PRIVACY_POLICY_BODY } from '../../config/constants';
+import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
 
 const STORAGE_KEY = 'gorythm_subscribe_popup_seen_v1';
-const POPUP_DELAY_MS = 10000;
-
 const EMAIL_MAX_LEN = 254;
+
+const DEFAULT_POPUP = {
+  enabled: false,
+  delaySeconds: 10,
+  headline: 'Stay updated with our latest courses.',
+  buttonText: 'Subscribe',
+  imagePath: '',
+};
 
 const isValidSubscribeEmail = (value) => {
   const s = String(value).trim();
@@ -30,6 +37,8 @@ const collectSubscribeIssues = (email, agreePrivacy) => {
 };
 
 const SubscribePopup = () => {
+  const [popupConfig, setPopupConfig] = useState(DEFAULT_POPUP);
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -50,20 +59,37 @@ const SubscribePopup = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/api/site/subscribe-popup`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.success && data.popup) {
+          setPopupConfig({ ...DEFAULT_POPUP, ...data.popup });
+        }
+      })
+      .catch(() => {
+        /* keep defaults */
+      })
+      .finally(() => {
+        if (!cancelled) setConfigLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!configLoaded || !popupConfig.enabled) return undefined;
     if (typeof window === 'undefined') return undefined;
     if (window.sessionStorage.getItem(STORAGE_KEY) === '1') return undefined;
 
+    const delayMs = Math.max(0, Number(popupConfig.delaySeconds) || 0) * 1000;
     const showPopup = () => {
       window.sessionStorage.setItem(STORAGE_KEY, '1');
       setIsVisible(true);
     };
 
-    const timerId = window.setTimeout(showPopup, POPUP_DELAY_MS);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, []);
+    const timerId = window.setTimeout(showPopup, delayMs);
+    return () => window.clearTimeout(timerId);
+  }, [configLoaded, popupConfig.enabled, popupConfig.delaySeconds]);
 
   const closePopup = () => {
     setIsVisible(false);
@@ -121,11 +147,17 @@ const SubscribePopup = () => {
     }
   };
 
+  if (!configLoaded || !popupConfig.enabled) return null;
+
+  const popupImageSrc = popupConfig.imagePath
+    ? resolveMediaUrl(popupConfig.imagePath)
+    : popupVisual;
+
   const popupMarkup = (
     <div className="subscribe-popup-overlay" role="dialog" aria-modal="true" aria-label="Subscribe popup">
       <div className="subscribe-popup-card">
         <div className="subscribe-popup-visual" aria-hidden="true">
-          <img src={popupVisual} alt="Newsletter subscription" className="subscribe-popup-visual-img" draggable={false} />
+          <img src={popupImageSrc} alt="Newsletter subscription" className="subscribe-popup-visual-img" draggable={false} />
         </div>
 
         <div className="subscribe-popup-content">
@@ -144,7 +176,7 @@ const SubscribePopup = () => {
             </div>
           ) : (
             <form className="subscribe-popup-form" onSubmit={handleSubmit} noValidate>
-              <h2>Stay updated with our latest courses.</h2>
+              <h2>{popupConfig.headline}</h2>
 
               <input
                 type="email"
@@ -180,7 +212,7 @@ const SubscribePopup = () => {
               </label>
 
               <button type="submit" className="subscribe-popup-submit">
-                Subscribe
+                {popupConfig.buttonText}
               </button>
             </form>
           )}

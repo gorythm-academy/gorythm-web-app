@@ -1,11 +1,65 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { getAuthToken } from '../../../utils/authStorage';
+import { getAuthToken, AUTH_REALM } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import '../Admin.scss';
+import AdminTablePagination from '../shared/AdminTablePagination';
+import SubscribePopupSettings from './SubscribePopupSettings';
+import {
+  fetchSubscribePopupSettings,
+  saveSubscribePopupSettings,
+} from '../../../utils/subscribePopupAdminApi';
 
 const ITEMS_PER_PAGE = 15;
 const idKey = (id) => String(id);
+
+const filterSubscriberRows = (subscribers, searchTerm, filterSource, dateRange) => {
+  const q = searchTerm.trim().toLowerCase();
+  return subscribers.filter((subscriber) => {
+    const email = String(subscriber.email || '').toLowerCase();
+    const source = String(subscriber.source || '').toLowerCase();
+    const matchesSearch = !q || email.includes(q) || source.includes(q);
+    const matchesSource = filterSource === 'all' || source === filterSource;
+
+    const createdAt = new Date(subscriber.createdAt);
+    const now = new Date();
+    let matchesDate = true;
+    if (dateRange === 'today') {
+      matchesDate = createdAt.toDateString() === now.toDateString();
+    } else if (dateRange === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(now.getDate() - 7);
+      matchesDate = createdAt >= weekAgo;
+    } else if (dateRange === 'month') {
+      const monthAgo = new Date();
+      monthAgo.setMonth(now.getMonth() - 1);
+      matchesDate = createdAt >= monthAgo;
+    }
+
+    return matchesSearch && matchesSource && matchesDate;
+  });
+};
+
+const sortSubscriberRows = (rows, sortBy, sortOrder) => {
+  const multiplier = sortOrder === 'asc' ? 1 : -1;
+  const sorted = [...rows];
+
+  sorted.sort((a, b) => {
+    const getValue = (subscriber, key) => {
+      if (key === 'email') return String(subscriber.email || '').toLowerCase();
+      if (key === 'source') return String(subscriber.source || '').toLowerCase();
+      if (key === 'updated') return new Date(subscriber.updatedAt || 0).getTime();
+      return new Date(subscriber.createdAt || 0).getTime();
+    };
+
+    const va = getValue(a, sortBy);
+    const vb = getValue(b, sortBy);
+    if (typeof va === 'string' && typeof vb === 'string') return multiplier * va.localeCompare(vb);
+    return multiplier * (va < vb ? -1 : va > vb ? 1 : 0);
+  });
+
+  return sorted;
+};
 
 const formatDateTime = (value) => {
   if (!value) return '-';
@@ -27,6 +81,20 @@ const sourceLabel = (source) => {
 const Subscribers = () => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+  const [listTruncated, setListTruncated] = useState(false);
+  const [popupForm, setPopupForm] = useState({
+    subscribePopupEnabled: false,
+    subscribePopupDelaySeconds: 10,
+    subscribePopupHeadline: 'Stay updated with our latest courses.',
+    subscribePopupButtonText: 'Subscribe',
+    subscribePopupImagePath: '',
+  });
+  const [popupLoading, setPopupLoading] = useState(true);
+  const [popupSaving, setPopupSaving] = useState(false);
+  const [popupSaveMessage, setPopupSaveMessage] = useState('');
+  const [popupLoadError, setPopupLoadError] = useState('');
+  const [listTotalCount, setListTotalCount] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSource, setFilterSource] = useState('all');
   const [dateRange, setDateRange] = useState('all');
@@ -34,6 +102,7 @@ const Subscribers = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedSubscribers, setSelectedSubscribers] = useState([]);
   const [deleting, setDeleting] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [dialog, setDialog] = useState(null);
 
@@ -125,15 +194,27 @@ const Subscribers = () => {
 
   const fetchSubscribers = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const token = getAuthToken();
       const response = await axios.get(`${API_BASE_URL}/api/subscribers/admin`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSubscribers(response.data?.subscribers || []);
+      setListTruncated(Boolean(response.data?.truncated));
+      setListTotalCount(
+        typeof response.data?.totalCount === 'number' ? response.data.totalCount : null
+      );
       setSelectedSubscribers([]);
     } catch (error) {
       setSubscribers([]);
+      setListTruncated(false);
+      setListTotalCount(null);
+      if (error.response?.status === 401) {
+        window.location.assign('/admin/login');
+        return;
+      }
+      setFetchError(error.response?.data?.error || error.message || 'Failed to load subscribers.');
     } finally {
       setLoading(false);
     }
@@ -143,53 +224,72 @@ const Subscribers = () => {
     fetchSubscribers();
   }, []);
 
-  const filteredSubscribers = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return subscribers.filter((subscriber) => {
-      const email = String(subscriber.email || '').toLowerCase();
-      const source = String(subscriber.source || '').toLowerCase();
-      const matchesSearch = !q || email.includes(q) || source.includes(q);
-      const matchesSource = filterSource === 'all' || source === filterSource;
+  useEffect(() => {
+    let cancelled = false;
+    setPopupLoading(true);
+    setPopupLoadError('');
+    fetchSubscribePopupSettings(AUTH_REALM.ADMIN)
+      .then((popup) => {
+        if (cancelled) return;
+        setPopupForm({
+          subscribePopupEnabled: Boolean(popup.subscribePopupEnabled),
+          subscribePopupDelaySeconds: Number(popup.subscribePopupDelaySeconds ?? 10),
+          subscribePopupHeadline:
+            popup.subscribePopupHeadline || 'Stay updated with our latest courses.',
+          subscribePopupButtonText: popup.subscribePopupButtonText || 'Subscribe',
+          subscribePopupImagePath: popup.subscribePopupImagePath || '',
+        });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPopupLoadError(
+            error.response?.data?.error ||
+              error.message ||
+              'Could not load popup settings. Restart the backend server (npm run dev in backend folder).'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPopupLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-      const createdAt = new Date(subscriber.createdAt);
-      const now = new Date();
-      let matchesDate = true;
-      if (dateRange === 'today') {
-        matchesDate = createdAt.toDateString() === now.toDateString();
-      } else if (dateRange === 'week') {
-        const weekAgo = new Date();
-        weekAgo.setDate(now.getDate() - 7);
-        matchesDate = createdAt >= weekAgo;
-      } else if (dateRange === 'month') {
-        const monthAgo = new Date();
-        monthAgo.setMonth(now.getMonth() - 1);
-        matchesDate = createdAt >= monthAgo;
-      }
+  const savePopupSettings = async () => {
+    setPopupSaving(true);
+    setPopupSaveMessage('');
+    try {
+      const popup = await saveSubscribePopupSettings(popupForm, AUTH_REALM.ADMIN);
+      setPopupForm({
+        subscribePopupEnabled: Boolean(popup.subscribePopupEnabled),
+        subscribePopupDelaySeconds: Number(popup.subscribePopupDelaySeconds ?? 10),
+        subscribePopupHeadline:
+          popup.subscribePopupHeadline || 'Stay updated with our latest courses.',
+        subscribePopupButtonText: popup.subscribePopupButtonText || 'Subscribe',
+        subscribePopupImagePath: popup.subscribePopupImagePath || '',
+      });
+      setPopupSaveMessage('Popup settings saved.');
+      setPopupLoadError('');
+    } catch (error) {
+      const msg =
+        error.response?.data?.error ||
+        error.message ||
+        'Could not save popup settings.';
+      setPopupSaveMessage(msg);
+    } finally {
+      setPopupSaving(false);
+    }
+  };
 
-      return matchesSearch && matchesSource && matchesDate;
-    });
-  }, [subscribers, searchTerm, filterSource, dateRange]);
+  const filteredSubscribers = useMemo(
+    () => filterSubscriberRows(subscribers, searchTerm, filterSource, dateRange),
+    [subscribers, searchTerm, filterSource, dateRange]
+  );
 
-  const sortedSubscribers = useMemo(() => {
-    const multiplier = sortOrder === 'asc' ? 1 : -1;
-    const rows = [...filteredSubscribers];
-
-    rows.sort((a, b) => {
-      const getValue = (subscriber, key) => {
-        if (key === 'email') return String(subscriber.email || '').toLowerCase();
-        if (key === 'source') return String(subscriber.source || '').toLowerCase();
-        if (key === 'updated') return new Date(subscriber.updatedAt || 0).getTime();
-        return new Date(subscriber.createdAt || 0).getTime();
-      };
-
-      const va = getValue(a, sortBy);
-      const vb = getValue(b, sortBy);
-      if (typeof va === 'string' && typeof vb === 'string') return multiplier * va.localeCompare(vb);
-      return multiplier * (va < vb ? -1 : va > vb ? 1 : 0);
-    });
-
-    return rows;
-  }, [filteredSubscribers, sortBy, sortOrder]);
+  const sortedSubscribers = useMemo(
+    () => sortSubscriberRows(filteredSubscribers, sortBy, sortOrder),
+    [filteredSubscribers, sortBy, sortOrder]
+  );
 
   const sourceOptions = useMemo(() => {
     const sources = new Set();
@@ -206,7 +306,7 @@ const Subscribers = () => {
     weekAgo.setDate(now.getDate() - 7);
 
     return {
-      totalCount: subscribers.length,
+      totalCount: listTotalCount ?? subscribers.length,
       todayCount: subscribers.filter((subscriber) => {
         const createdAt = new Date(subscriber.createdAt);
         return !Number.isNaN(createdAt.getTime()) && createdAt.toDateString() === now.toDateString();
@@ -217,7 +317,7 @@ const Subscribers = () => {
       }).length,
       sourceCount: sourceOptions.length,
     };
-  }, [subscribers, sourceOptions]);
+  }, [subscribers, sourceOptions, listTotalCount]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -284,8 +384,19 @@ const Subscribers = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSubscribers(response.data?.subscribers || []);
+      setListTruncated(Boolean(response.data?.truncated));
+      setListTotalCount(
+        typeof response.data?.totalCount === 'number' ? response.data.totalCount : null
+      );
+      setFetchError('');
     } catch (error) {
-      console.warn('Failed to refresh subscribers:', error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        window.location.assign('/admin/login');
+        return;
+      }
+      setFetchError(
+        error.response?.data?.error || error.message || 'Failed to refresh subscribers.'
+      );
     }
   };
 
@@ -402,46 +513,83 @@ const Subscribers = () => {
     askDeleteSubscribers(selectedSubscribers);
   };
 
-  const downloadSubscribersCsv = () => {
-    if (!sortedSubscribers.length) return;
+  const downloadSubscribersCsv = async () => {
+    if (exportingCsv || sortedSubscribers.length === 0) return;
 
-    const columns = [
-      ['email', 'Email'],
-      ['source', 'Source'],
-      ['subscribed', 'Subscribed'],
-      ['updated', 'Last Updated'],
-    ];
+    setExportingCsv(true);
+    try {
+      let exportRows = sortedSubscribers;
 
-    const rows = sortedSubscribers.map((subscriber) => ({
-      email: subscriber.email || '',
-      source: subscriber.source || 'unknown',
-      subscribed: subscriber.createdAt ? new Date(subscriber.createdAt).toISOString() : '',
-      updated: subscriber.updatedAt ? new Date(subscriber.updatedAt).toISOString() : '',
-    }));
+      if (listTruncated) {
+        const token = getAuthToken();
+        const response = await axios.get(`${API_BASE_URL}/api/subscribers/admin`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { all: '1' },
+        });
+        const allSubscribers = response.data?.subscribers || [];
+        exportRows = sortSubscriberRows(
+          filterSubscriberRows(allSubscribers, searchTerm, filterSource, dateRange),
+          sortBy,
+          sortOrder
+        );
+      }
 
-    const escapeCsv = (value) => {
-      const stringValue = String(value ?? '');
-      return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue;
-    };
+      if (!exportRows.length) return;
 
-    const csv = [
-      columns.map((column) => escapeCsv(column[1])).join(','),
-      ...rows.map((row) => columns.map((column) => escapeCsv(row[column[0]])).join(',')),
-    ].join('\n');
+      const columns = [
+        ['email', 'Email'],
+        ['source', 'Source'],
+        ['subscribed', 'Subscribed'],
+        ['updated', 'Last Updated'],
+      ];
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `gorythm-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+      const rows = exportRows.map((subscriber) => ({
+        email: subscriber.email || '',
+        source: subscriber.source || 'unknown',
+        subscribed: subscriber.createdAt ? new Date(subscriber.createdAt).toISOString() : '',
+        updated: subscriber.updatedAt ? new Date(subscriber.updatedAt).toISOString() : '',
+      }));
+
+      const escapeCsv = (value) => {
+        const stringValue = String(value ?? '');
+        return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue;
+      };
+
+      const csv = [
+        columns.map((column) => escapeCsv(column[1])).join(','),
+        ...rows.map((row) => columns.map((column) => escapeCsv(row[column[0]])).join(',')),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `gorythm-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      openDialog({
+        type: 'error',
+        title: 'Export Failed',
+        message: error.response?.data?.error || error.message || 'Could not export subscribers.',
+        confirmLabel: 'Close',
+      });
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   return (
     <div className="settings-page subscribers-page">
+      {fetchError ? <div className="admin-fetch-error" role="alert">{fetchError}</div> : null}
+      {listTruncated && listTotalCount != null ? (
+        <div className="admin-fetch-warning" role="status">
+          Showing the newest 2,000 of {listTotalCount} subscribers. Older records are not listed
+          here.
+        </div>
+      ) : null}
       {dialog && (
         <div className="subscriber-dialog-overlay" role="presentation">
           <div
@@ -495,6 +643,16 @@ const Subscribers = () => {
         <p>Emails collected from Subscribe section and Newsletter popup.</p>
       </div>
 
+      <SubscribePopupSettings
+        form={popupForm}
+        setForm={setPopupForm}
+        loading={popupLoading}
+        saving={popupSaving}
+        saveMessage={popupSaveMessage}
+        loadError={popupLoadError}
+        onSave={savePopupSettings}
+      />
+
       <div className="contact-stats-grid">
         <div className="contact-stat-card">
           <div className="stat-icon total"><i className="fas fa-users"></i></div>
@@ -542,28 +700,29 @@ const Subscribers = () => {
                 />
               </div>
               <div className="filter-controls">
-                <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
+                <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="status-filter">
                   <option value="all">All Sources</option>
                   {sourceOptions.map((source) => (
                     <option key={source} value={source}>{sourceLabel(source)}</option>
                   ))}
                 </select>
-                <select value={dateRange} onChange={(event) => setDateRange(event.target.value)}>
+                <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="status-filter">
                   <option value="all">All Time</option>
                   <option value="today">Today</option>
                   <option value="week">Last 7 Days</option>
                   <option value="month">Last 30 Days</option>
                 </select>
-                <button type="button" className="refresh-btn" onClick={fetchSubscribers}>
-                  <i className="fas fa-sync-alt"></i> Refresh
+                <button type="button" className="refresh-btn" onClick={fetchSubscribers} title="Refresh" aria-label="Refresh">
+                  <i className="fas fa-sync-alt"></i>
                 </button>
                 <button
                   type="button"
                   className="btn-secondary download-btn"
                   onClick={downloadSubscribersCsv}
-                  disabled={sortedSubscribers.length === 0}
+                  disabled={sortedSubscribers.length === 0 || exportingCsv}
                 >
-                  <i className="fas fa-file-export"></i> Download Excel
+                  <i className={`fas ${exportingCsv ? 'fa-spinner fa-spin' : 'fa-file-export'}`}></i>{' '}
+                  {exportingCsv ? 'Exporting…' : 'Download CSV'}
                 </button>
               </div>
             </div>
@@ -642,7 +801,7 @@ const Subscribers = () => {
                         </td>
                         <td>
                           <div className="contact-meta subscriber-meta">
-                            <strong>{subscriber.email || 'No email'}</strong>
+                            <strong className="admin-email">{subscriber.email || 'No email'}</strong>
                           </div>
                         </td>
                         <td>
@@ -672,7 +831,7 @@ const Subscribers = () => {
             <div className="contact-summary-footer">
               <div className="summary-item">
                 <span className="summary-value">
-                  {sortedSubscribers.length} of {subscribers.length} subscribers
+                  {sortedSubscribers.length} of {listTotalCount ?? subscribers.length} subscribers
                 </span>
               </div>
               <div className="summary-item">
@@ -684,34 +843,11 @@ const Subscribers = () => {
             </div>
 
             {sortedSubscribers.length > ITEMS_PER_PAGE && (
-              <div className="contact-pagination">
-                <button
-                  type="button"
-                  className="page-btn"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                >
-                  Prev
-                </button>
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
-                  <button
-                    type="button"
-                    key={pageNumber}
-                    className={`page-btn ${currentPage === pageNumber ? 'active' : ''}`}
-                    onClick={() => setCurrentPage(pageNumber)}
-                  >
-                    {pageNumber}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="page-btn"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                >
-                  Next
-                </button>
-              </div>
+              <AdminTablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             )}
           </div>
         </div>

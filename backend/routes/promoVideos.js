@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
@@ -9,12 +10,12 @@ const { parseVideoUrl } = require('../utils/videoEmbed');
 const {
     ensureThumbDir,
     thumbPublicPath,
-    deleteThumbFile,
+    thumbAbsolutePathFromPublic,
     uniqueThumbFilename,
-    listThumbFilenames,
     THUMB_DIR,
 } = require('../utils/promoThumbnailStorage');
 const { activePromoVideoFilter, trashedPromoVideoFilter } = require('../utils/promoVideoQuery');
+const { buildGallery, cleanupOrphan, deleteMedia } = require('../services/mediaLibrary');
 
 const SETTINGS_KEY = 'site-promo';
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('manager', 'super-admin')];
@@ -121,46 +122,7 @@ async function clearSelectionForVideo(doc, settings) {
 
 /** Remove upload only when no video row still references it (avoids duplicate orphan files). */
 async function deleteThumbnailIfOrphan(publicPath) {
-    const path = String(publicPath || '').trim();
-    if (!path) return;
-    const inUse = await PromoVideo.countDocuments({ thumbnailPath: path });
-    if (inUse === 0) deleteThumbFile(path);
-}
-
-async function countVideosUsingThumbnail(thumbnailPath) {
-    return PromoVideo.countDocuments({ thumbnailPath });
-}
-
-async function getVideosUsingThumbnail(thumbnailPath) {
-    return PromoVideo.find({ thumbnailPath }).select('name').lean();
-}
-
-async function buildThumbnailGallery() {
-    const filenames = listThumbFilenames();
-    const paths = filenames.map((name) => thumbPublicPath(name));
-    const usageRows = paths.length
-        ? await PromoVideo.find({ thumbnailPath: { $in: paths } }).select('name thumbnailPath').lean()
-        : [];
-
-    const usageByPath = new Map();
-    usageRows.forEach((row) => {
-        const key = row.thumbnailPath;
-        if (!usageByPath.has(key)) usageByPath.set(key, []);
-        usageByPath.get(key).push(row.name || 'Untitled');
-    });
-
-    return filenames
-        .map((filename) => {
-            const imagePath = thumbPublicPath(filename);
-            const usedByTitles = usageByPath.get(imagePath) || [];
-            return {
-                filename,
-                path: imagePath,
-                usedBy: usedByTitles.length,
-                usedByTitles,
-            };
-        })
-        .sort((a, b) => b.filename.localeCompare(a.filename));
+    await cleanupOrphan('video-thumbnails', publicPath);
 }
 
 // —— Public (mounted at /api/promo-videos) ———————————————————————————————————
@@ -270,7 +232,11 @@ adminRouter.patch('/selection', async (req, res) => {
 
 adminRouter.post('/thumbnail/cleanup', async (req, res) => {
     try {
-        await deleteThumbnailIfOrphan(req.body?.thumbnailPath);
+        const thumbnailPath = String(req.body?.thumbnailPath || '').trim();
+        if (!thumbnailPath) {
+            return res.status(400).json({ success: false, error: 'thumbnailPath is required' });
+        }
+        await cleanupOrphan('video-thumbnails', thumbnailPath);
         return res.json({ success: true });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message || 'Cleanup failed' });
@@ -279,7 +245,7 @@ adminRouter.post('/thumbnail/cleanup', async (req, res) => {
 
 adminRouter.get('/thumbnails', async (req, res) => {
     try {
-        const images = await buildThumbnailGallery();
+        const images = await buildGallery('video-thumbnails');
         return res.json({ success: true, images });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message || 'Failed to list thumbnails' });
@@ -297,24 +263,15 @@ adminRouter.post('/thumbnail/delete', async (req, res) => {
             req.body?.force === 1 ||
             req.body?.force === '1' ||
             req.body?.force === 'true';
-        const inUse = await countVideosUsingThumbnail(thumbnailPath);
-        if (inUse > 0 && !force) {
-            const videos = await getVideosUsingThumbnail(thumbnailPath);
-            const names = videos.map((v) => v.name || 'Untitled').join(', ');
-            return res.status(409).json({
-                success: false,
-                inUse: true,
-                error: `Thumbnail is used by ${inUse} video(s): ${names}.`,
-                usedByTitles: videos.map((v) => v.name || 'Untitled'),
-            });
-        }
-        if (inUse > 0 && force) {
-            await PromoVideo.updateMany({ thumbnailPath }, { $set: { thumbnailPath: '' } });
-        }
-        deleteThumbFile(thumbnailPath);
-        return res.json({ success: true, detachedVideos: force ? inUse : 0 });
+        const result = await deleteMedia('video-thumbnails', thumbnailPath, { force });
+        return res.json({ success: true, ...result });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message || 'Delete failed' });
+        const status = error.statusCode || 500;
+        return res.status(status).json({
+            success: false,
+            inUse: Boolean(error.inUse),
+            error: error.message || 'Delete failed',
+        });
     }
 });
 
@@ -330,10 +287,22 @@ adminRouter.post('/thumbnail', (req, res) => {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
         }
         const url = thumbPublicPath(req.file.filename);
-        const replacePath = String(req.body?.replacePath || '').trim();
-        if (replacePath && replacePath !== url) {
-            await deleteThumbnailIfOrphan(replacePath);
+        const absPath = thumbAbsolutePathFromPublic(url);
+        if (!absPath || !fs.existsSync(absPath)) {
+            req.log?.error?.('promo thumbnail missing after upload', {
+                url,
+                thumbDir: THUMB_DIR,
+                uploadRoot: process.env.UPLOAD_ROOT || '(default backend/uploads)',
+            });
+            return res.status(500).json({
+                success: false,
+                error:
+                    'Upload failed to persist on disk. Set UPLOAD_ROOT to a persistent folder on your server (see backend/.env.example).',
+            });
         }
+        // Do not delete replacePath here — unsaved edits and modal cancel must not
+        // remove files still referenced in MongoDB. Old files are removed only after
+        // a successful PUT when the saved thumbnail path changes.
         return res.status(201).json({
             success: true,
             thumbnailPath: url,

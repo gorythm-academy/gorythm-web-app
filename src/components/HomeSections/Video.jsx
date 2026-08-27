@@ -5,6 +5,7 @@ import axios from 'axios';
 import Player from '@vimeo/player';
 import { API_BASE_URL } from '../../config/constants';
 import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
+import { providerThumbnailUrl, fetchVimeoThumbnailUrl } from '../../utils/videoEmbed';
 import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import './Video.scss';
 
@@ -30,6 +31,8 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   const [promo, setPromo] = useState(null);
   const [promoLoaded, setPromoLoaded] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const [vimeoFallbackUrl, setVimeoFallbackUrl] = useState('');
 
   const sectionRef = useRef(null);
   const iframeRef = useRef(null);
@@ -61,7 +64,33 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   const provider = promo?.provider || 'vimeo';
   const isVimeo = provider === 'vimeo';
   const thumbUrl = promo?.thumbnailPath ? resolveMediaUrl(promo.thumbnailPath) : '';
+  const providerFallbackUrl = providerThumbnailUrl({
+    provider: promo?.provider,
+    videoId: promo?.videoId,
+  });
   const thumbAlt = promo?.name ? `${promo.name} video thumbnail` : 'Video thumbnail';
+  const customThumbActive = Boolean(thumbUrl && !thumbFailed);
+
+  useEffect(() => {
+    setThumbFailed(false);
+    setVimeoFallbackUrl('');
+  }, [thumbUrl, promo?.provider, promo?.videoId, promo?.videoUrl]);
+
+  useEffect(() => {
+    if (promo?.provider !== 'vimeo' || !promo?.videoUrl || vimeoFallbackUrl) return undefined;
+    if (customThumbActive) return undefined;
+    let cancelled = false;
+    fetchVimeoThumbnailUrl(promo.videoUrl).then((url) => {
+      if (!cancelled && url) setVimeoFallbackUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [customThumbActive, promo?.provider, promo?.videoUrl, vimeoFallbackUrl]);
+
+  const remoteFallbackUrl = vimeoFallbackUrl || providerFallbackUrl;
+  const activeThumbUrl = customThumbActive ? thumbUrl : remoteFallbackUrl;
+  const showStaticThumb = !promoLoaded || !activeThumbUrl;
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -147,16 +176,6 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
     []
   );
 
-  if (!promoLoaded) {
-    return (
-      <section
-        ref={sectionRef}
-        className="video-section video-section--loading"
-        aria-hidden="true"
-      />
-    );
-  }
-
   return (
     <section
       ref={sectionRef}
@@ -164,16 +183,7 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
       onClick={isPlaying ? undefined : handleSectionClick}
     >
       <div className="video-section-backdrop" aria-hidden="true">
-        {thumbUrl ? (
-          <img
-            className="video-section-backdrop-img"
-            src={thumbUrl}
-            alt={thumbAlt}
-            loading="lazy"
-            width={1600}
-            height={900}
-          />
-        ) : (
+        {showStaticThumb ? (
           <OptimizedPicture
             avifSrc={videoThumbAvif}
             webpSrc={videoThumbWebp}
@@ -185,6 +195,16 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
             width={1600}
             height={900}
             sizes="(max-width: 768px) 100vw, min(100vw, 900px)"
+          />
+        ) : (
+          <img
+            className="video-section-backdrop-img"
+            src={activeThumbUrl}
+            alt={thumbAlt}
+            loading="lazy"
+            width={1600}
+            height={900}
+            onError={() => setThumbFailed(true)}
           />
         )}
       </div>

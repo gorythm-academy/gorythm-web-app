@@ -307,6 +307,16 @@
     color: #1d4ed8;
   }
 
+  &--completed {
+    background: #d1fae5;
+    color: #047857;
+  }
+
+  &--inactive {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
   &--new {
     background: #fce7f3;
     color: #9d174d;

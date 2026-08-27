@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { getAuthSession, AUTH_REALM } from '../../utils/authStorage';
+import { portalHomeByRole } from '../../utils/portalHomeByRole';
 
 const ProtectedRoute = ({
   allowedRoles,
@@ -17,9 +18,9 @@ const ProtectedRoute = ({
   if (user.mustChangePassword) {
     const adminRoles = ['super-admin', 'manager'];
     if (adminRoles.includes(user.role)) {
-      return <Navigate to="/admin/login?reset=1" replace />;
+      return <Navigate to="/admin/login?set-password=1" replace />;
     }
-    return <Navigate to="/login?reset=1" replace />;
+    return <Navigate to="/login?set-password=1" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
@@ -36,7 +37,13 @@ const ProtectedRoute = ({
       );
     }
 
-    return <Navigate to={loginPath} replace />;
+    return (
+      <Navigate
+        to={portalHomeByRole(user.role)}
+        replace
+        state={{ message: 'You do not have access to that portal area.' }}
+      />
+    );
   }
 
   return <Outlet />;

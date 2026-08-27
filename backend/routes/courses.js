@@ -9,8 +9,29 @@ const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
-const { stripCourseModulesForStudent } = require('../utils/stripCourseModulesForStudent');
+const {
+    deleteCourseMediaFiles,
+    permanentlyDeleteCourseRelations,
+    softTrashCourseEnrollments,
+    restoreCourseEnrollments,
+} = require('../services/trashCleanup');
+const {
+    normalizeInstructorIdList,
+    applyInstructorsToCourse,
+    instructorIdsFromCourse,
+    formatInstructorNames,
+} = require('../utils/courseInstructors');
 
+const COURSE_TRASH_UNSET_TEACHERS = {
+    instructors: [],
+    instructor: null,
+    instructorName: '',
+};
+
+const COURSE_CATEGORIES = [
+    'Quranic Arabic', 'Tajweed', 'Islamic Studies', 'STEM', 'Memorization (Hifz)',
+    'Fiqh', 'Hadith', 'Seerah', 'Aqeedah', 'Other',
+];
 // Category order for listing: Quran, Tajweed, Islamic Studies, Seerah, STEM, then rest
 const PUBLIC_CATEGORY_ORDER = [
     'Quranic Arabic', 'Tajweed', 'Islamic Studies', 'Seerah', 'STEM',
@@ -20,6 +41,37 @@ const getCategorySortIndex = (category) => {
     const i = PUBLIC_CATEGORY_ORDER.indexOf(category || '');
     return i === -1 ? PUBLIC_CATEGORY_ORDER.length : i;
 };
+
+function parseDisplayOrder(value, fallback = 9999) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    if (n < 0) return null;
+    return Math.floor(n);
+}
+
+function parseMasonryColumn(value) {
+    return [1, 2, 3].includes(Number(value)) ? Number(value) : null;
+}
+
+function mapPublicCourse(course) {
+    return {
+        _id: course._id,
+        title: course.title,
+        description: course.description,
+        category: course.category,
+        price: course.price,
+        duration: course.duration,
+        level: course.level,
+        instructorName: formatInstructorNames(course) || course.instructorName || '',
+        homepageImage: course.homepageImage || '',
+        imageUrl: course.imageUrl || '',
+        displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
+        masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
+        slug: course.slug || '',
+        isPublished: course.isPublished,
+        createdAt: course.createdAt,
+    };
+}
 
 // Get published courses only (public, no auth) – for homepage & All Courses
 router.get('/public', async (req, res) => {
@@ -69,10 +121,12 @@ router.get('/:id', async (req, res) => {
                 _id: param,
                 isPublished: true,
                 ...activeCourseFilter(),
-            }).populate('instructor', 'name');
+            }).populate('instructor', 'name').populate('instructors', 'name');
         }
         if (!course && param) {
-            course = await Course.findOne({ slug: param, isPublished: true, ...activeCourseFilter() }).populate('instructor', 'name');
+            course = await Course.findOne({ slug: param, isPublished: true, ...activeCourseFilter() })
+                .populate('instructor', 'name')
+                .populate('instructors', 'name');
         }
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
@@ -84,25 +138,7 @@ router.get('/:id', async (req, res) => {
         }
         res.json({
             success: true,
-            course: {
-                _id: course._id,
-                title: course.title,
-                description: course.description,
-                category: course.category,
-                price: course.price,
-                duration: course.duration,
-                level: course.level,
-                instructorName: course.instructorName || (course.instructor && course.instructor.name) || '',
-                homepageImage: course.homepageImage || '',
-                imageUrl: course.imageUrl || '',
-                displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
-                masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
-                slug: course.slug || '',
-                modules: stripCourseModulesForStudent(course).modules || [],
-                students: course.students?.length ?? 0,
-                isPublished: course.isPublished,
-                createdAt: course.createdAt
-            }
+            course: mapPublicCourse(course),
         });
     } catch (error) {
         req.log.error('Error fetching course', { err: error });
@@ -118,39 +154,56 @@ router.use(allowRoles('manager', 'super-admin'));
 router.get('/', async (req, res) => {
     try {
         const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const includeCounts = req.query.includeCounts === 'true' || req.query.includeCounts === '1';
         const courseFilter = trash ? trashedCourseFilter() : activeCourseFilter();
 
-        const courses = await Course.find(courseFilter)
-            .populate('instructor', 'name email')
-            .sort(trash ? { deletedAt: -1 } : { createdAt: -1 });
+        const courseListSelect = [
+            'title',
+            'description',
+            'category',
+            'price',
+            'duration',
+            'level',
+            'instructor',
+            'instructors',
+            'instructorName',
+            'homepageImage',
+            'displayOrder',
+            'masonryColumn',
+            'slug',
+            'isPublished',
+            'createdAt',
+            'deletedAt',
+        ].join(' ');
 
-        const trashCount = await Course.countDocuments(trashedCourseFilter());
-
-        const enrollmentStats = await Enrollment.aggregate([
-            {
-                $match: {
-                    course: { $ne: null },
-                    student: { $ne: null },
-                    ...activeEnrollmentFilter(),
+        const [courses, enrollmentStats] = await Promise.all([
+            Course.find(courseFilter)
+                .select(courseListSelect)
+                .populate('instructor', 'name email')
+                .populate('instructors', 'name email')
+                .sort(trash ? { deletedAt: -1 } : { createdAt: -1 })
+                .lean(),
+            Enrollment.aggregate([
+                {
+                    $match: {
+                        course: { $ne: null },
+                        student: { $ne: null },
+                        ...activeEnrollmentFilter(),
+                    },
                 },
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'student',
-                    foreignField: '_id',
-                    as: 'studentDoc',
+                {
+                    $group: {
+                        _id: '$course',
+                        studentIds: { $addToSet: '$student' },
+                    },
                 },
-            },
-            { $unwind: '$studentDoc' },
-            { $match: { 'studentDoc.role': 'student' } },
-            {
-                $group: {
-                    _id: '$course',
-                    studentIds: { $addToSet: '$student' },
-                },
-            },
+            ]),
         ]);
+
+        let trashCount;
+        if (includeCounts) {
+            trashCount = await Course.countDocuments(trashedCourseFilter());
+        }
 
         const byCourseStudentCount = new Map();
         const uniqueStudentIdSet = new Set();
@@ -171,7 +224,9 @@ router.get('/', async (req, res) => {
             students: byCourseStudentCount.get(String(course._id)) || 0,
             status: course.isPublished ? 'published' : 'draft',
             instructor: course.instructor,
-            instructorName: course.instructorName || '',
+            instructorName: formatInstructorNames(course) || course.instructorName || '',
+            instructors: course.instructors || [],
+            instructorIds: instructorIdsFromCourse(course),
             homepageImage: course.homepageImage || '',
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999,
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
@@ -184,11 +239,63 @@ router.get('/', async (req, res) => {
             success: true,
             courses: mappedCourses,
             totalUniqueStudents: uniqueStudentIdSet.size,
-            trashCount,
+            ...(includeCounts ? { trashCount } : {}),
         });
     } catch (error) {
         req.log.error('Error fetching courses', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch courses' });
+    }
+});
+
+/** Lightweight published courses for Teachers-tab assignment UI (no enrollment stats). */
+router.get('/assignable', async (req, res) => {
+    try {
+        const courses = await Course.find({
+            isPublished: true,
+            $and: [activeCourseFilter()],
+        })
+            .select('title category')
+            .sort({ title: 1 })
+            .lean();
+        res.json({
+            success: true,
+            courses: courses.map((c) => ({
+                _id: c._id,
+                title: c.title,
+                category: c.category,
+            })),
+        });
+    } catch (error) {
+        req.log.error('Error fetching assignable courses', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch assignable courses' });
+    }
+});
+
+// Admin preview — draft or published, including trashed courses still in DB
+router.get('/preview/:id', async (req, res) => {
+    try {
+        const param = req.params.id;
+        let course = null;
+        if (mongoose.isValidObjectId(param)) {
+            course = await Course.findById(param).populate('instructor', 'name');
+        }
+        if (!course && param) {
+            course = await Course.findOne({ slug: param }).populate('instructor', 'name');
+        }
+        if (!course) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            course: {
+                ...mapPublicCourse(course),
+                preview: true,
+            },
+        });
+    } catch (error) {
+        req.log.error('Error fetching course preview', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch course preview' });
     }
 });
 
@@ -222,6 +329,7 @@ router.post(
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
         rules.requiredString('category', 'Category'),
+        rules.enum('category', 'Category', COURSE_CATEGORIES),
     ]),
     async (req, res) => {
     try {
@@ -230,6 +338,21 @@ router.post(
             category: req.body?.category,
             status: req.body?.status,
         });
+
+        const displayOrder = parseDisplayOrder(req.body.displayOrder);
+        if (displayOrder === null) {
+            return res.status(400).json({ success: false, error: 'Display order must be 0 or greater' });
+        }
+
+        const isPublished = req.body.status === 'published';
+        const instructorIds = normalizeInstructorIdList(req.body);
+        if (!isPublished && instructorIds.length) {
+            return res.status(400).json({
+                success: false,
+                error: 'Teachers can only be assigned to published courses',
+            });
+        }
+
         const requestedSlug = (req.body.slug && String(req.body.slug).trim()) || slugFromTitle(req.body.title);
         const uniqueSlug = await buildUniqueSlug(requestedSlug);
         
@@ -240,16 +363,25 @@ router.post(
             price: req.body.price,
             duration: req.body.duration || '8 weeks',
             level: req.body.level || 'beginner',
-            instructor: req.body.instructorId || '65a1b2c3d4e5f67890123456', // Default admin ID
-            instructorName: req.body.instructorName || '',
-            modules: [],
+            instructor: null,
+            instructorName: '',
+            instructors: [],
             students: [],
             homepageImage: (req.body.homepageImage && String(req.body.homepageImage).trim()) || '',
-            displayOrder: Number.isFinite(Number(req.body.displayOrder)) ? Number(req.body.displayOrder) : 9999,
-            masonryColumn: [1, 2, 3].includes(Number(req.body.masonryColumn)) ? Number(req.body.masonryColumn) : null,
+            displayOrder,
+            masonryColumn: parseMasonryColumn(req.body.masonryColumn),
             slug: uniqueSlug,
-            isPublished: req.body.status === 'published'
+            isPublished
         });
+
+        try {
+            await applyInstructorsToCourse(course, instructorIds, { requireAll: true });
+        } catch (err) {
+            if (err.status === 400) {
+                return res.status(400).json({ success: false, error: err.message });
+            }
+            throw err;
+        }
 
         await course.save();
 
@@ -273,6 +405,7 @@ router.put(
         rules.requiredString('title', 'Title'),
         rules.requiredString('description', 'Description'),
         rules.requiredString('category', 'Category'),
+        rules.enum('category', 'Category', COURSE_CATEGORIES),
     ]),
     async (req, res) => {
     try {
@@ -287,6 +420,13 @@ router.put(
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
 
+        if (req.body.displayOrder !== undefined) {
+            const displayOrder = parseDisplayOrder(req.body.displayOrder);
+            if (displayOrder === null) {
+                return res.status(400).json({ success: false, error: 'Display order must be 0 or greater' });
+            }
+        }
+
         const previousTitle = course.title;
         const hasExplicitSlug = Object.prototype.hasOwnProperty.call(req.body, 'slug');
 
@@ -297,15 +437,33 @@ router.put(
         course.price = req.body.price !== undefined ? req.body.price : course.price;
         course.duration = req.body.duration || course.duration;
         course.level = req.body.level || course.level;
-        course.isPublished = req.body.status === 'published';
-        if (req.body.instructorId !== undefined) course.instructor = req.body.instructorId || null;
-        if (req.body.instructorName !== undefined) course.instructorName = req.body.instructorName || '';
+        const nextPublished = req.body.status === 'published';
+        course.isPublished = nextPublished;
+        const hasInstructorIds = Object.prototype.hasOwnProperty.call(req.body, 'instructorIds');
+        const hasInstructorId = Object.prototype.hasOwnProperty.call(req.body, 'instructorId');
+        if (!nextPublished) {
+            // Drafts cannot keep teachers (Teachers tab only shows published assignments).
+            await applyInstructorsToCourse(course, []);
+        } else if (hasInstructorIds || hasInstructorId) {
+            try {
+                await applyInstructorsToCourse(course, normalizeInstructorIdList(req.body), {
+                    requireAll: true,
+                });
+            } catch (err) {
+                if (err.status === 400) {
+                    return res.status(400).json({ success: false, error: err.message });
+                }
+                throw err;
+            }
+        } else if (req.body.instructorName !== undefined && !(course.instructors || []).length) {
+            course.instructorName = req.body.instructorName || '';
+        }
         if (req.body.homepageImage !== undefined) course.homepageImage = String(req.body.homepageImage || '').trim();
         if (req.body.displayOrder !== undefined) {
-            course.displayOrder = Number.isFinite(Number(req.body.displayOrder)) ? Number(req.body.displayOrder) : 9999;
+            course.displayOrder = parseDisplayOrder(req.body.displayOrder);
         }
         if (req.body.masonryColumn !== undefined) {
-            course.masonryColumn = [1, 2, 3].includes(Number(req.body.masonryColumn)) ? Number(req.body.masonryColumn) : null;
+            course.masonryColumn = parseMasonryColumn(req.body.masonryColumn);
         }
         if (hasExplicitSlug) {
             const requestedSlug = String(req.body.slug || '').trim() || slugFromTitle(course.title);
@@ -341,6 +499,9 @@ router.patch(
         }
 
         course.isPublished = req.body.status === 'published';
+        if (!course.isPublished) {
+            await applyInstructorsToCourse(course, []);
+        }
         await course.save();
 
         res.json({
@@ -359,13 +520,22 @@ router.delete('/:id', async (req, res) => {
 
         const course = await Course.findOneAndUpdate(
             { _id: req.params.id, ...activeCourseFilter() },
-            { $set: { deletedAt: new Date(), isPublished: false } },
+            {
+                $set: {
+                    deletedAt: new Date(),
+                    isPublished: false,
+                    students: [],
+                    ...COURSE_TRASH_UNSET_TEACHERS,
+                },
+            },
             { new: true }
         );
 
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
+
+        await softTrashCourseEnrollments(course._id);
 
         res.json({
             success: true,
@@ -388,7 +558,8 @@ router.patch('/:id/restore', async (req, res) => {
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found in trash' });
         }
-        res.json({ success: true, message: 'Course restored' });
+        await restoreCourseEnrollments(course._id);
+        res.json({ success: true, message: 'Course restored (still draft — publish when ready)' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to restore course' });
     }
@@ -397,7 +568,7 @@ router.patch('/:id/restore', async (req, res) => {
 // Permanently delete course (must be in trash)
 router.delete('/:id/permanent', async (req, res) => {
     try {
-        const course = await Course.findOneAndDelete({
+        const course = await Course.findOne({
             _id: req.params.id,
             ...trashedCourseFilter(),
         });
@@ -408,6 +579,10 @@ router.delete('/:id/permanent', async (req, res) => {
                 error: 'Course must be in trash before permanent delete',
             });
         }
+
+        await permanentlyDeleteCourseRelations(course._id);
+        deleteCourseMediaFiles(course);
+        await Course.findByIdAndDelete(course._id);
 
         res.json({
             success: true,
@@ -433,8 +608,19 @@ router.post(
 
         const result = await Course.updateMany(
             { _id: { $in: ids }, ...activeCourseFilter() },
-            { $set: { deletedAt: new Date(), isPublished: false } }
+            {
+                $set: {
+                    deletedAt: new Date(),
+                    isPublished: false,
+                    students: [],
+                    ...COURSE_TRASH_UNSET_TEACHERS,
+                },
+            }
         );
+
+        for (const id of ids) {
+            await softTrashCourseEnrollments(id);
+        }
 
         req.log.info('Bulk trash courses completed', { modifiedCount: result.modifiedCount });
 
@@ -467,18 +653,72 @@ router.patch(
             return res.status(400).json({ success: false, error: 'Invalid status' });
         }
 
-        await Course.updateMany(
+        const published = status === 'published';
+        const update = { isPublished: published };
+        if (!published) {
+            Object.assign(update, COURSE_TRASH_UNSET_TEACHERS);
+        }
+
+        const result = await Course.updateMany(
             { _id: { $in: courseIds }, ...activeCourseFilter() },
-            { isPublished: status === 'published' }
+            { $set: update }
         );
 
         res.json({
             success: true,
-            message: `${courseIds.length} course(s) set to ${status}`
+            message: `${result.modifiedCount} course(s) set to ${status}`
         });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to update courses' });
     }
 });
+
+router.post(
+    '/bulk-restore',
+    validate([rules.arrayNonEmpty('ids', 'Course IDs')]),
+    async (req, res) => {
+        try {
+            const { ids } = req.body;
+            const result = await Course.updateMany(
+                { _id: { $in: ids }, ...trashedCourseFilter() },
+                { $set: { deletedAt: null } }
+            );
+            for (const id of ids) {
+                await restoreCourseEnrollments(id);
+            }
+            res.json({
+                success: true,
+                message: `${result.modifiedCount} course(s) restored (still draft — publish when ready)`,
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, error: 'Failed to restore courses' });
+        }
+    }
+);
+
+router.post(
+    '/bulk-permanent',
+    validate([rules.arrayNonEmpty('ids', 'Course IDs')]),
+    async (req, res) => {
+        try {
+            const { ids } = req.body;
+            const courses = await Course.find({ _id: { $in: ids }, ...trashedCourseFilter() });
+            if (!courses.length) {
+                return res.status(404).json({ success: false, error: 'No trashed courses found to delete' });
+            }
+            for (const course of courses) {
+                await permanentlyDeleteCourseRelations(course._id);
+                deleteCourseMediaFiles(course);
+                await Course.findByIdAndDelete(course._id);
+            }
+            res.json({
+                success: true,
+                message: `${courses.length} course(s) permanently deleted`,
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, error: 'Failed to permanently delete courses' });
+        }
+    }
+);
 
 module.exports = router;

@@ -1,12 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const BlogComment = require('../models/BlogComment');
+const ResearchComment = require('../models/ResearchComment');
 const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
 
-// GET /api/research/counts - returns { postSlug: count } only for posts that have comments
+const approvedFilter = {
+    $or: [{ status: 'approved' }, { status: { $exists: false } }],
+};
+
+const mapPublicComment = (c) => ({
+    id: c._id.toString(),
+    authorName: c.authorName,
+    text: c.text,
+    date: c.createdAt,
+    adminReply: c.adminReply || '',
+    repliedAt: c.repliedAt || null,
+});
+
+// GET /api/research/counts - returns { postSlug: count } only for approved feedback
 router.get('/counts', async (req, res) => {
     try {
-        const counts = await BlogComment.aggregate([
+        const counts = await ResearchComment.aggregate([
+            { $match: approvedFilter },
             { $group: { _id: '$postSlug', count: { $sum: 1 } } },
             { $project: { postSlug: '$_id', count: 1, _id: 0 } },
         ]);
@@ -24,17 +38,15 @@ router.get('/counts', async (req, res) => {
 // GET /api/research/:postSlug/comments
 router.get('/:postSlug/comments', async (req, res) => {
     try {
-        const comments = await BlogComment.find({ postSlug: req.params.postSlug })
+        const comments = await ResearchComment.find({
+            postSlug: req.params.postSlug,
+            ...approvedFilter,
+        })
             .sort({ createdAt: -1 })
             .lean();
         res.json({
             success: true,
-            comments: comments.map((c) => ({
-                id: c._id.toString(),
-                authorName: c.authorName,
-                text: c.text,
-                date: c.createdAt,
-            })),
+            comments: comments.map(mapPublicComment),
         });
     } catch (error) {
         req.log.error('Error fetching comments', { err: error });
@@ -50,7 +62,7 @@ router.post('/:postSlug/comments', publicWriteRateLimiter, async (req, res) => {
         const { authorName, authorEmail, text } = req.body;
         const postSlug = req.params.postSlug;
         if (!authorName || !text || !postSlug) {
-            return res.status(400).json({ success: false, error: 'Name and comment text are required' });
+            return res.status(400).json({ success: false, error: 'Name and feedback text are required' });
         }
         const email = authorEmail ? String(authorEmail).trim() : '';
         if (!email) {
@@ -63,25 +75,21 @@ router.post('/:postSlug/comments', publicWriteRateLimiter, async (req, res) => {
                     'Enter a full email address (e.g. abc@email.com). The part after the last dot must be at least 2 letters.',
             });
         }
-        const comment = new BlogComment({
+        const comment = new ResearchComment({
             postSlug,
             authorName: String(authorName).trim(),
             authorEmail: email,
             text: String(text).trim(),
+            status: 'pending',
         });
         await comment.save();
         res.status(201).json({
             success: true,
-            comment: {
-                id: comment._id.toString(),
-                authorName: comment.authorName,
-                text: comment.text,
-                date: comment.createdAt,
-            },
+            message: 'Thank you — your feedback will appear after review.',
         });
     } catch (error) {
         req.log.error('Error posting comment', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to post comment' });
+        res.status(500).json({ success: false, error: 'Failed to post feedback' });
     }
 });
 

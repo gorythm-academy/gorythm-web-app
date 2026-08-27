@@ -18,7 +18,10 @@ const { allowPermission } = require('../middleware/authorize');
 const logger = require('../utils/logger');
 const { validate, rules } = require('../middleware/validate');
 const { paymentRegisterRateLimiter } = require('../middleware/publicWriteRateLimit');
-const { fulfillStripeCheckoutSession } = require('../services/stripeCheckoutFulfillment');
+const {
+    fulfillStripeCheckoutSession,
+    fulfillmentMessage,
+} = require('../services/stripeCheckoutFulfillment');
 const { serializePayment, serializePayments } = require('../utils/serializePayment');
 const { ensureProofDir, proofPublicPath, PROOF_DIR } = require('../utils/paymentProofStorage');
 const { resolveStoredFilename } = require('../utils/safeFilename');
@@ -140,6 +143,42 @@ const BANK_DETAIL_FIELDS = [
 const canManagePaymentConfig = (role) =>
     ['accountant', 'manager', 'super-admin'].includes(role);
 
+// --- Public: single course for checkout (published, not trashed) ---
+router.get('/course/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, error: 'Invalid course id' });
+        }
+
+        const course = await Course.findOne({
+            _id: id,
+            isPublished: true,
+            ...activeCourseFilter(),
+        }).select('_id title price slug');
+
+        if (!course) {
+            return res.status(404).json({
+                success: false,
+                error: 'This course is not open for enrollment.',
+            });
+        }
+
+        const coursePrice = Number(course.price);
+        if (Number.isNaN(coursePrice) || coursePrice <= 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'This course is not open for enrollment.',
+            });
+        }
+
+        res.json({ success: true, course });
+    } catch (error) {
+        req.log?.error('Payment course lookup failed', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to load course' });
+    }
+});
+
 // --- Public: bank details (saved from Admin → Payments page) ---
 router.get('/bank-details', async (_req, res) => {
     try {
@@ -173,13 +212,19 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
         try {
             const studentName = String(req.body?.studentName || '').trim();
             const email = String(req.body?.email || '').trim().toLowerCase();
-            const courseName = String(req.body?.courseName || '').trim();
+            const courseIdRaw = String(req.body?.courseId || '').trim();
             const bankDigits = String(req.body?.phone || '').replace(/\D/g, '');
 
-            if (!studentName || !email || !courseName) {
+            if (!studentName || !email) {
                 return res.status(400).json({
                     success: false,
-                    error: 'studentName, email, and courseName are required',
+                    error: 'studentName and email are required',
+                });
+            }
+            if (!courseIdRaw || !mongoose.Types.ObjectId.isValid(courseIdRaw)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'courseId is required',
                 });
             }
             if (!req.file) {
@@ -206,12 +251,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
             }
 
             const course = await Course.findOne({
-                title: {
-                    $regex: new RegExp(
-                        `^${courseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-                        'i'
-                    ),
-                },
+                _id: courseIdRaw,
                 isPublished: true,
                 ...activeCourseFilter(),
             }).select('_id title price');
@@ -400,22 +440,51 @@ router.get('/verify-session', async (req, res) => {
     }
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        let payment = null;
-        if (session.payment_status === 'paid') {
-            payment = await fulfillStripeCheckoutSession(session);
-        } else {
-            payment = await Payment.findOne({
-                transactionId: sessionId,
-                ...activePaymentFilter(),
-            })
-                .populate('course')
-                .populate('user');
+        const stripePaid = session.payment_status === 'paid';
+
+        if (stripePaid) {
+            const result = await fulfillStripeCheckoutSession(session);
+            const payment = result?.payment;
+            const fulfillmentIssue = result?.fulfillmentIssue || null;
+
+            return res.json({
+                success: true,
+                paid: stripePaid,
+                enrolled: result?.enrolled === true,
+                fulfillmentIssue,
+                message:
+                    fulfillmentIssue === 'already_enrolled_duplicate'
+                        ? fulfillmentMessage(fulfillmentIssue)
+                        : result?.enrolled === true
+                          ? null
+                          : fulfillmentMessage(fulfillmentIssue),
+                courseTitle: payment?.course?.title || payment?.courseName || null,
+            });
         }
+
+        const payment = await Payment.findOne({
+            transactionId: sessionId,
+            ...activePaymentFilter(),
+        })
+            .populate('course')
+            .populate('user');
+
+        const failureText = String(payment?.failureReason || '').toLowerCase();
+        const alreadyEnrolledDuplicate =
+            Boolean(payment?.failureReason) && failureText.includes('already enrolled');
 
         res.json({
             success: true,
-            paid: session.payment_status === 'paid' || isPaidStatus(payment?.status),
-            paymentStatus: payment?.status || null,
+            paid: isPaidStatus(payment?.status),
+            enrolled: (isPaidStatus(payment?.status) && !payment?.failureReason) || alreadyEnrolledDuplicate,
+            fulfillmentIssue: payment?.failureReason
+                ? alreadyEnrolledDuplicate
+                    ? 'already_enrolled_duplicate'
+                    : 'enrollment_failed'
+                : null,
+            message: alreadyEnrolledDuplicate
+                ? fulfillmentMessage('already_enrolled_duplicate')
+                : payment?.failureReason || null,
             courseTitle: payment?.course?.title || payment?.courseName || null,
         });
     } catch (error) {
@@ -430,25 +499,149 @@ router.use(validateSessionUser);
 router.get('/', allowPermission('payments.read'), async (req, res) => {
     try {
         const trash = req.query.trash === 'true' || req.query.trash === '1';
-        const filter = trash ? trashedPaymentFilter() : activePaymentListFilter();
-        const sort = trash ? { deletedAt: -1 } : { createdAt: -1 };
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 25));
+        const skip = (page - 1) * limit;
+        const search = String(req.query.search || '').trim();
+        const statusFilter = String(req.query.status || 'all').trim().toLowerCase();
+        const dateRange = String(req.query.dateRange || 'all').trim().toLowerCase();
+        const sortBy = String(req.query.sortBy || 'date').trim();
+        const sortOrder = String(req.query.sortOrder || 'desc').trim().toLowerCase() === 'asc' ? 1 : -1;
+        const includeCounts = req.query.includeCounts === 'true' || req.query.includeCounts === '1';
+        const includeStats = req.query.includeStats === 'true' || req.query.includeStats === '1';
 
-        const [payments, trashCount] = await Promise.all([
+        const filter = trash ? trashedPaymentFilter() : activePaymentListFilter();
+
+        if (statusFilter && statusFilter !== 'all') {
+            if (statusFilter === 'paid') {
+                filter.status = { $in: ['paid', 'completed'] };
+            } else {
+                filter.status = statusFilter;
+            }
+        }
+
+        if (dateRange === 'today') {
+            const start = new Date();
+            start.setHours(0, 0, 0, 0);
+            filter.createdAt = { $gte: start };
+        } else if (dateRange === 'week') {
+            const start = new Date();
+            start.setDate(start.getDate() - 7);
+            filter.createdAt = { $gte: start };
+        } else if (dateRange === 'month') {
+            const start = new Date();
+            start.setMonth(start.getMonth() - 1);
+            filter.createdAt = { $gte: start };
+        }
+
+        if (search) {
+            const regex = { $regex: search, $options: 'i' };
+            filter.$or = [
+                { studentName: regex },
+                { email: regex },
+                { courseName: regex },
+                { transactionId: regex },
+                { phone: regex },
+            ];
+        }
+
+        const sortFieldMap = {
+            date: 'createdAt',
+            amount: 'amount',
+            status: 'status',
+            transactionId: 'transactionId',
+        };
+        const sortField = sortFieldMap[sortBy] || 'createdAt';
+        const sort = { [sortField]: sortOrder };
+        if (trash) sort.deletedAt = -1;
+
+        const [payments, total, trashCount, statsAgg] = await Promise.all([
             Payment.find(filter)
                 .populate('user', 'name email')
                 .populate('course', 'title')
-                .sort(sort),
-            Payment.countDocuments(trashedPaymentFilter()),
+                .sort(sort)
+                .skip(skip)
+                .limit(limit),
+            Payment.countDocuments(filter),
+            includeCounts ? Payment.countDocuments(trashedPaymentFilter()) : Promise.resolve(undefined),
+            includeStats && !trash
+                ? Payment.aggregate([
+                    { $match: activePaymentListFilter() },
+                    {
+                        $group: {
+                            _id: '$status',
+                            count: { $sum: 1 },
+                            revenue: { $sum: '$amount' },
+                        },
+                    },
+                ])
+                : Promise.resolve(null),
         ]);
+
+        let stats;
+        if (statsAgg) {
+            stats = {
+                totalRevenue: 0,
+                successfulPayments: 0,
+                pendingPayments: 0,
+                failedPayments: 0,
+                refundedPayments: 0,
+            };
+            for (const row of statsAgg) {
+                const status = String(row._id || '').toLowerCase();
+                const count = row.count || 0;
+                if (status === 'paid' || status === 'completed') {
+                    stats.successfulPayments += count;
+                    stats.totalRevenue += row.revenue || 0;
+                } else if (status === 'pending') stats.pendingPayments += count;
+                else if (status === 'failed') stats.failedPayments += count;
+                else if (status === 'refunded') stats.refundedPayments += count;
+            }
+        }
 
         res.json({
             success: true,
             payments: serializePayments(payments),
-            trashCount,
+            total,
+            page,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            limit,
+            ...(includeCounts ? { trashCount } : {}),
+            ...(stats ? { stats } : {}),
         });
     } catch (error) {
         req.log.error('Error fetching payments', { err: error });
         res.status(500).json({ success: false, error: 'Failed to fetch payments' });
+    }
+});
+
+router.get('/:id/invoice', allowPermission('payments.read'), async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, error: 'Invalid payment id' });
+        }
+
+        const payment = await Payment.findOne({
+            _id: req.params.id,
+            ...activePaymentFilter(),
+        })
+            .populate('user', 'name email')
+            .populate('course', 'title');
+
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+
+        const { buildPaymentInvoicePdf } = require('../utils/paymentInvoicePdf');
+        const pdfBuffer = buildPaymentInvoicePdf(payment);
+        const safeId = String(payment.transactionId || payment._id).replace(/[^a-zA-Z0-9-_]/g, '_');
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="invoice_${safeId}.pdf"`);
+        return res.send(pdfBuffer);
+    } catch (error) {
+        req.log.error('Payment invoice error', { err: error });
+        return res.status(500).json({ success: false, error: 'Failed to generate invoice' });
     }
 });
 

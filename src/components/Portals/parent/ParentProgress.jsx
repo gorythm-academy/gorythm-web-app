@@ -25,6 +25,7 @@ const ParentProgress = () => {
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -47,6 +48,9 @@ const ParentProgress = () => {
       setDetailError('');
       return;
     }
+    setDetail(null);
+    setDetailError('');
+    setDetailLoading(true);
     portalGet(`/parent/children/${selectedId}`)
       .then((res) => {
         if (res.success) {
@@ -60,7 +64,8 @@ const ParentProgress = () => {
       .catch((err) => {
         setDetail(null);
         setDetailError(err.message || 'Failed to load child details');
-      });
+      })
+      .finally(() => setDetailLoading(false));
   }, [selectedId]);
 
   const attendanceCoursesUrl = useMemo(
@@ -124,14 +129,15 @@ const ParentProgress = () => {
         })}
       </div>
 
-      {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
-
-      {!detail ? (
+      {detailLoading ? (
+        <PortalLoading label="Loading child records…" />
+      ) : !detail ? (
         <p className="portal-select-hint">
           {detailError ? 'Could not load this child.' : 'Select a child or ask admin to link your account.'}
         </p>
       ) : (
         <>
+      {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
           <div className="portal-panel">
             <div className="portal-panel__head">
               <h2>Enrollments & fees</h2>

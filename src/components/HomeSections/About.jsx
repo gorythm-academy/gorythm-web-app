@@ -1,4 +1,4 @@
-// About Section Component – Stargaze-style layout
+// About Section Component
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -53,7 +53,7 @@ const AboutSection = () => {
     label: 'About Gorythm',
     title: 'Knowledge Connected To Identity',
     paragraph:
-      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding. Grounded in a single conviction that truth is coherent, self-knowledge is the root of growth & the signs pointing towards both are already within you. Our courses develop thoughts, character & purpose`,
+      `Gorythm connects every domain of knowledge into one coherent pursuit of understanding. Grounded in a single conviction that truth is coherent, self-knowledge is the root of growth, and the signs pointing towards both are already within you. Our courses develop thoughts, character, and purpose.`,
 
   };
 
@@ -88,7 +88,7 @@ const AboutSection = () => {
                   avifSrc={aboutLeftAvif}
                   webpSrc={aboutLeftWebp}
                   fallbackSrc={aboutLeftPng}
-                  alt=""
+                  alt="Students learning at Gorythm Academy"
                   loading="lazy"
                   width={400}
                   height={300}
@@ -106,7 +106,7 @@ const AboutSection = () => {
                   avifSrc={aboutRightAvif}
                   webpSrc={aboutRightWebp}
                   fallbackSrc={aboutRightPng}
-                  alt=""
+                  alt="Gorythm Academy learning community"
                   loading="lazy"
                   width={400}
                   height={300}

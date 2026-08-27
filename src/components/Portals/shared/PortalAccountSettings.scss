@@ -1,0 +1,65 @@
+.portal-account-settings {
+    &__panel {
+        max-width: 560px;
+    }
+
+    &__form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-width: 420px;
+    }
+
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.65rem 2.5rem 0.65rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+    }
+
+    &__password-wrap {
+        position: relative;
+    }
+
+    &__toggle {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: transparent;
+        color: #64748b;
+        cursor: pointer;
+        padding: 0.25rem;
+    }
+
+    &__submit {
+        align-self: flex-start;
+        margin-top: 0.5rem;
+        padding: 0.65rem 1.25rem;
+        border: none;
+        border-radius: 8px;
+        background: var(--portal-accent, #2563eb);
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+    }
+}

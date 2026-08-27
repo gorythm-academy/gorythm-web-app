@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const ResearchPost = require('../models/ResearchPost');
-const BlogComment = require('../models/BlogComment');
+const ResearchComment = require('../models/ResearchComment');
 const { IMAGE_DIR, imageAbsolutePathFromPublic } = require('../utils/researchImageStorage');
 
 const KEEP_SLUGS = new Set([
@@ -26,7 +26,7 @@ async function main() {
 
     const trashed = await ResearchPost.deleteMany({ deletedAt: { $exists: true, $ne: null } });
     const removedPosts = await ResearchPost.deleteMany({ slug: { $nin: [...KEEP_SLUGS] } });
-    const comments = await BlogComment.deleteMany({});
+    const comments = await ResearchComment.deleteMany({});
 
     const kept = await ResearchPost.find({}).lean();
     const keepPaths = new Set(
@@ -50,7 +50,7 @@ async function main() {
     console.log(JSON.stringify({
         trashedResearchPostsRemoved: trashed.deletedCount,
         extraResearchPostsRemoved: removedPosts.deletedCount,
-        blogCommentsRemoved: comments.deletedCount,
+        researchCommentsRemoved: comments.deletedCount,
         researchImagesDeleted: deletedFiles,
         keptPosts: kept.map((p) => ({ title: p.title, slug: p.slug, imagePath: p.imagePath })),
     }, null, 2));

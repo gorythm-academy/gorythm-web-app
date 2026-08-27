@@ -13,67 +13,99 @@ const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { activeUserFilter } = require('../utils/userQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
-const { activePaymentFilter } = require('../utils/paymentQuery');
+const { activePaymentFilter, activePaymentListFilter } = require('../utils/paymentQuery');
+const {
+    nextScheduleOccurrenceMs,
+    scheduleStatus,
+    withNormalizedTimezone,
+} = require('../utils/scheduleTimezone');
+const { getAcademyTimezone } = require('../services/academyTimezone');
+
+function getAdminUserId(req) {
+    return req.user?.userId || req.user?.id;
+}
+
+async function getAdminActivitiesClearedAt(userId) {
+    if (!userId) return null;
+    const user = await User.findById(userId).select('adminActivitiesClearedAt').lean();
+    return user?.adminActivitiesClearedAt || null;
+}
+
+function filterActivitiesAfterClear(activities, clearedAt) {
+    const list = Array.isArray(activities) ? activities : [];
+    if (!clearedAt) return list;
+    const clearedMs = new Date(clearedAt).getTime();
+    if (Number.isNaN(clearedMs)) return list;
+    return list.filter((a) => a.at && new Date(a.at).getTime() > clearedMs);
+}
 
 router.use(authMiddleware);
 router.use(validateSessionUser);
 router.use(allowRoles('manager', 'super-admin'));
 
 // Dashboard stats endpoint
+async function fetchDashboardStatsPayload() {
+    const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
+    const totalTeachers = await User.countDocuments({ role: 'teacher', ...activeUserFilter() });
+    const totalParents = await User.countDocuments({ role: 'parent', ...activeUserFilter() });
+    const totalCourses = await Course.countDocuments({ isPublished: true, ...activeCourseFilter() });
+
+    const revenueAgg = await Payment.aggregate([
+        {
+            $match: {
+                ...activePaymentListFilter(),
+                status: { $in: ['paid', 'completed'] },
+            },
+        },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const totalRevenue = revenueAgg[0]?.total || 0;
+
+    const activeStaff = await User.countDocuments({
+        isActive: { $ne: false },
+        role: { $in: ['manager', 'super-admin', 'accountant'] },
+        ...activeUserFilter(),
+    });
+
+    return {
+        totalStudents,
+        totalTeachers,
+        totalParents,
+        totalCourses,
+        totalRevenue,
+        activeStaff,
+        activeUsers: activeStaff,
+    };
+}
+
+router.get('/dashboard/stats', async (req, res) => {
+    try {
+        const stats = await fetchDashboardStatsPayload();
+        res.json({ success: true, stats });
+    } catch (error) {
+        req.log.error('Dashboard stats error', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch dashboard stats' });
+    }
+});
+
 router.get('/dashboard', async (req, res) => {
     try {
         req.log.info('Fetching dashboard stats');
 
-        // Get real data from MongoDB
-        const totalStudents = await User.countDocuments({ role: 'student', ...activeUserFilter() });
-        const totalTeachers = await User.countDocuments({ role: 'teacher', ...activeUserFilter() });
-        const totalParents = await User.countDocuments({ role: 'parent', ...activeUserFilter() });
-        const totalCourses = await Course.countDocuments({ isPublished: true, ...activeCourseFilter() });
-        
-        // Calculate total revenue
-        const { activePaymentFilter } = require('../utils/paymentQuery');
-        const payments = await Payment.find({
-            ...activePaymentFilter(),
-            status: { $in: ['paid', 'completed'] },
-        });
-        const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
-        
-        const activeUsers = await User.countDocuments({
-            isActive: true,
-            role: { $in: ['manager', 'super-admin', 'accountant'] }
-        });
+        const stats = await fetchDashboardStatsPayload();
 
-        const recentActivities = await buildCrossTabRecentActivities();
-
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const upcomingSchedules = await ClassSchedule.find()
-            .populate('course', 'title deletedAt')
-            .populate('teacher', 'name deletedAt')
-            .sort({ dayOfWeek: 1, startTime: 1 })
-            .limit(12);
-        const upcomingClasses = upcomingSchedules
-            .filter((s) => s.course && !s.course.deletedAt && s.teacher && !s.teacher.deletedAt)
-            .map((s) => ({
-            id: String(s._id),
-            course: s.course?.title || 'Course',
-            teacher: s.teacher?.name || '—',
-            day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][s.dayOfWeek] || '',
-            time: `${s.startTime} – ${s.endTime}`,
-            room: s.roomOrLink || '',
-            dayOfWeek: s.dayOfWeek,
-            isToday: s.dayOfWeek === dayOfWeek,
-        }));
+        const clearedAt = await getAdminActivitiesClearedAt(getAdminUserId(req));
+        const recentActivities = filterActivitiesAfterClear(
+            await buildCrossTabRecentActivities(),
+            clearedAt
+        );
+        const upcomingClasses = await buildUpcomingDashboardClasses();
 
         res.json({
             success: true,
             stats: {
-                totalStudents,
-                totalTeachers,
-                totalParents,
-                totalCourses,
-                totalRevenue,
-                activeUsers
+                ...stats,
+                /** @deprecated use activeStaff */
             },
             recentActivities,
             upcomingClasses,
@@ -90,8 +122,138 @@ router.get('/dashboard', async (req, res) => {
     }
 });
 
+router.get('/dashboard/activities', async (req, res) => {
+    try {
+        const clearedAt = await getAdminActivitiesClearedAt(getAdminUserId(req));
+        const recentActivities = filterActivitiesAfterClear(
+            await buildCrossTabRecentActivities(),
+            clearedAt
+        );
+        res.json({ success: true, recentActivities });
+    } catch (error) {
+        req.log.error('Dashboard activities error', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch dashboard activities' });
+    }
+});
+
+router.get('/dashboard/upcoming-classes', async (req, res) => {
+    try {
+        const upcomingClasses = await buildUpcomingDashboardClasses();
+        res.json({ success: true, upcomingClasses });
+    } catch (error) {
+        req.log.error('Dashboard upcoming classes error', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to fetch upcoming classes' });
+    }
+});
+
+router.post('/dashboard/clear-activities', async (req, res) => {
+    try {
+        const userId = getAdminUserId(req);
+        const clearedAt = new Date();
+        await User.findByIdAndUpdate(userId, { adminActivitiesClearedAt: clearedAt });
+        res.json({ success: true, clearedAt: clearedAt.toISOString() });
+    } catch (error) {
+        req.log.error('Dashboard clear activities error', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to clear activities' });
+    }
+});
+
 const ACTIVITY_PER_SOURCE = 45;
 const ACTIVITY_FEED_MAX = 200;
+const UPCOMING_CLASS_LIMIT = 12;
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+async function buildUpcomingDashboardClasses() {
+    const now = new Date();
+    const academyTz = await getAcademyTimezone();
+    const schedules = await ClassSchedule.find()
+        .populate('course', 'title deletedAt')
+        .populate('teacher', 'name deletedAt')
+        .lean();
+
+    const activeSchedules = schedules.filter(
+        (s) => s.course && !s.course.deletedAt && s.teacher && !s.teacher.deletedAt
+    );
+    if (!activeSchedules.length) return [];
+
+    const scheduleIds = activeSchedules.map((s) => s._id);
+    const courseIds = [...new Set(activeSchedules.map((s) => s.course._id))];
+
+    const [bySchedule, unassignedRows] = await Promise.all([
+        Enrollment.aggregate([
+            {
+                $match: {
+                    ...activeEnrollmentFilter(),
+                    assignedSchedule: { $in: scheduleIds },
+                    status: 'active',
+                },
+            },
+            { $group: { _id: '$assignedSchedule', count: { $sum: 1 } } },
+        ]),
+        Enrollment.aggregate([
+            {
+                $match: {
+                    ...activeEnrollmentFilter(),
+                    course: { $in: courseIds },
+                    status: 'active',
+                    $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+                },
+            },
+            { $group: { _id: '$course', count: { $sum: 1 } } },
+        ]),
+    ]);
+
+    const studentsOnSchedule = Object.fromEntries(bySchedule.map((r) => [String(r._id), r.count]));
+    const unassignedOnCourse = Object.fromEntries(unassignedRows.map((r) => [String(r._id), r.count]));
+
+    const mapped = activeSchedules.map((s) => {
+        const scheduleId = String(s._id);
+        const courseId = String(s.course._id);
+        const dayLabel = WEEKDAY_LABELS[s.dayOfWeek] || '';
+        const timeLabel = `${s.startTime} – ${s.endTime}`;
+        const normalized = withNormalizedTimezone(s, academyTz);
+
+        return {
+            id: scheduleId,
+            courseId,
+            course: s.course?.title || 'Course',
+            instructor: s.teacher?.name || '—',
+            date: dayLabel ? `${dayLabel}, ${timeLabel}` : timeLabel,
+            dayOfWeek: normalized.dayOfWeek,
+            startTime: normalized.startTime,
+            endTime: normalized.endTime,
+            status: scheduleStatus(normalized, now),
+            roomOrLink: s.roomOrLink || '',
+            timezone: normalized.timezone,
+            studentsAssigned: studentsOnSchedule[scheduleId] ?? 0,
+            _nextMs: nextScheduleOccurrenceMs(normalized, now),
+        };
+    });
+
+    mapped.sort((a, b) => a._nextMs - b._nextMs);
+
+    const primaryScheduleByCourse = {};
+    for (const row of mapped) {
+        if (!primaryScheduleByCourse[row.courseId]) {
+            primaryScheduleByCourse[row.courseId] = row.id;
+        }
+    }
+
+    return mapped.slice(0, UPCOMING_CLASS_LIMIT).map((row) => {
+        const unassigned =
+            primaryScheduleByCourse[row.courseId] === row.id
+                ? unassignedOnCourse[row.courseId] ?? 0
+                : 0;
+        const students = row.studentsAssigned + unassigned;
+        const { _nextMs, courseId, studentsAssigned, ...rest } = row;
+        return {
+            ...rest,
+            students,
+            studentsAssigned,
+            studentsUnassignedIncluded: unassigned,
+        };
+    });
+}
 
 function truncateText(text, maxLen) {
     const s = String(text || '').trim();

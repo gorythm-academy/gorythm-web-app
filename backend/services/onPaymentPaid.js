@@ -2,10 +2,20 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
-const { syncEnrollmentPaymentStatus } = require('./enrollmentPaymentSync');
+const {
+    syncEnrollmentPaymentStatus,
+    PAID_PENDING_ADMIN_STATUS,
+} = require('./enrollmentPaymentSync');
 const { findStudentByContactEmail } = require('./enrollmentDuplicateCheck');
 const { resolveAndLinkCourseOnPayment } = require('./resolveCourseFromPayment');
 const { buildUnsetPortalEmail } = require('../utils/studentPortalEmail');
+const { activeCourseFilter } = require('../utils/courseQuery');
+const { syncStudentUserLoginFromAllEnrollments } = require('./syncStudentAccountLogin');
+const { ensureStudentId } = require('../utils/studentIdGenerator');
+const {
+    addEnrollmentToRosters,
+    syncStudentRosterFromEnrollments,
+} = require('./enrollmentRosterSync');
 
 function isPaidStatus(status) {
     return status === 'paid' || status === 'completed';
@@ -57,6 +67,7 @@ async function resolveStudentUserFromPayment(payment) {
 
 /**
  * Create/link student + enrollment. Does not change payment status — call before marking paid.
+ * Paid enrollments stay inactive until admin completes setup (portal email, timeslot, activate).
  */
 async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
     if (!payment) {
@@ -68,6 +79,15 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         throw new Error(
             'Payment has no course linked. Ensure the course title on the payment matches a published course exactly.'
         );
+    }
+
+    const enrollableCourse = await Course.findOne({
+        _id: courseId,
+        isPublished: true,
+        ...activeCourseFilter(),
+    }).select('_id');
+    if (!enrollableCourse) {
+        throw new Error('Course is no longer available for enrollment.');
     }
 
     let userId = payment.user?._id || payment.user;
@@ -91,8 +111,12 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         student: userId,
         course: courseId,
         paymentStatus: 'paid',
+        deletedAt: null,
     });
     if (existingEnrollment) {
+        await syncStudentRosterFromEnrollments(userId);
+        await ensureStudentId(userId);
+        await syncStudentUserLoginFromAllEnrollments(userId);
         return existingEnrollment;
     }
 
@@ -100,7 +124,7 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         userId,
         courseId,
         paymentStatus: 'paid',
-        enrollmentStatus: 'inactive',
+        enrollmentStatus: PAID_PENDING_ADMIN_STATUS,
     });
 
     if (enrollment && !enrollment.enrollmentDate) {
@@ -108,8 +132,10 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         await enrollment.save();
     }
 
-    await User.findByIdAndUpdate(userId, { $addToSet: { enrolledCourses: courseId } });
-    await Course.findByIdAndUpdate(courseId, { $addToSet: { students: userId } });
+    await addEnrollmentToRosters(userId, courseId);
+    await syncStudentRosterFromEnrollments(userId);
+    await ensureStudentId(userId);
+    await syncStudentUserLoginFromAllEnrollments(userId);
 
     return enrollment;
 }

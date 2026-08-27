@@ -1,9 +1,9 @@
-// About Section – Stargaze-style: dark bg, big gradient 01, two staggered images
+// About Section – dark bg, big gradient 01, two staggered images
 // Breakpoint tokens from _breakpoints.scss; use $bp-section-* for HomeSections layout.
 @import '../../styles/breakpoints';
 @import '../../styles/mixins';
 
-// Scroll-triggered animation (Stargaze-style: fade + slide up)
+// Scroll-triggered animation: fade + slide up
 // Change translateY(28px) below to adjust how far elements move up
 @keyframes aboutFadeUp {
   from {

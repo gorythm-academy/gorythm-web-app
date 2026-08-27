@@ -73,7 +73,9 @@ function SummaryCard({ label, value, tone }) {
 const PayrollMonthAttendanceModal = ({ data, onClose, formatMonth }) => {
   if (!data) return null;
 
-  const { run, attendance } = data;
+  const { run, attendance, variant } = data;
+  const isRollupReview = variant === 'rollup';
+  const eyebrow = isRollupReview ? 'Monthly attendance review' : 'Payroll month attendance';
   const monthly = attendance?.monthlyRequest;
   const teacherName = run?.teacher?.name || run?.teacherName || 'Teacher';
   const monthLabel = formatMonth ? formatMonth(run?.monthKey) : run?.monthKey || '';
@@ -88,7 +90,7 @@ const PayrollMonthAttendanceModal = ({ data, onClose, formatMonth }) => {
       >
         <header className="payroll-attendance-modal__head">
           <div>
-            <p className="payroll-attendance-modal__eyebrow">Payroll month attendance</p>
+            <p className="payroll-attendance-modal__eyebrow">{eyebrow}</p>
             <h3 id="payroll-attendance-modal-title">
               {teacherName}
               <span className="payroll-attendance-modal__month">{monthLabel}</span>

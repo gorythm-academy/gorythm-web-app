@@ -20,6 +20,7 @@ const quizSchema = new mongoose.Schema(
         resourceFileUrl: { type: String, default: '' },
         status: { type: String, enum: ['draft', 'published'], default: 'published' },
         dueDate: { type: Date, default: null },
+        deletedAt: { type: Date, default: null },
     },
     { timestamps: true }
 );

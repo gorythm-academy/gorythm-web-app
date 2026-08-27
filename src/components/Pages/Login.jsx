@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -6,18 +6,21 @@ import {
     getAuthToken,
     getAuthUserJson,
     setAuthUserJson,
+    getAuthSession,
     AUTH_REALM,
 } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
+import { validatePasswordPair } from '../../utils/studentAdminValidation';
+import { portalHomeByRole } from '../../utils/portalHomeByRole';
 import BrandLogo from '../BrandLogo/BrandLogo';
 import './Login.scss';
 
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const isResetMode = useMemo(() => {
+    const isSetPasswordMode = useMemo(() => {
         const query = new URLSearchParams(location.search);
-        return query.get('reset') === '1';
+        return query.get('set-password') === '1';
     }, [location.search]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -39,13 +42,39 @@ const Login = () => {
         });
     };
 
-    const routeByRole = (role) => {
-        if (role === 'teacher') return '/teacher';
-        if (role === 'parent') return '/parent';
-        if (role === 'accountant') return '/accountant';
-        if (role === 'manager' || role === 'super-admin') return '/admin';
-        return '/student';
+    const routeByRole = portalHomeByRole;
+
+    const postLoginPath = () => {
+        const from = location.state?.from;
+        if (typeof from === 'string' && from.startsWith('/') && !from.startsWith('/admin')) {
+            return from;
+        }
+        return null;
     };
+
+    useEffect(() => {
+        if (isSetPasswordMode) return;
+        const { token, user } = getAuthSession(AUTH_REALM.PORTAL);
+        if (!token || !user) return;
+        if (user.mustChangePassword) {
+            navigate('/login?set-password=1', { replace: true });
+            return;
+        }
+        const adminRoles = ['manager', 'super-admin'];
+        if (adminRoles.includes(user.role)) return;
+        navigate(postLoginPath() || routeByRole(user.role), { replace: true });
+    }, [isSetPasswordMode, location.state, navigate]);
+
+    useEffect(() => {
+        if (!isSetPasswordMode) return;
+        const token = getAuthToken(AUTH_REALM.PORTAL);
+        const rawUser = getAuthUserJson(AUTH_REALM.PORTAL);
+        if (!token || !rawUser) {
+            navigate('/login', { replace: true });
+        }
+    }, [isSetPasswordMode, navigate]);
+
+    const portalMessage = location.state?.message;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -65,10 +94,10 @@ const Login = () => {
             }
             setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.PORTAL);
             if (response.data.user?.mustChangePassword) {
-                navigate('/login?reset=1', { replace: true });
+                navigate('/login?set-password=1', { replace: true });
                 return;
             }
-            navigate(routeByRole(response.data.user.role), { replace: true });
+            navigate(postLoginPath() || routeByRole(response.data.user.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Authentication failed');
         } finally {
@@ -80,12 +109,9 @@ const Login = () => {
         e.preventDefault();
         setError('');
 
-        if (!newPassword || newPassword.length < 6) {
-            setError('New password must be at least 6 characters');
-            return;
-        }
-        if (newPassword !== confirmNewPassword) {
-            setError('Passwords do not match');
+        const passwordErr = validatePasswordPair(newPassword, confirmNewPassword, { required: true });
+        if (passwordErr) {
+            setError(passwordErr);
             return;
         }
 
@@ -108,7 +134,7 @@ const Login = () => {
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
             setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
-            navigate(routeByRole(updatedUser.role));
+            navigate(postLoginPath() || routeByRole(updatedUser.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
         } finally {
@@ -116,7 +142,7 @@ const Login = () => {
         }
     };
 
-    if (isResetMode) {
+    if (isSetPasswordMode) {
         return (
             <div className="auth-login">
                 <div className="auth-login__center">
@@ -145,7 +171,7 @@ const Login = () => {
                                         type={showNewPassword ? 'text' : 'password'}
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="At least 6 characters"
+                                        placeholder="At least 8 characters"
                                         autoComplete="new-password"
                                         required
                                     />
@@ -209,6 +235,9 @@ const Login = () => {
                         <h1 className="auth-login__title">Welcome back</h1>
                         <p className="auth-login__subtitle">Sign in to your portal to continue learning.</p>
                     </header>
+                    {portalMessage ? (
+                        <div className="auth-login__error" role="status">{portalMessage}</div>
+                    ) : null}
                     <form className="auth-login__form" onSubmit={handleSubmit} noValidate>
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="portal-login-email">
@@ -280,8 +309,7 @@ const Login = () => {
                             <i className="fas fa-shield-alt" />
                         </span>
                         <span className="auth-login__admin-cta-copy">
-                            <strong>Admin &amp; staff sign in</strong>
-                            <small>Open the academy dashboard</small>
+                            <strong>Admin Access</strong>
                         </span>
                         <i className="fas fa-arrow-right auth-login__admin-cta-arrow" aria-hidden="true" />
                     </Link>

@@ -6,6 +6,7 @@ const resourceSchema = new mongoose.Schema(
         course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         fileUrl: { type: String, default: '' },
+        attachments: { type: [String], default: [] },
         type: { type: String, enum: ['note', 'file', 'link'], default: 'note' },
         description: { type: String, default: '' },
         deletedAt: { type: Date, default: null },

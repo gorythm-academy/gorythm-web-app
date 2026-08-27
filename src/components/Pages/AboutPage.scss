@@ -3,6 +3,10 @@
 @import '../../styles/breakpoints';
 @import '../../styles/mixins';
 
+.about-page {
+  background: #000;
+}
+
 .about-page-dark {
   min-height: 100vh;
   padding-top: 100px;
@@ -936,6 +940,11 @@
   padding: 72px 0 88px;
 }
 
+// About page: video section sits directly above team — remove default video bottom margin (white gutter).
+.video-section:has(+ .about-page-team) {
+  margin-bottom: 0;
+}
+
 .about-page-team__container {
   width: min(1300px, calc(100% - 40px));
   margin: 0 auto;
@@ -973,6 +982,11 @@
     width: 100%;
     aspect-ratio: 4 / 5;
     object-fit: cover;
+  }
+
+  &--contain img {
+    object-fit: contain;
+    object-position: center;
   }
 }
 

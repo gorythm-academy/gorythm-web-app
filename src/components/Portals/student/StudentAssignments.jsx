@@ -8,6 +8,7 @@ import {
   PortalCourseToolbar,
   PortalNewBanner,
 } from '../shared/PortalUi';
+import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
 import { absFileUrl } from '../../../utils/fileUrl';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import {
@@ -32,6 +33,7 @@ const StudentAssignments = () => {
   const [fileUrl, setFileUrl] = useState('');
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [newItems, setNewItems] = useState([]);
 
   const load = () => {
@@ -68,13 +70,16 @@ const StudentAssignments = () => {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setMsg('');
     if (isPastDue) {
       setMsg('The due date for this assignment has passed.');
       return;
     }
-    const attachments = fileUrl ? [fileUrl] : [];
+    setSubmitting(true);
     try {
+      const uploadedUrl = await resolveLmsUploadValue(fileUrl, 'assignments');
+      const attachments = uploadedUrl ? [uploadedUrl] : [];
       const res = await portalPost('/student/submissions', {
         assignmentId: selected,
         text,
@@ -88,6 +93,8 @@ const StudentAssignments = () => {
       } else setMsg(res.error || 'Submit failed');
     } catch (err) {
       setMsg(err.message || 'Submit failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -270,12 +277,17 @@ const StudentAssignments = () => {
               autoComplete="off"
             />
           </label>
-          <FileUploadField label="Attach file (optional)" value={fileUrl} onChange={setFileUrl} category="assignments" />
+          <FileUploadField
+            label="Attach file (optional)"
+            value={fileUrl}
+            onChange={setFileUrl}
+            category="assignments"
+          />
           {isPastDue ? (
             <PortalAlert type="info">The due date for this assignment has passed. New submissions are not accepted.</PortalAlert>
           ) : null}
-          <button type="submit" disabled={isPastDue}>
-            {selectedRow?.submission ? 'Update submission' : 'Submit'}
+          <button type="submit" disabled={isPastDue || submitting}>
+            {submitting ? 'Submitting…' : selectedRow?.submission ? 'Update submission' : 'Submit'}
           </button>
           {msg ? <PortalAlert type={msg.includes('success') ? 'success' : 'error'}>{msg}</PortalAlert> : null}
         </form>

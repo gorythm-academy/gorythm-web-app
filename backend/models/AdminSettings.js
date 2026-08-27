@@ -13,7 +13,7 @@ const adminSettingsSchema = new mongoose.Schema(
             contactEmail: { type: String, default: '' },
             supportPhone: { type: String, default: '' },
             websiteUrl: { type: String, default: '' },
-            timezone: { type: String, default: 'UTC+05:00' },
+            timezone: { type: String, default: 'Asia/Karachi' },
             language: { type: String, default: 'English' },
             dateFormat: { type: String, default: 'MM/DD/YYYY' },
         },
@@ -46,6 +46,17 @@ const adminSettingsSchema = new mongoose.Schema(
             sessionTimeout: { type: Number, default: 24 },
             twoFactorAuth: { type: Boolean, default: false },
             passwordMinLength: { type: Number, default: 8 },
+        },
+        marketing: {
+            subscribePopupEnabled: { type: Boolean, default: false },
+            subscribePopupDelaySeconds: { type: Number, default: 10, min: 0, max: 300 },
+            subscribePopupHeadline: {
+                type: String,
+                default: 'Stay updated with our latest courses.',
+                trim: true,
+            },
+            subscribePopupButtonText: { type: String, default: 'Subscribe', trim: true },
+            subscribePopupImagePath: { type: String, default: '', trim: true },
         },
         lastUpdatedBy: {
             type: mongoose.Schema.Types.ObjectId,

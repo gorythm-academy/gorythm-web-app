@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import heroBannerPng from '../../assets/images/home/hero-banner-image.png';
 import { HERO_CENTER_LOGO_AVIF, HERO_CENTER_LOGO_WEBP } from '../../config/publicAssets';
 import './Hero.scss';
@@ -14,15 +13,12 @@ const PUBLIC = process.env.PUBLIC_URL || '';
 const HERO_LCP_AVIF = `${PUBLIC}/preload/lcp-hero.avif`;
 const HERO_LCP_WEBP = `${PUBLIC}/preload/lcp-hero.webp`;
 
-gsap.registerPlugin(ScrollTrigger);
-
 const HeroSection = () => {
 
   const heroRef = useRef(null);
   const particlesRef = useRef([]);
 
   const centerImageRef = useRef(null);
-  const bgRef = useRef(null);
 
   useEffect(() => {
 
@@ -37,21 +33,6 @@ const HeroSection = () => {
         ease: "sine.inOut"
       });
     });
-
-    // ==================================================
-    // BACKGROUND SLOW ZOOM (Ken burns)
-    // ==================================================
-    if (bgRef.current) {
-      gsap.fromTo(
-        bgRef.current,
-        { scale: 1 },
-        {
-          scale: 1,
-          duration: 80,
-          ease: "none"
-        }
-      );
-    }
 
   }, []);
 
@@ -71,7 +52,6 @@ const HeroSection = () => {
     const normX = x / heroRect.width - 0.5;
     const normY = y / heroRect.height - 0.5;
 
-    // very subtle like stargaze
     const moveX = 18;
     const moveY = 12;
 
@@ -101,7 +81,7 @@ const HeroSection = () => {
     caption2: "SIGNS",
     caption3: "DISCOVER YOURSELF",
     description:
-    "Gorythm is a research centre & development platform, dedicated to intellectual, emotional & physical growth, delivering structured & purposeful learning for every stage of life",
+    "Gorythm is a research centre and development platform, dedicated to intellectual, emotional, and physical growth, delivering structured and purposeful learning for every stage of life.",
     particles: [
       { top: '15%', left: '5%', size: '4px' },
       { top: '70%', left: '90%', size: '6px' },
@@ -136,7 +116,7 @@ const HeroSection = () => {
       </div>
 
       {/* ===== BACKGROUND (LCP) — AVIF/WebP from /public/preload; PNG fallback stays in the JS bundle */}
-      <div ref={bgRef} className="hero-background zoomed-bg">
+      <div className="hero-background zoomed-bg">
         <picture className="hero-background-picture">
           <source srcSet={HERO_LCP_AVIF} type="image/avif" />
           <source srcSet={HERO_LCP_WEBP} type="image/webp" />
@@ -158,17 +138,6 @@ const HeroSection = () => {
         <div className="hero-content">
 
           <div className="hero-title-wrapper">
-
-            {/* NEW small caption above title – animated entrance */}
-            {/* <motion.div
-              className="hero-eyebrow"
-              initial={{ opacity: 0, y: -14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0, ease: [0.22, 1, 0.36, 1] }}
-            >
-              Premium Education Platform
-              A project of Alfarhan
-            </motion.div> */}
 
             <div className="hero-title-block">
               <div className="hero-title-line-1">

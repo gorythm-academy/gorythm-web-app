@@ -50,7 +50,7 @@ const StudentDashboard = () => {
 
       <SummaryGrid
         items={[
-          { label: 'Enrolled courses', value: s.enrolledCourses ?? 0, to: '/student/schedule' },
+          { label: 'Enrolled courses', value: s.enrolledCourses ?? 0, to: '/student/courses' },
           { label: 'Attendance', value: `${s.attendanceRate ?? 0}%`, to: '/student/attendance' },
           { label: 'Assignments due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
           { label: 'Pending fees', value: s.pendingFees ?? 0, to: '/student/fees' },
@@ -80,7 +80,7 @@ const StudentDashboard = () => {
 
       <div className="portal-quick-links">
         <Link to="/student/schedule" className="portal-card portal-link-card">
-          Classes schedules →
+          Class schedules →
         </Link>
         <Link to="/student/assignments" className="portal-card portal-link-card">
           Assignments →

@@ -5,30 +5,47 @@ function escapeRegex(str) {
     return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Resolve course id from payment.course or payment.courseName (case-insensitive title). */
+const activePublishedCourseQuery = () => ({
+    isPublished: true,
+    ...activeCourseFilter(),
+});
+
+/** Resolve course id from payment.course (validated) or unique payment.courseName match. */
 async function resolveAndLinkCourseOnPayment(payment) {
     if (!payment) return null;
 
-    let courseId = payment.course?._id || payment.course;
-    if (courseId) return courseId;
+    const storedCourseId = payment.course?._id || payment.course;
+    if (storedCourseId) {
+        const course = await Course.findOne({
+            _id: storedCourseId,
+            ...activePublishedCourseQuery(),
+        }).select('_id title');
+        if (!course) return null;
+        return course._id;
+    }
 
     const title = String(payment.courseName || '').trim();
     if (!title) return null;
 
-    const course = await Course.findOne({
+    const matches = await Course.find({
         title: { $regex: new RegExp(`^${escapeRegex(title)}$`, 'i') },
-        isPublished: true,
-        ...activeCourseFilter(),
-    }).select('_id title');
+        ...activePublishedCourseQuery(),
+    })
+        .select('_id title')
+        .limit(2);
 
-    if (course) {
-        payment.course = course._id;
-        if (!payment.courseName) payment.courseName = course.title;
-        await payment.save();
-        return course._id;
+    if (!matches.length) return null;
+    if (matches.length > 1) {
+        throw new Error(
+            'Multiple courses match this payment title. Set the correct course on the payment record before approving.'
+        );
     }
 
-    return null;
+    const course = matches[0];
+    payment.course = course._id;
+    if (!payment.courseName) payment.courseName = course.title;
+    await payment.save();
+    return course._id;
 }
 
 module.exports = { resolveAndLinkCourseOnPayment };

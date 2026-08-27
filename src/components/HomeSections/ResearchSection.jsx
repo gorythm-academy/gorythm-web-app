@@ -1,5 +1,4 @@
-// Blog Section – slider with 3 cards visible; data from blog page
-// Auto left-to-right slider with dot indicators
+// Homepage research slider — 3 cards per slide when enough posts exist
 
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
@@ -22,12 +21,28 @@ const ResearchSection = () => {
   const [isAutoSlidePaused, setIsAutoSlidePaused] = useState(false);
 
   const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetchPublishedResearchPosts().then((merged) => {
-      if (!cancelled) setPosts(merged);
-    });
+    setPostsLoading(true);
+    setPostsError(false);
+    fetchPublishedResearchPosts()
+      .then(({ posts: merged, error }) => {
+        if (cancelled) return;
+        setPosts(merged);
+        setPostsError(Boolean(error));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPosts([]);
+          setPostsError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPostsLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -186,16 +201,32 @@ const ResearchSection = () => {
   return (
     <section
       ref={sectionRef}
-      className={`blog-section scheme_dark${isInView ? ' blog-inview' : ''}`}
+      className={`research-section scheme_dark${isInView ? ' research-inview' : ''}`}
     >
-      <div className="blog-inner">
-        <header className="blog-header">
-          <p className="blog-eyebrow blog_anim">Our research work</p>
-          <h2 className="blog-title blog_anim">Insights for the Heart and Mind</h2>
+      <div className="research-inner">
+        <header className="research-header">
+          <p className="research-eyebrow research_anim">Our research work</p>
+          <h2 className="research-title research_anim">Insights for the Heart and Mind</h2>
         </header>
 
+        {postsLoading ? (
+          <div className="research-slider-status" aria-live="polite">
+            <p>Loading research…</p>
+          </div>
+        ) : totalSlides === 0 ? (
+          <div className="research-slider-status" aria-live="polite">
+            <p className="research-slider-status-title">
+              {postsError ? 'Could not load research' : 'No research posts yet'}
+            </p>
+            <p className="research-slider-status-desc">
+              {postsError
+                ? 'Please try again in a moment.'
+                : 'New articles will appear here when they are published.'}
+            </p>
+          </div>
+        ) : (
         <div
-          className="blog-slider"
+          className="research-slider"
           ref={sliderRef}
           onMouseDown={handleMouseDown}
           onMouseEnter={handleMouseEnterSlider}
@@ -209,9 +240,9 @@ const ResearchSection = () => {
           onDragStart={handleDragStart}
         >
           <div
-            className="blog-slider-track"
+            className="research-slider-track"
             style={{
-              '--blog-slides': totalSlides,
+              '--research-slides': totalSlides,
               width: `${totalSlides * 100}%`,
               transform: `translateX(-${currentSlide * (100 / totalSlides)}%)`,
             }}
@@ -219,23 +250,26 @@ const ResearchSection = () => {
             aria-label={`Slide ${currentSlide + 1} of ${totalSlides}`}
           >
             {slides.map((slidePosts, slideIdx) => (
-              <div key={slideIdx} className="blog-slide" aria-hidden={slideIdx !== currentSlide}>
-                <div className="blog-grid">
+              <div key={slideIdx} className="research-slide" aria-hidden={slideIdx !== currentSlide}>
+                <div
+                  className="research-grid"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(slidePosts.length, CARDS_PER_SLIDE)}, 1fr)` }}
+                >
                   {slidePosts.map((post, idx) => (
                     <Link
                       key={post.id || post.slug}
                       to={`/research/${post.slug}`}
-                      className={`blog-card blog_anim blog-card-${idx + 1}`}
+                      className={`research-card research_anim research-card-${idx + 1}`}
                     >
-                      <div className="blog-card-meta">
-                        <span className="blog-card-eyebrow">{post.category}</span>
-                        <span className="blog-card-dot" aria-hidden="true">·</span>
-                        <span className="blog-card-date">{post.date}</span>
+                      <div className="research-card-meta">
+                        <span className="research-card-eyebrow">{post.category}</span>
+                        <span className="research-card-dot" aria-hidden="true">·</span>
+                        <span className="research-card-date">{post.date}</span>
                       </div>
-                      <h3 className="blog-card-title">{post.title}</h3>
-                      <p className="blog-card-description">{post.excerpt}</p>
-                      <span className="blog-card-arrow" aria-hidden="true">
-                        <span className="blog-card-arrow-inner">→</span>
+                      <h3 className="research-card-title">{post.title}</h3>
+                      <p className="research-card-description">{post.excerpt}</p>
+                      <span className="research-card-arrow" aria-hidden="true">
+                        <span className="research-card-arrow-inner">→</span>
                       </span>
                     </Link>
                   ))}
@@ -245,7 +279,7 @@ const ResearchSection = () => {
           </div>
 
           {totalSlides > 1 && (
-            <div className="blog-dots" role="tablist" aria-label="Slider dots">
+            <div className="research-dots" role="tablist" aria-label="Slider dots">
               {slides.map((_, idx) => (
                 <button
                   key={idx}
@@ -253,16 +287,17 @@ const ResearchSection = () => {
                   role="tab"
                   aria-selected={idx === currentSlide}
                   aria-label={`Go to slide ${idx + 1}`}
-                  className={`blog-dot${idx === currentSlide ? ' active' : ''}`}
+                  className={`research-dot${idx === currentSlide ? ' active' : ''}`}
                   onClick={() => goToSlide(idx)}
                 />
               ))}
             </div>
           )}
         </div>
+        )}
 
-        <div className="blog-cta-wrap">
-          <Link to="/research" className="blog-cta blog_anim">
+        <div className="research-cta-wrap">
+          <Link to="/research" className="research-cta research_anim">
             View all research
           </Link>
         </div>

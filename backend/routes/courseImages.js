@@ -4,12 +4,10 @@ const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const Course = require('../models/Course');
-const { activeCourseFilter } = require('../utils/courseQuery');
+const { buildGallery, cleanupOrphan, deleteMedia } = require('../services/mediaLibrary');
 const {
     ensureImageDir,
     imagePublicPath,
-    deleteImageFile,
-    listImageFilenames,
     renameImageFile,
     IMAGE_DIR,
     ALLOWED_EXT,
@@ -79,66 +77,7 @@ const uploadCourseImage = diskStorage
     : null;
 
 async function deleteCourseImageIfOrphan(publicPath) {
-    const normalized = String(publicPath || '').trim();
-    if (!normalized) return;
-    const inUse = await Course.countDocuments({
-        homepageImage: normalized,
-        ...activeCourseFilter(),
-    });
-    if (inUse === 0) deleteImageFile(normalized);
-}
-
-async function countActiveCoursesUsingImage(imagePath, excludeCourseId = null) {
-    const filter = {
-        homepageImage: imagePath,
-        ...activeCourseFilter(),
-    };
-    if (excludeCourseId) {
-        filter._id = { $ne: excludeCourseId };
-    }
-    return Course.countDocuments(filter);
-}
-
-async function getActiveCoursesUsingImage(imagePath) {
-    return Course.find({
-        homepageImage: imagePath,
-        ...activeCourseFilter(),
-    })
-        .select('title _id')
-        .lean();
-}
-
-async function buildCourseImageGallery() {
-    const filenames = listImageFilenames();
-    const paths = filenames.map((name) => imagePublicPath(name));
-    const usageRows = paths.length
-        ? await Course.find({ homepageImage: { $in: paths }, ...activeCourseFilter() })
-              .select('title homepageImage')
-              .lean()
-        : [];
-
-    const usageByPath = new Map();
-    usageRows.forEach((row) => {
-        const key = row.homepageImage;
-        if (!usageByPath.has(key)) usageByPath.set(key, { titles: [], ids: [] });
-        const entry = usageByPath.get(key);
-        entry.titles.push(row.title || 'Untitled');
-        entry.ids.push(String(row._id));
-    });
-
-    return filenames
-        .map((filename) => {
-            const imagePath = imagePublicPath(filename);
-            const usage = usageByPath.get(imagePath) || { titles: [], ids: [] };
-            return {
-                filename,
-                path: imagePath,
-                usedBy: usage.titles.length,
-                usedByTitles: usage.titles,
-                usedByCourseIds: usage.ids,
-            };
-        })
-        .sort((a, b) => b.filename.localeCompare(a.filename));
+    await cleanupOrphan('courses-images', publicPath);
 }
 
 const router = express.Router();
@@ -146,7 +85,7 @@ router.use(...adminOnly);
 
 router.get('/', async (req, res) => {
     try {
-        const images = await buildCourseImageGallery();
+        const images = await buildGallery('courses-images');
         return res.json({ success: true, images });
     } catch (error) {
         req.log?.error?.('Error listing course images', { err: error });
@@ -175,10 +114,6 @@ router.post('/', (req, res) => {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
         }
         const imagePath = imagePublicPath(req.file.filename);
-        const replacePath = String(req.body?.replacePath || '').trim();
-        if (replacePath && replacePath !== imagePath) {
-            await deleteCourseImageIfOrphan(replacePath);
-        }
         return res.status(201).json({
             success: true,
             imagePath,
@@ -225,28 +160,21 @@ router.post('/delete', async (req, res) => {
         if (!imagePath) {
             return res.status(400).json({ success: false, error: 'imagePath is required' });
         }
-        const inUse = await countActiveCoursesUsingImage(imagePath, excludeCourseId);
-        if (inUse > 0) {
-            const courses = await getActiveCoursesUsingImage(imagePath);
-            const names = courses
-                .filter((c) => !excludeCourseId || String(c._id) !== String(excludeCourseId))
-                .map((c) => c.title || 'Untitled')
-                .join(', ');
-            return res.status(400).json({
-                success: false,
-                error: `Image is used by ${inUse} course(s): ${names}. Clear the image on those courses first.`,
-            });
-        }
-        if (excludeCourseId) {
-            await Course.updateMany(
-                { _id: excludeCourseId, homepageImage: imagePath, ...activeCourseFilter() },
-                { $set: { homepageImage: '' } }
-            );
-        }
-        deleteImageFile(imagePath);
-        return res.json({ success: true });
+        const force =
+            req.body?.force === true ||
+            req.body?.force === 1 ||
+            req.body?.force === '1' ||
+            req.body?.force === 'true';
+        const result = await deleteMedia('courses-images', imagePath, { force, excludeCourseId });
+        return res.json({ success: true, ...result });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message || 'Delete failed' });
+        const status = error.statusCode || 500;
+        return res.status(status).json({
+            success: false,
+            inUse: Boolean(error.inUse),
+            usedByTitles: error.usedByTitles || [],
+            error: error.message || 'Delete failed',
+        });
     }
 });
 
@@ -257,28 +185,23 @@ router.delete('/', async (req, res) => {
         if (!imagePath) {
             return res.status(400).json({ success: false, error: 'imagePath is required' });
         }
-        const inUse = await countActiveCoursesUsingImage(imagePath, excludeCourseId);
-        if (inUse > 0) {
-            const courses = await getActiveCoursesUsingImage(imagePath);
-            const names = courses
-                .filter((c) => !excludeCourseId || String(c._id) !== String(excludeCourseId))
-                .map((c) => c.title || 'Untitled')
-                .join(', ');
-            return res.status(400).json({
-                success: false,
-                error: `Image is used by ${inUse} course(s): ${names}. Clear the image on those courses first.`,
-            });
-        }
-        if (excludeCourseId) {
-            await Course.updateMany(
-                { _id: excludeCourseId, homepageImage: imagePath, ...activeCourseFilter() },
-                { $set: { homepageImage: '' } }
-            );
-        }
-        deleteImageFile(imagePath);
-        return res.json({ success: true });
+        const force =
+            req.body?.force === true ||
+            req.body?.force === 1 ||
+            req.body?.force === '1' ||
+            req.body?.force === 'true' ||
+            req.query?.force === '1' ||
+            req.query?.force === 'true';
+        const result = await deleteMedia('courses-images', imagePath, { force, excludeCourseId });
+        return res.json({ success: true, ...result });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message || 'Delete failed' });
+        const status = error.statusCode || 500;
+        return res.status(status).json({
+            success: false,
+            inUse: Boolean(error.inUse),
+            usedByTitles: error.usedByTitles || [],
+            error: error.message || 'Delete failed',
+        });
     }
 });
 

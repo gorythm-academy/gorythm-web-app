@@ -8,7 +8,7 @@ const SmoothScroll = ({ children }) => {
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return <>{children}</>;
 };

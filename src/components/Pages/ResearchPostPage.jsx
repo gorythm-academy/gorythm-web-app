@@ -1,24 +1,29 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import ResearchSidebar from './ResearchSidebar';
 import {
   fetchPublishedResearchPosts,
   fetchResearchPostBySlug,
   formatResearchContentHtml,
+  getResearchPostImage,
 } from '../../utils/researchPosts';
 import ResearchPostImage from './ResearchPostImage';
 import ResearchSeriesView from './ResearchSeriesView';
-import { API_BASE_URL } from '../../config/constants';
+import { buildResearchListQuery, formatTagLabel } from '../../utils/researchListParams';
+import { buildArticleJsonLd, usePageMeta } from '../../hooks/usePageMeta';
+import { API_BASE_URL, SITE_URL } from '../../config/constants';
 import './ResearchMainPage.scss';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-const BlogCommentSection = ({ postSlug }) => {
+const ResearchCommentSection = ({ postSlug }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
   const [authorName, setAuthorName] = useState('');
   const [authorEmail, setAuthorEmail] = useState('');
   const [message, setMessage] = useState('');
@@ -26,10 +31,15 @@ const BlogCommentSection = ({ postSlug }) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError('');
     axios.get(`${API_BASE_URL}/api/research/${postSlug}/comments`).then((res) => {
       if (!cancelled && res.data?.success) setComments(res.data.comments || []);
+      else if (!cancelled) setLoadError('Could not load feedback.');
     }).catch(() => {
-      if (!cancelled) setComments([]);
+      if (!cancelled) {
+        setComments([]);
+        setLoadError('Could not load feedback.');
+      }
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
@@ -42,23 +52,30 @@ const BlogCommentSection = ({ postSlug }) => {
       const name = authorName.trim();
       const email = authorEmail.trim();
       const text = message.trim();
-      if (!name || !text || !email || submitting) return;
-      if (!EMAIL_REGEX.test(email)) return;
+      if (!name || !text || !email || submitting) {
+        setSubmitError('Name, email, and feedback are required.');
+        return;
+      }
+      if (!EMAIL_REGEX.test(email)) {
+        setSubmitError('Enter a full email address (e.g. abc@email.com).');
+        return;
+      }
       setSubmitting(true);
       setSubmitError('');
+      setSubmitSuccess('');
       axios.post(`${API_BASE_URL}/api/research/${postSlug}/comments`, {
         authorName: name,
         authorEmail: email,
         text,
       }).then((res) => {
-        if (res.data?.success && res.data.comment) {
-          setComments((prev) => [res.data.comment, ...prev]);
+        if (res.data?.success) {
           setAuthorName('');
           setAuthorEmail('');
           setMessage('');
+          setSubmitSuccess(res.data.message || 'Thank you — your feedback will appear after review.');
         }
       }).catch((err) => {
-        const msg = err.response?.data?.error || 'Failed to post comment. Use a full email address (e.g. abc@email.com).';
+        const msg = err.response?.data?.error || 'Failed to send feedback. Use a full email address (e.g. abc@email.com).';
         setSubmitError(msg);
       }).finally(() => setSubmitting(false));
     },
@@ -75,12 +92,16 @@ const BlogCommentSection = ({ postSlug }) => {
   };
 
   return (
-    <section id="comments" className="blog-comments" aria-label="Comments">
-      <h2 className="blog-comments-title">
-        {loading ? 'Comments' : comments.length === 0 ? 'Comments' : `Comments (${comments.length})`}
+    <section id="comments" className="research-comments" aria-label="Send Us Feedback">
+      <h2 className="research-comments-title">
+        {loading
+          ? 'Send Us Feedback'
+          : comments.length === 0
+            ? 'Send Us Feedback'
+            : `Send Us Feedback (${comments.length})`}
       </h2>
-      <form className="blog-comment-form" onSubmit={handleSubmit}>
-        <div className="blog-comment-form-row">
+      <form className="research-comment-form" onSubmit={handleSubmit}>
+        <div className="research-comment-form-row">
           <label>
             Name <span aria-hidden="true">*</span>
             <input
@@ -105,41 +126,62 @@ const BlogCommentSection = ({ postSlug }) => {
           </label>
         </div>
         <label>
-          Comment <span aria-hidden="true">*</span>
+          Your feedback <span aria-hidden="true">*</span>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Write your comment..."
+            placeholder="Share your query or feedback..."
             required
           />
         </label>
-        {submitError && <p className="blog-comment-error" role="alert">{submitError}</p>}
-        <button type="submit" className="blog-comment-submit" disabled={submitting}>
-          {submitting ? 'Posting…' : 'Post comment'}
+        {submitError && <p className="research-comment-error" role="alert">{submitError}</p>}
+        {submitSuccess && <p className="research-comment-success" role="status">{submitSuccess}</p>}
+        <button type="submit" className="research-comment-submit" disabled={submitting}>
+          {submitting ? 'Sending…' : 'Send feedback'}
         </button>
       </form>
       {loading ? (
-        <p className="blog-comments-empty">Loading comments…</p>
+        <p className="research-comments-empty">Loading feedback…</p>
+      ) : loadError ? (
+        <p className="research-comments-empty" role="alert">{loadError}</p>
       ) : comments.length > 0 ? (
-        <ul className="blog-comments-list">
+        <ul className="research-comments-list">
           {comments.map((c) => (
-            <li key={c.id} className="blog-comment-item">
-              <p className="blog-comment-meta">
-                <span className="blog-comment-author">{c.authorName}</span>
-                <span className="blog-comment-date">{formatDate(c.date)}</span>
+            <li key={c.id} className="research-comment-item">
+              <p className="research-comment-meta">
+                <span className="research-comment-author">{c.authorName}</span>
+                <span className="research-comment-date">{formatDate(c.date)}</span>
               </p>
-              <p className="blog-comment-text">{c.text}</p>
+              <p className="research-comment-text">{c.text}</p>
+              {c.adminReply ? (
+                <div className="research-comment-reply">
+                  <p className="research-comment-reply-label">Response from Gorythm</p>
+                  <p className="research-comment-text">{c.adminReply}</p>
+                  {c.repliedAt ? (
+                    <p className="research-comment-date">{formatDate(c.repliedAt)}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="blog-comments-empty">No comments yet. Be the first to share your thoughts.</p>
+        <p className="research-comments-empty">No published feedback yet. Be the first to share your thoughts.</p>
       )}
     </section>
   );
 };
 
-const ArticlePageLayout = ({ post, sidebarPosts, children, isSeries }) => (
+const ArticlePageLayout = ({
+  post,
+  sidebarPosts,
+  children,
+  isSeries,
+  searchInputValue,
+  setSearchInputValue,
+  onSearchSubmit,
+  showEmptyBody,
+}) => (
     <article className="news-article-page scheme_dark">
     <div className="news-article-inner">
       <div className="news-article-hero">
@@ -162,6 +204,19 @@ const ArticlePageLayout = ({ post, sidebarPosts, children, isSeries }) => (
             <p className="news-article-byline">
               By {post.author} · {post.date}
             </p>
+            {post.tags?.length > 0 ? (
+              <div className="research-article-tags" aria-label="Article tags">
+                {post.tags.map((tag) => (
+                  <Link
+                    key={tag}
+                    to={`/research${buildResearchListQuery({ tag })}`}
+                    className="research-tag"
+                  >
+                    {formatTagLabel(tag)}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </header>
 
           {children ? (
@@ -173,8 +228,10 @@ const ArticlePageLayout = ({ post, sidebarPosts, children, isSeries }) => (
                 {children}
         </div>
       </section>
+          ) : showEmptyBody ? (
+            <p className="lms-empty">This article has no published body content yet.</p>
           ) : null}
-            <BlogCommentSection postSlug={post.slug} />
+            <ResearchCommentSection postSlug={post.slug} />
             <div className="news-article-back">
             <Link to="/research" className="news-article-back-link">
               <span className="news-article-back-arrow">←</span> Back to Research
@@ -182,7 +239,12 @@ const ArticlePageLayout = ({ post, sidebarPosts, children, isSeries }) => (
             </div>
           </main>
 
-        <ResearchSidebar posts={sidebarPosts} />
+        <ResearchSidebar
+          posts={sidebarPosts}
+          searchInputValue={searchInputValue}
+          setSearchInputValue={setSearchInputValue}
+          onSearchSubmit={onSearchSubmit}
+        />
       </div>
       </div>
     </article>
@@ -191,20 +253,32 @@ const ArticlePageLayout = ({ post, sidebarPosts, children, isSeries }) => (
 export const ResearchPostPage = () => {
   const { slug } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [sidebarPosts, setSidebarPosts] = useState([]);
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setNotFound(false);
+    setPost(null);
     Promise.all([
       fetchResearchPostBySlug(slug),
       fetchPublishedResearchPosts(),
-    ]).then(([found, posts]) => {
+    ]).then(([found, result]) => {
       if (!cancelled) {
         setPost(found);
-        setSidebarPosts(posts);
+        setNotFound(!found);
+        setSidebarPosts(result.posts || []);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setPost(null);
+        setNotFound(true);
+        setSidebarPosts([]);
       }
     }).finally(() => {
       if (!cancelled) setLoading(false);
@@ -219,17 +293,67 @@ export const ResearchPostPage = () => {
     }
   }, [location.hash, slug]);
 
+  const pageMeta = useMemo(() => {
+    if (loading) {
+      return { title: 'Loading… | Research | Gorythm Academy', description: 'Loading research article…' };
+    }
+    if (notFound || !post) {
+      return {
+        title: 'Article not found | Research | Gorythm Academy',
+        description: 'This research article could not be found at Gorythm Academy.',
+      };
+    }
+    const base = SITE_URL.replace(/\/$/, '');
+    const pageUrl = `${base}/research/${post.slug}`;
+    const imageAsset = getResearchPostImage(post);
+    const image =
+      imageAsset?.type === 'single'
+        ? imageAsset.url
+        : imageAsset?.webp || imageAsset?.png || imageAsset?.avif || undefined;
+    return {
+      title: `${post.title} | Research | Gorythm Academy`,
+      description: post.excerpt || `${post.title} — Gorythm Academy research.`,
+      image,
+      type: 'article',
+      url: pageUrl,
+      jsonLd: buildArticleJsonLd({
+        title: post.title,
+        description: post.excerpt || post.title,
+        url: pageUrl,
+        image,
+        datePublished: post.publishedAt,
+        author: post.author,
+      }),
+    };
+  }, [loading, notFound, post]);
+
+  usePageMeta(pageMeta, { enabled: !loading });
+
   if (loading) {
     return (
-      <div className="blog-page scheme_dark">
-        <div className="blog-page-inner">
+      <div className="research-page scheme_dark">
+        <div className="research-page-inner">
           <p className="lms-empty">Loading article…</p>
         </div>
       </div>
     );
   }
 
-  if (!post) return <Navigate to="/research" replace />;
+  if (notFound || !post) {
+    return (
+      <div className="research-page scheme_dark">
+        <div className="research-page-inner">
+          <header className="research-page-header">
+            <h1 className="research-page-title">Article not found</h1>
+          </header>
+          <p className="lms-empty">This research article may have been removed or the link is incorrect.</p>
+          <Link to="/research" className="news-article-back-link">
+            <span className="news-article-back-arrow">←</span> Back to Research
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const isSeries = post.contentFormat === 'series-table' && post.seriesData?.topics?.length;
   const bodyHtml = !isSeries ? formatResearchContentHtml(post.content) : '';
@@ -240,7 +364,18 @@ export const ResearchPostPage = () => {
   ) : null;
 
   return (
-    <ArticlePageLayout post={post} sidebarPosts={sidebarPosts} isSeries={Boolean(isSeries)}>
+    <ArticlePageLayout
+      post={post}
+      sidebarPosts={sidebarPosts}
+      isSeries={Boolean(isSeries)}
+      searchInputValue={searchInputValue}
+      setSearchInputValue={setSearchInputValue}
+      onSearchSubmit={() => {
+        const q = searchInputValue.trim();
+        navigate(`/research${buildResearchListQuery({ q })}`);
+      }}
+      showEmptyBody={!isSeries && !body}
+    >
       {body}
     </ArticlePageLayout>
   );

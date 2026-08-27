@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader, FeeBadge } from '../shared/PortalUi';
+import { normalizeEnrollmentStatus } from '../../../utils/studentAdminValidation';
 
 const StudentCourses = () => {
   const [enrollments, setEnrollments] = useState(null);
@@ -67,22 +68,31 @@ const StudentCourses = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((e) => (
+                  {rows.map((e) => {
+                    const enrollmentStatus = normalizeEnrollmentStatus(e.status);
+                    const pillClass =
+                      enrollmentStatus === 'active'
+                        ? 'submitted'
+                        : enrollmentStatus === 'completed'
+                          ? 'completed'
+                          : 'inactive';
+                    return (
                     <tr key={e._id}>
                       <td>
                         <strong>{e.course?.title || '—'}</strong>
                       </td>
                       <td>{e.course?.category || '—'}</td>
                       <td>
-                        <span className={`portal-status-pill portal-status-pill--${e.status === 'active' ? 'submitted' : 'pending'}`}>
-                          {e.status}
+                        <span className={`portal-status-pill portal-status-pill--${pillClass}`}>
+                          {enrollmentStatus}
                         </span>
                       </td>
                       <td>
                         <FeeBadge status={e.paymentStatus} />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

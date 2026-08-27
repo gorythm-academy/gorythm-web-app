@@ -342,11 +342,15 @@ const TeacherAttendance = () => {
       });
   }, [viewCourseId, viewPeriod, viewDate]);
 
+  const [coursesLoadError, setCoursesLoadError] = useState('');
+
   useEffect(() => {
     portalGet('/teacher/courses')
       .then((cRes) => {
         if (cRes.success) setCourses(cRes.courses || []);
+        else setCoursesLoadError(cRes.error || 'Failed to load courses');
       })
+      .catch((err) => setCoursesLoadError(err.message || 'Failed to load courses'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -639,6 +643,7 @@ const TeacherAttendance = () => {
         subtitle="Mark daily attendance, then review records by day, week, or month."
       />
 
+      {coursesLoadError ? <PortalAlert type="error">{coursesLoadError}</PortalAlert> : null}
       {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
 
       <form className="portal-card portal-form-card" onSubmit={submitAttendance} autoComplete="off">

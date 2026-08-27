@@ -74,6 +74,10 @@ export async function portalDelete(path) {
   return request('delete', `${apiBase()}/api/portal${path}`);
 }
 
+export async function changePortalPassword(body) {
+  return request('post', `${apiBase()}/api/auth/change-password`, body);
+}
+
 export async function payrollGet(path) {
   return request('get', `${apiBase()}/api/portal/accountant/payroll${path}`);
 }

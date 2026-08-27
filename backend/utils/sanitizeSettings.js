@@ -26,6 +26,7 @@ function sanitizeSettingsForApi(settings) {
         payment: sanitizeSection(o.payment || {}),
         email: sanitizeSection(o.email || {}),
         security: o.security || {},
+        marketing: o.marketing || {},
         updatedAt: o.updatedAt,
     };
 }

@@ -1,18 +1,46 @@
 const Course = require('../models/Course');
 const ClassSchedule = require('../models/ClassSchedule');
 const { isUserTrashed } = require('../utils/userQuery');
+const { teacherIdsOnCourse } = require('../utils/courseInstructors');
 
 const TEACHER_SELECT = 'name email deletedAt';
 
-/** Teachers actually assigned on the class schedule; falls back to course instructor only when no schedule rows. */
+/**
+ * Teachers linked to the course (instructors list + legacy instructor),
+ * then any teachers who only appear on class schedules.
+ */
 async function getTeachersForCourse(courseId) {
     if (!courseId) return [];
 
-    const schedules = await ClassSchedule.find({ course: courseId }).populate('teacher', TEACHER_SELECT);
     const byId = new Map();
 
+    const course = await Course.findById(courseId)
+        .populate('instructor', TEACHER_SELECT)
+        .populate('instructors', TEACHER_SELECT)
+        .select('instructor instructorName instructors');
+
+    if (course) {
+        for (const t of course.instructors || []) {
+            if (!t?._id || isUserTrashed(t)) continue;
+            byId.set(String(t._id), {
+                _id: t._id,
+                name: t.name || 'Teacher',
+                email: t.email || '',
+            });
+        }
+        if (course.instructor?._id && !isUserTrashed(course.instructor)) {
+            byId.set(String(course.instructor._id), {
+                _id: course.instructor._id,
+                name: course.instructor.name || course.instructorName || 'Instructor',
+                email: course.instructor.email || '',
+            });
+        }
+    }
+
+    const schedules = await ClassSchedule.find({ course: courseId }).populate('teacher', TEACHER_SELECT);
     for (const row of schedules) {
         if (!row.teacher?._id || isUserTrashed(row.teacher)) continue;
+        if (byId.has(String(row.teacher._id))) continue;
         byId.set(String(row.teacher._id), {
             _id: row.teacher._id,
             name: row.teacher.name || 'Teacher',
@@ -20,21 +48,7 @@ async function getTeachersForCourse(courseId) {
         });
     }
 
-    if (byId.size > 0) {
-        return [...byId.values()];
-    }
-
-    const course = await Course.findById(courseId)
-        .populate('instructor', TEACHER_SELECT)
-        .select('instructor instructorName');
-    if (course?.instructor?._id && !isUserTrashed(course.instructor)) {
-        return [{
-            _id: course.instructor._id,
-            name: course.instructor.name || 'Instructor',
-            email: course.instructor.email || '',
-        }];
-    }
-    return [];
+    return [...byId.values()];
 }
 
 async function getTeachersByCourseIds(courseIds) {
@@ -62,4 +76,5 @@ module.exports = {
     getTeachersForCourse,
     getTeachersByCourseIds,
     attachTeachersToEnrollments,
+    teacherIdsOnCourse,
 };

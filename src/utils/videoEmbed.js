@@ -105,6 +105,35 @@ function parseYouTube(url) {
   };
 }
 
+export function youtubeThumbnailUrl(videoId, quality = 'hqdefault') {
+  const id = String(videoId || '').trim();
+  if (!id) return '';
+  return `https://img.youtube.com/vi/${id}/${quality}.jpg`;
+}
+
+/** Best-effort Vimeo poster via public oEmbed (no API key). */
+export async function fetchVimeoThumbnailUrl(videoUrl) {
+  const url = String(videoUrl || '').trim();
+  if (!url) return '';
+  try {
+    const res = await fetch(
+      `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`
+    );
+    if (!res.ok) return '';
+    const data = await res.json();
+    return typeof data.thumbnail_url === 'string' ? data.thumbnail_url : '';
+  } catch {
+    return '';
+  }
+}
+
+export function providerThumbnailUrl({ provider, videoId } = {}) {
+  if (provider === 'youtube' && videoId) {
+    return youtubeThumbnailUrl(videoId);
+  }
+  return '';
+}
+
 export function parseVideoUrl(raw) {
   const url = normalizeVideoInput(raw);
   if (!url) return { error: 'Video URL is required' };

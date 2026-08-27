@@ -1,21 +1,25 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { getAuthToken, AUTH_REALM } from '../../../utils/authStorage';
-import { CATEGORY_ORDER } from '../../HomeSections/Courses';
+import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
+import {
+    CATEGORY_ORDER,
+    getCategorySortIndex,
+    getDisplayOrder,
+} from '../../../utils/courseMasonry';
+import { slugifyCourseTitle } from '../../../utils/courseLinks';
 import { API_BASE_URL } from '../../../config/constants';
 import {
     cleanupCourseImage,
     deleteCourseGalleryImage,
+    fetchCourseGalleryImages,
     uploadCourseImage,
 } from '../../../utils/fileUploadApi';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
+import AdminMediaGallery from '../shared/AdminMediaGallery';
 import { useAdminDialog } from '../AdminDialogContext';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import './CoursesManagement.scss';
-
-const getCategorySortIndex = (category) => {
-    const i = CATEGORY_ORDER.indexOf(category || '');
-    return i === -1 ? CATEGORY_ORDER.length : i;
-};
 
 const COLUMN_DEFS = [
     'checkbox',
@@ -32,7 +36,7 @@ const COLUMN_DEFS = [
     'actions',
 ];
 
-const DEFAULT_COLUMN_WIDTHS = [60, 210, 260, 180, 220, 120, 120, 130, 170, 130, 160, 220];
+const DEFAULT_COLUMN_WIDTHS = [60, 210, 260, 180, 220, 120, 120, 130, 170, 130, 160, 1];
 // Allow shrinking without a noticeable minimum width.
 // The table layout is fixed + column widths are applied via <colgroup>,
 // so setting this to 0 enables full drag-shrink behavior.
@@ -41,16 +45,57 @@ const COLUMN_MAX_WIDTHS = [90, 360, 440, 300, 380, 180, 180, 220, 280, 220, 240,
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const getCourseDisplayOrder = (course) => getDisplayOrder(course);
+
+/** Given name only (first whitespace-separated token). */
+const teacherFirstName = (name) => {
+    const part = String(name || '')
+        .trim()
+        .split(/\s+/)[0];
+    return part || '';
+};
+
+const isTeacherStatusActive = (teacher) =>
+    !teacher?.deletedAt && (teacher?.status || 'active') === 'active';
+
+const buildCoursePayloadFromRecord = (course, overrides = {}) => {
+    const instructorIds =
+        Array.isArray(course.instructorIds) && course.instructorIds.length
+            ? course.instructorIds.map(String)
+            : Array.isArray(course.instructors) && course.instructors.length
+              ? course.instructors.map((t) => String(t._id || t))
+              : course.instructor
+                ? [String(course.instructor._id || course.instructor)]
+                : [];
+    return {
+        title: course.title || '',
+        description: course.description || '',
+        category: course.category || 'Quranic Arabic',
+        price: Number(course.price) || 0,
+        duration: course.duration || '8 weeks',
+        status: course.status || 'draft',
+        level: course.level || 'beginner',
+        instructorIds,
+        displayOrder: getCourseDisplayOrder(course),
+        masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? Number(course.masonryColumn) : null,
+        homepageImage: course.homepageImage || '',
+        slug: course.slug || slugifyCourseTitle(course.title),
+        ...overrides,
+    };
+};
+
+const TEACHER_PICKER_LIMIT = 50;
+
 const EMPTY_COURSE_FORM = {
     title: '',
+    slug: '',
     description: '',
     category: 'Quranic Arabic',
     price: '',
     duration: '8 weeks',
     status: 'draft',
     level: 'beginner',
-    instructorId: '',
-    instructorName: '',
+    instructorIds: [],
     displayOrder: '',
     masonryColumn: '',
     homepageImage: '',
@@ -60,7 +105,10 @@ const CoursesManagement = () => {
     const { showAlert, showConfirm, showChoice } = useAdminDialog();
     const [courses, setCourses] = useState([]);
     const [teachers, setTeachers] = useState([]);
+    const [teacherSearch, setTeacherSearch] = useState('');
+    const [teachersLoading, setTeachersLoading] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [selectedCourses, setSelectedCourses] = useState([]);
@@ -76,6 +124,8 @@ const CoursesManagement = () => {
     const [galleryLoading, setGalleryLoading] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
     const savedImageOnEditRef = useRef('');
+    const slugTouchedRef = useRef(false);
+    const sessionUploadedPathsRef = useRef(new Set());
     const imageUploadLockRef = useRef(false);
     const [sortBy, setSortBy] = useState('');
     const [sortOrder, setSortOrder] = useState('asc');
@@ -87,7 +137,13 @@ const CoursesManagement = () => {
         startX: 0,
         startScrollLeft: 0,
     });
+    const listCacheRef = useRef(createListCache());
+    const isFirstListLoadRef = useRef(true);
     const [isTableDragging, setIsTableDragging] = useState(false);
+
+    const invalidateCoursesCache = useCallback(() => {
+        listCacheRef.current.clear();
+    }, []);
 
     // Interactive column resize (drag handles in <th>, applied via <colgroup>)
     const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
@@ -179,22 +235,57 @@ const CoursesManagement = () => {
         setIsTableDragging(false);
     };
 
-    useEffect(() => {
-        setCourses([]);
-        fetchCourses();
-    }, [listTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    const activeTeachers = useMemo(
+        () => (teachers || []).filter(isTeacherStatusActive),
+        [teachers]
+    );
 
-    useEffect(() => {
-        const token = getAuthToken();
-        if (token) {
-            axios
-                .get(`${API_BASE_URL}/api/users?role=teacher&limit=200`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                })
-                .then((res) => setTeachers(res.data?.users || []))
-                .catch(() => setTeachers([]));
+    const activeTeacherIdSet = useMemo(
+        () => new Set(activeTeachers.map((t) => String(t._id))),
+        [activeTeachers]
+    );
+
+    const teacherNameById = useMemo(() => {
+        const map = new Map();
+        for (const t of teachers || []) {
+            map.set(String(t._id), t.name || '');
         }
-    }, []);
+        return map;
+    }, [teachers]);
+
+    /** Teachers column: active teachers only, first names only. */
+    const formatCourseTeachersColumn = useCallback(
+        (course) => {
+            const names = [];
+            const seen = new Set();
+            const pushId = (rawId, fallbackName = '') => {
+                const id = String(rawId || '');
+                if (!id || seen.has(id) || !activeTeacherIdSet.has(id)) return;
+                seen.add(id);
+                const full =
+                    fallbackName ||
+                    teacherNameById.get(id) ||
+                    '';
+                const first = teacherFirstName(full);
+                if (first) names.push(first);
+            };
+
+            for (const t of course.instructors || []) {
+                pushId(t?._id || t, typeof t === 'object' ? t.name : '');
+            }
+            if (course.instructor) {
+                pushId(
+                    course.instructor._id || course.instructor,
+                    typeof course.instructor === 'object' ? course.instructor.name : ''
+                );
+            }
+            for (const id of course.instructorIds || []) {
+                pushId(id);
+            }
+            return names.length ? names.join(', ') : '—';
+        },
+        [activeTeacherIdSet, teacherNameById]
+    );
 
     useEffect(() => {
         if (isFormOpen) {
@@ -216,21 +307,71 @@ const CoursesManagement = () => {
         };
     }, [isFormOpen]);
 
-    const fetchGalleryImages = useCallback(async () => {
-        const token = getAuthToken(AUTH_REALM.ADMIN);
+    const mergeTeachersForForm = useCallback((incoming, assigned = []) => {
+        const map = new Map();
+        for (const t of incoming || []) {
+            if (t?._id) map.set(String(t._id), t);
+        }
+        for (const t of assigned || []) {
+            const id = String(t?._id || t);
+            if (id && !map.has(id)) {
+                map.set(id, typeof t === 'object' ? t : { _id: id, name: '' });
+            }
+        }
+        setTeachers([...map.values()]);
+    }, []);
+
+    const fetchTeachersForForm = useCallback(async (search = '', assigned = []) => {
+        const token = getAuthToken();
         if (!token) return;
+        setTeachersLoading(true);
+        try {
+            const res = await axios.get(`${API_BASE_URL}/api/users`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    role: 'teacher',
+                    limit: TEACHER_PICKER_LIMIT,
+                    search: search.trim() || undefined,
+                    sortBy: 'name',
+                    sortOrder: 'asc',
+                },
+            });
+            mergeTeachersForForm(res.data?.users || [], assigned);
+        } catch {
+            mergeTeachersForForm([], assigned);
+        } finally {
+            setTeachersLoading(false);
+        }
+    }, [mergeTeachersForForm]);
+
+    useEffect(() => {
+        if (!isFormOpen) return undefined;
+        const delay = teacherSearch.trim() ? 300 : 0;
+        const assigned =
+            editingCourse?.instructors ||
+            (editingCourse?.instructor ? [editingCourse.instructor] : []);
+        const timer = window.setTimeout(() => {
+            fetchTeachersForForm(teacherSearch, assigned);
+        }, delay);
+        return () => window.clearTimeout(timer);
+    }, [isFormOpen, teacherSearch, editingCourse, fetchTeachersForForm]);
+
+    const fetchGalleryImages = useCallback(async () => {
         setGalleryLoading(true);
         try {
-            const res = await axios.get(`${API_BASE_URL}/api/admin/course-images`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setGalleryImages(res.data?.images || []);
+            const images = await fetchCourseGalleryImages();
+            setGalleryImages(images);
         } catch {
             setGalleryImages([]);
         } finally {
             setGalleryLoading(false);
         }
     }, []);
+
+    const brokenGalleryCount = useMemo(
+        () => galleryImages.filter((img) => img.onDisk === false).length,
+        [galleryImages]
+    );
 
     useEffect(() => {
         if (isFormOpen) {
@@ -241,12 +382,19 @@ const CoursesManagement = () => {
     const closeCourseForm = () => {
         const pendingImage = formData.homepageImage;
         const savedImage = savedImageOnEditRef.current;
+        const sessionUploads = sessionUploadedPathsRef.current;
         setIsFormOpen(false);
         setEditingCourse(null);
         setSelectedCourses([]);
         setFormData({ ...EMPTY_COURSE_FORM });
         savedImageOnEditRef.current = '';
-        if (pendingImage && pendingImage !== savedImage) {
+        slugTouchedRef.current = false;
+        sessionUploadedPathsRef.current = new Set();
+        if (
+            pendingImage &&
+            pendingImage !== savedImage &&
+            sessionUploads.has(pendingImage)
+        ) {
             cleanupCourseImage(pendingImage);
         }
     };
@@ -257,10 +405,10 @@ const CoursesManagement = () => {
         if (!file || imageUploadLockRef.current) return;
 
         imageUploadLockRef.current = true;
-        const replacePath = formData.homepageImage;
         setUploadingImage(true);
         try {
-            const path = await uploadCourseImage(file, replacePath);
+            const path = await uploadCourseImage(file, '');
+            sessionUploadedPathsRef.current.add(path);
             setFormData((prev) => ({ ...prev, homepageImage: path }));
             await fetchGalleryImages();
         } catch (err) {
@@ -275,32 +423,22 @@ const CoursesManagement = () => {
         setFormData((prev) => ({ ...prev, homepageImage: imagePath }));
     };
 
-    const galleryDeleteBlocked = (image) => {
-        if (!image?.path) return true;
-        const editingId = editingCourse?._id ? String(editingCourse._id) : null;
-        const courseIds = image.usedByCourseIds || [];
-        if (courseIds.length === 0) return false;
-        if (!editingId) return true;
-        return courseIds.some((id) => String(id) !== editingId);
-    };
-
     const handleDeleteGalleryImage = async (image, event) => {
         event?.preventDefault?.();
         event?.stopPropagation?.();
         if (!image?.path) return;
         const editingId = editingCourse?._id ? String(editingCourse._id) : null;
-        if (galleryDeleteBlocked(image)) {
-            showAlert(
-                `This image is used by ${image.usedBy} course(s). Remove it from those courses first.`,
-                'warning'
-            );
-            return;
-        }
+        const usedByOthers = (image.usedByCourseIds || []).some(
+            (id) => !editingId || String(id) !== editingId
+        );
         const confirmed = await showConfirm({
             title: 'Delete image?',
-            message: editingId
-                ? 'This will remove the file and clear it from the course you are editing if saved.'
-                : 'This will permanently remove the file from the server.',
+            message:
+                image.usedBy > 0
+                    ? usedByOthers
+                        ? `Used by ${image.usedBy} course(s). Delete anyway and clear it from those courses?`
+                        : 'This will remove the file and clear it from the course you are editing.'
+                    : 'This will permanently remove the file from the server.',
             confirmLabel: 'Delete',
             destructive: true,
         });
@@ -309,6 +447,7 @@ const CoursesManagement = () => {
         try {
             await deleteCourseGalleryImage(image.path, {
                 excludeCourseId: editingId,
+                force: image.usedBy > 0,
                 realm: AUTH_REALM.ADMIN,
             });
             if (formData.homepageImage === image.path) {
@@ -321,19 +460,42 @@ const CoursesManagement = () => {
         }
     };
 
-    const fetchCourses = async () => {
+    const fetchCourses = useCallback(async (options = {}) => {
+        const cacheKey = buildListCacheKey({ listTab });
+        if (!options.force && listCacheRef.current.has(cacheKey)) {
+            const cached = listCacheRef.current.get(cacheKey);
+            setCourses(cached.courses);
+            setTotalUniqueStudents(cached.totalUniqueStudents);
+            if (typeof cached.trashCount === 'number') setTrashCount(cached.trashCount);
+            setLoading(false);
+            setHasLoadedOnce(true);
+            return;
+        }
+
         try {
+            if (!options.force) setCourses([]);
             setLoading(true);
             const token = getAuthToken();
-            
-            const response = await axios.get(`${API_BASE_URL}/api/courses`, {
-                headers: { Authorization: `Bearer ${token}` },
-                params: listTab === 'trash' ? { trash: '1' } : {},
-            });
+            const includeCounts = options.includeCounts
+                || isFirstListLoadRef.current
+                || options.tabChanged;
 
-            const raw = response.data?.courses || [];
-            if (typeof response.data?.trashCount === 'number') {
-                setTrashCount(response.data.trashCount);
+            const requests = [
+                axios.get(`${API_BASE_URL}/api/courses`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: {
+                        ...(listTab === 'trash' ? { trash: '1' } : {}),
+                        ...(includeCounts ? { includeCounts: 1 } : {}),
+                    },
+                }),
+            ];
+
+            const results = await Promise.all(requests);
+            const coursesRes = results[0];
+
+            const raw = coursesRes.data?.courses || [];
+            if (typeof coursesRes.data?.trashCount === 'number') {
+                setTrashCount(coursesRes.data.trashCount);
             }
             const coursesFromDb = raw.map((c) => ({
                 ...c,
@@ -341,22 +503,46 @@ const CoursesManagement = () => {
                     ? c.status
                     : (c.isPublished === true ? 'published' : 'draft'),
             }));
+            const uniqueTotal = Number(coursesRes.data?.totalUniqueStudents) || 0;
+            listCacheRef.current.set(cacheKey, {
+                courses: coursesFromDb,
+                totalUniqueStudents: uniqueTotal,
+                trashCount: coursesRes.data?.trashCount,
+            });
             setCourses(coursesFromDb);
-            setTotalUniqueStudents(Number(response.data?.totalUniqueStudents) || 0);
-            setLoading(false);
+            setTotalUniqueStudents(uniqueTotal);
+            setHasLoadedOnce(true);
+            isFirstListLoadRef.current = false;
         } catch (error) {
             console.error('Error fetching courses:', error);
-            console.error('Error details:', error.response?.data);
             setCourses([]);
             setTotalUniqueStudents(0);
+        } finally {
             setLoading(false);
         }
-    };
+    }, [listTab]);
+
+    useEffect(() => {
+        fetchCourses({ includeCounts: true, tabChanged: true });
+    }, [listTab, fetchCourses]);
+
+    const reloadAfterMutation = useCallback(async () => {
+        invalidateCoursesCache();
+        await fetchCourses({ force: true, includeCounts: true });
+    }, [fetchCourses, invalidateCoursesCache]);
+
+    const handleManualRefresh = useCallback(() => {
+        invalidateCoursesCache();
+        fetchCourses({ force: true, includeCounts: true });
+    }, [fetchCourses, invalidateCoursesCache]);
 
     const openCreateForm = () => {
         setEditingCourse(null);
+        slugTouchedRef.current = false;
         savedImageOnEditRef.current = '';
+        sessionUploadedPathsRef.current = new Set();
         setFormData({ ...EMPTY_COURSE_FORM });
+        setTeacherSearch('');
         setIsFormOpen(true);
         
         setTimeout(() => {
@@ -380,22 +566,33 @@ const CoursesManagement = () => {
             return;
         }
         
+        setSelectedCourses([]);
         setEditingCourse(course);
+        slugTouchedRef.current = true;
         savedImageOnEditRef.current = course.homepageImage || '';
+        sessionUploadedPathsRef.current = new Set();
         setFormData({
             title: course.title || '',
+            slug: course.slug || slugifyCourseTitle(course.title),
             description: course.description || '',
             category: course.category || 'Quranic Arabic',
             price: course.price != null ? String(course.price) : '0',
             duration: course.duration || '8 weeks',
             status: course.status || 'draft',
             level: course.level || 'beginner',
-            instructorId: course.instructor?._id || course.instructor || '',
-            instructorName: course.instructorName || course.instructor?.name || '',
+            instructorIds:
+                Array.isArray(course.instructorIds) && course.instructorIds.length
+                    ? course.instructorIds.map(String)
+                    : Array.isArray(course.instructors) && course.instructors.length
+                      ? course.instructors.map((t) => String(t._id || t))
+                      : course.instructor
+                        ? [String(course.instructor._id || course.instructor)]
+                        : [],
             displayOrder: Number.isFinite(Number(course.displayOrder)) ? String(course.displayOrder) : '',
             masonryColumn: [1, 2, 3].includes(Number(course.masonryColumn)) ? String(course.masonryColumn) : '',
             homepageImage: course.homepageImage || '',
         });
+        setTeacherSearch('');
         setIsFormOpen(true);
         
         setTimeout(() => {
@@ -406,29 +603,62 @@ const CoursesManagement = () => {
         }, 100);
     };
 
-    const openBulkEditForm = () => {
-        if (selectedCourses.length === 0) {
-            showAlert('Please select courses to edit', 'warning');
-            return;
-        }
-        
-        const firstSelected = courses.find(course => 
-            selectedCourses.includes(course._id)
-        );
-        
-        if (firstSelected) {
-            openEditForm(firstSelected);
-        } else {
-            showAlert('Selected course not found. Please refresh and try again.', 'error');
-        }
-    };
-
     const handleFormChange = (e) => {
         const { name, value } = e.target;
+        if (name === 'title') {
+            setFormData((prev) => ({
+                ...prev,
+                title: value,
+                slug: slugTouchedRef.current ? prev.slug : slugifyCourseTitle(value),
+            }));
+            return;
+        }
+        if (name === 'slug') {
+            slugTouchedRef.current = true;
+        }
+        if (name === 'status' && value !== 'published') {
+            setFormData((prev) => ({
+                ...prev,
+                status: value,
+                instructorIds: [],
+            }));
+            return;
+        }
         setFormData(prev => ({
             ...prev,
             [name]: value,
         }));
+    };
+
+    const toggleInstructorId = (teacherId) => {
+        if (formData.status !== 'published') return;
+        const id = String(teacherId);
+        setFormData((prev) => {
+            const ids = prev.instructorIds || [];
+            const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+            return { ...prev, instructorIds: next };
+        });
+    };
+
+    const buildFormPayload = () => {
+        const displayOrderRaw = formData.displayOrder === '' ? 9999 : Number(formData.displayOrder);
+        const published = formData.status === 'published';
+        return {
+            title: formData.title.trim(),
+            description: formData.description.trim(),
+            category: formData.category,
+            price: Number(formData.price) || 0,
+            duration: formData.duration.trim(),
+            status: formData.status,
+            level: formData.level,
+            instructorIds: published
+                ? (formData.instructorIds || []).filter((id) => activeTeacherIdSet.has(String(id)))
+                : [],
+            displayOrder: displayOrderRaw,
+            masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
+            homepageImage: (formData.homepageImage || '').trim(),
+            slug: (formData.slug || '').trim() || slugifyCourseTitle(formData.title),
+        };
     };
 
     const handleFormSubmit = async (e) => {
@@ -450,6 +680,10 @@ const CoursesManagement = () => {
             showAlert('Please enter course duration (e.g., "8 weeks")', 'warning');
             return;
         }
+        if (formData.displayOrder !== '' && (Number.isNaN(Number(formData.displayOrder)) || Number(formData.displayOrder) < 0)) {
+            showAlert('Display order must be 0 or greater', 'warning');
+            return;
+        }
 
         setIsSubmitting(true);
         const token = getAuthToken();
@@ -460,20 +694,7 @@ const CoursesManagement = () => {
             return;
         }
 
-        const payload = {
-            title: formData.title.trim(),
-            description: formData.description.trim(),
-            category: formData.category,
-            price: Number(formData.price) || 0,
-            duration: formData.duration.trim(),
-            status: formData.status,
-            level: formData.level,
-            instructorId: formData.instructorId || undefined,
-            instructorName: (formData.instructorName || '').trim(),
-            displayOrder: formData.displayOrder === '' ? 9999 : Number(formData.displayOrder),
-            masonryColumn: formData.masonryColumn === '' ? null : Number(formData.masonryColumn),
-            homepageImage: (formData.homepageImage || '').trim(),
-        };
+        const payload = buildFormPayload();
 
         try {
             if (editingCourse) {
@@ -495,27 +716,7 @@ const CoursesManagement = () => {
                         } 
                     }
                 );
-                
-                if (selectedCourses.length > 1) {
-                    showConfirmation(`Course updated! Changes will be applied to ${selectedCourses.length - 1} other selected courses.`);
-                    
-                    const bulkUpdatePromises = selectedCourses
-                        .filter(id => id !== courseId)
-                        .map(id => 
-                            axios.put(
-                                `${API_BASE_URL}/api/courses/${id}`,
-                                payload,
-                                { headers: { Authorization: `Bearer ${token}` } }
-                            ).catch(err => {
-                                console.error(`Failed to update course ${id}:`, err);
-                                return null;
-                            })
-                        );
-                    
-                    await Promise.all(bulkUpdatePromises);
-                } else {
-                    showConfirmation('Course updated successfully!');
-                }
+                showConfirmation('Course updated successfully!');
             } else {
                 await axios.post(
                     `${API_BASE_URL}/api/courses`,
@@ -526,12 +727,13 @@ const CoursesManagement = () => {
             }
 
             savedImageOnEditRef.current = payload.homepageImage;
+            sessionUploadedPathsRef.current = new Set();
             setIsFormOpen(false);
             setEditingCourse(null);
             setSelectedCourses([]);
             setFormData({ ...EMPTY_COURSE_FORM });
         
-            await fetchCourses();
+            await reloadAfterMutation();
         } catch (error) {
             console.error('Error saving course:', error);
             console.error('Error response:', error.response?.data);
@@ -542,7 +744,7 @@ const CoursesManagement = () => {
             if (error.response) {
                 if (error.response.status === 404) {
                     errorMessage = `Course not found (404). ID: ${editingCourse?._id}`;
-                    await fetchCourses(); // Refresh list
+                    await reloadAfterMutation(); // Refresh list
                 } else if (error.response.status === 401) {
                     errorMessage = 'Unauthorized. Please log in again.';
                 } else if (error.response.status === 403) {
@@ -582,9 +784,9 @@ const CoursesManagement = () => {
 
     const deleteCourse = async (courseId) => {
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: 'This course will be unpublished and hidden from the website. Restore from the Trash tab.',
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `This course will be unpublished and hidden from the website. Restore from the ${QUARANTINE_LABEL} tab.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) return;
 
@@ -595,7 +797,7 @@ const CoursesManagement = () => {
             });
             
             setSelectedCourses(prev => prev.filter(id => id !== courseId));
-            await fetchCourses();
+            await reloadAfterMutation();
             showConfirmation('Course moved to trash.');
         } catch (error) {
             console.error('Error moving course to trash:', error);
@@ -606,14 +808,20 @@ const CoursesManagement = () => {
 
     const restoreCourse = async (courseId) => {
         if (trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Restore course?',
+            message: 'The course will be restored as a draft and stay hidden from the website until you publish it again.',
+            confirmLabel: 'Restore',
+        });
+        if (!confirmed) return;
         setTrashBusy(true);
         try {
             const token = getAuthToken();
             await axios.patch(`${API_BASE_URL}/api/courses/${courseId}/restore`, null, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            await fetchCourses();
-            showConfirmation('Course restored.');
+            await reloadAfterMutation();
+            showConfirmation('Course restored. It remains a draft — publish it when ready.');
         } catch (error) {
             showAlert(error.response?.data?.error || 'Failed to restore course', 'error');
         } finally {
@@ -635,7 +843,7 @@ const CoursesManagement = () => {
             await axios.delete(`${API_BASE_URL}/api/courses/${courseId}/permanent`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            await fetchCourses();
+            await reloadAfterMutation();
             setSelectedCourses((prev) => prev.filter((id) => id !== courseId));
             showConfirmation('Course permanently deleted.');
         } catch (error) {
@@ -647,13 +855,13 @@ const CoursesManagement = () => {
 
     // FIXED: Bulk delete function
     const deleteSelectedCourses = async () => {
-        if (!selectedCourses.length) {
+        if (!selectedCourses.length || listTab !== 'active') {
             return;
         }
         const confirmed = await showConfirm({
-            title: 'Move to trash?',
-            message: `Move ${selectedCourses.length} selected course(s) to trash? They will be hidden from the website.`,
-            confirmLabel: 'Move to trash',
+            title: `Move to ${QUARANTINE_LABEL}?`,
+            message: `Move ${selectedCourses.length} selected course(s) to ${QUARANTINE_LABEL}? They will be hidden from the website.`,
+            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
         });
         if (!confirmed) {
             return;
@@ -668,7 +876,7 @@ const CoursesManagement = () => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            await fetchCourses();
+            await reloadAfterMutation();
             setSelectedCourses([]);
             showConfirmation(response.data.message || `${selectedCourses.length} course(s) moved to trash.`);
         } catch (error) {
@@ -678,15 +886,73 @@ const CoursesManagement = () => {
         }
     };
 
-    const toggleStatus = async (courseId, currentStatus) => {
-        const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+    const restoreSelectedCourses = async () => {
+        if (!selectedCourses.length || listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Restore selected courses?',
+            message: `${selectedCourses.length} course(s) will be restored as drafts.`,
+            confirmLabel: 'Restore',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
         try {
             const token = getAuthToken();
-            await axios.patch(`${API_BASE_URL}/api/courses/${courseId}/status`, 
+            const response = await axios.post(
+                `${API_BASE_URL}/api/courses/bulk-restore`,
+                { ids: selectedCourses },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            await reloadAfterMutation();
+            setSelectedCourses([]);
+            showConfirmation(response.data.message || 'Courses restored.');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to restore selected courses', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const permanentDeleteSelectedCourses = async () => {
+        if (!selectedCourses.length || listTab !== 'trash' || trashBusy) return;
+        const confirmed = await showConfirm({
+            title: 'Delete permanently?',
+            message: `Permanently delete ${selectedCourses.length} course(s)? This cannot be undone.`,
+            confirmLabel: 'Delete forever',
+        });
+        if (!confirmed) return;
+        setTrashBusy(true);
+        try {
+            const token = getAuthToken();
+            const response = await axios.post(
+                `${API_BASE_URL}/api/courses/bulk-permanent`,
+                { ids: selectedCourses },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            await reloadAfterMutation();
+            setSelectedCourses([]);
+            showConfirmation(response.data.message || 'Courses permanently deleted.');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to permanently delete selected courses', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    const toggleStatus = async (courseId, currentStatus) => {
+        const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+        await setCourseStatus(courseId, newStatus);
+    };
+
+    const setCourseStatus = async (courseId, newStatus) => {
+        if (!['published', 'draft'].includes(newStatus)) return;
+        try {
+            const token = getAuthToken();
+            await axios.patch(
+                `${API_BASE_URL}/api/courses/${courseId}/status`,
                 { status: newStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            fetchCourses();
+            await reloadAfterMutation();
             showConfirmation('Status updated successfully.');
         } catch (error) {
             console.error('Error updating course status:', error);
@@ -695,6 +961,7 @@ const CoursesManagement = () => {
     };
 
     const toggleSelectedStatus = async () => {
+        if (listTab !== 'active') return;
         const targetStatus = await showChoice({
             title: 'Set Course Status',
             message: `Choose the status for ${selectedCourses.length} selected course(s).`,
@@ -707,12 +974,12 @@ const CoursesManagement = () => {
 
         try {
             const token = getAuthToken();
-            await axios.patch(`${API_BASE_URL}/api/courses/bulk-status`, 
+            const response = await axios.patch(`${API_BASE_URL}/api/courses/bulk-status`, 
                 { courseIds: selectedCourses, status: targetStatus },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            fetchCourses();
-            showConfirmation(`${selectedCourses.length} course(s) set to ${targetStatus}`);
+            await reloadAfterMutation();
+            showConfirmation(response.data?.message || `${selectedCourses.length} course(s) updated`);
         } catch (error) {
             console.error('Error updating selected courses status:', error);
             showAlert('Failed to update status for selected courses. Please try again.', 'error');
@@ -723,7 +990,9 @@ const CoursesManagement = () => {
         const matchesSearch = 
             course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (course.instructorName || course.instructor?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+            (course.instructorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            formatCourseTeachersColumn(course).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (course.instructors || []).some((t) => (t.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
         
         const matchesStatus = filterStatus === 'all' || course.status === filterStatus;
         
@@ -741,8 +1010,8 @@ const CoursesManagement = () => {
 
     const sortedCourses = [...filteredCourses].sort((a, b) => {
         if (!sortBy) {
-            const orderA = Number.isFinite(Number(a.displayOrder)) ? Number(a.displayOrder) : 9999;
-            const orderB = Number.isFinite(Number(b.displayOrder)) ? Number(b.displayOrder) : 9999;
+            const orderA = getCourseDisplayOrder(a);
+            const orderB = getCourseDisplayOrder(b);
             if (orderA !== orderB) return orderA - orderB;
             const catA = getCategorySortIndex(a.category);
             const catB = getCategorySortIndex(b.category);
@@ -753,7 +1022,9 @@ const CoursesManagement = () => {
         const getVal = (c, key) => {
             if (key === 'title') return (c.title || '').toLowerCase();
             if (key === 'category') return (c.category || '').toLowerCase();
-            if (key === 'instructor') return (c.instructorName || c.instructor?.name || '').toLowerCase();
+            if (key === 'instructor') {
+                return formatCourseTeachersColumn(c).toLowerCase();
+            }
             if (key === 'students') return c.students ?? 0;
             if (key === 'price') return Number(c.price) || 0;
             if (key === 'status') return (c.status || '').toLowerCase();
@@ -768,12 +1039,75 @@ const CoursesManagement = () => {
         return mult * (va < vb ? -1 : va > vb ? 1 : 0);
     });
 
-    if (loading) {
+    const displayOrderUsage = useMemo(() => {
+        if (listTab !== 'active') return new Map();
+        const map = new Map();
+        courses.forEach((course) => {
+            const order = getCourseDisplayOrder(course);
+            map.set(order, (map.get(order) || 0) + 1);
+        });
+        return map;
+    }, [courses, listTab]);
+
+    const duplicateDisplayOrderCount = useMemo(() => {
+        let duplicates = 0;
+        displayOrderUsage.forEach((count) => {
+            if (count > 1) duplicates += count;
+        });
+        return duplicates;
+    }, [displayOrderUsage]);
+
+    const courseHasDuplicateDisplayOrder = (course) =>
+        (displayOrderUsage.get(getCourseDisplayOrder(course)) || 0) > 1;
+
+    const renumberCoursesByDisplayOrder = async () => {
+        if (listTab !== 'active' || sortedCourses.length === 0) return;
+        const confirmed = await showConfirm({
+            title: 'Renumber display order?',
+            message: `Assign display order 0, 1, 2… to ${sortedCourses.length} course(s) in the current table order (display order → category → title).`,
+            confirmLabel: 'Renumber',
+        });
+        if (!confirmed) return;
+
+        const token = getAuthToken();
+        if (!token) {
+            showAlert('Authentication token not found. Please log in again.', 'error');
+            return;
+        }
+
+        setTrashBusy(true);
+        try {
+            await Promise.all(
+                sortedCourses.map((course, index) => {
+                    const courseId = course._id || course.id;
+                    return axios.put(
+                        `${API_BASE_URL}/api/courses/${courseId}`,
+                        buildCoursePayloadFromRecord(course, { displayOrder: index }),
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                })
+            );
+            await reloadAfterMutation();
+            showConfirmation('Display order renumbered.');
+        } catch (error) {
+            showAlert(error.response?.data?.error || 'Failed to renumber courses', 'error');
+        } finally {
+            setTrashBusy(false);
+        }
+    };
+
+    if (loading && !hasLoadedOnce && !courses.length) {
         return (
-            <div className="courses-management loading">
-                <div className="loading-spinner">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    <p>Loading courses...</p>
+            <div className="courses-management">
+                <div className="page-header">
+                    <div className="header-left">
+                        <h1><i className="fas fa-book"></i> Course Management</h1>
+                    </div>
+                </div>
+                <div className="courses-table-skeleton" aria-hidden>
+                    {Array.from({ length: 6 }, (_, i) => (
+                        <div key={i} className="courses-table-skeleton__row" />
+                    ))}
                 </div>
             </div>
         );
@@ -788,7 +1122,7 @@ const CoursesManagement = () => {
                 </div>
                 <div className="header-right">
                     {listTab === 'active' ? (
-                        <button type="button" className="btn-primary" onClick={openCreateForm}>
+                        <button type="button" className="btn-primary btn-add" onClick={openCreateForm}>
                             <i className="fas fa-plus"></i> Add Course
                         </button>
                     ) : null}
@@ -829,7 +1163,7 @@ const CoursesManagement = () => {
                     </div>
                     <div className="stat-info">
                         <h3>${courses.reduce((sum, course) => sum + (course.price || 0), 0)}</h3>
-                        <p>Total Value</p>
+                        <p>Catalog list price</p>
                     </div>
                 </div>
             </div>
@@ -853,7 +1187,7 @@ const CoursesManagement = () => {
                         setSelectedCourses([]);
                     }}
                 >
-                    <i className="fas fa-trash-alt" /> Trash
+                    <i className="fas fa-archive" /> {QUARANTINE_LABEL}
                     {trashCount > 0 ? ` (${trashCount})` : ''}
                 </button>
             </div>
@@ -870,21 +1204,44 @@ const CoursesManagement = () => {
                 </div>
                 
                 <div className="filter-controls">
-                    <select 
-                        className="status-filter"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                        <option value="all">All Status</option>
-                        <option value="published">Published</option>
-                        <option value="draft">Draft</option>
-                    </select>
+                    {listTab === 'active' ? (
+                        <select 
+                            className="status-filter"
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                            <option value="all">All Status</option>
+                            <option value="published">Published</option>
+                            <option value="draft">Draft</option>
+                        </select>
+                    ) : null}
                     
-                    <button className="refresh-btn" onClick={fetchCourses}>
-                        <i className="fas fa-sync-alt"></i> Refresh
+                    <button className="refresh-btn" onClick={handleManualRefresh} type="button" title="Refresh" aria-label="Refresh">
+                        <i className="fas fa-sync-alt"></i>
                     </button>
+                    {listTab === 'active' && duplicateDisplayOrderCount > 0 ? (
+                        <button
+                            type="button"
+                            className="courses-renumber-btn"
+                            onClick={renumberCoursesByDisplayOrder}
+                            disabled={trashBusy}
+                        >
+                            <i className="fas fa-sort-numeric-down" aria-hidden="true"></i>
+                            <span>Renumber</span>
+                        </button>
+                    ) : null}
                 </div>
             </div>
+
+            {listTab === 'active' && duplicateDisplayOrderCount > 0 ? (
+                <div className="courses-order-warning" role="status">
+                    <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+                    <span>
+                        <strong>{duplicateDisplayOrderCount} courses share a display order.</strong>
+                        {' '}Ties sort by category, then title. Use unique numbers or click Renumber.
+                    </span>
+                </div>
+            ) : null}
 
             {isFormOpen && (
 
@@ -901,11 +1258,6 @@ const CoursesManagement = () => {
                             <div className="editing-indicator">
                                 <i className="fas fa-info-circle"></i>
                                 Editing: <strong>{editingCourse.title}</strong>
-                                {selectedCourses.length > 1 && (
-                                    <span style={{marginLeft: '10px', color: 'var(--color-accent)'}}>
-                                        (and {selectedCourses.length - 1} other selected course(s))
-                                    </span>
-                                )}
                             </div>
                         )}
                         <button
@@ -931,6 +1283,17 @@ const CoursesManagement = () => {
                                 />
                             </div>
                             <div className="form-group">
+                                <label>URL slug</label>
+                                <input
+                                    type="text"
+                                    name="slug"
+                                    value={formData.slug}
+                                    onChange={handleFormChange}
+                                    placeholder="url-friendly-slug"
+                                />
+                                <span className="form-field-hint">Public URL: /courses/{formData.slug || slugifyCourseTitle(formData.title) || '…'}</span>
+                            </div>
+                            <div className="form-group">
                                 <label>Category *</label>
                                 <select
                                     name="category"
@@ -950,38 +1313,46 @@ const CoursesManagement = () => {
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
-                            <div className="form-group">
-                                <label>Assigned teacher (portal)</label>
-                                <select
-                                    name="instructorId"
-                                    value={formData.instructorId}
-                                    onChange={(e) => {
-                                        const id = e.target.value;
-                                        const t = teachers.find((x) => String(x._id) === String(id));
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            instructorId: id,
-                                            instructorName: t?.name ?? '',
-                                        }));
-                                    }}
-                                >
-                                    <option value="">Select teacher account</option>
-                                    {teachers.map((t) => (
-                                        <option key={t._id} value={t._id}>
-                                            {t.name} ({t.email})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Display name (optional)</label>
-                                <input
-                                    type="text"
-                                    name="instructorName"
-                                    value={formData.instructorName}
-                                    onChange={handleFormChange}
-                                    placeholder="Website label if different"
-                                />
+                            <div className="form-group form-group-full">
+                                <label>Assigned teachers (optional)</label>
+                                {formData.status === 'published' ? (
+                                    <input
+                                        type="search"
+                                        className="course-teachers-search"
+                                        placeholder="Search teachers by name or email…"
+                                        value={teacherSearch}
+                                        onChange={(e) => setTeacherSearch(e.target.value)}
+                                        disabled={isSubmitting}
+                                    />
+                                ) : null}
+                                <div className="course-teachers-assign-list">
+                                    {formData.status !== 'published' ? (
+                                        <p className="form-field-hint">
+                                            Publish the course to assign teachers. Draft and unpublished courses cannot have teachers.
+                                        </p>
+                                    ) : teachersLoading ? (
+                                        <p className="form-field-hint">Loading teachers…</p>
+                                    ) : activeTeachers.length === 0 ? (
+                                        <p className="form-field-hint">No active teachers match. Try a different search.</p>
+                                    ) : (
+                                        activeTeachers.map((t) => (
+                                            <label key={t._id} className="checkbox-label course-teachers-assign-item">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={(formData.instructorIds || []).includes(String(t._id))}
+                                                    onChange={() => toggleInstructorId(t._id)}
+                                                    disabled={isSubmitting}
+                                                />
+                                                <span>
+                                                    {t.name} (<span className="admin-email">{t.email}</span>)
+                                                </span>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                                <span className="form-field-hint">
+                                    Only on published courses. Same list as the Teachers tab.
+                                </span>
                             </div>
                         </div>
                         <div className="form-row">
@@ -1069,8 +1440,9 @@ const CoursesManagement = () => {
                                     <option value="">Auto</option>
                                     <option value="1">Left</option>
                                     <option value="2">Middle</option>
-                                    <option value="3">Right</option>
+                                    <option value="3">Right (desktop)</option>
                                 </select>
+                                <span className="form-field-hint">Right column maps to the 2nd column on tablet/mobile layouts.</span>
                             </div>
                         </div>
                         <div className="course-image-section">
@@ -1128,60 +1500,30 @@ const CoursesManagement = () => {
                                     </span>
                                 )}
                             </div>
-                            {galleryImages.length === 0 && !galleryLoading ? (
-                                <p className="course-image-section__gallery-empty">
-                                    No images yet. Upload one above — it will appear here for all courses.
+                            {brokenGalleryCount > 0 ? (
+                                <p className="promo-thumb-gallery__warning" role="status">
+                                    <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+                                    <strong>
+                                        {brokenGalleryCount} image file{brokenGalleryCount === 1 ? '' : 's'} missing on
+                                        disk
+                                    </strong>
+                                    — re-upload and save the course to fix.
                                 </p>
-                            ) : (
-                                <div className="course-image-section__gallery">
-                                    {galleryImages.map((img) => {
-                                        const isSelected = formData.homepageImage === img.path;
-                                        return (
-                                            <div
-                                                key={img.path}
-                                                className={`course-image-section__tile${isSelected ? ' is-selected' : ''}`}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    className="course-image-section__tile-select"
-                                                    onClick={() => selectGalleryImage(img.path)}
-                                                    title={img.usedByTitles?.join(', ') || 'Select image'}
-                                                >
-                                                    <img src={resolveMediaUrl(img.path)} alt="" loading="lazy" />
-                                                    {isSelected && (
-                                                        <span className="course-image-section__tile-badge">
-                                                            <i className="fas fa-check" aria-hidden="true" />
-                                                        </span>
-                                                    )}
-                                                    {img.usedBy > 0 && (
-                                                        <span className="course-image-section__tile-used">
-                                                            {img.usedBy} in use
-                                                        </span>
-                                                    )}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="course-image-section__tile-delete"
-                                                    onClick={(e) => handleDeleteGalleryImage(img, e)}
-                                                    disabled={galleryDeleteBlocked(img)}
-                                                    title={
-                                                        galleryDeleteBlocked(img)
-                                                            ? 'In use by another course'
-                                                            : 'Delete image'
-                                                    }
-                                                >
-                                                    <i className="fas fa-trash-alt" aria-hidden="true" />
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                            ) : null}
+                            <AdminMediaGallery
+                                images={galleryImages}
+                                loading={galleryLoading}
+                                selectedPath={formData.homepageImage}
+                                onSelect={selectGalleryImage}
+                                onDelete={handleDeleteGalleryImage}
+                                showFilename={false}
+                                emptyMessage="No images yet. Upload one above — it will appear here for all courses."
+                            />
                         </div>
                         <div className="form-actions">
                             <button 
                                 type="submit" 
-                                className="btn-primary"
+                                className={`btn-primary${editingCourse ? ' btn-save' : ' btn-add'}`}
                                 disabled={isSubmitting || uploadingImage}
                             >
                                 {isSubmitting ? (
@@ -1191,7 +1533,6 @@ const CoursesManagement = () => {
                                 ) : (
                                     <>
                                         <i className={editingCourse ? 'fas fa-save' : 'fas fa-plus'}></i> {editingCourse ? 'Update Course' : 'Create Course'}
-                                        {selectedCourses.length > 1 && editingCourse && ' (Apply to All Selected)'}
                                     </>
                                 )}
                             </button>
@@ -1217,14 +1558,41 @@ const CoursesManagement = () => {
                         {selectedCourses.length} course(s) selected
                     </div>
                     <div className="bulk-buttons">
-                        <button className="bulk-btn" onClick={openBulkEditForm}>
+                        {listTab === 'active' ? (
+                            <>
+                                <button className="bulk-btn" onClick={toggleSelectedStatus}>
+                                    <i className="fas fa-eye"></i> Set Status
+                                </button>
+                                <button className="bulk-btn delete" onClick={deleteSelectedCourses}>
+                                    <i className="fas fa-archive"></i> Move to {QUARANTINE_LABEL}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button className="bulk-btn" onClick={restoreSelectedCourses} disabled={trashBusy}>
+                                    <i className="fas fa-undo"></i> Restore selected
+                                </button>
+                                <button className="bulk-btn delete" onClick={permanentDeleteSelectedCourses} disabled={trashBusy}>
+                                    <i className="fas fa-trash-alt"></i> Delete forever
+                                </button>
+                            </>
+                        )}
+                        <button
+                            className="bulk-btn edit"
+                            onClick={() => {
+                                if (selectedCourses.length !== 1) {
+                                    showAlert('Please select only one course to edit', 'warning');
+                                    return;
+                                }
+                                const course = courses.find((c) => String(c._id || c.id) === String(selectedCourses[0]));
+                                if (!course) {
+                                    showAlert('Selected course not found', 'warning');
+                                    return;
+                                }
+                                openEditForm(course);
+                            }}
+                        >
                             <i className="fas fa-edit"></i> Edit Selected
-                        </button>
-                        <button className="bulk-btn" onClick={toggleSelectedStatus}>
-                            <i className="fas fa-eye"></i> Set Status
-                        </button>
-                        <button className="bulk-btn delete" onClick={deleteSelectedCourses}>
-                            <i className="fas fa-trash"></i> Move to trash
                         </button>
                         <button
                             className="bulk-btn cancel"
@@ -1251,7 +1619,11 @@ const CoursesManagement = () => {
                         {COLUMN_DEFS.map((key, idx) => (
                             <col
                                 key={key}
-                                style={{ width: `${columnWidths[idx]}px` }}
+                                style={
+                                    key === 'actions'
+                                        ? { width: '1%' }
+                                        : { width: `${columnWidths[idx]}px` }
+                                }
                             />
                         ))}
                     </colgroup>
@@ -1329,7 +1701,7 @@ const CoursesManagement = () => {
                                 />
                             </th>
                             <th className="sortable" onClick={() => handleSort('instructor')}>
-                                Instructor
+                                Teachers
                                 {sortBy === 'instructor' && <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i>}
                                 {sortBy !== 'instructor' && <i className="fas fa-sort"></i>}
                                 <span
@@ -1342,7 +1714,7 @@ const CoursesManagement = () => {
                                         resetColumnWidth(4);
                                     }}
                                     role="separator"
-                                    aria-label="Resize Instructor column"
+                                    aria-label="Resize Teachers column"
                                 />
                             </th>
                             <th className="sortable" onClick={() => handleSort('students')}>
@@ -1447,7 +1819,7 @@ const CoursesManagement = () => {
                                     aria-label="Resize Created column"
                                 />
                             </th>
-                            <th>
+                            <th className="action-col">
                                 Actions
                                 <span
                                     className="col-resizer"
@@ -1468,7 +1840,10 @@ const CoursesManagement = () => {
                         {sortedCourses.map((course) => {
                             const courseId = course._id || course.id;
                             return (
-                                <tr key={courseId} className={selectedCourses.includes(courseId) ? 'selected' : ''}>
+                                <tr key={courseId} className={[
+                                    selectedCourses.includes(courseId) ? 'selected' : '',
+                                    courseHasDuplicateDisplayOrder(course) ? 'duplicate-display-order' : '',
+                                ].filter(Boolean).join(' ')}>
                                     <td className="checkbox-cell">
                                         <input
                                             type="checkbox"
@@ -1483,7 +1858,8 @@ const CoursesManagement = () => {
                                         <div className="course-title-cell">
                                             <strong>{course.title}</strong>
                                             <small style={{ display: 'block', opacity: 0.8 }}>
-                                                #{Number.isFinite(Number(course.displayOrder)) ? Number(course.displayOrder) : 9999}
+                                                #{getCourseDisplayOrder(course)}
+                                                {courseHasDuplicateDisplayOrder(course) ? ' (duplicate)' : ''}
                                                 {' '}•{' '}
                                                 {course.masonryColumn ? `Column ${course.masonryColumn}` : 'Column auto'}
                                             </small>
@@ -1497,7 +1873,7 @@ const CoursesManagement = () => {
                                     <td>
                                         <span className="category-badge">{course.category}</span>
                                     </td>
-                                    <td>{course.instructorName || course.instructor?.name || '—'}</td>
+                                    <td>{formatCourseTeachersColumn(course)}</td>
                                     <td>
                                         <div className="student-count">
                                             <i className="fas fa-users"></i>
@@ -1510,9 +1886,28 @@ const CoursesManagement = () => {
                                         </span>
                                     </td>
                                     <td>
-                                        <span className={`status-badge ${course.status}`}>
-                                            {course.status ? course.status.charAt(0).toUpperCase() + course.status.slice(1) : 'Draft'}
-                                        </span>
+                                        <div className="status-cell">
+                                            <span className={`status-badge ${course.status}`}>
+                                                {course.status
+                                                    ? course.status.charAt(0).toUpperCase() + course.status.slice(1)
+                                                    : 'Draft'}
+                                            </span>
+                                            {listTab === 'active' ? (
+                                                <select
+                                                    className="status-select-inline"
+                                                    value={course.status === 'published' ? 'published' : 'draft'}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        setCourseStatus(courseId, e.target.value);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title="Change status"
+                                                >
+                                                    <option value="published">Published</option>
+                                                    <option value="draft">Draft</option>
+                                                </select>
+                                            ) : null}
+                                        </div>
                                     </td>
                                     <td>
                                         <span className="duration-badge">
@@ -1527,21 +1922,21 @@ const CoursesManagement = () => {
                                     <td>
                                         {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : '—'}
                                     </td>
-                                    <td>
-                                        <div className="action-buttons">
+                                    <td className="action-col cell-actions">
+                                        <div className="action-buttons action-buttons--stacked">
                                             {listTab === 'trash' ? (
-                                                <>
+                                                <div className="action-buttons__row">
                                                     <button
                                                         type="button"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             restoreCourse(courseId);
                                                         }}
-                                                        className="action-btn status-btn"
+                                                        className="action-btn restore-btn"
                                                         title="Restore course"
                                                         disabled={trashBusy}
                                                     >
-                                                        <i className="fas fa-undo"></i>
+                                                        <i className="fas fa-undo"></i> Restore
                                                     </button>
                                                     <button
                                                         type="button"
@@ -1553,44 +1948,61 @@ const CoursesManagement = () => {
                                                         title="Delete permanently"
                                                         disabled={trashBusy}
                                                     >
-                                                        <i className="fas fa-trash-alt"></i>
+                                                        <i className="fas fa-times-circle"></i> Delete forever
                                                     </button>
-                                                </>
+                                                </div>
                                             ) : (
                                                 <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            openEditForm(course);
-                                                        }}
-                                                        className="action-btn edit-btn"
-                                                        title="Edit Course"
-                                                    >
-                                                        <i className="fas fa-edit"></i>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleStatus(courseId, course.status);
-                                                        }}
-                                                        className={`action-btn status-btn ${course.status}`}
-                                                        title={course.status === 'published' ? 'Set to Draft' : 'Publish'}
-                                                    >
-                                                        <i className={`fas fa-${course.status === 'published' ? 'eye-slash' : 'eye'}`}></i>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            deleteCourse(courseId);
-                                                        }}
-                                                        className="action-btn delete-btn"
-                                                        title="Move to trash"
-                                                    >
-                                                        <i className="fas fa-trash"></i>
-                                                    </button>
+                                                    <div className="action-buttons__row">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const segment = course.slug || courseId;
+                                                                window.open(`/courses/${segment}?preview=1`, '_blank', 'noopener,noreferrer');
+                                                            }}
+                                                            className="action-btn view-btn"
+                                                            title="Preview course page"
+                                                        >
+                                                            <i className="fas fa-external-link-alt"></i> Preview
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openEditForm(course);
+                                                            }}
+                                                            className="action-btn edit-btn"
+                                                            title="Edit Course"
+                                                        >
+                                                            <i className="fas fa-edit"></i> Edit
+                                                        </button>
+                                                    </div>
+                                                    <div className="action-buttons__row">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleStatus(courseId, course.status);
+                                                            }}
+                                                            className={`action-btn status-btn ${course.status}`}
+                                                            title={course.status === 'published' ? 'Set to Draft' : 'Publish'}
+                                                        >
+                                                            <i className={`fas fa-${course.status === 'published' ? 'eye-slash' : 'eye'}`}></i>
+                                                            {course.status === 'published' ? ' Unpublish' : ' Publish'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                deleteCourse(courseId);
+                                                            }}
+                                                            className="action-btn delete-btn"
+                                                            title={`Move to ${QUARANTINE_LABEL}`}
+                                                        >
+                                                            <i className="fas fa-trash"></i> Delete
+                                                        </button>
+                                                    </div>
                                                 </>
                                             )}
                                         </div>
@@ -1624,11 +2036,11 @@ const CoursesManagement = () => {
                                         : 'Try a different search term or create your first course to get started.'}
                             </p>
                             {courses.length === 0 ? (
-                                <button type="button" className="btn-primary no-results-cta" onClick={fetchCourses}>
-                                    <i className="fas fa-sync-alt"></i> Refresh
+                                <button type="button" className="refresh-btn" onClick={handleManualRefresh} title="Refresh" aria-label="Refresh">
+                                    <i className="fas fa-sync-alt"></i>
                                 </button>
                             ) : (
-                                <button type="button" className="btn-primary no-results-cta" onClick={openCreateForm}>
+                                <button type="button" className="btn-primary btn-add no-results-cta" onClick={openCreateForm}>
                                     <i className="fas fa-plus"></i> Create Your First Course
                                 </button>
                             )}

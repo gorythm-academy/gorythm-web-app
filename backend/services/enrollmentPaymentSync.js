@@ -1,15 +1,20 @@
 const Enrollment = require('../models/Enrollment');
-const User = require('../models/User');
+const { findStudentByContactEmail } = require('./enrollmentDuplicateCheck');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+
+/** Paid fee, pending admin setup — enrollment stays inactive until admin activates. */
+const PAID_PENDING_ADMIN_STATUS = 'inactive';
 
 /**
  * Keep Enrollment.paymentStatus in sync with Payment / Stripe checkout.
+ * Prefers existing course row, then trashed twin, then placeholder (first course only), else creates.
  */
 async function syncEnrollmentPaymentStatus({
     userId,
     courseId,
     paymentStatus = 'paid',
-    enrollmentStatus = 'active',
+    enrollmentStatus = PAID_PENDING_ADMIN_STATUS,
+    forceNew = false,
 }) {
     if (!userId || !courseId) return null;
 
@@ -39,16 +44,42 @@ async function syncEnrollmentPaymentStatus({
         return trashed;
     }
 
+    const existingCourseCount = await Enrollment.countDocuments({
+        student: userId,
+        course: { $ne: null, $exists: true },
+        ...activeEnrollmentFilter(),
+    });
+
+    const shouldForceNew = forceNew || existingCourseCount > 0;
+
+    if (!shouldForceNew) {
+        const placeholder = await Enrollment.findOne({
+            student: userId,
+            $or: [{ course: null }, { course: { $exists: false } }],
+            ...activeEnrollmentFilter(),
+        });
+        if (placeholder) {
+            placeholder.course = courseId;
+            placeholder.paymentStatus = paymentStatus;
+            if (enrollmentStatus) placeholder.status = enrollmentStatus;
+            placeholder.deletedAt = null;
+            if (!placeholder.enrollmentDate) placeholder.enrollmentDate = new Date();
+            await placeholder.save();
+            return placeholder;
+        }
+    }
+
     enrollment = await Enrollment.create({
         student: userId,
         course: courseId,
         paymentStatus,
-        status: enrollmentStatus,
+        status: enrollmentStatus || PAID_PENDING_ADMIN_STATUS,
+        enrollmentDate: new Date(),
     });
     return enrollment;
 }
 
-/** Resolve user from payment metadata or email when userId missing. */
+/** Resolve user from payment metadata or contact email when userId missing. */
 async function syncEnrollmentFromPayment(payment) {
     if (!payment?.course) return null;
 
@@ -56,7 +87,7 @@ async function syncEnrollmentFromPayment(payment) {
     let userId = payment.user?._id || payment.user;
 
     if (!userId && payment.email) {
-        const user = await User.findOne({ email: String(payment.email).toLowerCase(), role: 'student' });
+        const user = await findStudentByContactEmail(payment.email);
         if (user) userId = user._id;
     }
 
@@ -67,7 +98,8 @@ async function syncEnrollmentFromPayment(payment) {
     else if (payment.status === 'refunded') paymentStatus = 'refunded';
     else if (payment.status === 'failed') paymentStatus = 'failed';
 
-    const enrollmentStatus = paymentStatus === 'paid' ? 'pending' : 'pending';
+    const enrollmentStatus =
+        paymentStatus === 'paid' ? PAID_PENDING_ADMIN_STATUS : PAID_PENDING_ADMIN_STATUS;
 
     return syncEnrollmentPaymentStatus({
         userId,
@@ -77,4 +109,8 @@ async function syncEnrollmentFromPayment(payment) {
     });
 }
 
-module.exports = { syncEnrollmentPaymentStatus, syncEnrollmentFromPayment };
+module.exports = {
+    syncEnrollmentPaymentStatus,
+    syncEnrollmentFromPayment,
+    PAID_PENDING_ADMIN_STATUS,
+};

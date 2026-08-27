@@ -143,7 +143,7 @@
 }
 
 // =============================================================================
-// INLINE PLAYER (fills section only; native video letterboxed to fit)
+// INLINE PLAYER — cinematic cover (fills section; crops to 16:9)
 // =============================================================================
 
 @keyframes videoPlayerIn {
@@ -151,8 +151,6 @@
   to   { opacity: 1; }
 }
 
-// Previously this was fullscreen (`position: fixed; inset: 0`).
-// Now it is constrained to the video section only.
 .video-section-player {
   position: absolute;
   inset: 0;
@@ -163,15 +161,15 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: clamp(8px, 2vw, 20px);
-  background: rgba(0, 0, 0, 0.88);
+  padding: 0;
+  background: #000;
   animation: videoPlayerIn 0.25s ease-out;
 }
 
 .video-section-player-close {
   position: absolute;
-  top: clamp(8px, 1.8vw, 14px);
-  right: clamp(8px, 1.8vw, 14px);
+  top: clamp(10px, 2vw, 16px);
+  right: clamp(10px, 2vw, 16px);
   z-index: 5;
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -195,34 +193,28 @@
 
 .video-section-player-fit {
   grid-area: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
 }
 
-// Keep a responsive 16:9 player box that always fits inside the section overlay.
 .video-section-embed {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 
   .video-section-embed-inner {
-    max-width: 100%;
-    max-height: 100%;
-    width: min(100%, 960px);
-    aspect-ratio: 16 / 9;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     background: #000;
-    position: relative;
     z-index: 1;
-    // Promote compositing so the iframe receives taps reliably on mobile WebKit.
     transform: translateZ(0);
     touch-action: manipulation;
 
@@ -269,14 +261,20 @@
 
   iframe {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     border: none;
     display: block;
     background: #000;
     pointer-events: auto;
     touch-action: manipulation;
+    // 16:9 cover — scale past edges; parent overflow clips.
+    width: auto;
+    height: auto;
+    min-width: 100%;
+    min-height: 100%;
+    aspect-ratio: 16 / 9;
   }
 
   // Transparent hit target: toggles play/pause via @vimeo/player (Vimeo’s own surface tap is unreliable in embeds).

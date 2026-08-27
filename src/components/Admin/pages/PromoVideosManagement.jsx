@@ -8,9 +8,11 @@ import {
   fetchPromoThumbnailGallery,
   deletePromoThumbnailGalleryImage,
 } from '../../../utils/fileUploadApi';
-import { parseVideoUrl } from '../../../utils/videoEmbed';
+import { parseVideoUrl, providerThumbnailUrl, fetchVimeoThumbnailUrl } from '../../../utils/videoEmbed';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { useAdminDialog } from '../AdminDialogContext';
+import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import AdminMediaGallery from '../shared/AdminMediaGallery';
 import '../Admin.scss';
 import './PromoVideosManagement.scss';
 
@@ -38,19 +40,87 @@ const emptyForm = () => ({
   localThumbUrl: '',
 });
 
-function PromoThumbnail({ path, localUrl = '', alt = '', className = '', loading, showErrorText = false }) {
-  const [failed, setFailed] = useState(false);
-  const src = localUrl || (path ? resolveMediaUrl(path) : '');
+function promoThumbProps(video) {
+  if (!video) return {};
+  return {
+    path: video.thumbnailPath || '',
+    provider: video.provider || '',
+    videoId: video.videoId || '',
+    videoUrl: video.videoUrl || '',
+  };
+}
+
+function PromoThumbnail({
+  path,
+  localUrl = '',
+  alt = '',
+  className = '',
+  loading,
+  showErrorText = false,
+  provider = '',
+  videoId = '',
+  videoUrl = '',
+}) {
+  const [customFailed, setCustomFailed] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState('');
+  const [fallbackFailed, setFallbackFailed] = useState(false);
+
+  const customSrc = localUrl || (path ? resolveMediaUrl(path) : '');
+  const instantFallback = providerThumbnailUrl({ provider, videoId });
 
   useEffect(() => {
-    setFailed(false);
-  }, [path, localUrl, src]);
+    setCustomFailed(false);
+    setFallbackUrl('');
+    setFallbackFailed(false);
+  }, [path, localUrl, customSrc, provider, videoId, videoUrl]);
+
+  useEffect(() => {
+    if (!customFailed || fallbackUrl || instantFallback) return undefined;
+    if (provider !== 'vimeo' || !videoUrl) return undefined;
+    let cancelled = false;
+    fetchVimeoThumbnailUrl(videoUrl).then((url) => {
+      if (!cancelled && url) setFallbackUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [customFailed, fallbackUrl, instantFallback, provider, videoUrl]);
+
+  useEffect(() => {
+    if (customFailed || fallbackUrl || instantFallback || provider !== 'vimeo' || !videoUrl) {
+      return undefined;
+    }
+    if (customSrc) return undefined;
+    let cancelled = false;
+    fetchVimeoThumbnailUrl(videoUrl).then((url) => {
+      if (!cancelled && url) setFallbackUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [customFailed, customSrc, fallbackUrl, instantFallback, provider, videoUrl]);
+
+  const customThumbActive = Boolean(customSrc && !customFailed);
+  const src = customThumbActive ? customSrc : fallbackUrl || instantFallback || '';
+  const usingFallback = Boolean(src && !customThumbActive);
 
   if (!src) {
+    if (showErrorText) {
+      return (
+        <div
+          className={`promo-videos-thumb-placeholder promo-videos-thumb-placeholder--error${
+            className ? ` ${className}` : ''
+          }`}
+        >
+          <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+          <span>Upload a thumbnail</span>
+        </div>
+      );
+    }
     return null;
   }
 
-  if (failed) {
+  if (fallbackFailed) {
     return (
       <div
         className={`promo-videos-thumb-placeholder promo-videos-thumb-placeholder--error${
@@ -64,77 +134,24 @@ function PromoThumbnail({ path, localUrl = '', alt = '', className = '', loading
   }
 
   return (
-    <img
-      className={className}
-      src={src}
-      alt={alt}
-      loading={loading}
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
-function ThumbnailGalleryGrid({
-  images,
-  loading,
-  selectedPath = '',
-  onSelect,
-  onDelete,
-  emptyMessage = 'No thumbnails in uploads/video-thumbnails yet.',
-}) {
-  if (loading && images.length === 0) {
-    return (
-      <div className="promo-thumb-gallery__loading">
-        <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-        Loading thumbnails…
-      </div>
-    );
-  }
-
-  if (images.length === 0) {
-    return <p className="course-image-section__gallery-empty">{emptyMessage}</p>;
-  }
-
-  return (
-    <div className="promo-thumb-gallery__grid course-image-section__gallery">
-      {images.map((img) => {
-        const isSelected = selectedPath && selectedPath === img.path;
-        return (
-          <div
-            key={img.path}
-            className={`course-image-section__tile${isSelected ? ' is-selected' : ''}`}
-          >
-            <button
-              type="button"
-              className="course-image-section__tile-select"
-              onClick={() => onSelect?.(img.path)}
-              title={img.usedByTitles?.join(', ') || img.filename || 'Select thumbnail'}
-            >
-              <img src={resolveMediaUrl(img.path)} alt="" loading="lazy" />
-              {isSelected ? (
-                <span className="course-image-section__tile-badge">
-                  <i className="fas fa-check" aria-hidden="true" />
-                </span>
-              ) : null}
-              {img.usedBy > 0 ? (
-                <span className="course-image-section__tile-used">{img.usedBy} in use</span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className="course-image-section__tile-delete"
-              onClick={(e) => onDelete?.(img, e)}
-              title="Delete from server folder"
-            >
-              <i className="fas fa-trash-alt" aria-hidden="true" />
-            </button>
-            <span className="promo-thumb-gallery__filename" title={img.filename}>
-              {img.filename}
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <img
+        className={className}
+        src={src}
+        alt={alt}
+        loading={loading}
+        onError={() => {
+          if (!customFailed && customSrc) {
+            setCustomFailed(true);
+            return;
+          }
+          setFallbackFailed(true);
+        }}
+      />
+      {usingFallback && showErrorText ? (
+        <span className="promo-videos-thumb-fallback-note">Custom image missing on server</span>
+      ) : null}
+    </>
   );
 }
 
@@ -147,7 +164,8 @@ const PromoVideosManagement = () => {
   const [selection, setSelection] = useState({ homepageVideoId: '', aboutVideoId: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [libraryUploading, setLibraryUploading] = useState(false);
+  const [formUploading, setFormUploading] = useState(false);
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [thumbDragActive, setThumbDragActive] = useState(false);
@@ -155,10 +173,13 @@ const PromoVideosManagement = () => {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm());
   const savedThumbOnEditRef = useRef('');
-  const thumbUploadLockRef = useRef(false);
+  const libraryUploadLockRef = useRef(false);
+  const formUploadLockRef = useRef(false);
   const thumbInputRef = useRef(null);
   const libraryThumbInputRef = useRef(null);
   const thumbDragCounterRef = useRef(0);
+  /** Paths created by upload in this modal session only (safe to orphan-cleanup on cancel). */
+  const sessionUploadedPathsRef = useRef(new Set());
 
   const authHeaders = useCallback(() => {
     const token = getAuthToken();
@@ -209,7 +230,23 @@ const PromoVideosManagement = () => {
     fetchGalleryImages();
   }, [fetchGalleryImages]);
 
+  const formVideoMeta = useMemo(() => {
+    if (!form.videoUrl?.trim()) return {};
+    const parsed = parseVideoUrl(form.videoUrl);
+    if (parsed.error) return {};
+    return {
+      provider: parsed.provider,
+      videoId: parsed.videoId,
+      videoUrl: parsed.videoUrl,
+    };
+  }, [form.videoUrl]);
+
   const hasThumbSelection = Boolean(form.thumbnailPath || form.localThumbUrl);
+
+  const brokenGalleryCount = useMemo(
+    () => galleryImages.filter((img) => img.onDisk === false).length,
+    [galleryImages]
+  );
 
   const videoOptions = useMemo(
     () => [{ id: '', label: '— None —' }, ...activeVideos.map((v) => ({ id: v.id, label: v.name }))],
@@ -250,6 +287,7 @@ const PromoVideosManagement = () => {
   const openCreate = () => {
     setEditingId(null);
     savedThumbOnEditRef.current = '';
+    sessionUploadedPathsRef.current = new Set();
     setForm((prev) => {
       revokeLocalThumb(prev.localThumbUrl);
       return emptyForm();
@@ -260,6 +298,7 @@ const PromoVideosManagement = () => {
   const openEdit = (video) => {
     setEditingId(video.id);
     savedThumbOnEditRef.current = video.thumbnailPath || '';
+    sessionUploadedPathsRef.current = new Set();
     setForm((prev) => {
       revokeLocalThumb(prev.localThumbUrl);
       return {
@@ -273,17 +312,23 @@ const PromoVideosManagement = () => {
   };
 
   const closeForm = () => {
-    if (saving || uploadingThumb || thumbUploadLockRef.current) return;
+    if (saving || formUploading || formUploadLockRef.current) return;
 
     const pendingThumb = form.thumbnailPath;
     const savedThumb = savedThumbOnEditRef.current;
+    const sessionUploads = sessionUploadedPathsRef.current;
     revokeLocalThumb(form.localThumbUrl);
     setFormOpen(false);
     setEditingId(null);
     setForm(emptyForm());
     savedThumbOnEditRef.current = '';
-    // Discard any upload that was never committed — both on create and on edit (replaced but not saved).
-    if (pendingThumb && pendingThumb !== savedThumb) {
+    sessionUploadedPathsRef.current = new Set();
+    // Only remove brand-new files uploaded this session that were never saved to a video.
+    if (
+      pendingThumb &&
+      pendingThumb !== savedThumb &&
+      sessionUploads.has(pendingThumb)
+    ) {
       cleanupPromoVideoThumbnail(pendingThumb);
     }
   };
@@ -294,8 +339,11 @@ const PromoVideosManagement = () => {
     await processThumbFile(file);
   };
 
-  const processThumbFile = async (file, { assignToForm = true, replacePath } = {}) => {
-    if (!file || thumbUploadLockRef.current) return null;
+  const processThumbFile = async (file, { assignToForm = true } = {}) => {
+    const lockRef = assignToForm ? formUploadLockRef : libraryUploadLockRef;
+    const setUploading = assignToForm ? setFormUploading : setLibraryUploading;
+
+    if (!file || lockRef.current) return null;
     if (!isAcceptedThumbFile(file)) {
       await showAlert({
         type: 'warning',
@@ -305,8 +353,7 @@ const PromoVideosManagement = () => {
       return null;
     }
 
-    thumbUploadLockRef.current = true;
-    const replace = replacePath !== undefined ? replacePath : form.thumbnailPath;
+    lockRef.current = true;
     let blobUrl = '';
     if (assignToForm) {
       blobUrl = URL.createObjectURL(file);
@@ -315,9 +362,10 @@ const PromoVideosManagement = () => {
         return { ...f, localThumbUrl: blobUrl };
       });
     }
-    setUploadingThumb(true);
+    setUploading(true);
     try {
-      const path = await uploadPromoVideoThumbnail(file, replace);
+      const path = await uploadPromoVideoThumbnail(file, '');
+      sessionUploadedPathsRef.current.add(path);
       if (assignToForm) {
         setForm((f) => ({
           ...f,
@@ -340,15 +388,15 @@ const PromoVideosManagement = () => {
       });
       return null;
     } finally {
-      setUploadingThumb(false);
-      thumbUploadLockRef.current = false;
+      setUploading(false);
+      lockRef.current = false;
     }
   };
 
   const onThumbDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (uploadingThumb) return;
+    if (formUploading) return;
     thumbDragCounterRef.current += 1;
     setThumbDragActive(true);
   };
@@ -373,27 +421,17 @@ const PromoVideosManagement = () => {
     e.stopPropagation();
     thumbDragCounterRef.current = 0;
     setThumbDragActive(false);
-    if (uploadingThumb) return;
+    if (formUploading) return;
     const file = e.dataTransfer?.files?.[0];
     processThumbFile(file);
   };
 
   const clearThumbSelection = () => {
-    const pending = form.thumbnailPath;
-    const saved = savedThumbOnEditRef.current;
     revokeLocalThumb(form.localThumbUrl);
     setForm((f) => ({ ...f, thumbnailPath: '', localThumbUrl: '' }));
-    if (pending && pending !== saved) {
-      cleanupPromoVideoThumbnail(pending);
-    }
   };
 
   const selectGalleryImage = (imagePath) => {
-    const pending = form.thumbnailPath;
-    const saved = savedThumbOnEditRef.current;
-    if (pending && pending !== saved && pending !== imagePath) {
-      cleanupPromoVideoThumbnail(pending);
-    }
     revokeLocalThumb(form.localThumbUrl);
     setForm((f) => ({ ...f, thumbnailPath: imagePath, localThumbUrl: '' }));
   };
@@ -427,7 +465,7 @@ const PromoVideosManagement = () => {
   };
 
   const pickLibraryThumbnail = () => {
-    if (uploadingThumb || thumbUploadLockRef.current) return;
+    if (libraryUploading || libraryUploadLockRef.current) return;
     libraryThumbInputRef.current?.click();
   };
 
@@ -472,7 +510,7 @@ const PromoVideosManagement = () => {
   };
 
   const pickThumbnail = () => {
-    if (uploadingThumb || thumbUploadLockRef.current) return;
+    if (formUploading || formUploadLockRef.current) return;
     thumbInputRef.current?.click();
   };
 
@@ -497,7 +535,7 @@ const PromoVideosManagement = () => {
       });
       return;
     }
-    if (uploadingThumb || thumbUploadLockRef.current) {
+    if (formUploading || formUploadLockRef.current) {
       await showAlert({
         type: 'warning',
         title: 'Upload in progress',
@@ -523,6 +561,7 @@ const PromoVideosManagement = () => {
         });
       }
       savedThumbOnEditRef.current = form.thumbnailPath;
+      sessionUploadedPathsRef.current = new Set();
       revokeLocalThumb(form.localThumbUrl);
       setFormOpen(false);
       setEditingId(null);
@@ -543,9 +582,9 @@ const PromoVideosManagement = () => {
   const handleMoveToTrash = async (video) => {
     const ok = await showConfirm({
       type: 'warning',
-      title: 'Move to trash?',
-      message: `"${video.name}" will be hidden from the library and removed from homepage/about selection. Restore it from the Trash tab.`,
-      confirmLabel: 'Move to trash',
+      title: `Move to ${QUARANTINE_LABEL}?`,
+      message: `"${video.name}" will be hidden from the library and removed from homepage/about selection. Restore it from the ${QUARANTINE_LABEL} tab.`,
+      confirmLabel: `Move to ${QUARANTINE_LABEL}`,
       cancelLabel: 'Cancel',
     });
     if (!ok) return;
@@ -556,7 +595,7 @@ const PromoVideosManagement = () => {
       });
       if (res.data?.selection) setSelection(res.data.selection);
       await fetchList();
-      await showAlert({ type: 'success', title: 'Moved to trash', message: 'You can restore or delete it permanently from Trash.' });
+      await showAlert({ type: 'success', title: `Moved to ${QUARANTINE_LABEL}`, message: `You can restore or delete it permanently from ${QUARANTINE_LABEL}.` });
     } catch (err) {
       await showAlert({
         type: 'error',
@@ -613,10 +652,10 @@ const PromoVideosManagement = () => {
   const isTrashView = listTab === 'trash';
 
   const renderPlacementPreview = (video) => {
-    if (!video?.thumbnailPath) return null;
+    if (!video) return null;
     return (
       <div className="promo-videos-placement-card__preview">
-        <PromoThumbnail path={video.thumbnailPath} />
+        <PromoThumbnail {...promoThumbProps(video)} showErrorText />
       </div>
     );
   };
@@ -642,6 +681,21 @@ const PromoVideosManagement = () => {
         ) : null}
       </header>
 
+      {brokenGalleryCount > 0 ? (
+        <div className="promo-videos-storage-warn" role="status">
+          <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+          <div>
+            <strong>{brokenGalleryCount} thumbnail file{brokenGalleryCount === 1 ? '' : 's'} missing on disk</strong>
+            <p>
+              MongoDB still has the image path, but the file returns <strong>404 on the server</strong>{' '}
+              (not in <code>uploads/video-thumbnails</code>). Re-upload the thumbnail here and click{' '}
+              <strong>Save</strong> on the video. On your VPS, set{' '}
+              <code>UPLOAD_ROOT=/var/data/gorythm/uploads</code> so deploys do not wipe uploads.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="students-list-tabs promo-videos-list-tabs">
         <button
           type="button"
@@ -655,7 +709,7 @@ const PromoVideosManagement = () => {
           className={`students-list-tab students-list-tab--trash ${listTab === 'trash' ? 'active' : ''}`}
           onClick={() => setListTab('trash')}
         >
-          <i className="fas fa-trash-alt" aria-hidden /> Trash
+          <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
           {trashCount > 0 ? <span className="admin-list-tab-badge">{trashCount}</span> : null}
         </button>
       </div>
@@ -714,13 +768,13 @@ const PromoVideosManagement = () => {
               type="button"
               className="promo-videos-thumb-library__upload"
               onClick={pickLibraryThumbnail}
-              disabled={uploadingThumb}
+              disabled={libraryUploading}
             >
               <i
-                className={`fas ${uploadingThumb ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`}
+                className={`fas ${libraryUploading ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`}
                 aria-hidden="true"
               />
-              {uploadingThumb ? 'Uploading…' : 'Upload new image'}
+              {libraryUploading ? 'Uploading…' : 'Upload new image'}
             </button>
           </div>
           <div className="promo-videos-thumb-library__meta">
@@ -733,7 +787,7 @@ const PromoVideosManagement = () => {
               </span>
             ) : null}
           </div>
-          <ThumbnailGalleryGrid
+          <AdminMediaGallery
             images={galleryImages}
             loading={galleryLoading}
             selectedPath=""
@@ -818,12 +872,12 @@ const PromoVideosManagement = () => {
       ) : (
         <p className="promo-videos-trash-hint">
           <i className="fas fa-info-circle" aria-hidden />
-          Trashed videos are hidden from the site. Use <strong>Restore</strong> or <strong>Delete forever</strong> below.
+          Videos in {QUARANTINE_LABEL} are hidden from the site. Use <strong>Restore</strong> or <strong>Delete forever</strong> below.
         </p>
       )}
 
       <section className="promo-videos-library" aria-labelledby="promo-library-heading">
-        <h2 id="promo-library-heading">{isTrashView ? 'Trashed videos' : 'Video library'}</h2>
+        <h2 id="promo-library-heading">{isTrashView ? `${QUARANTINE_LABEL} videos` : 'Video library'}</h2>
 
         {loading ? (
           <div className="promo-videos-loading">
@@ -833,12 +887,12 @@ const PromoVideosManagement = () => {
         ) : videos.length === 0 ? (
           <div className="promo-videos-empty">
             <div className="promo-videos-empty__icon">
-              <i className={`fas ${isTrashView ? 'fa-trash-alt' : 'fa-clapperboard'}`} aria-hidden="true" />
+              <i className={`fas ${isTrashView ? 'fa-archive' : 'fa-clapperboard'}`} aria-hidden="true" />
             </div>
-            <h3>{isTrashView ? 'Trash is empty' : 'No videos yet'}</h3>
+            <h3>{isTrashView ? `${QUARANTINE_LABEL} is empty` : 'No videos yet'}</h3>
             <p>
               {isTrashView
-                ? 'Videos you move to trash will appear here.'
+                ? `Videos you move to ${QUARANTINE_LABEL} will appear here.`
                 : 'Add your first promo video with a thumbnail and Vimeo or YouTube link.'}
             </p>
             {!isTrashView ? (
@@ -853,7 +907,7 @@ const PromoVideosManagement = () => {
             {videos.map((v) => (
               <article key={v.id} className={`promo-videos-card${isTrashView ? ' promo-videos-card--trash' : ''}`}>
                 <div className="promo-videos-card__media">
-                  <PromoThumbnail path={v.thumbnailPath} loading="lazy" showErrorText />
+                  <PromoThumbnail {...promoThumbProps(v)} loading="lazy" showErrorText />
                   <span className={`promo-videos-card__provider promo-videos-card__provider--${v.provider}`}>
                     <i className={`fab fa-${v.provider === 'youtube' ? 'youtube' : 'vimeo-v'}`} aria-hidden="true" />
                     {v.provider}
@@ -968,7 +1022,7 @@ const PromoVideosManagement = () => {
                   <div
                     className={`course-image-section course-image-section__dropzone${
                       thumbDragActive ? ' is-dragging' : ''
-                    }${uploadingThumb ? ' is-uploading' : ''}`}
+                    }${formUploading ? ' is-uploading' : ''}`}
                     onDragEnter={onThumbDragEnter}
                     onDragLeave={onThumbDragLeave}
                     onDragOver={onThumbDragOver}
@@ -996,6 +1050,7 @@ const PromoVideosManagement = () => {
                             localUrl={form.localThumbUrl}
                             alt="Thumbnail preview"
                             showErrorText
+                            {...formVideoMeta}
                           />
                         ) : (
                           <div className="course-image-section__preview-empty">
@@ -1027,13 +1082,13 @@ const PromoVideosManagement = () => {
                           type="button"
                           className="course-image-section__upload-btn"
                           onClick={pickThumbnail}
-                          disabled={uploadingThumb}
+                          disabled={formUploading}
                         >
                           <i
-                            className={`fas ${uploadingThumb ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`}
+                            className={`fas ${formUploading ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`}
                             aria-hidden="true"
                           />
-                          {uploadingThumb
+                          {formUploading
                             ? 'Uploading…'
                             : hasThumbSelection
                               ? 'Replace image'
@@ -1062,7 +1117,7 @@ const PromoVideosManagement = () => {
                       ) : null}
                     </div>
 
-                    <ThumbnailGalleryGrid
+                    <AdminMediaGallery
                       images={galleryImages}
                       loading={galleryLoading}
                       selectedPath={form.thumbnailPath}
@@ -1084,7 +1139,7 @@ const PromoVideosManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  className="promo-videos-modal__save"
+                  className="promo-videos-modal__save btn-save"
                   disabled={saving}
                 >
                   {saving ? 'Saving…' : 'Save video'}

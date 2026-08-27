@@ -7,8 +7,14 @@ const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
 const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
+const {
+  loadSubscribePopupSettings,
+  saveSubscribePopupSettings,
+} = require('../services/subscribePopupSettings');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
+
+const SUBSCRIBER_LIST_LIMIT = 2000;
 
 const validateSubscriberIds = (ids) => {
   if (!Array.isArray(ids) || ids.length === 0) return 'Subscriber IDs are required';
@@ -72,7 +78,7 @@ router.post(
 
       const subscriber = await Subscriber.findOneAndUpdate(
         { email },
-        { $setOnInsert: { email, source } },
+        { $set: { source }, $setOnInsert: { email } },
         { new: true, upsert: true }
       );
 
@@ -90,10 +96,51 @@ router.post(
 
 router.get('/admin', ...adminOnly, async (req, res) => {
   try {
-    const subscribers = await Subscriber.find({}).sort({ createdAt: -1 }).limit(2000).lean();
-    return res.json({ success: true, subscribers });
+    const fetchAll = req.query.all === 'true' || req.query.all === '1';
+    const totalCount = await Subscriber.countDocuments({});
+    const query = Subscriber.find({}).sort({ createdAt: -1 });
+    const subscribers = fetchAll
+      ? await query.lean()
+      : await query.limit(SUBSCRIBER_LIST_LIMIT).lean();
+
+    return res.json({
+      success: true,
+      subscribers,
+      totalCount,
+      listLimit: fetchAll ? null : SUBSCRIBER_LIST_LIMIT,
+      truncated: !fetchAll && totalCount > SUBSCRIBER_LIST_LIMIT,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to fetch subscribers' });
+  }
+});
+
+router.get('/admin/popup-settings', ...adminOnly, async (req, res) => {
+  try {
+    const form = await loadSubscribePopupSettings();
+    return res.json({ success: true, popup: form });
+  } catch (error) {
+    req.log?.error?.('popup-settings load', { err: error });
+    return res.status(500).json({ success: false, error: 'Failed to load popup settings' });
+  }
+});
+
+router.post('/admin/popup-settings', ...adminOnly, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    const userId = req.user?.userId || req.user?.id || null;
+    const form = await saveSubscribePopupSettings(req.body || {}, { role, userId });
+    return res.json({
+      success: true,
+      message: 'Popup settings saved',
+      popup: form,
+    });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      error: error.message || 'Failed to save popup settings',
+    });
   }
 });
 

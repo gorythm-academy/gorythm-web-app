@@ -21,12 +21,13 @@ const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
 const NAV_BY_ROLE = {
   student: [
     { to: '/student', label: 'Dashboard', icon: 'fas fa-home', end: true },
-    { to: '/student/schedule', label: 'Classes schedules', icon: 'fas fa-clock' },
+    { to: '/student/schedule', label: 'Class schedules', icon: 'fas fa-clock' },
     { to: '/student/fees', label: 'Fees', icon: 'fas fa-file-invoice-dollar' },
     { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments' },
     { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes' },
     { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open', badgeKey: 'content' },
     { to: '/student/attendance', label: 'Attendance', icon: 'fas fa-user-check' },
+    { to: '/student/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fas fa-home', end: true },
@@ -36,17 +37,21 @@ const NAV_BY_ROLE = {
     { to: '/teacher/resources', label: 'Resources', icon: 'fas fa-folder-open' },
     { to: '/teacher/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizAttempts' },
     { to: '/teacher/my-attendance', label: 'My Attendance', icon: 'fas fa-calendar-check' },
+    { to: '/teacher/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
   parent: [
     { to: '/parent', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/parent/children', label: 'Children', icon: 'fas fa-child' },
+    { to: '/parent/schedule', label: 'Class schedules', icon: 'fas fa-clock' },
     { to: '/parent/progress', label: 'Progress', icon: 'fas fa-chart-line' },
+    { to: '/parent/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
   accountant: [
     { to: '/accountant', label: 'Overview', icon: 'fas fa-chart-pie', end: true },
     { to: '/accountant/payments', label: 'Fee reviews', icon: 'fas fa-file-invoice-dollar', badgeKey: 'payments' },
     { to: '/accountant/payroll', label: 'Teacher payroll', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
     { to: '/accountant/reports', label: 'Financial reports', icon: 'fas fa-file-export' },
+    { to: '/accountant/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
 };
 

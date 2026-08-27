@@ -28,6 +28,7 @@ const StudentQuizzes = () => {
   const [answers, setAnswers] = useState({});
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [newItems, setNewItems] = useState([]);
 
   const load = () => {
@@ -86,10 +87,11 @@ const StudentQuizzes = () => {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!activeQuiz?.quiz) return;
+    if (!activeQuiz?.quiz || submitting) return;
     const ordered = (activeQuiz.quiz.questions || []).map((_, idx) =>
       answers[idx] != null ? Number(answers[idx]) : -1
     );
+    setSubmitting(true);
     try {
       const res = await portalPost('/student/quiz-attempts', {
         quizId: portalDocId(activeQuiz.quiz),
@@ -106,6 +108,8 @@ const StudentQuizzes = () => {
       } else setMsg(res.error || 'Failed');
     } catch (err) {
       setMsg(err.message || 'Failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -274,7 +278,7 @@ const StudentQuizzes = () => {
               ))}
             </fieldset>
           ))}
-          <button type="submit">Submit quiz</button>
+          <button type="submit" disabled={submitting}>{submitting ? 'Submitting…' : 'Submit quiz'}</button>
         </form>
       ) : null}
 

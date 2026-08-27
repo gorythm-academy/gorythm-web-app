@@ -28,17 +28,6 @@
     object-position: center;
     display: block;
   }
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background:
-      linear-gradient(90deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.4) 38%, rgba(0, 0, 0, 0.34) 100%),
-      linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.62) 100%);
-  }
 }
 
 .footer-milky-inner {

@@ -1,0 +1,200 @@
+// Shared admin page chrome: headers, Add/create, Save, secondary actions.
+// Imported via Admin.scss for all dashboard pages.
+
+// Windows / Fluent–style purple-blue for primary Save actions
+$admin-save-blue: #5b5fc7;
+$admin-save-blue-dark: #4f52b2;
+
+.admin-dashboard {
+    // ——— Page header (white card) ———
+    .page-header,
+    .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+
+        .header-left,
+        &:not(:has(.header-right)):not(:has(.header-left)) {
+            min-width: 0;
+        }
+
+        .header-left {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            line-height: 1.25;
+
+            i {
+                color: var(--color-accent);
+                margin-right: 0;
+            }
+        }
+
+        p {
+            color: #64748b;
+            margin: 0.5rem 0 0;
+            font-size: 0.95rem;
+            line-height: 1.45;
+        }
+
+        small {
+            color: var(--color-muted, #94a3b8);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 0.35rem;
+
+            i {
+                color: var(--color-accent);
+                font-size: 0.8125rem;
+            }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+    }
+
+    // ——— Add / create (accent) ———
+    .page-header .header-right .btn-primary,
+    .settings-header .header-right .btn-primary,
+    .btn-primary.btn-add,
+    .btn-add,
+    .empty-state-cta.btn-primary,
+    .no-results-cta.btn-primary {
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+        color: #fff !important;
+        border: none;
+        padding: 0.8rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+        &:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(var(--color-accent-rgb), 0.3);
+        }
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+    }
+
+    .page-header .header-right .btn-secondary,
+    .settings-header .header-right .btn-secondary {
+        background: #fff;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        padding: 0.8rem 1.35rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: background 0.2s ease, border-color 0.2s ease;
+
+        &:hover:not(:disabled) {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+    }
+
+    // ——— Primary Save (Windows-like purple-blue) ———
+    .btn-save,
+    .btn-primary.btn-save,
+    button.btn-primary:has(> .fa-save),
+    button.btn-primary:has(> .fas.fa-save),
+    .payments-bank-config__actions .btn-primary,
+    .promo-videos-modal__save.btn-save,
+    .lms-schedule-btn-primary.btn-save {
+        background: linear-gradient(135deg, $admin-save-blue, $admin-save-blue-dark) !important;
+        color: #fff !important;
+        border: none !important;
+        padding: 0.75rem 1.35rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+        &:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba($admin-save-blue, 0.35);
+        }
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+    }
+
+    .lms-schedule-btn-primary.btn-add {
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark)) !important;
+        color: #fff !important;
+        border: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-dashboard {
+        .page-header,
+        .settings-header {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 1.15rem;
+
+            .header-right {
+                justify-content: flex-start;
+            }
+
+            h1 {
+                font-size: 1.45rem;
+            }
+        }
+    }
+}

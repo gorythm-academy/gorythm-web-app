@@ -115,6 +115,16 @@ const DashboardLayout = () => {
                 <nav className="sidebar-menu">
                     {menuItems.map((item) => {
                         const badgeCount = item.badgeKey ? adminBadges[item.badgeKey] || 0 : 0;
+                        const lmsBreakdown = adminBadges.lmsAttendanceBreakdown;
+                        const lmsBadgeStale = adminBadges.lmsBadgeLoadFailed;
+                        const lmsBadgeTitle =
+                            item.path === '/admin/lms' && lmsBadgeStale
+                                ? `${item.label} (badge counts may be stale — refresh failed)`
+                                : item.path === '/admin/lms' && badgeCount > 0 && lmsBreakdown
+                                ? `${item.label} (${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll)`
+                                : !sidebarOpen && badgeCount > 0
+                                  ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
+                                  : undefined;
                         const isActive =
                             item.path === '/admin'
                                 ? location.pathname === '/admin'
@@ -124,11 +134,7 @@ const DashboardLayout = () => {
                             key={item.path}
                             to={item.path}
                             className={`menu-item ${isActive ? 'active' : ''}`}
-                            title={
-                                !sidebarOpen && badgeCount > 0
-                                    ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
-                                    : undefined
-                            }
+                            title={lmsBadgeTitle}
                         >
                             <i className={item.icon}></i>
                             {sidebarOpen ? (
@@ -138,7 +144,11 @@ const DashboardLayout = () => {
                                         item.badgeDot ? (
                                             <span
                                                 className="menu-item__badge menu-item__badge--dot"
-                                                aria-label="Pending items"
+                                                aria-label={
+                                                    item.path === '/admin/lms' && lmsBreakdown
+                                                        ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
+                                                        : 'Pending items'
+                                                }
                                             />
                                         ) : (
                                             <span className="menu-item__badge" aria-label={`${badgeCount} pending`}>
@@ -152,7 +162,11 @@ const DashboardLayout = () => {
                                 item.badgeDot ? (
                                     <span
                                         className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
-                                        aria-label="Pending items"
+                                        aria-label={
+                                            item.path === '/admin/lms' && lmsBreakdown
+                                                ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
+                                                : 'Pending items'
+                                        }
                                     />
                                 ) : (
                                     <span
@@ -180,7 +194,7 @@ const DashboardLayout = () => {
                         {sidebarOpen && (
                             <div className="profile-info">
                                 <h4>{user.name || 'Admin User'}</h4>
-                                {user.email ? <p>{user.email}</p> : null}
+                                {user.email ? <p className="admin-email">{user.email}</p> : null}
                                 <span className="role-badge">
                                   {user.role === 'manager' ? 'Manager' : user.role || 'staff'}
                                 </span>

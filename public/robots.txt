@@ -6,4 +6,4 @@ Disallow: /teacher/
 Disallow: /parent/
 Disallow: /accountant/
 
-Sitemap: https://gorythmacademy.com/sitemap.xml
+Sitemap: https://gorythmacademy.com/api/site/sitemap.xml

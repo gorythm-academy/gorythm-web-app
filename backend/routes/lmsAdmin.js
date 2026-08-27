@@ -1,4 +1,7 @@
 const express = require('express');
+const { createShortTtlCache } = require('../utils/shortTtlCache');
+
+const lmsTabBadgesCache = createShortTtlCache(45_000);
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
@@ -14,6 +17,8 @@ const {
     monthBounds,
     isoDateKey,
 } = require('../services/teacherAttendanceCalendar');
+const { canonicalizeScheduleTimezone } = require('../utils/scheduleTimezone');
+const { getAcademyTimezone } = require('../services/academyTimezone');
 const {
     aggregateFromApprovedDays,
     monthNeedsReapproval,
@@ -41,6 +46,15 @@ const { getTeacherPayrollAttendanceDetail } = require('../services/teacherPayrol
 const { getTeachersForCourse } = require('../services/courseTeachers');
 const { activeUserFilter } = require('../utils/userQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
+const {
+    validateScheduleTimes,
+    resolveScheduleTeacher,
+    findDuplicateSchedule,
+    findTeacherScheduleConflict,
+    teacherScheduleConflictMessage,
+} = require('../utils/scheduleValidation');
+const { activeLmsFilter, trashedLmsFilter, parseTrashQuery } = require('../utils/lmsTrashQuery');
+const { softDeleteMany, restoreMany, permanentDeleteMany, countTrashed } = require('../services/lmsTrashOps');
 
 router.use(authMiddleware);
 router.use(validateSessionUser);
@@ -48,15 +62,105 @@ router.use(allowRoles('super-admin', 'manager'));
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+function parseListPagination(req, defaultLimit = 25) {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || defaultLimit));
+    return { page, limit, skip: (page - 1) * limit };
+}
+
+function parseMetaOnly(req) {
+    return req.query.metaOnly === '1' || req.query.metaOnly === 'true';
+}
+
+function parseIncludeMeta(req) {
+    return req.query.includeMeta === '1' || req.query.includeMeta === 'true';
+}
+
+function escapeRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function buildSubmissionSearchFilter(search, trash) {
+    const q = String(search || '').trim();
+    if (!q) return null;
+    const re = new RegExp(escapeRegex(q), 'i');
+    const [studentIds, assignmentIds, teacherIds] = await Promise.all([
+        User.find({
+            role: 'student',
+            ...(trash ? {} : activeUserFilter()),
+            $or: [{ name: re }, { studentId: re }, { email: re }],
+        }).distinct('_id'),
+        Assignment.find({
+            ...(trash ? trashedLmsFilter() : activeLmsFilter()),
+            title: re,
+        }).distinct('_id'),
+        User.find({ role: 'teacher', ...activeUserFilter(), name: re }).distinct('_id'),
+    ]);
+    let teacherAssignmentIds = [];
+    if (teacherIds.length) {
+        teacherAssignmentIds = await Assignment.find({
+            ...(trash ? trashedLmsFilter() : activeLmsFilter()),
+            teacher: { $in: teacherIds },
+        }).distinct('_id');
+    }
+    const or = [];
+    if (studentIds.length) or.push({ student: { $in: studentIds } });
+    if (assignmentIds.length) or.push({ assignment: { $in: assignmentIds } });
+    if (teacherAssignmentIds.length) or.push({ assignment: { $in: teacherAssignmentIds } });
+    if (!or.length) return { _id: null };
+    return { $or: or };
+}
+
+async function buildQuizAttemptSearchFilter(search) {
+    const q = String(search || '').trim();
+    if (!q) return null;
+    const re = new RegExp(escapeRegex(q), 'i');
+    const [studentIds, quizIds, teacherIds] = await Promise.all([
+        User.find({
+            role: 'student',
+            ...activeUserFilter(),
+            $or: [{ name: re }, { studentId: re }, { email: re }],
+        }).distinct('_id'),
+        Quiz.find({ title: re }).distinct('_id'),
+        User.find({ role: 'teacher', ...activeUserFilter(), name: re }).distinct('_id'),
+    ]);
+    let teacherQuizIds = [];
+    if (teacherIds.length) {
+        teacherQuizIds = await Quiz.find({ teacher: { $in: teacherIds } }).distinct('_id');
+    }
+    const allQuizIds = [...new Set([...quizIds.map(String), ...teacherQuizIds.map(String)])];
+    const or = [];
+    if (studentIds.length) or.push({ student: { $in: studentIds } });
+    if (allQuizIds.length) or.push({ quiz: { $in: allQuizIds } });
+    if (!or.length) return { _id: null };
+    return { $or: or };
+}
+
+async function loadActiveCoursesMeta() {
+    return Course.find({ ...activeCourseFilter() })
+        .select('title instructorName')
+        .sort({ title: 1 })
+        .lean();
+}
+
 // ——— Class schedules ———
 router.get('/schedules', async (req, res) => {
     try {
         const filter = {};
         if (req.query.courseId) filter.course = req.query.courseId;
+        if (req.query.teacherId) filter.teacher = req.query.teacherId;
         const schedules = await ClassSchedule.find(filter)
             .populate('course', 'title')
             .populate('teacher', 'name email')
             .sort({ dayOfWeek: 1, startTime: 1 });
+        const academyTimezone = await getAcademyTimezone();
+        const normalizedSchedules = schedules.map((doc) => {
+            const plain = doc.toObject ? doc.toObject() : doc;
+            return {
+                ...plain,
+                timezone: canonicalizeScheduleTimezone(plain.timezone, academyTimezone),
+            };
+        });
         let teachers;
         if (req.query.courseId) {
             teachers = await getTeachersForCourse(req.query.courseId);
@@ -65,7 +169,7 @@ router.get('/schedules', async (req, res) => {
                 .select('name email')
                 .sort({ name: 1 });
         }
-        res.json({ success: true, schedules, dayLabels: DAY_LABELS, teachers });
+        res.json({ success: true, schedules: normalizedSchedules, academyTimezone, dayLabels: DAY_LABELS, teachers });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load schedules' });
     }
@@ -74,15 +178,46 @@ router.get('/schedules', async (req, res) => {
 router.post('/schedules', async (req, res) => {
     try {
         const { courseId, teacherId, dayOfWeek, startTime, endTime, timezone, roomOrLink } = req.body;
+        if (!courseId) {
+            return res.status(400).json({ success: false, error: 'Course is required' });
+        }
+        const timeError = validateScheduleTimes(startTime, endTime);
+        if (timeError) {
+            return res.status(400).json({ success: false, error: timeError });
+        }
         const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
-        const schedule = await ClassSchedule.create({
-            course: courseId,
-            teacher: teacherId || course.instructor,
+        const resolved = await resolveScheduleTeacher(courseId, teacherId);
+        if (resolved.error) {
+            return res.status(400).json({ success: false, error: resolved.error });
+        }
+        const duplicate = await findDuplicateSchedule({ courseId, dayOfWeek, startTime });
+        if (duplicate) {
+            return res.status(409).json({
+                success: false,
+                error: 'A schedule already exists for this course, day, and start time.',
+            });
+        }
+        const teacherConflict = await findTeacherScheduleConflict({
+            teacherId: resolved.teacherId,
             dayOfWeek,
             startTime,
             endTime,
-            timezone: timezone || 'UTC',
+        });
+        if (teacherConflict) {
+            return res.status(409).json({
+                success: false,
+                error: teacherScheduleConflictMessage(teacherConflict),
+            });
+        }
+        const academyTimezone = await getAcademyTimezone();
+        const schedule = await ClassSchedule.create({
+            course: courseId,
+            teacher: resolved.teacherId,
+            dayOfWeek,
+            startTime,
+            endTime,
+            timezone: canonicalizeScheduleTimezone(timezone, academyTimezone),
             roomOrLink: roomOrLink || '',
         });
         const populated = await ClassSchedule.findById(schedule._id)
@@ -100,18 +235,64 @@ router.patch('/schedules/:id', async (req, res) => {
         const schedule = await ClassSchedule.findById(req.params.id);
         if (!schedule) return res.status(404).json({ success: false, error: 'Schedule not found' });
 
+        const nextStart = startTime || schedule.startTime;
+        const nextEnd = endTime || schedule.endTime;
+        const timeError = validateScheduleTimes(nextStart, nextEnd);
+        if (timeError) {
+            return res.status(400).json({ success: false, error: timeError });
+        }
+
+        const targetCourseId = courseId || schedule.course;
         if (courseId) {
             const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
             schedule.course = courseId;
-            if (!teacherId) schedule.teacher = course.instructor;
         }
-        if (teacherId) schedule.teacher = teacherId;
+        if (courseId || teacherId !== undefined) {
+            const resolved = await resolveScheduleTeacher(
+                targetCourseId,
+                teacherId !== undefined && teacherId !== '' ? teacherId : null
+            );
+            if (resolved.error) {
+                return res.status(400).json({ success: false, error: resolved.error });
+            }
+            schedule.teacher = resolved.teacherId;
+        }
         if (dayOfWeek !== undefined) schedule.dayOfWeek = dayOfWeek;
         if (startTime) schedule.startTime = startTime;
         if (endTime) schedule.endTime = endTime;
-        if (timezone !== undefined) schedule.timezone = timezone || 'UTC';
+        if (timezone !== undefined) {
+            const academyTimezone = await getAcademyTimezone();
+            schedule.timezone = canonicalizeScheduleTimezone(timezone, academyTimezone);
+        }
         if (roomOrLink !== undefined) schedule.roomOrLink = roomOrLink || '';
+
+        const duplicate = await findDuplicateSchedule({
+            courseId: schedule.course,
+            dayOfWeek: schedule.dayOfWeek,
+            startTime: schedule.startTime,
+            excludeId: schedule._id,
+        });
+        if (duplicate) {
+            return res.status(409).json({
+                success: false,
+                error: 'A schedule already exists for this course, day, and start time.',
+            });
+        }
+
+        const teacherConflict = await findTeacherScheduleConflict({
+            teacherId: schedule.teacher,
+            dayOfWeek: schedule.dayOfWeek,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            excludeId: schedule._id,
+        });
+        if (teacherConflict) {
+            return res.status(409).json({
+                success: false,
+                error: teacherScheduleConflictMessage(teacherConflict),
+            });
+        }
 
         await schedule.save();
         const populated = await ClassSchedule.findById(schedule._id)
@@ -165,17 +346,24 @@ router.post('/schedules/bulk-delete', async (req, res) => {
 // ——— Parent ↔ student links ———
 router.get('/parent-links', async (req, res) => {
     try {
+        const linksOnly = req.query.linksOnly === '1' || req.query.linksOnly === 'true';
         const linksRaw = await ParentStudentLink.find()
             .populate('parent', 'name email deletedAt')
             .populate('student', 'name email studentId deletedAt')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         const links = linksRaw.filter((l) => l.parent && !l.parent.deletedAt && l.student && !l.student.deletedAt);
+        if (linksOnly) {
+            return res.json({ success: true, links });
+        }
         const parents = await User.find({ role: 'parent', ...activeUserFilter() })
             .select('name email')
-            .sort({ name: 1 });
+            .sort({ name: 1 })
+            .limit(50);
         const students = await User.find({ role: 'student', ...activeUserFilter() })
             .select('name email studentId')
-            .sort({ name: 1 });
+            .sort({ name: 1 })
+            .limit(50);
         res.json({ success: true, links, parents, students });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load parent links' });
@@ -193,6 +381,7 @@ router.post('/parent-links', async (req, res) => {
         if (!parent || !student) {
             return res.status(400).json({ success: false, error: 'Invalid or removed parent/student' });
         }
+        const existing = await ParentStudentLink.findOne({ parent: parentId, student: studentId });
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parentId, student: studentId },
             { relation },
@@ -200,7 +389,7 @@ router.post('/parent-links', async (req, res) => {
         )
             .populate('parent', 'name email')
             .populate('student', 'name email studentId');
-        res.json({ success: true, link });
+        res.json({ success: true, link, created: !existing });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to link parent and student' });
     }
@@ -208,7 +397,10 @@ router.post('/parent-links', async (req, res) => {
 
 router.delete('/parent-links/:id', async (req, res) => {
     try {
-        await ParentStudentLink.findByIdAndDelete(req.params.id);
+        const link = await ParentStudentLink.findByIdAndDelete(req.params.id);
+        if (!link) {
+            return res.status(404).json({ success: false, error: 'Link not found' });
+        }
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to remove link' });
@@ -317,6 +509,7 @@ router.get('/teacher-attendance-daily/pending-summary', async (req, res) => {
             const key = `${monthKey}|${teacherId}`;
             if (!map.has(key)) {
                 map.set(key, {
+                    kind: 'daily',
                     monthKey,
                     teacherId,
                     teacher: d.teacher,
@@ -329,7 +522,21 @@ router.get('/teacher-attendance-daily/pending-summary', async (req, res) => {
             if (a.monthKey !== b.monthKey) return a.monthKey.localeCompare(b.monthKey);
             return (a.teacher?.name || '').localeCompare(b.teacher?.name || '');
         });
-        res.json({ success: true, items });
+
+        const monthlyRows = await TeacherAttendanceRequest.find({ status: 'pending' })
+            .populate('teacher', 'name email')
+            .sort({ monthKey: 1 })
+            .lean();
+        const monthlyItems = monthlyRows.map((row) => ({
+            kind: 'monthly',
+            monthKey: row.monthKey,
+            teacherId: row.teacher?._id || row.teacher,
+            teacher: row.teacher,
+            requestId: row._id,
+            pendingCount: 1,
+        }));
+
+        res.json({ success: true, items, monthlyItems });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load pending attendance summary' });
     }
@@ -379,24 +586,36 @@ router.get('/teacher-attendance-requests', async (req, res) => {
         if (req.query.status && req.query.status !== 'all') {
             filter.status = req.query.status;
         }
+        if (req.query.month) {
+            filter.monthKey = String(req.query.month).trim();
+        }
         const requests = await TeacherAttendanceRequest.find(filter)
             .populate('teacher', 'name email')
             .populate('reviewedBy', 'name email')
-            .sort({ submittedAt: -1, updatedAt: -1 });
-        const enriched = await Promise.all(
-            requests.map(async (req) => {
-                const plain = req.toObject();
-                if (plain.status !== 'pending') {
-                    return { ...plain, approvalBlockReason: null, unmarkedDates: [] };
-                }
-                const block = await computeMonthlyApprovalBlock(req.teacher, req.monthKey);
-                return {
-                    ...plain,
-                    approvalBlockReason: block?.reason || null,
-                    unmarkedDates: block?.unmarkedDates || [],
-                };
-            })
-        );
+            .sort({ submittedAt: -1, updatedAt: -1 })
+            .limit(200);
+        const pendingRequests = requests.filter((r) => r.status === 'pending');
+        const blockByRequestId = new Map();
+        if (pendingRequests.length && pendingRequests.length <= 40) {
+            await Promise.all(
+                pendingRequests.map(async (req) => {
+                    const block = await computeMonthlyApprovalBlock(req.teacher, req.monthKey);
+                    if (block) blockByRequestId.set(String(req._id), block);
+                })
+            );
+        }
+        const enriched = requests.map((req) => {
+            const plain = req.toObject ? req.toObject() : req;
+            if (plain.status !== 'pending') {
+                return { ...plain, approvalBlockReason: null, unmarkedDates: [] };
+            }
+            const block = blockByRequestId.get(String(req._id));
+            return {
+                ...plain,
+                approvalBlockReason: block?.reason || null,
+                unmarkedDates: block?.unmarkedDates || [],
+            };
+        });
         res.json({ success: true, requests: enriched });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load requests' });
@@ -425,6 +644,7 @@ router.get('/teacher-attendance-requests/:id/daily', async (req, res) => {
             marksByDate[isoDateKey(d.date)] = {
                 status: d.status,
                 notes: d.notes || '',
+                approvalStatus: d.approvalStatus || 'pending',
                 _id: d._id,
             };
         });
@@ -608,6 +828,14 @@ router.post('/teacher-attendance-requests/:id/retry-payroll', async (req, res) =
 
 router.get('/lms-tab-badges', async (req, res) => {
     try {
+        const force = req.query.force === 'true' || req.query.force === '1';
+        if (!force) {
+            const cached = lmsTabBadgesCache.get();
+            if (cached) {
+                return res.json({ success: true, ...cached, cached: true });
+            }
+        }
+
         const [
             dailyPending,
             monthlyPending,
@@ -632,8 +860,7 @@ router.get('/lms-tab-badges', async (req, res) => {
         const attendanceCount = dailyPending + monthlyPending;
         const payrollCount =
             payrollPendingReview + payrollStale + payrollRejected + payrollMissing;
-        res.json({
-            success: true,
+        const payload = {
             attendanceCount,
             payrollCount,
             dailyPending,
@@ -642,7 +869,9 @@ router.get('/lms-tab-badges', async (req, res) => {
             payrollStale,
             payrollRejected,
             payrollMissing,
-        });
+        };
+        lmsTabBadgesCache.set(payload);
+        res.json({ success: true, ...payload });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load LMS tab badges' });
     }
@@ -668,20 +897,84 @@ router.get('/attendance-pending-count', async (req, res) => {
     }
 });
 
+async function resourceScopeFilter(courseId) {
+    if (!courseId) return {};
+    return { course: courseId };
+}
+
+async function assignmentScopeFilter(courseId) {
+    if (!courseId) return {};
+    return { course: courseId };
+}
+
+async function submissionListFilter(courseId, trash) {
+    const filter = trash ? { ...trashedLmsFilter() } : { ...activeLmsFilter() };
+    if (courseId) {
+        const assignmentFilter = { course: courseId };
+        if (!trash) Object.assign(assignmentFilter, activeLmsFilter());
+        const assignmentIds = await Assignment.find(assignmentFilter).distinct('_id');
+        filter.assignment = { $in: assignmentIds };
+    }
+    return filter;
+}
+
+async function quizAttemptListFilter(courseId, trash) {
+    const filter = trash ? { ...trashedLmsFilter() } : { ...activeLmsFilter() };
+    if (courseId) {
+        const quizIds = await Quiz.find({ course: courseId }).distinct('_id');
+        filter.quiz = { $in: quizIds };
+    }
+    return filter;
+}
+
 // ——— Course resources (books, files, links) ———
+function normalizeResourceAttachments(input) {
+    const list = Array.isArray(input?.attachments)
+        ? input.attachments.map((u) => String(u || '').trim()).filter(Boolean)
+        : [];
+    if (list.length) return list;
+    const legacy = String(input?.fileUrl || '').trim();
+    return legacy ? [legacy] : [];
+}
+
+function applyResourceFiles(resource, { fileUrl, attachments, type }) {
+    if (attachments !== undefined || fileUrl !== undefined) {
+        const normalized = normalizeResourceAttachments({ attachments, fileUrl });
+        resource.attachments = normalized;
+        resource.fileUrl = normalized[0] || '';
+    }
+    if (type !== undefined) resource.type = type || 'file';
+}
+
 router.get('/resources', async (req, res) => {
     try {
-        const filter = {};
-        if (req.query.courseId) filter.course = req.query.courseId;
-        const resources = await Resource.find(filter)
-            .populate('course', 'title instructorName')
-            .populate('uploadedBy', 'name email role')
-            .sort({ createdAt: -1 });
-        const courses = await Course.find({ ...activeCourseFilter() })
+        const trash = parseTrashQuery(req);
+        const metaOnly = parseMetaOnly(req);
+        const scope = await resourceScopeFilter(req.query.courseId);
+        const listFilter = { ...scope, ...(trash ? trashedLmsFilter() : activeLmsFilter()) };
+        const coursesPromise = Course.find({ ...activeCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
-            .sort({ title: 1 });
-        res.json({ success: true, resources, courses });
+            .sort({ title: 1 })
+            .lean();
+        const trashCountPromise = countTrashed(Resource, scope);
+
+        if (metaOnly) {
+            const [trashCount, courses] = await Promise.all([trashCountPromise, coursesPromise]);
+            return res.json({ success: true, resources: [], courses, trashCount });
+        }
+
+        const [resources, trashCount, courses] = await Promise.all([
+            Resource.find(listFilter)
+                .select('title description fileUrl attachments type course uploadedBy createdAt updatedAt deletedAt')
+                .populate('course', 'title instructorName')
+                .populate('uploadedBy', 'name email role')
+                .sort({ createdAt: -1 })
+                .lean(),
+            trashCountPromise,
+            coursesPromise,
+        ]);
+        res.json({ success: true, resources, courses, trashCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load resources' });
     }
@@ -695,10 +988,12 @@ router.post('/resources', async (req, res) => {
         }
         const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
         if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
+        const attachmentList = normalizeResourceAttachments({ attachments, fileUrl });
         const resource = await Resource.create({
             title: String(title).trim(),
             description: description || '',
-            fileUrl: fileUrl || (Array.isArray(attachments) && attachments[0]) || '',
+            fileUrl: attachmentList[0] || '',
+            attachments: attachmentList,
             type: type || 'file',
             course: courseId,
             uploadedBy: req.user.userId,
@@ -714,9 +1009,9 @@ router.post('/resources', async (req, res) => {
 
 router.patch('/resources/:id', async (req, res) => {
     try {
-        const resource = await Resource.findById(req.params.id);
+        const resource = await Resource.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
-        const { courseId, title, description, fileUrl, type } = req.body;
+        const { courseId, title, description, fileUrl, type, attachments } = req.body;
         if (courseId) {
             const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
@@ -724,8 +1019,7 @@ router.patch('/resources/:id', async (req, res) => {
         }
         if (title !== undefined) resource.title = String(title).trim();
         if (description !== undefined) resource.description = description || '';
-        if (fileUrl !== undefined) resource.fileUrl = fileUrl || '';
-        if (type !== undefined) resource.type = type || 'file';
+        applyResourceFiles(resource, { fileUrl, attachments, type });
         await resource.save();
         const populated = await Resource.findById(resource._id)
             .populate('course', 'title')
@@ -742,17 +1036,50 @@ router.post('/resources/bulk-delete', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        const result = await Resource.deleteMany({ _id: { $in: ids } });
-        res.json({ success: true, deletedCount: result.deletedCount });
+        const deletedCount = await softDeleteMany(Resource, ids);
+        res.json({ success: true, deletedCount, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete resources' });
     }
 });
 
+router.post('/resources/bulk-restore', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const restoredCount = await restoreMany(Resource, ids);
+        res.json({ success: true, restoredCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore resources' });
+    }
+});
+
+router.post('/resources/bulk-permanent-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const deletedCount = await permanentDeleteMany(Resource, ids);
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete resources' });
+    }
+});
+
 router.delete('/resources/:id', async (req, res) => {
     try {
-        await Resource.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        const doc = await Resource.findOneAndUpdate(
+            { _id: req.params.id, ...activeLmsFilter() },
+            { $set: { deletedAt: new Date() } },
+            { new: true }
+        );
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Resource not found' });
+        }
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete resource' });
     }
@@ -761,20 +1088,42 @@ router.delete('/resources/:id', async (req, res) => {
 // ——— Assignments (admin view + create; includes teacher-created) ———
 router.get('/assignments', async (req, res) => {
     try {
-        const filter = {};
-        if (req.query.courseId) filter.course = req.query.courseId;
-        const assignments = await Assignment.find(filter)
-            .populate('course', 'title instructorName')
-            .populate('teacher', 'name email')
-            .sort({ dueDate: -1 });
-        const courses = await Course.find({ ...activeCourseFilter() })
+        const trash = parseTrashQuery(req);
+        const metaOnly = parseMetaOnly(req);
+        const scope = await assignmentScopeFilter(req.query.courseId);
+        const listFilter = { ...scope, ...(trash ? trashedLmsFilter() : activeLmsFilter()) };
+        const coursesPromise = Course.find({ ...activeCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
-            .sort({ title: 1 });
-        const teachers = await User.find({ role: 'teacher', ...activeUserFilter() })
+            .sort({ title: 1 })
+            .lean();
+        const teachersPromise = User.find({ role: 'teacher', ...activeUserFilter() })
             .select('name email')
-            .sort({ name: 1 });
-        res.json({ success: true, assignments, courses, teachers });
+            .sort({ name: 1 })
+            .lean();
+        const trashCountPromise = countTrashed(Assignment, scope);
+
+        if (metaOnly) {
+            const [trashCount, courses, teachers] = await Promise.all([
+                trashCountPromise,
+                coursesPromise,
+                teachersPromise,
+            ]);
+            return res.json({ success: true, assignments: [], courses, teachers, trashCount });
+        }
+
+        const [assignments, trashCount, courses, teachers] = await Promise.all([
+            Assignment.find(listFilter)
+                .select('title description dueDate status course teacher attachments createdAt updatedAt deletedAt')
+                .populate('course', 'title instructorName')
+                .populate('teacher', 'name email')
+                .sort({ dueDate: -1 })
+                .lean(),
+            trashCountPromise,
+            coursesPromise,
+            teachersPromise,
+        ]);
+        res.json({ success: true, assignments, courses, teachers, trashCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load assignments' });
     }
@@ -809,7 +1158,7 @@ router.post('/assignments', async (req, res) => {
 
 router.patch('/assignments/:id', async (req, res) => {
     try {
-        const assignment = await Assignment.findById(req.params.id);
+        const assignment = await Assignment.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         const { courseId, teacherId, title, description, dueDate, status, attachments } = req.body;
         if (courseId) {
@@ -840,19 +1189,78 @@ router.post('/assignments/bulk-delete', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        await AssignmentSubmission.deleteMany({ assignment: { $in: ids } });
-        const result = await Assignment.deleteMany({ _id: { $in: ids } });
-        res.json({ success: true, deletedCount: result.deletedCount });
+        const trashedAt = new Date();
+        const assignResult = await Assignment.updateMany(
+            { _id: { $in: ids }, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } }
+        );
+        await AssignmentSubmission.updateMany(
+            { assignment: { $in: ids }, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } }
+        );
+        res.json({ success: true, deletedCount: assignResult.modifiedCount, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete assignments' });
     }
 });
 
+router.post('/assignments/bulk-restore', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const trashedAssignments = await Assignment.find({
+            _id: { $in: ids },
+            ...trashedLmsFilter(),
+        }).select('_id deletedAt');
+        const restoredCount = await restoreMany(Assignment, ids);
+        for (const assignment of trashedAssignments) {
+            if (!assignment.deletedAt) continue;
+            await AssignmentSubmission.updateMany(
+                {
+                    assignment: assignment._id,
+                    deletedAt: { $gte: assignment.deletedAt },
+                },
+                { $set: { deletedAt: null } }
+            );
+        }
+        res.json({ success: true, restoredCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore assignments' });
+    }
+});
+
+router.post('/assignments/bulk-permanent-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        await AssignmentSubmission.deleteMany({ assignment: { $in: ids }, ...trashedLmsFilter() });
+        const deletedCount = await permanentDeleteMany(Assignment, ids);
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete assignments' });
+    }
+});
+
 router.delete('/assignments/:id', async (req, res) => {
     try {
-        await AssignmentSubmission.deleteMany({ assignment: req.params.id });
-        await Assignment.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        const trashedAt = new Date();
+        const doc = await Assignment.findOneAndUpdate(
+            { _id: req.params.id, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } },
+            { new: true }
+        );
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Assignment not found' });
+        }
+        await AssignmentSubmission.updateMany(
+            { assignment: req.params.id, ...activeLmsFilter() },
+            { $set: { deletedAt: trashedAt } }
+        );
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete assignment' });
     }
@@ -896,45 +1304,211 @@ function buildQuizReviewPayload(quiz, answers) {
 // ——— Assignment submissions (admin view by course) ———
 router.get('/submissions', async (req, res) => {
     try {
-        const filter = {};
-        if (req.query.courseId) {
-            const assignmentIds = await Assignment.find({ course: req.query.courseId }).distinct('_id');
-            filter.assignment = { $in: assignmentIds };
-        }
-        const submissionsRaw = await AssignmentSubmission.find(filter)
+        const trash = parseTrashQuery(req);
+        const courseId = req.query.courseId || null;
+        const includeMeta = parseIncludeMeta(req);
+        const { page, limit, skip } = parseListPagination(req);
+        const searchFilter = await buildSubmissionSearchFilter(req.query.search, trash);
+        const baseFilter = await submissionListFilter(courseId, trash);
+        const activeStudentIds = await User.find({ role: 'student', ...activeUserFilter() }).distinct('_id');
+        const andParts = [baseFilter, { student: { $in: activeStudentIds } }];
+        if (searchFilter) andParts.push(searchFilter);
+        const filter = andParts.length === 1 ? andParts[0] : { $and: andParts };
+        const trashScope = courseId ? await submissionListFilter(courseId, true) : { ...trashedLmsFilter() };
+
+        const listQuery = AssignmentSubmission.find(filter)
+            .select('student assignment submittedAt status deletedAt createdAt updatedAt')
             .populate('student', 'name email studentId deletedAt')
             .populate({
                 path: 'assignment',
-                select: 'title dueDate course teacher',
+                select: 'title dueDate course teacher deletedAt',
                 populate: [
                     { path: 'course', select: 'title instructorName deletedAt' },
                     { path: 'teacher', select: 'name email' },
                 ],
             })
             .sort({ submittedAt: -1 })
-            .limit(500);
-        const submissions = submissionsRaw.filter(
-            (s) =>
-                s.student &&
-                !s.student.deletedAt &&
-                s.assignment?.course &&
-                !s.assignment.course.deletedAt
-        );
-        const courses = await Course.find({ ...activeCourseFilter() }).select('title instructorName').sort({ title: 1 });
-        res.json({ success: true, submissions, courses });
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        const countPromise = AssignmentSubmission.countDocuments(filter);
+        const trashCountPromise = AssignmentSubmission.countDocuments(trashScope);
+        const coursesPromise = includeMeta ? loadActiveCoursesMeta() : Promise.resolve(null);
+
+        const [submissionsRaw, total, trashCount, courses] = await Promise.all([
+            listQuery,
+            countPromise,
+            trashCountPromise,
+            coursesPromise,
+        ]);
+
+        const submissions = submissionsRaw.filter((s) => {
+            if (!s.student || s.student.deletedAt) return false;
+            if (!s.assignment?.course || s.assignment.course.deletedAt) return false;
+            if (!trash && s.assignment.deletedAt) return false;
+            return true;
+        });
+
+        const payload = {
+            success: true,
+            submissions,
+            trashCount,
+            total,
+            page,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            limit,
+        };
+        if (includeMeta && courses) payload.courses = courses;
+        res.json(payload);
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load submissions' });
     }
 });
 
+router.get('/submissions/:id', async (req, res) => {
+    try {
+        const submission = await AssignmentSubmission.findById(req.params.id)
+            .populate('student', 'name email studentId deletedAt')
+            .populate({
+                path: 'assignment',
+                select: 'title dueDate course teacher deletedAt',
+                populate: [
+                    { path: 'course', select: 'title instructorName deletedAt' },
+                    { path: 'teacher', select: 'name email' },
+                ],
+            })
+            .lean();
+        if (!submission || !submission.student || submission.student.deletedAt) {
+            return res.status(404).json({ success: false, error: 'Submission not found' });
+        }
+        if (!submission.assignment?.course || submission.assignment.course.deletedAt) {
+            return res.status(404).json({ success: false, error: 'Submission not found' });
+        }
+        res.json({ success: true, submission });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load submission' });
+    }
+});
+
+router.delete('/submissions/:id/permanent', async (req, res) => {
+    try {
+        const doc = await AssignmentSubmission.findOneAndDelete({
+            _id: req.params.id,
+            ...trashedLmsFilter(),
+        });
+        if (!doc) {
+            return res.status(404).json({
+                success: false,
+                error: 'Submission must be in trash before permanent delete',
+            });
+        }
+        res.json({ success: true, deletedCount: 1, message: 'Permanently deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete submission' });
+    }
+});
+
+router.patch('/submissions/:id/restore', async (req, res) => {
+    try {
+        const doc = await AssignmentSubmission.findOne({ _id: req.params.id, ...trashedLmsFilter() });
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Trashed submission not found' });
+        }
+        const assignment = await Assignment.findOne({ _id: doc.assignment, ...activeLmsFilter() });
+        if (!assignment) {
+            return res.status(400).json({
+                success: false,
+                error: 'Restore the assignment before restoring this submission.',
+            });
+        }
+        doc.deletedAt = null;
+        await doc.save();
+        res.json({ success: true, restoredCount: 1 });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore submission' });
+    }
+});
+
+router.delete('/submissions/:id', async (req, res) => {
+    try {
+        const doc = await AssignmentSubmission.findOneAndUpdate(
+            { _id: req.params.id, ...activeLmsFilter() },
+            { $set: { deletedAt: new Date() } },
+            { new: true }
+        );
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Submission not found' });
+        }
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to move submission to trash' });
+    }
+});
+
+router.post('/submissions/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const deletedCount = await softDeleteMany(AssignmentSubmission, ids);
+        res.json({ success: true, deletedCount, message: 'Moved to trash' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to move submissions to trash' });
+    }
+});
+
+router.post('/submissions/bulk-restore', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const activeAssignmentIds = await Assignment.find({ ...activeLmsFilter() }).distinct('_id');
+        const result = await AssignmentSubmission.updateMany(
+            {
+                _id: { $in: ids },
+                ...trashedLmsFilter(),
+                assignment: { $in: activeAssignmentIds },
+            },
+            { $set: { deletedAt: null } }
+        );
+        res.json({ success: true, restoredCount: result.modifiedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore submissions' });
+    }
+});
+
+router.post('/submissions/bulk-permanent-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const deletedCount = await permanentDeleteMany(AssignmentSubmission, ids);
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete submissions' });
+    }
+});
+
 router.get('/quiz-attempts', async (req, res) => {
     try {
-        const filter = {};
-        if (req.query.courseId) {
-            const quizIds = await Quiz.find({ course: req.query.courseId }).distinct('_id');
-            filter.quiz = { $in: quizIds };
-        }
-        const attemptsRaw = await QuizAttempt.find(filter)
+        const trash = parseTrashQuery(req);
+        const courseId = req.query.courseId || null;
+        const includeMeta = parseIncludeMeta(req);
+        const { page, limit, skip } = parseListPagination(req);
+        const searchFilter = await buildQuizAttemptSearchFilter(req.query.search);
+        const baseFilter = await quizAttemptListFilter(courseId, trash);
+        const activeStudentIds = await User.find({ role: 'student', ...activeUserFilter() }).distinct('_id');
+        const andParts = [baseFilter, { student: { $in: activeStudentIds } }];
+        if (searchFilter) andParts.push(searchFilter);
+        const filter = andParts.length === 1 ? andParts[0] : { $and: andParts };
+        const trashScope = courseId ? await quizAttemptListFilter(courseId, true) : { ...trashedLmsFilter() };
+
+        const listQuery = QuizAttempt.find(filter)
+            .select('student quiz score submittedAt createdAt deletedAt')
             .populate('student', 'name email studentId deletedAt')
             .populate({
                 path: 'quiz',
@@ -945,29 +1519,163 @@ router.get('/quiz-attempts', async (req, res) => {
                 ],
             })
             .sort({ createdAt: -1 })
-            .limit(500);
-        const attempts = attemptsRaw.filter(
-            (a) =>
-                a.student &&
-                !a.student.deletedAt &&
-                a.quiz?.course &&
-                !a.quiz.course.deletedAt
-        );
-        const quizIds = [...new Set(attempts.map((a) => String(a.quiz?._id || a.quiz)).filter(Boolean))];
-        const fullQuizzes = await Quiz.find({ _id: { $in: quizIds } }).select('questions totalMarks title');
-        const quizById = Object.fromEntries(fullQuizzes.map((q) => [String(q._id), q]));
-        res.json({
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        const countPromise = QuizAttempt.countDocuments(filter);
+        const trashCountPromise = QuizAttempt.countDocuments(trashScope);
+        const coursesPromise = includeMeta ? loadActiveCoursesMeta() : Promise.resolve(null);
+
+        const [attemptsRaw, total, trashCount, courses] = await Promise.all([
+            listQuery,
+            countPromise,
+            trashCountPromise,
+            coursesPromise,
+        ]);
+
+        const attempts = attemptsRaw
+            .filter(
+                (a) =>
+                    a.student &&
+                    !a.student.deletedAt &&
+                    a.quiz?.course &&
+                    !a.quiz.course.deletedAt
+            )
+            .map((a) => ({
+                ...a,
+                scoreDisplay: formatScoreDisplay(a.score, a.quiz?.totalMarks),
+            }));
+
+        const payload = {
             success: true,
-            attempts: attempts.map((a) => {
-                const o = a.toObject();
-                const fullQuiz = quizById[String(a.quiz?._id || a.quiz)];
-                o.scoreDisplay = formatScoreDisplay(o.score, a.quiz?.totalMarks);
-                o.review = fullQuiz ? buildQuizReviewPayload(fullQuiz, o.answers || []) : null;
-                return o;
-            }),
-        });
+            trashCount,
+            attempts,
+            total,
+            page,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            limit,
+        };
+        if (includeMeta && courses) payload.courses = courses;
+        res.json(payload);
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load quiz attempts' });
+    }
+});
+
+router.get('/quiz-attempts/:id', async (req, res) => {
+    try {
+        const attemptDoc = await QuizAttempt.findById(req.params.id)
+            .populate('student', 'name email studentId deletedAt')
+            .populate({
+                path: 'quiz',
+                select: 'title totalMarks course teacher questions',
+                populate: [
+                    { path: 'course', select: 'title instructorName deletedAt' },
+                    { path: 'teacher', select: 'name email' },
+                ],
+            });
+        if (!attemptDoc) {
+            return res.status(404).json({ success: false, error: 'Quiz attempt not found' });
+        }
+        const a = attemptDoc.toObject();
+        if (!a.student || a.student.deletedAt || !a.quiz?.course || a.quiz.course.deletedAt) {
+            return res.status(404).json({ success: false, error: 'Quiz attempt not found' });
+        }
+        a.scoreDisplay = formatScoreDisplay(a.score, a.quiz?.totalMarks);
+        a.review = buildQuizReviewPayload(a.quiz, a.answers || []);
+        res.json({ success: true, attempt: a });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load quiz attempt' });
+    }
+});
+
+router.delete('/quiz-attempts/:id/permanent', async (req, res) => {
+    try {
+        const doc = await QuizAttempt.findOneAndDelete({
+            _id: req.params.id,
+            ...trashedLmsFilter(),
+        });
+        if (!doc) {
+            return res.status(404).json({
+                success: false,
+                error: 'Quiz attempt must be in trash before permanent delete',
+            });
+        }
+        res.json({ success: true, deletedCount: 1, message: 'Permanently deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete quiz attempt' });
+    }
+});
+
+router.patch('/quiz-attempts/:id/restore', async (req, res) => {
+    try {
+        const doc = await QuizAttempt.findOneAndUpdate(
+            { _id: req.params.id, ...trashedLmsFilter() },
+            { $set: { deletedAt: null } },
+            { new: true }
+        );
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Trashed quiz attempt not found' });
+        }
+        res.json({ success: true, restoredCount: 1 });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore quiz attempt' });
+    }
+});
+
+router.delete('/quiz-attempts/:id', async (req, res) => {
+    try {
+        const doc = await QuizAttempt.findOneAndUpdate(
+            { _id: req.params.id, ...activeLmsFilter() },
+            { $set: { deletedAt: new Date() } },
+            { new: true }
+        );
+        if (!doc) {
+            return res.status(404).json({ success: false, error: 'Quiz attempt not found' });
+        }
+        res.json({ success: true, deletedCount: 1, message: 'Moved to trash' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to move quiz attempt to trash' });
+    }
+});
+
+router.post('/quiz-attempts/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const deletedCount = await softDeleteMany(QuizAttempt, ids);
+        res.json({ success: true, deletedCount, message: 'Moved to trash' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to move quiz attempts to trash' });
+    }
+});
+
+router.post('/quiz-attempts/bulk-restore', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const restoredCount = await restoreMany(QuizAttempt, ids);
+        res.json({ success: true, restoredCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to restore quiz attempts' });
+    }
+});
+
+router.post('/quiz-attempts/bulk-permanent-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(400).json({ success: false, error: 'ids array required' });
+        }
+        const deletedCount = await permanentDeleteMany(QuizAttempt, ids);
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to permanently delete quiz attempts' });
     }
 });
 
@@ -1027,6 +1735,12 @@ router.delete('/payroll-runs/:id', async (req, res) => {
         const run = await PayrollRun.findById(req.params.id);
         if (!run) {
             return res.status(404).json({ success: false, error: 'Payroll run not found' });
+        }
+        if (run.status === 'paid') {
+            return res.status(400).json({
+                success: false,
+                error: 'Paid payroll runs cannot be deleted. Contact a super-admin if correction is required.',
+            });
         }
         await PayrollRun.deleteOne({ _id: run._id });
         res.json({ success: true, message: 'Payroll run deleted' });

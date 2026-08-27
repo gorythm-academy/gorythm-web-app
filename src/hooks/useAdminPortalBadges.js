@@ -1,38 +1,65 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { lmsAdminGet } from '../utils/lmsAdminApi';
+import {
+  badgesFromLmsTabBadgesResponse,
+  lmsTabBadgesClientCache,
+} from '../utils/lmsTabBadgesClientCache';
+import {
+  ADMIN_LMS_ATTENDANCE_UPDATED_EVENT,
+  ADMIN_LMS_BADGE_LOAD_FAILED_EVENT,
+} from '../utils/adminEvents';
 
-export const ADMIN_LMS_ATTENDANCE_UPDATED_EVENT = 'admin-lms-attendance-updated';
+export { ADMIN_LMS_ATTENDANCE_UPDATED_EVENT } from '../utils/adminEvents';
+
+const EMPTY_BADGES = {
+  lmsAttendance: 0,
+  lmsAttendanceBreakdown: { attendance: 0, payroll: 0 },
+};
+
+export function fetchLmsTabBadges(options = {}) {
+  if (!options.force) {
+    const cached = lmsTabBadgesClientCache.get();
+    if (cached) return Promise.resolve(cached);
+  }
+  return lmsAdminGet('/lms-tab-badges').then((res) => {
+    if (!res?.success) throw new Error(res?.error || 'Failed to load LMS badges');
+    const next = badgesFromLmsTabBadgesResponse(res);
+    lmsTabBadgesClientCache.set(next);
+    return next;
+  });
+}
+
+export function invalidateLmsTabBadgesCache() {
+  lmsTabBadgesClientCache.invalidate();
+}
 
 export function useAdminPortalBadges(enabled = true) {
-  const location = useLocation();
-  const [badges, setBadges] = useState({ lmsAttendance: 0 });
+  const [badges, setBadges] = useState(() => lmsTabBadgesClientCache.get() || EMPTY_BADGES);
+  const [lmsBadgeLoadFailed, setLmsBadgeLoadFailed] = useState(false);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback((options = {}) => {
     if (!enabled) return;
-    lmsAdminGet('/lms-tab-badges')
-      .then((res) => {
-        if (!res.success) {
-          setBadges({ lmsAttendance: 0 });
-          return;
-        }
-        const attendance = Number(res.attendanceCount) || 0;
-        const payroll = Number(res.payrollCount) || 0;
-        setBadges({ lmsAttendance: attendance + payroll });
+    fetchLmsTabBadges(options)
+      .then((next) => {
+        setLmsBadgeLoadFailed(false);
+        setBadges(next);
       })
-      .catch(() => setBadges({ lmsAttendance: 0 }));
+      .catch(() => {
+        setLmsBadgeLoadFailed(true);
+        window.dispatchEvent(new Event(ADMIN_LMS_BADGE_LOAD_FAILED_EVENT));
+      });
   }, [enabled]);
 
   useEffect(() => {
     refresh();
-  }, [refresh, location.pathname]);
+  }, [refresh]);
 
   useEffect(() => {
     if (!enabled) return undefined;
-    const onUpdated = () => refresh();
+    const onUpdated = () => refresh({ force: true });
     window.addEventListener(ADMIN_LMS_ATTENDANCE_UPDATED_EVENT, onUpdated);
     return () => window.removeEventListener(ADMIN_LMS_ATTENDANCE_UPDATED_EVENT, onUpdated);
   }, [enabled, refresh]);
 
-  return badges;
+  return { ...badges, lmsBadgeLoadFailed };
 }

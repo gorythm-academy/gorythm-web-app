@@ -132,6 +132,32 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
         padding: 0.28rem 0.62rem;
         border-radius: 999px;
+
+        &.connected .status-dot {
+          background: #10b981;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        &.degraded .status-dot {
+          background: #f59e0b;
+          box-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
+        }
+
+        &.checking .status-dot {
+          background: #f59e0b;
+          animation: pulse 1.2s infinite;
+        }
+
+        &.disconnected .status-dot {
+          background: #ef4444;
+        }
+
+        .status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
       }
 
       small {
@@ -537,7 +563,30 @@
       }
     }
 
-    .events-table {
+  .info-message.dashboard-error-message {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+
+    .retry-btn {
+      background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+      color: white;
+      border: none;
+      padding: 0.55rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(var(--color-accent-rgb), 0.3);
+      }
+    }
+  }
+
+  .dashboard-card .events-table {
       overflow-x: auto;
 
       table {
@@ -569,6 +618,35 @@
           }
         }
 
+        .student-count {
+          .student-count-hint {
+            display: block;
+            font-size: 0.72rem;
+            color: #64748b;
+            font-weight: 400;
+            margin-top: 0.15rem;
+          }
+        }
+
+        .class-status-badge {
+          display: inline-block;
+          padding: 0.25rem 0.65rem;
+          border-radius: 999px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-transform: capitalize;
+
+          &.live {
+            background: #dcfce7;
+            color: #15803d;
+          }
+
+          &.upcoming {
+            background: #e0f2fe;
+            color: #0369a1;
+          }
+        }
+
         .join-btn {
           background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
           color: white;
@@ -585,6 +663,52 @@
             box-shadow: 0 5px 15px rgba(var(--color-accent-rgb), 0.4);
             background: linear-gradient(135deg, var(--color-accent-dark), #1d4ed8);
           }
+        }
+      }
+    }
+  }
+
+  .system-status {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 2rem;
+
+    .status-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+
+      i {
+        font-size: 1.5rem;
+        color: var(--color-accent);
+      }
+
+      h4 {
+        margin: 0;
+        color: #1e293b;
+        font-size: 0.95rem;
+      }
+
+      p {
+        margin: 0.25rem 0 0;
+        color: #64748b;
+        font-size: 0.88rem;
+
+        &.status-good {
+          color: #15803d;
+        }
+
+        &.status-neutral {
+          color: #b45309;
+        }
+
+        &.status-bad {
+          color: #b91c1c;
         }
       }
     }

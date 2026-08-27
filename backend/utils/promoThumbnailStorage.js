@@ -6,7 +6,9 @@ const { safeBasename } = require('./safeFilename');
 const ALLOWED_THUMB_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 
 const THUMB_SUBDIR = 'video-thumbnails';
-const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+    ? path.resolve(process.env.UPLOAD_ROOT)
+    : path.join(__dirname, '..', 'uploads');
 const THUMB_DIR = path.join(UPLOAD_ROOT, THUMB_SUBDIR);
 
 function ensureThumbDir() {

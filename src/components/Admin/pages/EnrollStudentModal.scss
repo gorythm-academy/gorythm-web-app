@@ -13,7 +13,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    /* Above StudentDetailOverlay (1100) so enroll form stacks on top */
+    z-index: 1300;
     padding: 20px;
     animation: fadeIn 0.3s ease;
 
@@ -581,27 +582,28 @@
             flex-shrink: 0;
             display: flex;
             justify-content: flex-end;
-            gap: 1rem;
-            padding: 1.25rem 2rem;
-            border-top: 2px solid #e2e8f0;
-            background: #f8fafc;
+            gap: 0.7rem;
+            padding: 0.95rem 1.2rem 1.1rem;
+            border-top: 1px solid #dbe6ff;
+            background: #fff;
 
             @media (max-width: $bp-legacy-640) {
-                flex-direction: column;
-                padding: 1rem 2rem;
+                flex-direction: column-reverse;
+                padding: 0.8rem 1.2rem;
             }
 
-            button {
-                padding: 0.8rem 2rem;
-                border-radius: 8px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.3s;
-                display: flex;
+            .btn-secondary,
+            .btn-primary {
+                border: none;
+                border-radius: 10px;
+                padding: 0.72rem 1.2rem;
+                font-weight: 600;
+                display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                gap: 8px;
-                min-width: 140px;
+                gap: 0.45rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
 
                 @media (max-width: $bp-legacy-640) {
                     width: 100%;
@@ -614,24 +616,21 @@
             }
 
             .btn-secondary {
-                background: white;
-                border: 2px solid #e2e8f0;
-                color: #64748b;
+                background: #e2e8f0;
+                color: #334155;
 
                 &:hover:not(:disabled) {
-                    background: #f8fafc;
-                    border-color: #cbd5e1;
+                    background: #cfd8e3;
                 }
             }
 
             .btn-primary {
                 background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
-                border: none;
-                color: white;
+                color: #fff;
 
                 &:hover:not(:disabled) {
-                    transform: translateY(-2px);
-                    box-shadow: 0 5px 15px rgba(var(--color-accent-rgb), 0.3);
+                    transform: translateY(-1px);
+                    box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
                 }
             }
         }

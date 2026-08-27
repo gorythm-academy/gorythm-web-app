@@ -17,8 +17,8 @@ const enrollmentSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'active', 'completed', 'inactive'],
-        default: 'pending'
+        enum: ['active', 'completed', 'inactive'],
+        default: 'inactive'
     },
     progress: {
         type: Number,
@@ -50,5 +50,8 @@ const enrollmentSchema = new mongoose.Schema({
     },
     deletedAt: { type: Date, default: null },
 }, { timestamps: true });
+
+enrollmentSchema.index({ student: 1, deletedAt: 1 });
+enrollmentSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('Enrollment', enrollmentSchema);
