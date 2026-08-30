@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -11,7 +12,7 @@ import {
 import { parseVideoUrl, providerThumbnailUrl, fetchVimeoThumbnailUrl } from '../../../utils/videoEmbed';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { useAdminDialog } from '../AdminDialogContext';
-import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import AdminMediaGallery from '../shared/AdminMediaGallery';
 import '../Admin.scss';
 import './PromoVideosManagement.scss';
@@ -599,7 +600,7 @@ const PromoVideosManagement = () => {
     } catch (err) {
       await showAlert({
         type: 'error',
-        title: 'Could not move to trash',
+        title: FAILED_MOVE_TO_QUARANTINE_PHRASE,
         message: err.response?.data?.error || err.message,
       });
     }
@@ -676,7 +677,7 @@ const PromoVideosManagement = () => {
         {!isTrashView ? (
         <button type="button" className="promo-videos-add-btn" onClick={openCreate}>
           <i className="fas fa-plus" aria-hidden="true" />
-          Add video
+          Add Video
         </button>
         ) : null}
       </header>
@@ -720,7 +721,7 @@ const PromoVideosManagement = () => {
             <i className="fas fa-film" aria-hidden="true" />
           </div>
           <div>
-            <span className="promo-videos-stat__label">In library</span>
+            <span className="promo-videos-stat__label">In Library</span>
             <strong>{loading ? '—' : activeVideos.length}</strong>
           </div>
         </div>
@@ -738,7 +739,7 @@ const PromoVideosManagement = () => {
             <i className="fas fa-info-circle" aria-hidden="true" />
           </div>
           <div>
-            <span className="promo-videos-stat__label">About page</span>
+            <span className="promo-videos-stat__label">About Page</span>
             <strong>{selectedAbout ? 'Live' : 'None'}</strong>
           </div>
         </div>
@@ -757,7 +758,7 @@ const PromoVideosManagement = () => {
             <div>
               <h2 id="promo-thumb-library-heading">
                 <i className="fas fa-images" aria-hidden="true" />
-                Thumbnail library
+                Thumbnail Library
               </h2>
               <p>
                 All images in <code>uploads/video-thumbnails</code> — click to use on a video, upload
@@ -800,7 +801,7 @@ const PromoVideosManagement = () => {
 
       {!isTrashView ? (
       <section className="promo-videos-placement" aria-labelledby="promo-placement-heading">
-        <h2 id="promo-placement-heading">Displayed on site</h2>
+        <h2 id="promo-placement-heading">Displayed on Site</h2>
         <div className="promo-videos-placement__grid">
           <article className="promo-videos-placement-card">
             <div className="promo-videos-placement-card__head promo-videos-placement-card__head--home">
@@ -839,8 +840,8 @@ const PromoVideosManagement = () => {
             <div className="promo-videos-placement-card__head promo-videos-placement-card__head--about">
               <i className="fas fa-book-open" aria-hidden="true" />
               <div>
-                <p className="promo-videos-placement-card__title">About us</p>
-                <p className="promo-videos-placement-card__sub">About page video section</p>
+                <p className="promo-videos-placement-card__title">About Us</p>
+                <p className="promo-videos-placement-card__sub">About Page Video Section</p>
               </div>
             </div>
             {selectedAbout ? (
@@ -877,7 +878,7 @@ const PromoVideosManagement = () => {
       )}
 
       <section className="promo-videos-library" aria-labelledby="promo-library-heading">
-        <h2 id="promo-library-heading">{isTrashView ? `${QUARANTINE_LABEL} videos` : 'Video library'}</h2>
+        <h2 id="promo-library-heading">{isTrashView ? `${QUARANTINE_LABEL} Videos` : 'Video Library'}</h2>
 
         {loading ? (
           <div className="promo-videos-loading">
@@ -898,7 +899,7 @@ const PromoVideosManagement = () => {
             {!isTrashView ? (
             <button type="button" className="promo-videos-add-btn" onClick={openCreate}>
               <i className="fas fa-plus" aria-hidden="true" />
-              Add video
+              Add Video
             </button>
             ) : null}
           </div>
@@ -964,7 +965,7 @@ const PromoVideosManagement = () => {
                           className="promo-videos-card__delete"
                           onClick={() => handleMoveToTrash(v)}
                         >
-                          <i className="fas fa-trash-alt" aria-hidden="true" /> Move to trash
+                          <i className="fas fa-archive" aria-hidden="true" /> {MOVE_TO_QUARANTINE_PHRASE}
                         </button>
                       </>
                     )}
@@ -985,7 +986,7 @@ const PromoVideosManagement = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="promo-videos-modal__header">
-              <h2 id="promo-video-form-title">{editingId ? 'Edit video' : 'Add video'}</h2>
+              <h2 id="promo-video-form-title">{editingId ? 'Edit Video' : 'Add Video'}</h2>
               <button
                 type="button"
                 className="promo-videos-modal__close"
@@ -998,7 +999,7 @@ const PromoVideosManagement = () => {
             <form onSubmit={handleSave}>
               <div className="promo-videos-modal__body">
                 <label className="promo-videos-modal__field">
-                  <span>Display name</span>
+                  <span>Display name <RequiredMark /></span>
                   <input
                     type="text"
                     value={form.name}
@@ -1009,7 +1010,7 @@ const PromoVideosManagement = () => {
                   />
                 </label>
                 <label className="promo-videos-modal__field">
-                  <span>Vimeo or YouTube URL</span>
+                  <span>Vimeo or YouTube URL <RequiredMark /></span>
                   <input
                     type="url"
                     value={form.videoUrl}
@@ -1036,7 +1037,7 @@ const PromoVideosManagement = () => {
                     ) : null}
 
                     <div className="course-image-section__header">
-                      <label htmlFor="promo-video-thumb-field">Thumbnail</label>
+                      <label htmlFor="promo-video-thumb-field">Thumbnail <RequiredMark /></label>
                       <span className="course-image-section__hint">
                         16:9 recommended · upload, drag &amp; drop, or pick from gallery
                       </span>

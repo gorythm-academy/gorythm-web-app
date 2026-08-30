@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import RequiredMark from '../shared/RequiredMark';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -42,15 +43,13 @@ const Login = () => {
         });
     };
 
-    const routeByRole = portalHomeByRole;
-
-    const postLoginPath = () => {
+    const postLoginPath = useCallback(() => {
         const from = location.state?.from;
         if (typeof from === 'string' && from.startsWith('/') && !from.startsWith('/admin')) {
             return from;
         }
         return null;
-    };
+    }, [location.state]);
 
     useEffect(() => {
         if (isSetPasswordMode) return;
@@ -62,8 +61,8 @@ const Login = () => {
         }
         const adminRoles = ['manager', 'super-admin'];
         if (adminRoles.includes(user.role)) return;
-        navigate(postLoginPath() || routeByRole(user.role), { replace: true });
-    }, [isSetPasswordMode, location.state, navigate]);
+        navigate(postLoginPath() || portalHomeByRole(user.role), { replace: true });
+    }, [isSetPasswordMode, navigate, postLoginPath]);
 
     useEffect(() => {
         if (!isSetPasswordMode) return;
@@ -97,7 +96,7 @@ const Login = () => {
                 navigate('/login?set-password=1', { replace: true });
                 return;
             }
-            navigate(postLoginPath() || routeByRole(response.data.user.role), { replace: true });
+            navigate(postLoginPath() || portalHomeByRole(response.data.user.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Authentication failed');
         } finally {
@@ -134,7 +133,7 @@ const Login = () => {
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
             setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
-            navigate(postLoginPath() || routeByRole(updatedUser.role), { replace: true });
+            navigate(postLoginPath() || portalHomeByRole(updatedUser.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to update password');
         } finally {
@@ -162,7 +161,7 @@ const Login = () => {
                         <form className="auth-login__form" onSubmit={handleInitialPasswordReset} noValidate>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="portal-reset-password">
-                                    New password
+                                    New password <RequiredMark />
                                 </label>
                                 <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
@@ -187,7 +186,7 @@ const Login = () => {
                             </div>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="portal-reset-password-confirm">
-                                    Confirm password
+                                    Confirm password <RequiredMark />
                                 </label>
                             <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                 <input
@@ -241,7 +240,7 @@ const Login = () => {
                     <form className="auth-login__form" onSubmit={handleSubmit} noValidate>
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="portal-login-email">
-                                Email
+                                Email <RequiredMark />
                             </label>
                             <div className="auth-login__input-wrap">
                                 <input
@@ -259,7 +258,7 @@ const Login = () => {
                         </div>
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="portal-login-password">
-                                Password
+                                Password <RequiredMark />
                             </label>
                             <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                 <input

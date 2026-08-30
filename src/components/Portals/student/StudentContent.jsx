@@ -140,7 +140,7 @@ const StudentContent = () => {
   return (
     <div className="portal-page student-content">
       <PortalPageHeader
-        title="Course content"
+        title="Course Content"
         subtitle="Teacher-shared files, links, and notes for your active enrollments only."
       />
 
@@ -149,7 +149,7 @@ const StudentContent = () => {
           <i className="fa-solid fa-folder-open" />
         </div>
         <div>
-          <h2>Content & resources</h2>
+          <h2>Content & Resources</h2>
           <p>
             Materials your teachers upload per course (files, links, notes). Use the course filter to focus on one
             class.
@@ -168,7 +168,7 @@ const StudentContent = () => {
       <div className="portal-panel student-content__resources-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>Content & resources</h2>
+            <h2>Content & Resources</h2>
             <p>Grouped by course — only materials for courses you are actively enrolled in</p>
           </div>
         </div>

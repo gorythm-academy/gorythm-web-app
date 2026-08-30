@@ -39,7 +39,7 @@ const TeacherClasses = () => {
   return (
     <div className="portal-page teacher-classes">
       <PortalPageHeader
-        title="My classes"
+        title="My Classes"
         subtitle="View your class schedule for assigned courses."
       />
 
@@ -48,7 +48,7 @@ const TeacherClasses = () => {
           <i className="fa-solid fa-chalkboard" />
         </div>
         <div>
-          <h2>Weekly class schedule</h2>
+          <h2>Weekly Class Schedule</h2>
           <p>
             Admin sets your course timings here. Use Attendance to mark students, Assignments and Resources for
             homework, and Quizzes for assessments.
@@ -59,7 +59,7 @@ const TeacherClasses = () => {
       <div className="portal-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>Class schedule</h2>
+            <h2>Class Schedule</h2>
             <p>
               {schedules.length
                 ? `${schedules.length} class${schedules.length === 1 ? '' : 'es'} this week`
@@ -80,7 +80,7 @@ const TeacherClasses = () => {
                     <th>Day</th>
                     <th>Time</th>
                     <th>Course</th>
-                    <th>Room / link</th>
+                    <th>Room / Link</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -94,7 +94,7 @@ const COLUMN_LABELS = {
     enrollmentDate: 'Enrollment Date',
     added: 'Added',
     lastLogin: 'Last Login',
-    fee: 'Fee status',
+    fee: 'Fee Status',
     status: 'Status',
     actions: 'Actions',
 };
@@ -471,6 +471,74 @@ const StudentDetailOverlay = ({
                     </div>
                 ) : null}
 
+                {selectedEnrollments.length > 0 && !studentQuarantined && enrollments.length > 0 ? (
+                    <div className="bulk-actions-bar student-detail-overlay__toolbar">
+                        <div className="selected-count">
+                            <i className="fas fa-check-circle" aria-hidden />
+                            {selectedEnrollments.length} selected
+                        </div>
+                        <div className="bulk-buttons">
+                            {detailTab === 'active' ? (
+                                <>
+                                    {selectedEnrollments.length === 1 ? (
+                                        <button
+                                            type="button"
+                                            className="bulk-btn edit"
+                                            disabled={trashBusy}
+                                            onClick={() => onEditEnrollment(selectedEnrollments[0])}
+                                        >
+                                            <i className="fas fa-edit" aria-hidden /> Edit
+                                        </button>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        className="bulk-btn delete"
+                                        disabled={trashBusy}
+                                        onClick={() => {
+                                            selectedEnrollments.forEach((row) => onQuarantineEnrollment(row));
+                                            setSelectedIds([]);
+                                        }}
+                                    >
+                                        <i className="fas fa-archive" aria-hidden /> Move to {QUARANTINE_COURSES_LABEL}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="lms-btn-restore"
+                                        disabled={trashBusy}
+                                        onClick={() => {
+                                            selectedEnrollments.forEach((row) => onRestoreEnrollment(row._id));
+                                            setSelectedIds([]);
+                                        }}
+                                    >
+                                        <i className="fas fa-undo" aria-hidden /> Restore
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="lms-btn-delete-forever"
+                                        disabled={trashBusy}
+                                        onClick={() => {
+                                            selectedEnrollments.forEach((row) => onPermanentDelete(row._id));
+                                            setSelectedIds([]);
+                                        }}
+                                    >
+                                        <i className="fas fa-trash" aria-hidden /> Delete forever
+                                    </button>
+                                </>
+                            )}
+                            <button
+                                type="button"
+                                className="bulk-btn cancel"
+                                onClick={() => setSelectedIds([])}
+                            >
+                                <i className="fas fa-times" aria-hidden /> Clear
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+
                 <div className="student-detail-overlay__body">
                     {refreshing ? (
                         <div className="student-detail-overlay__refreshing" aria-live="polite">
@@ -491,91 +559,22 @@ const StudentDetailOverlay = ({
                             </p>
                         </div>
                     ) : (
-                        <>
-                            {selectedEnrollments.length > 0 && !studentQuarantined ? (
-                                <div className="bulk-actions-bar student-detail-overlay__toolbar">
-                                    <div className="selected-count">
-                                        <i className="fas fa-check-circle" aria-hidden />
-                                        {selectedEnrollments.length} selected
-                                    </div>
-                                    <div className="bulk-buttons">
-                                        {detailTab === 'active' ? (
-                                            <>
-                                                {selectedEnrollments.length === 1 ? (
-                                                    <button
-                                                        type="button"
-                                                        className="bulk-btn edit"
-                                                        disabled={trashBusy}
-                                                        onClick={() => onEditEnrollment(selectedEnrollments[0])}
-                                                    >
-                                                        <i className="fas fa-edit" aria-hidden /> Edit
-                                                    </button>
-                                                ) : null}
-                                                <button
-                                                    type="button"
-                                                    className="bulk-btn delete"
-                                                    disabled={trashBusy}
-                                                    onClick={() => {
-                                                        selectedEnrollments.forEach((row) => onQuarantineEnrollment(row));
-                                                        setSelectedIds([]);
-                                                    }}
-                                                >
-                                                    <i className="fas fa-archive" aria-hidden /> Move to {QUARANTINE_COURSES_LABEL}
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    className="lms-btn-restore"
-                                                    disabled={trashBusy}
-                                                    onClick={() => {
-                                                        selectedEnrollments.forEach((row) => onRestoreEnrollment(row._id));
-                                                        setSelectedIds([]);
-                                                    }}
-                                                >
-                                                    <i className="fas fa-undo" aria-hidden /> Restore
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="lms-btn-delete-forever"
-                                                    disabled={trashBusy}
-                                                    onClick={() => {
-                                                        selectedEnrollments.forEach((row) => onPermanentDelete(row._id));
-                                                        setSelectedIds([]);
-                                                    }}
-                                                >
-                                                    <i className="fas fa-trash" aria-hidden /> Delete forever
-                                                </button>
-                                            </>
-                                        )}
-                                        <button
-                                            type="button"
-                                            className="bulk-btn cancel"
-                                            onClick={() => setSelectedIds([])}
-                                        >
-                                            <i className="fas fa-times" aria-hidden /> Clear
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            <div
-                                ref={tableContainerRef}
-                                className={`students-data-table-container student-detail-overlay__table-wrap${isTableDragging ? ' is-dragging' : ''}`}
-                                onMouseDown={startTableDragScroll}
-                                onMouseMove={onTableDragScroll}
-                                onMouseUp={stopTableDragScroll}
-                                onMouseLeave={stopTableDragScroll}
-                            >
-                                <table className="students-data-table student-detail-overlay__table">
+                        <div
+                            ref={tableContainerRef}
+                            className={`students-data-table-container student-detail-overlay__table-wrap${isTableDragging ? ' is-dragging' : ''}`}
+                            onMouseDown={startTableDragScroll}
+                            onMouseMove={onTableDragScroll}
+                            onMouseUp={stopTableDragScroll}
+                            onMouseLeave={stopTableDragScroll}
+                        >
+                            <table className="students-data-table student-detail-overlay__table">
                                     <colgroup>
                                         {columnWidths.map((w, i) => (
                                             <col key={COLUMN_KEYS[i]} style={{ width: `${w}px` }} />
                                         ))}
                                     </colgroup>
-                                    <thead>
-                                        <tr>
+                                <thead>
+                                    <tr>
                                             {COLUMN_KEYS.map((key, colIndex) => {
                                                 const sortable = SORTABLE_COLUMNS.has(key);
                                                 return (
@@ -630,22 +629,22 @@ const StudentDetailOverlay = ({
                                                     </th>
                                                 );
                                             })}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                         {visibleEnrollments.map((enrollment) => {
                                             const rowStudent = resolveRowStudent(enrollment, student);
-                                            const course = enrollment.course || {};
-                                            const teacher = getAllottedTeacherName(enrollment);
-                                            const timeslot = formatScheduleTimeLabel(enrollment.assignedSchedule);
-                                            const status = normalizeEnrollmentStatus(enrollment.status);
+                                        const course = enrollment.course || {};
+                                        const teacher = getAllottedTeacherName(enrollment);
+                                        const timeslot = formatScheduleTimeLabel(enrollment.assignedSchedule);
+                                        const status = normalizeEnrollmentStatus(enrollment.status);
                                             const id = String(enrollment._id);
                                             const isSelected = selectedIds.includes(id);
                                             const parentLabel = formatParentsLabel(
                                                 rowStudent.parents || student.parents || []
                                             );
                                             const lastLogin = rowStudent.lastLogin || student.lastLogin;
-                                            return (
+                                        return (
                                                 <tr
                                                     key={enrollment._id}
                                                     className={isSelected ? 'selected' : ''}
@@ -659,20 +658,20 @@ const StudentDetailOverlay = ({
                                                             disabled={studentQuarantined}
                                                         />
                                                     </td>
-                                                    <td>
-                                                        {rowStudent.studentId ? (
-                                                            <span className="student-id-cell">{rowStudent.studentId}</span>
-                                                        ) : (
-                                                            <span className="student-id-cell no-id">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <div className="student-info no-avatar">
-                                                            <div className="student-details">
-                                                                <strong>{rowStudent.name || 'Unknown Student'}</strong>
-                                                                <span className="student-email">
+                                                <td>
+                                                    {rowStudent.studentId ? (
+                                                        <span className="student-id-cell">{rowStudent.studentId}</span>
+                                                    ) : (
+                                                        <span className="student-id-cell no-id">—</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div className="student-info no-avatar">
+                                                        <div className="student-details">
+                                                            <strong>{rowStudent.name || 'Unknown Student'}</strong>
+                                                            <span className="student-email">
                                                                     Portal: {portalEmailDisplayLabel(rowStudent.email)}
-                                                                </span>
+                                                            </span>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -680,40 +679,40 @@ const StudentDetailOverlay = ({
                                                         <span className="student-parent-cell" title={parentLabel}>
                                                             {parentLabel}
                                                         </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="student-email-cell">
-                                                            {rowStudent.personalEmail || '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="student-phone-cell">
+                                                </td>
+                                                <td>
+                                                    <span className="student-email-cell">
+                                                        {rowStudent.personalEmail || '—'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="student-phone-cell">
                                                             {rowStudent.phone || '—'}
-                                                        </span>
-                                                    </td>
+                                                    </span>
+                                                </td>
                                                     <td className="student-detail-overlay__course-cell">
                                                         <strong>{course.title || 'No course assigned'}</strong>
-                                                        {timeslot ? (
+                                                            {timeslot ? (
                                                             <span className="student-detail-overlay__timeslot">
                                                                 {timeslot}
                                                             </span>
                                                         ) : null}
-                                                    </td>
+                                                </td>
                                                     <td>{teacher || '—'}</td>
-                                                    <td>{formatDateOnly(enrollment.enrollmentDate)}</td>
+                                                <td>{formatDateOnly(enrollment.enrollmentDate)}</td>
                                                     <td>{formatDateTime(rowStudent.createdAt || student.createdAt)}</td>
                                                     <td>
                                                         {lastLogin ? formatDateTime(lastLogin) : 'Never'}
-                                                    </td>
-                                                    <td>
-                                                        <span className={`status-badge payment-${enrollment.paymentStatus || 'pending'}`}>
-                                                            {(enrollment.paymentStatus || 'pending').charAt(0).toUpperCase()
-                                                                + (enrollment.paymentStatus || 'pending').slice(1)}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className="status-cell">
-                                                            <span className={`status-badge ${status}`}>
+                                                </td>
+                                                <td>
+                                                    <span className={`status-badge payment-${enrollment.paymentStatus || 'pending'}`}>
+                                                        {(enrollment.paymentStatus || 'pending').charAt(0).toUpperCase()
+                                                            + (enrollment.paymentStatus || 'pending').slice(1)}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div className="status-cell">
+                                                        <span className={`status-badge ${status}`}>
                                                                 <i
                                                                     className={`fas fa-${
                                                                         status === 'active'
@@ -725,26 +724,26 @@ const StudentDetailOverlay = ({
                                                                     aria-hidden
                                                                 />
                                                                 {status}
-                                                            </span>
+                                                        </span>
                                                             {detailTab === 'active' && !studentQuarantined ? (
-                                                                <select
-                                                                    className="status-select-inline"
-                                                                    value={status}
-                                                                    onChange={(e) => onUpdateStatus(enrollment, e.target.value)}
-                                                                    title="Change enrollment status"
-                                                                >
-                                                                    <option value="active">Active</option>
-                                                                    <option value="inactive">Inactive</option>
-                                                                    <option value="completed">Completed</option>
-                                                                </select>
-                                                            ) : null}
-                                                        </div>
-                                                    </td>
+                                                            <select
+                                                                className="status-select-inline"
+                                                                value={status}
+                                                                onChange={(e) => onUpdateStatus(enrollment, e.target.value)}
+                                                                title="Change enrollment status"
+                                                            >
+                                                                <option value="active">Active</option>
+                                                                <option value="inactive">Inactive</option>
+                                                                <option value="completed">Completed</option>
+                                                            </select>
+                                                        ) : null}
+                                                    </div>
+                                                </td>
                                                     <td className="actions-cell action-col">
                                                         {studentQuarantined ? (
                                                             <span className="empty-cell">—</span>
                                                         ) : detailTab === 'active' ? (
-                                                            <div className="action-buttons">
+                                                    <div className="action-buttons">
                                                                 <button
                                                                     type="button"
                                                                     className="action-btn edit-btn"
@@ -786,14 +785,13 @@ const StudentDetailOverlay = ({
                                                                 </button>
                                                             </div>
                                                         )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
             </div>

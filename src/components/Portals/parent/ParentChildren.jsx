@@ -33,8 +33,8 @@ const ParentChildren = () => {
   return (
     <div className="portal-page">
       <PortalPageHeader
-        title="My children"
-        subtitle="Links are created by admin in LMS → Parent links"
+        title="My Children"
+        subtitle="Links are created by admin in LMS → Parent Links"
       />
 
       <div className="portal-hero portal-hero--parent">
@@ -42,14 +42,14 @@ const ParentChildren = () => {
           <i className="fa-solid fa-child" />
         </div>
         <div>
-          <h2>Linked students</h2>
+          <h2>Linked Students</h2>
           <p>Students connected to your parent account by the academy admin.</p>
         </div>
       </div>
 
       <div className="portal-panel">
         <div className="portal-panel__head">
-          <h2>Children list</h2>
+          <h2>Children List</h2>
         </div>
         <div className="portal-panel__body">
           {children.length === 0 ? (

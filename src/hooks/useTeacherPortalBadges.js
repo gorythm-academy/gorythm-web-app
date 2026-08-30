@@ -1,34 +1,67 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { portalGet } from '../components/Portals/shared/portalApi';
-import { getItemsNewSinceLastVisit } from '../utils/portalNewItems';
+import {
+  getItemsNewSinceLastVisit,
+  TEACHER_SEEN_ADMIN_ASSIGNMENTS,
+  TEACHER_SEEN_ADMIN_RESOURCES,
+} from '../utils/portalNewItems';
+import {
+  hasAssignmentEditsSince,
+  hasSubmissionEditsSince,
+} from '../utils/portalAssignmentNotices';
 
 const SEEN_SUBMISSIONS = 'teacher_submissions';
 const SEEN_QUIZ_ATTEMPTS = 'teacher_quiz_attempts';
 
+const isAdminPublished = (item) => !!(item?.lockedForTeacher || item?.createdByRole === 'admin');
+
 export function useTeacherPortalBadges(enabled) {
   const location = useLocation();
-  const [badges, setBadges] = useState({ submissions: 0, quizAttempts: 0 });
+  const [badges, setBadges] = useState({
+    submissions: 0,
+    submissionsEdit: false,
+    adminResources: 0,
+    quizAttempts: 0,
+  });
 
   const refresh = useCallback(() => {
     if (!enabled) return;
-    Promise.all([portalGet('/teacher/submissions'), portalGet('/teacher/quiz-attempts')])
-      .then(([sRes, qRes]) => {
+    Promise.all([
+      portalGet('/teacher/submissions'),
+      portalGet('/teacher/quiz-attempts'),
+      portalGet('/teacher/assignments'),
+      portalGet('/teacher/resources'),
+    ])
+      .then(([sRes, qRes, aRes, rRes]) => {
         const submissions = (sRes.success ? sRes.submissions || [] : []).map((s) => ({
           ...s,
           submittedAt: s.submittedAt || s.createdAt,
         }));
         const attempts = qRes.success ? qRes.attempts || [] : [];
+        const assignments = aRes.success ? aRes.assignments || [] : [];
+        const resources = rRes.success ? rRes.resources || [] : [];
+        const adminAssignments = assignments.filter(isAdminPublished);
+        const adminResources = resources.filter(isAdminPublished);
+        const submissionCount = getItemsNewSinceLastVisit(SEEN_SUBMISSIONS, submissions, {
+          dateField: 'submittedAt',
+        }).length;
+        const adminAssignmentCount = getItemsNewSinceLastVisit(
+          TEACHER_SEEN_ADMIN_ASSIGNMENTS,
+          adminAssignments
+        ).length;
+        const assignmentEdits = hasAssignmentEditsSince(assignments, TEACHER_SEEN_ADMIN_ASSIGNMENTS);
+        const submissionEdits = hasSubmissionEditsSince(submissions, SEEN_SUBMISSIONS);
         setBadges({
-          submissions: getItemsNewSinceLastVisit(SEEN_SUBMISSIONS, submissions, {
-            dateField: 'submittedAt',
-          }).length,
+          submissions: submissionCount + adminAssignmentCount,
+          submissionsEdit: assignmentEdits || submissionEdits,
+          adminResources: getItemsNewSinceLastVisit(TEACHER_SEEN_ADMIN_RESOURCES, adminResources).length,
           quizAttempts: getItemsNewSinceLastVisit(SEEN_QUIZ_ATTEMPTS, attempts).length,
         });
       })
       .catch((err) => {
         console.warn('Teacher portal badges failed:', err);
-        setBadges({ submissions: 0, quizAttempts: 0 });
+        setBadges({ submissions: 0, submissionsEdit: false, adminResources: 0, quizAttempts: 0 });
       });
   }, [enabled]);
 

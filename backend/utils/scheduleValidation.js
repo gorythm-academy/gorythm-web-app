@@ -102,6 +102,7 @@ function teacherScheduleConflictMessage(conflictSlot) {
 }
 
 module.exports = {
+    timeToMinutes,
     validateScheduleTimes,
     resolveScheduleTeacher,
     findDuplicateSchedule,

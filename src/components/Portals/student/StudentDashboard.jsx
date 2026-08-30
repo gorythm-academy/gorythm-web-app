@@ -50,17 +50,17 @@ const StudentDashboard = () => {
 
       <SummaryGrid
         items={[
-          { label: 'Enrolled courses', value: s.enrolledCourses ?? 0, to: '/student/courses' },
+          { label: 'Enrolled Courses', value: s.enrolledCourses ?? 0, to: '/student/courses' },
           { label: 'Attendance', value: `${s.attendanceRate ?? 0}%`, to: '/student/attendance' },
-          { label: 'Assignments due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
-          { label: 'Pending fees', value: s.pendingFees ?? 0, to: '/student/fees' },
+          { label: 'Assignments Due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
+          { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/student/fees' },
         ]}
       />
 
       {due.length ? (
         <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
           <div className="portal-panel__head">
-            <h2>Assignments due</h2>
+            <h2>Assignments Due</h2>
           </div>
           <div className="portal-panel__body portal-panel__body--padded">
             <ul className="portal-due-list">
@@ -80,7 +80,7 @@ const StudentDashboard = () => {
 
       <div className="portal-quick-links">
         <Link to="/student/schedule" className="portal-card portal-link-card">
-          Class schedules →
+          Class Schedules →
         </Link>
         <Link to="/student/assignments" className="portal-card portal-link-card">
           Assignments →
@@ -95,7 +95,7 @@ const StudentDashboard = () => {
           Class schedule →
         </Link>
         <Link to="/student/content" className="portal-card portal-link-card">
-          Course content →
+          Course Content →
         </Link>
       </div>
     </div>

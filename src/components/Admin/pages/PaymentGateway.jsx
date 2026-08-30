@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
 import { getAuthUserJson } from '../../../utils/authStorage';
@@ -514,7 +515,7 @@ const PaymentGateway = () => {
                         <div className="payment-form bank-done-panel" ref={successPanelRef}>
                             <div className="bank-success-card">
                                 <i className="fas fa-check-circle" aria-hidden />
-                                <h3>Payment proof received</h3>
+                                <h3>Payment Proof Received</h3>
                                 <p>
                                     Thank you! We will verify your transfer. Once confirmed as paid, your student record
                                     will appear in our system and we will contact you.
@@ -532,7 +533,7 @@ const PaymentGateway = () => {
                             {bankStep === BANK_STEPS.FORM && (
                                 <div className="form-grid">
                                     <div className="form-group form-group-wide">
-                                        <label>Select Course *</label>
+                                        <label>Select Course <RequiredMark /></label>
                                         <select
                                             value={selectedCourseId}
                                             onChange={(e) => {
@@ -565,7 +566,7 @@ const PaymentGateway = () => {
                                     {paymentMethod === 'bank' ? (
                                         <>
                                             <div className="form-group">
-                                                <label>Student Full Name *</label>
+                                                <label>Student Full Name <RequiredMark /></label>
                                                 <input
                                                     type="text"
                                                     placeholder="Enter full name"
@@ -578,7 +579,7 @@ const PaymentGateway = () => {
                                             </div>
 
                                             <div className="form-group">
-                                                <label>Student/Parent Email *</label>
+                                                <label>Student/Parent Email <RequiredMark /></label>
                                                 <input
                                                     type="email"
                                                     placeholder="Enter email address"
@@ -589,7 +590,7 @@ const PaymentGateway = () => {
                                             </div>
 
                                             <div className="form-group form-group-wide">
-                                                <label>Student/Parent Phone Number (whatsapp Please) *</label>
+                                                <label>Student/Parent Phone Number (whatsapp Please) <RequiredMark /></label>
                                                 <input
                                                     type="tel"
                                                     placeholder="Country code + phone no"
@@ -615,7 +616,7 @@ const PaymentGateway = () => {
                             {bankStep === BANK_STEPS.FORM && (
                                 <>
                                     <div className="payment-methods">
-                                        <h3>Payment method</h3>
+                                        <h3>Payment Method</h3>
                                         <div className="methods-grid">
                                             {paymentMethods.map((method) => (
                                                 <button
@@ -659,7 +660,7 @@ const PaymentGateway = () => {
                                                     </p>
                                                 </div>
                                                 <div className="payment-details-box">
-                                                    <h4>Payment details</h4>
+                                                    <h4>Payment Details</h4>
                                                     <div className="payment-detail-line">
                                                         <span>Amount ({baseCurrency}):</span>
                                                         <strong>${usdAmount.toFixed(2)}</strong>
@@ -688,7 +689,7 @@ const PaymentGateway = () => {
                                             </>
                                         ) : (
                                             <div className="payment-bank-info">
-                                                <h3>Bank transfer</h3>
+                                                <h3>Bank Transfer</h3>
                                                 <p>
                                                     Transfer the fee using the bank details below, upload your payment
                                                     proof, then submit once. Your record is created only after you submit.
@@ -791,7 +792,7 @@ const PaymentGateway = () => {
 
                                     <div className="bank-upload-card">
                                         <h3>
-                                            <i className="fas fa-cloud-upload-alt" /> Upload payment proof *
+                                            <i className="fas fa-cloud-upload-alt" /> Upload payment proof <RequiredMark />
                                         </h3>
                                         <p>After transferring, attach a screenshot or PDF of your bank receipt.</p>
                                         <div

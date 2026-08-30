@@ -17,6 +17,7 @@
 
 // New semantic class names mapped to legacy selectors.
 // Keeps styles stable while JSX uses file-aligned naming.
+/* stylelint-disable scss/at-extend-no-missing-placeholder -- compatibility aliases for legacy selectors */
 .why-gorythm-section { @extend .key-achievements-section; }
 .why-gorythm-inview { @extend .key-achievements-inview; }
 .why-gorythm-inner { @extend .key-achievements-inner; }
@@ -38,6 +39,7 @@
 .why-gorythm-description { @extend .key-achievements-description; }
 .why-gorythm-cta { @extend .key-achievements-cta; }
 .why-gorythm_anim { @extend .key_anim; }
+/* stylelint-enable scss/at-extend-no-missing-placeholder */
 
 // ── Scroll-in animation (unchanged) ──────────────────────────────────────────
 @keyframes keyFadeUp {

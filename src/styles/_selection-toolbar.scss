@@ -1,0 +1,50 @@
+@import 'breakpoints';
+
+// Bulk / checkbox selection toolbars — stay visible while scrolling the list.
+// Scroll lives on .admin-content (see _admin-dashboard-layout.scss); sticky works there.
+
+$selection-toolbar-z: 90;
+
+$selection-toolbar-selectors: (
+    '.bulk-actions-bar:not(.student-detail-overlay__toolbar)',
+    '.selection-action-bar',
+    '.lms-resources-bulk-bar',
+    '.lms-schedule-bulk-bar',
+    '.lms-research-bulk-bar',
+    '.admin-submissions__bulk-bar',
+    '.accountant-payments-selection-bar',
+    '.teacher-assignments__bulk-bar',
+    '.teacher-resources__bulk-bar',
+    '.portal-attendance-records-toolbar',
+    '.portal-attendance-bulk-bar',
+    '.contact-summary-footer--bulk-top',
+    '.contact-bulk-bar'
+);
+
+@each $selector in $selection-toolbar-selectors {
+    #{$selector} {
+        position: sticky;
+        top: 0;
+        z-index: $selection-toolbar-z;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+    }
+}
+
+// Student overlay: toolbar sits above scroll body (not sticky in main scroll).
+.student-detail-overlay__toolbar {
+    position: static;
+    z-index: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.contact-bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+}

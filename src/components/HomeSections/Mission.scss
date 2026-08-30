@@ -209,7 +209,6 @@
 .mission-card-arrow {
   display: flex;
   justify-content: center;
-  margin-top: 18px;
   // Keep arrows aligned even if text wraps differently.
   // The grid rows above can grow; this ensures the arrow sits at the bottom of the card-info block.
   align-self: stretch;

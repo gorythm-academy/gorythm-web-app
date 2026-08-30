@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
@@ -20,7 +20,6 @@ import './StudentsData.scss';
 
 const PAGE_SIZE = 9;
 const CSV_EXPORT_PAGE_SIZE = 5000;
-const DETAIL_FETCH_LIMIT = 100;
 
 /** Allotted schedule teacher ONLY — never courseTeachers fallback. */
 const getEnrollmentTeacherItems = (enrollment) => {
@@ -33,14 +32,6 @@ const getEnrollmentTeacherLabel = (enrollment) => getEnrollmentTeacherItems(enro
 
 const getEnrollmentTimeslotLabel = (enrollment) =>
     formatScheduleTimeLabel(enrollment?.assignedSchedule);
-
-const getStudentKey = (enrollment) => {
-    const s = enrollment?.student;
-    if (s?._id) return String(s._id);
-    if (s?.studentId) return `sid:${s.studentId}`;
-    if (s?.email) return `email:${String(s.email).toLowerCase()}`;
-    return `enr:${enrollment?._id}`;
-};
 
 const summarizeLabels = (values, emptyLabel = '—') => {
     const cleaned = values.filter(Boolean);
@@ -67,45 +58,6 @@ const buildCourseSummary = (rows) => {
 const isPendingSetupStudent = (student) => {
     if (!student) return false;
     return isUnsetPortalEmail(student.email);
-};
-
-const buildStudentCards = (enrollments) => {
-    const map = new Map();
-    for (const enrollment of enrollments) {
-        const key = getStudentKey(enrollment);
-        if (!map.has(key)) {
-            map.set(key, {
-                key,
-                student: enrollment.student || {},
-                enrollments: [],
-            });
-        }
-        const card = map.get(key);
-        card.enrollments.push(enrollment);
-        if (enrollment.student?._id && !card.student?._id) {
-            card.student = enrollment.student;
-        }
-    }
-
-    return Array.from(map.values()).map((card) => {
-        const statuses = card.enrollments.map((e) => normalizeEnrollmentStatus(e.status));
-        const feeStatuses = card.enrollments.map((e) => {
-            const fee = (e.paymentStatus || 'pending').toLowerCase();
-            return fee.charAt(0).toUpperCase() + fee.slice(1);
-        });
-        const primaryStatus = summarizeLabels(statuses, 'active');
-        return {
-            ...card,
-            courseSummary: buildCourseSummary(card.enrollments),
-            courseCount: new Set(
-                card.enrollments.map((e) => e.course?._id || e.course?.title).filter(Boolean)
-            ).size,
-            statusLabel: primaryStatus,
-            feeStatusLabel: summarizeLabels(feeStatuses, 'Pending'),
-            enrollmentCount: card.enrollments.length,
-            pendingSetup: isPendingSetupStudent(card.student),
-        };
-    });
 };
 
 const buildStudentCardsFromApi = (studentsPayload = []) =>
@@ -219,16 +171,6 @@ const StudentsData = () => {
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
     const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
-
-    const enrollments = useMemo(
-        () => studentCards.flatMap((card) =>
-            (card.enrollments || []).map((row) => ({
-                ...row,
-                student: row.student || card.student,
-            }))
-        ),
-        [studentCards]
-    );
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -546,15 +488,6 @@ const StudentsData = () => {
         }
     }, [fetchEnrollments, fetchStats, invalidateStudentsCaches, listTab]);
 
-    const refreshDetailIfOpen = useCallback(async () => {
-        const student = detailStudentRef.current;
-        if (!student?._id) return;
-        overlayCacheRef.current.delete(
-            buildOverlayCacheKey(String(student._id), detailTabRef.current)
-        );
-        await fetchStudentDetailEnrollments(student, detailTabRef.current, { force: true });
-    }, [fetchStudentDetailEnrollments]);
-
     const fetchCourses = useCallback(async () => {
         try {
             const token = getAuthToken();
@@ -601,7 +534,7 @@ const StudentsData = () => {
         const cacheKey = student._id
             ? buildOverlayCacheKey(String(student._id), initialTab)
             : null;
-        const cached = cacheKey ? overlayCacheRef.current.get(cacheKey) : null;
+        if (cacheKey) overlayCacheRef.current.delete(cacheKey);
 
         setDetailTab(initialTab);
         setDetailStudent({
@@ -617,12 +550,9 @@ const StudentsData = () => {
             deletedAt: student.deletedAt,
             pendingSetup: card.pendingSetup,
         });
-        setDetailEnrollments(cached?.enrollments || card.enrollments || []);
-        setDetailQuarantineCount(
-            cached?.quarantineCount
-            ?? (openOnTrash ? (card.enrollments?.length || 0) : 0)
-        );
-        setDetailLoading(!cached && !(card.enrollments?.length));
+        setDetailEnrollments(card.enrollments || []);
+        setDetailQuarantineCount(openOnTrash ? (card.enrollments?.length || 0) : 0);
+        setDetailLoading(true);
         setDetailRefreshing(false);
     };
 
@@ -939,7 +869,7 @@ const StudentsData = () => {
                 ['teachers', 'Teachers'],
                 ['enrollmentDate', 'Enrollment date'],
                 ['addedAt', 'Added'],
-                ['feeStatus', 'Fee status'],
+                ['feeStatus', 'Fee Status'],
                 ['status', 'Status'],
             ];
 

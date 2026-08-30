@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPatch, portalDelete } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
@@ -470,7 +471,7 @@ const AccountantPayments = () => {
 
   return (
     <div className="portal-page accountant-payments-page">
-      <PortalPageHeader title="Student payments" subtitle="Review bank transfers and confirm payments" />
+      <PortalPageHeader title="Student Payments" subtitle="Review bank transfers and confirm payments" />
 
       {toast ? (
         <div className={`accountant-toast accountant-toast--${toast.type}`} role="status">
@@ -490,7 +491,7 @@ const AccountantPayments = () => {
           <i className="fa-solid fa-credit-card" />
         </div>
         <div>
-          <h2>Payment review</h2>
+          <h2>Payment Review</h2>
           <p>
             Bank screenshots keeps every bank transfer proof on file. Use Review to approve or reject new submissions.
           </p>
@@ -505,7 +506,7 @@ const AccountantPayments = () => {
               label: bankSsCount > 0 ? `Bank screenshots (${bankSsCount})` : 'Bank screenshots',
             },
             { id: 'review', label: awaitingCount > 0 ? `Review (${awaitingCount})` : 'Review' },
-            { id: 'all', label: 'All payments' },
+            { id: 'all', label: 'All Payments' },
             { id: 'final', label: 'Final (paid, rejected & refunded)' },
           ].map((tab) => (
             <button
@@ -613,7 +614,7 @@ const AccountantPayments = () => {
                 <i className="fas fa-table" />
               </span>
               <div className="accountant-payments-panel__titles">
-                <h2>Payments table</h2>
+                <h2>Payments Table</h2>
                 <p>
                   {filterLabels[filter] || 'Payments'} · {filtered.length} record{filtered.length === 1 ? '' : 's'}
                   {!tableExpanded ? ' · click to expand' : ''}
@@ -929,7 +930,7 @@ const AccountantPayments = () => {
           <div className="accountant-receipt-modal__backdrop" onClick={() => setReceiptModal(null)} />
           <div className="accountant-receipt-modal__panel">
             <div className="accountant-receipt-modal__head">
-              <h3>Payment screenshot</h3>
+              <h3>Payment Screenshot</h3>
               <button type="button" onClick={() => setReceiptModal(null)}>
                 <i className="fas fa-times" />
               </button>
@@ -961,7 +962,7 @@ const AccountantPayments = () => {
           />
           <div className="accountant-receipt-modal__panel accountant-receipt-modal__panel--form">
             <div className="accountant-receipt-modal__head">
-              <h3>Reject payment</h3>
+              <h3>Reject Payment</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -973,16 +974,18 @@ const AccountantPayments = () => {
                 <i className="fas fa-times" />
               </button>
             </div>
-            <p>Reason for rejecting {rejectModal.studentName || 'this payment'}:</p>
-            <textarea
-              rows={4}
-              value={rejectReason}
-              onChange={(e) => {
-                setRejectReason(e.target.value);
-                if (rejectError) setRejectError('');
-              }}
-              placeholder="e.g. Wrong amount, unclear screenshot"
-            />
+            <label className="portal-field-label">
+              <span>Rejection reason <RequiredMark /></span>
+              <textarea
+                rows={4}
+                value={rejectReason}
+                onChange={(e) => {
+                  setRejectReason(e.target.value);
+                  if (rejectError) setRejectError('');
+                }}
+                placeholder="e.g. Wrong amount, unclear screenshot"
+              />
+            </label>
             {rejectError ? <p className="accountant-dialog__inline-error">{rejectError}</p> : null}
             <div className="accountant-dialog__actions">
               <button

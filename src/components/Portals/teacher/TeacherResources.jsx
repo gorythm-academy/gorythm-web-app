@@ -1,16 +1,25 @@
+import RequiredMark from '../../shared/RequiredMark';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { portalGet, portalPost, portalPatch } from '../shared/portalApi';
-import { hasLmsUploadValue, resolveLmsUploadValue } from '../../../utils/fileUploadApi';
+import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import { absFileUrl } from '../../../utils/fileUrl';
+import { PortalLoading, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
+import SubmissionFiles from '../shared/SubmissionFiles';
 import { portalDocId } from '../../../utils/portalDocId';
+import { markPortalPageVisited, TEACHER_SEEN_ADMIN_RESOURCES } from '../../../utils/portalNewItems';
+import {
+  dismissActivityNotices,
+  filterDismissedActivityNotices,
+} from '../../../utils/portalAssignmentNotices';
+import { collectAdminResourceEditNotices } from '../../../utils/adminEditNotices';
+import { usePortalDialog } from '../shared/PortalDialogContext';
 import './TeacherResources.scss';
 
 const EMPTY_RESOURCE = {
   title: '',
   courseId: '',
   fileUrl: '',
+  attachments: [],
   type: 'file',
   description: '',
 };
@@ -21,7 +30,11 @@ function typeIcon(type) {
   return 'fa-file-pdf';
 }
 
+const isAdminLockedResource = (r) => !!(r?.lockedForTeacher || r?.createdByRole === 'admin');
+const SEEN_ACTIVITY_KEY = 'teacher_resources_activity';
+
 const TeacherResources = () => {
+  const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +50,7 @@ const TeacherResources = () => {
   const savingRef = useRef(false);
 
   const [loadError, setLoadError] = useState('');
+  const [activityDismissTick, setActivityDismissTick] = useState(0);
 
   const reload = () =>
     Promise.all([portalGet('/teacher/courses'), portalGet('/teacher/resources')])
@@ -50,6 +64,7 @@ const TeacherResources = () => {
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
+    markPortalPageVisited(TEACHER_SEEN_ADMIN_RESOURCES);
   }, []);
 
   useEffect(() => {
@@ -73,6 +88,27 @@ const TeacherResources = () => {
     () => filteredResources.map((r) => portalDocId(r)).filter(Boolean),
     [filteredResources]
   );
+
+  const adminEditNotices = useMemo(
+    () => collectAdminResourceEditNotices(filteredResources),
+    [filteredResources]
+  );
+
+  const visibleAdminEditNotices = useMemo(
+    () => {
+      void activityDismissTick;
+      return filterDismissedActivityNotices(SEEN_ACTIVITY_KEY, adminEditNotices);
+    },
+    [adminEditNotices, activityDismissTick]
+  );
+
+  const dismissAdminEditBanner = () => {
+    dismissActivityNotices(
+      SEEN_ACTIVITY_KEY,
+      visibleAdminEditNotices.map((row) => `${row.id}-${row.message}`)
+    );
+    setActivityDismissTick((n) => n + 1);
+  };
 
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
@@ -111,36 +147,38 @@ const TeacherResources = () => {
     savingRef.current = true;
     setSaving(true);
     setMsg('');
-    if (resourceForm.type === 'file' && !hasLmsUploadValue(resourceForm.fileUrl)) {
-      setMsg('Choose a file for this resource.');
+    if (resourceForm.type === 'file' && !hasLmsUploadValue(resourceForm.attachments)) {
+      await showAlert({ type: 'error', message: 'Choose at least one file for this resource.' });
       savingRef.current = false;
       setSaving(false);
       return;
     }
     try {
-      const fileUrl =
-        resourceForm.type === 'file'
-          ? await resolveLmsUploadValue(resourceForm.fileUrl, 'content/books')
-          : resourceForm.fileUrl;
-      const payload = { ...resourceForm, fileUrl };
+      let fileUrl = resourceForm.fileUrl;
+      let attachments;
+      if (resourceForm.type === 'file') {
+        attachments = await resolveLmsUploadList(resourceForm.attachments, 'content/books');
+        fileUrl = attachments[0] || '';
+      }
+      const payload = { ...resourceForm, fileUrl, attachments };
       if (editingResourceId) {
         const id = portalDocId(editingResourceId);
         if (!id) {
-          setMsg('Cannot save: open Edit from the resource list first.');
+          await showAlert({ type: 'error', message: 'Cannot save: open Edit from the resource list first.' });
           savingRef.current = false;
           setSaving(false);
           return;
         }
         await portalPatch(`/teacher/resources/${id}`, payload);
-        setMsg('Resource updated.');
+        await showAlert({ type: 'success', message: 'Resource updated.' });
       } else {
         await portalPost('/teacher/resources', payload);
-        setMsg('Resource added.');
+        await showAlert({ type: 'success', message: 'Resource added.' });
       }
       resetResourceForm();
       await reload();
     } catch (err) {
-      setMsg(err.message || 'Failed');
+      await showAlert({ type: 'error', message: err.message || 'Failed' });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -160,6 +198,7 @@ const TeacherResources = () => {
       title: r.title || '',
       courseId: String(r.course?._id || r.course || ''),
       fileUrl: r.fileUrl || '',
+      attachments: r.attachments?.length ? [...r.attachments] : r.fileUrl ? [r.fileUrl] : [],
       type: r.type || 'file',
       description: r.description || '',
     });
@@ -173,14 +212,15 @@ const TeacherResources = () => {
     const label =
       confirmMessage ||
       `Delete ${idList.length} selected resource${idList.length > 1 ? 's' : ''}? This cannot be undone.`;
-    if (!window.confirm(label)) return;
+    const ok = await showConfirm({ title: 'Delete resources?', message: label, confirmLabel: 'Delete' });
+    if (!ok) return;
 
     setDeleting(true);
     setMsg('');
     try {
       const res = await portalPost('/teacher/resources/bulk-delete', { ids: idList });
       const removed = res.deletedCount ?? idList.length;
-      setMsg(`Removed ${removed} resource${removed !== 1 ? 's' : ''}.`);
+      await showAlert({ type: 'success', message: `Removed ${removed} resource${removed !== 1 ? 's' : ''}.` });
       setSelectedIds((prev) => {
         const next = new Set(prev);
         idList.forEach((id) => next.delete(id));
@@ -191,7 +231,7 @@ const TeacherResources = () => {
       }
       await reload();
     } catch (err) {
-      setMsg(err.message || 'Delete failed');
+      await showAlert({ type: 'error', message: err.message || 'Delete failed' });
     } finally {
       setDeleting(false);
     }
@@ -218,7 +258,7 @@ const TeacherResources = () => {
       <div className="portal-page teacher-resources">
         {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
         <PortalPageHeader
-          title="Course resources"
+          title="Course Resources"
           subtitle={loadError
             ? 'Could not load your courses. Refresh the page or try again later.'
             : 'No courses assigned yet. Ask admin to set your account as instructor on a course.'}
@@ -230,9 +270,16 @@ const TeacherResources = () => {
   return (
     <div className="portal-page teacher-resources">
       <PortalPageHeader
-        title="Course resources"
+          title="Course Resources"
         subtitle="Upload files, add links, or post notes. Select multiple items to delete at once."
       />
+
+      <PortalActivityBanner
+        title="Admin updates"
+        rows={visibleAdminEditNotices}
+        onDismiss={dismissAdminEditBanner}
+      />
+
       {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
 
       <div className="teacher-resources__layout">
@@ -243,7 +290,7 @@ const TeacherResources = () => {
               <i className="fas fa-cloud-upload-alt" />
             </div>
             <div>
-              <h2>{editingResourceId ? 'Edit resource' : 'Add resource'}</h2>
+              <h2>{editingResourceId ? 'Edit Resource' : 'Add Resource'}</h2>
               <p>
                 {editingResourceId
                   ? 'Update the title, course, type, or content below.'
@@ -261,7 +308,7 @@ const TeacherResources = () => {
           </div>
           <form onSubmit={saveResource} autoComplete="off">
             <label className="portal-field-label">
-              <span>Title</span>
+              <span>Title <RequiredMark /></span>
               <input
                 value={resourceForm.title}
                 onChange={(e) => setResourceForm({ ...resourceForm, title: e.target.value })}
@@ -270,7 +317,7 @@ const TeacherResources = () => {
               />
             </label>
             <label className="portal-field-label">
-              <span>Course</span>
+              <span>Course <RequiredMark /></span>
               <select
                 value={resourceForm.courseId}
                 onChange={(e) => setResourceForm({ ...resourceForm, courseId: e.target.value })}
@@ -294,6 +341,7 @@ const TeacherResources = () => {
                     ...prev,
                     type: nextType,
                     fileUrl: '',
+                    attachments: [],
                     description: nextType === 'note' ? prev.description : prev.type === 'note' ? '' : prev.description,
                   }));
                 }}
@@ -305,15 +353,16 @@ const TeacherResources = () => {
             </label>
             {resourceForm.type === 'file' ? (
               <FileUploadField
-                label="Upload file (PDF, Word, image)"
-                value={resourceForm.fileUrl}
-                onChange={(url) => setResourceForm({ ...resourceForm, fileUrl: url })}
+                label={<>Upload file (PDF, Word, image) <RequiredMark /></>}
+                value={resourceForm.attachments}
+                onChange={(attachments) => setResourceForm({ ...resourceForm, attachments })}
                 category="content/books"
+                multiple
               />
             ) : null}
             {resourceForm.type === 'link' ? (
               <label className="portal-field-label">
-                <span>Link URL</span>
+                <span>Link URL <RequiredMark /></span>
                 <input
                   type="url"
                   placeholder="https://example.com/resource"
@@ -327,7 +376,7 @@ const TeacherResources = () => {
             {resourceForm.type === 'note' ? (
               <>
                 <label className="portal-field-label">
-                  <span>Note content</span>
+                  <span>Note content <RequiredMark /></span>
                   <textarea
                     rows={4}
                     placeholder="Write the note students will read"
@@ -377,7 +426,7 @@ const TeacherResources = () => {
 
         <section className="teacher-resources__library" aria-label="Resource library">
           <div className="teacher-resources__library-head">
-            <h2>Your library</h2>
+            <h2>Your Library</h2>
             <div className="teacher-resources__library-actions">
               <span className="teacher-resources__count">
                 {filteredResources.length} of {resources.length} shown
@@ -478,7 +527,8 @@ const TeacherResources = () => {
                   {filteredResources.map((r) => {
                     const id = portalDocId(r);
                     const selected = id && selectedIds.has(id);
-                    const fileHref = r.fileUrl ? absFileUrl(r.fileUrl) : null;
+                    const fileList = r.attachments?.length ? r.attachments : r.fileUrl ? [r.fileUrl] : [];
+                    const locked = isAdminLockedResource(r);
                     return (
                       <tr
                         key={id || r.title}
@@ -490,6 +540,7 @@ const TeacherResources = () => {
                             checked={Boolean(selected)}
                             onChange={() => toggleSelect(id)}
                             aria-label={`Select ${r.title}`}
+                            disabled={locked}
                           />
                         </td>
                         <td className="teacher-resources__list-title">
@@ -497,6 +548,11 @@ const TeacherResources = () => {
                             <i className={`fas ${typeIcon(r.type)}`} aria-hidden="true" />
                           </span>
                           {r.title}
+                          {locked ? (
+                            <span className="teacher-resources__admin-tag" title="Published by admin">
+                              Admin
+                            </span>
+                          ) : null}
                         </td>
                         <td>{r.course?.title || '—'}</td>
                         <td>
@@ -505,9 +561,11 @@ const TeacherResources = () => {
                           </span>
                         </td>
                         <td>
-                          {fileHref ? (
-                            <a href={fileHref} target="_blank" rel="noreferrer">
-                              {r.type === 'link' ? 'Open link' : 'Open file'}
+                          {fileList.length ? (
+                            <SubmissionFiles attachments={fileList} />
+                          ) : r.type === 'link' && r.fileUrl ? (
+                            <a href={r.fileUrl} target="_blank" rel="noreferrer">
+                              Open link
                             </a>
                           ) : r.type === 'note' && r.description ? (
                             <span className="teacher-resources__note-preview" title={r.description}>
@@ -519,21 +577,27 @@ const TeacherResources = () => {
                         </td>
                         <td>
                           <div className="portal-table-actions">
-                            <button
-                              type="button"
-                              className="teacher-resources__btn teacher-resources__btn--ghost teacher-resources__btn--small"
-                              onClick={() => startEditResource(r)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="teacher-resources__btn teacher-resources__btn--danger teacher-resources__btn--small"
-                              onClick={() => deleteOne(r)}
-                              disabled={deleting}
-                            >
-                              Delete
-                            </button>
+                            {locked ? (
+                              <span className="teacher-resources__view-only">View only</span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="teacher-resources__btn teacher-resources__btn--ghost teacher-resources__btn--small"
+                                  onClick={() => startEditResource(r)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="teacher-resources__btn teacher-resources__btn--danger teacher-resources__btn--small"
+                                  onClick={() => deleteOne(r)}
+                                  disabled={deleting}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

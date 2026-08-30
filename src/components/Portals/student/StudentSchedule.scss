@@ -128,8 +128,14 @@
 
   .student-schedule__time {
     font-weight: 600;
-    color: #0f172a;
+    color: #334155;
     white-space: nowrap;
+  }
+
+  .student-schedule__no-slot {
+    color: #c2410c;
+    font-weight: 600;
+    font-size: 0.82rem;
   }
 
   .student-schedule__course {

@@ -15,10 +15,29 @@ function safeBasename(raw) {
     return name;
 }
 
+function nextAvailableFilename(destDir, filename) {
+    const ext = path.extname(filename);
+    const stem = ext ? filename.slice(0, -ext.length) : filename;
+    for (let i = 2; i < 10000; i++) {
+        const candidate = `${stem} (${i})${ext}`;
+        if (!fs.existsSync(path.join(destDir, candidate))) return candidate;
+    }
+    const stamp = Date.now();
+    return ext ? `${stem}-${stamp}${ext}` : `${stem}-${stamp}`;
+}
+
 /**
  * Pick stored filename: optional admin override, otherwise original upload name.
+ * @param {'error'|'suffix'} onDuplicate - error (default) or auto-append " (2)" etc.
  */
-function resolveStoredFilename({ destDir, originalName, overrideName, replacePath, publicPathFor }) {
+function resolveStoredFilename({
+    destDir,
+    originalName,
+    overrideName,
+    replacePath,
+    publicPathFor,
+    onDuplicate = 'error',
+}) {
     const override = String(overrideName || '').trim();
     const filename = safeBasename(override || originalName || 'file');
     const abs = path.join(destDir, filename);
@@ -27,6 +46,9 @@ function resolveStoredFilename({ destDir, originalName, overrideName, replacePat
         replacePath && typeof publicPathFor === 'function' && replacePath === publicPathFor(filename);
 
     if (fs.existsSync(abs) && !replacingSame) {
+        if (onDuplicate === 'suffix') {
+            return nextAvailableFilename(destDir, filename);
+        }
         throw new Error(`"${filename}" already exists. Rename the file or delete the existing copy.`);
     }
 
@@ -35,5 +57,6 @@ function resolveStoredFilename({ destDir, originalName, overrideName, replacePat
 
 module.exports = {
     safeBasename,
+    nextAvailableFilename,
     resolveStoredFilename,
 };

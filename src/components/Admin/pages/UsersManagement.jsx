@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken, parseAuthUser } from '../../../utils/authStorage';
 import { API_BASE_URL, PROTECTED_SUPER_ADMIN_EMAIL } from '../../../config/constants';
@@ -10,14 +11,15 @@ import { lmsAdminGet } from '../../../utils/lmsAdminApi';
 import { Link } from 'react-router-dom';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import AdminTablePagination from '../shared/AdminTablePagination';
+import AdminSearchBox from '../shared/AdminSearchBox';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
+import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import './UsersManagement.scss';
 
 const USERS_PAGE_SIZE = 25;
 const PARENT_LINK_STUDENT_LIMIT = 50;
 const SEARCH_DEBOUNCE_MS = 300;
 
-const PEOPLE_ROLE_SLUGS = ['student', 'teacher', 'parent'];
 const STAFF_ROLE_SLUGS = ['manager', 'super-admin', 'accountant'];
 
 const VARIANT_CONFIG = {
@@ -100,7 +102,7 @@ const COLUMN_LABELS = {
     user: 'User',
     role: 'Role',
     status: 'Status',
-    assignedCourses: 'Assigned courses',
+    assignedCourses: 'Assigned Courses',
     children: 'Children',
     phone: 'Phone',
     email: 'Email',
@@ -131,8 +133,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    const {
+        searchTerm,
+        setSearchTerm,
+        debouncedSearch: debouncedSearchTerm,
+        flushSearch: flushUserSearch,
+    } = useAdminSearch('', SEARCH_DEBOUNCE_MS);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [listStats, setListStats] = useState(null);
@@ -327,13 +333,24 @@ const UsersManagement = ({ variant = 'staff' }) => {
         assignedCourseIds: [],
     });
 
+    const assignedTeacherSlots = useMemo(() => {
+        if (variant !== 'teachers' || !editingUser) return teacherSlots;
+        const assigned = new Set((formData.assignedCourseIds || []).map(String));
+        return teacherSlots.filter((slot) =>
+            assigned.has(String(slot.course?._id || slot.course))
+        );
+    }, [variant, editingUser, teacherSlots, formData.assignedCourseIds]);
+
     const fetchUsers = useCallback(async (options = {}) => {
         const effectivePage = options.page ?? pageRef.current;
+        const effectiveSearch = options.search !== undefined
+            ? String(options.search || '').trim()
+            : debouncedSearchTerm;
         const cacheKey = buildListCacheKey({
             variant,
             listTab,
             page: effectivePage,
-            debouncedSearchTerm,
+            debouncedSearchTerm: effectiveSearch,
             filterRole,
             sortBy,
             sortOrder,
@@ -360,7 +377,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             const includeCounts = options.includeCounts
                 || isFirstListLoadRef.current
                 || prevFiltersRef.current.listTab !== listTab;
-            const includeStats = listTab === 'active' && !debouncedSearchTerm && filterRole === 'all';
+            const includeStats = listTab === 'active' && !effectiveSearch && filterRole === 'all';
 
             const response = await axios.get(`${API_BASE_URL}/api/users`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -368,7 +385,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     segment,
                     page: effectivePage,
                     limit: USERS_PAGE_SIZE,
-                    search: debouncedSearchTerm || undefined,
+                    search: effectiveSearch || undefined,
                     sortBy,
                     sortOrder,
                     ...(isStaffTab && filterRole !== 'all' ? { role: filterRole } : {}),
@@ -443,13 +460,6 @@ const UsersManagement = ({ variant = 'staff' }) => {
         invalidateUsersCache();
         fetchUsers({ force: true, includeCounts: true });
     }, [fetchUsers, invalidateUsersCache]);
-
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setDebouncedSearchTerm(searchTerm.trim());
-        }, SEARCH_DEBOUNCE_MS);
-        return () => window.clearTimeout(timer);
-    }, [searchTerm]);
 
     const loadTeacherCourseMap = useCallback(async (token) => {
         try {
@@ -567,7 +577,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (isFirstListLoadRef.current) {
             isFirstListLoadRef.current = false;
         }
-        fetchUsersRef.current({ page, includeCounts });
+        fetchUsersRef.current({ page, includeCounts, force: true });
     }, [page, debouncedSearchTerm, filterRole, listTab, sortBy, sortOrder, variant]);
 
     useEffect(() => {
@@ -1395,7 +1405,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         <h3><i className="fas fa-info-circle"></i> Basic Information</h3>
                                         
                                         <div className="form-group">
-                                            <label>Full Name *</label>
+                                            <label>Full Name <RequiredMark /></label>
                                             <input
                                                 type="text"
                                                 name="name"
@@ -1408,7 +1418,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         </div>
 
                                         <div className="form-group">
-                                            <label>Email Address *</label>
+                                            <label>Email Address <RequiredMark /></label>
                                             {!editingUser ? (
                                                 <div
                                                     className={`email-input-group ${
@@ -1499,7 +1509,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         <h3><i className="fas fa-user-tag"></i> Role & Status</h3>
                                         
                                         <div className="form-group">
-                                            <label>User Role *</label>
+                                            <label>User Role <RequiredMark /></label>
                                             <div className="role-options">
                                                 {roleOptions.map(role => (
                                                     <label key={role.value} className="role-option">
@@ -1564,7 +1574,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         <h3><i className="fas fa-lock"></i> {editingUser ? 'Change Password' : 'Set Password'}</h3>
                                         
                                         <div className="form-group">
-                                            <label>Password {!editingUser && '*'}</label>
+                                            <label>Password {!editingUser ? <RequiredMark /> : null}</label>
                                             <div className={`password-field ${isSubmitting ? 'is-disabled' : ''}`}>
                                                 <input
                                                     type={showPassword ? 'text' : 'password'}
@@ -1596,7 +1606,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         </div>
 
                                         <div className="form-group">
-                                            <label>Confirm Password {!editingUser && '*'}</label>
+                                            <label>Confirm Password {!editingUser ? <RequiredMark /> : null}</label>
                                                 <div className={`password-field ${isSubmitting ? 'is-disabled' : ''}`}>
                                                     <input
                                                         type={showConfirmPassword ? 'text' : 'password'}
@@ -1641,7 +1651,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
                                     {variant === 'teachers' && (
                                         <div className="form-section">
-                                            <h3><i className="fas fa-book"></i> Assigned courses</h3>
+                                            <h3><i className="fas fa-book"></i> Assigned Courses</h3>
                                             <p className="form-hint">
                                                 Optional. Only published courses are listed. Assigning here updates the
                                                 same teacher list as the Courses tab.
@@ -1668,18 +1678,18 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
                                     {variant === 'teachers' && editingUser && (
                                         <div className="form-section">
-                                            <h3><i className="fas fa-clock"></i> Class schedule slots</h3>
+                                            <h3><i className="fas fa-clock"></i> Class Schedule Slots</h3>
                                             <p className="form-hint">
                                                 Read-only. Create or edit slots in{' '}
-                                                <Link to="/admin/lms">LMS → Class schedules</Link>.
+                                                <Link to="/admin/lms">LMS → Class Schedules</Link>.
                                             </p>
                                             {teacherSlotsLoading ? (
                                                 <p className="form-hint-muted">Loading slots…</p>
-                                            ) : teacherSlots.length === 0 ? (
-                                                <p className="form-hint-muted">No class slots for this teacher yet.</p>
+                                            ) : assignedTeacherSlots.length === 0 ? (
+                                                <p className="form-hint-muted">No class slots for assigned courses yet.</p>
                                             ) : (
                                                 <ul className="teacher-slots-readonly">
-                                                    {teacherSlots.map((slot) => (
+                                                    {assignedTeacherSlots.map((slot) => (
                                                         <li key={slot._id}>
                                                             <strong>{slot.course?.title || 'Course'}</strong>
                                                             {' — '}
@@ -1693,11 +1703,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
                                     {variant === 'parents' && (
                                         <div className="form-section">
-                                            <h3><i className="fas fa-child"></i> Linked children</h3>
+                                            <h3><i className="fas fa-child"></i> Linked Children</h3>
                                             <p className="form-hint">
-                                                Synced with the LMS Parent links tab. Add children here when creating or
-                                                editing a parent. Save the parent first if no students appear yet — link
-                                                them after students are enrolled.
+                                                Synced with the LMS Parent links tab. Each student can have only one
+                                                parent; a parent can have multiple children. Add children here when
+                                                creating or editing a parent.
                                             </p>
                                             <ul className="parent-children-list">
                                                 {(editingUser ? parentLinksInModal : pendingParentLinks).length === 0 ? (
@@ -1890,22 +1900,21 @@ const UsersManagement = ({ variant = 'staff' }) => {
 
             {/* Search and Filter */}
             <div className="controls-bar">
-                <div className="search-box">
-                    <i className="fas fa-search"></i>
-                    <input
-                        type="text"
-                        placeholder={
-                            variant === 'parents'
-                                ? 'Search parents by name, email, phone, or child...'
-                                : isLearnerTab
-                                ? 'Search learners by name, email or phone...'
-                                : 'Search users by name, email or phone...'
-                        }
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && fetchUsers({ force: true })}
-                    />
-                </div>
+                <AdminSearchBox
+                    placeholder={
+                        variant === 'parents'
+                            ? 'Search parents by name, email, phone, child, or relation…'
+                            : isLearnerTab
+                            ? 'Search learners by name, email or phone…'
+                            : 'Search users by name, email or phone…'
+                    }
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onEnter={() => {
+                        const q = flushUserSearch();
+                        fetchUsers({ force: true, page: 1, search: q });
+                    }}
+                />
                 
                 <div className="filter-controls">
                     {variant !== 'parents' ? (
@@ -2568,7 +2577,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 <div className="user-modal-overlay" role="dialog" aria-modal="true">
                     <div className="user-modal user-view-modal">
                         <div className="user-modal-header">
-                            <h2><i className="fas fa-eye"></i> Account details</h2>
+                            <h2><i className="fas fa-eye"></i> Account Details</h2>
                             <button type="button" className="modal-close-btn" onClick={() => setViewUser(null)}>
                                 <i className="fas fa-times"></i>
                             </button>
@@ -2596,7 +2605,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                             {viewTeacherSlotsLoading ? (
                                                 'Loading…'
                                             ) : viewTeacherSlots.length === 0 ? (
-                                                'None yet — manage in LMS → Class schedules'
+                                                'None yet — manage in LMS → Class Schedules'
                                             ) : (
                                                 <ul className="teacher-slots-readonly">
                                                     {viewTeacherSlots.map((slot) => (
@@ -2609,7 +2618,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 </ul>
                                             )}
                                             <p className="form-hint" style={{ marginTop: '0.5rem' }}>
-                                                <Link to="/admin/lms">Open LMS Class schedules</Link> to edit.
+                                                <Link to="/admin/lms">Open LMS Class Schedules</Link> to edit.
                                             </p>
                                         </dd>
                                     </>

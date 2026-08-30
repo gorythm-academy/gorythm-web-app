@@ -534,6 +534,53 @@
     margin: 0 0 1rem;
     color: #1d4ed8;
   }
+
+  &__btn {
+    margin-top: 0.75rem;
+    padding: 0.65rem 1.15rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.student-assignments-table {
+  &__row--active {
+    background: #eff6ff;
+  }
+
+  &__status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+
+    .lms-due-date-notice {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #1d4ed8;
+      line-height: 1.35;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
 }
 
 .portal-select-hint {
@@ -567,5 +614,56 @@
       border-color: transparent;
       color: #fff;
     }
+  }
+}
+
+.portal-admin-edit-banner {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #312e81;
+
+  strong {
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.88rem;
+  }
+
+  &--info {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #78350f;
+  }
+
+  &__dismiss {
+    margin-top: 0.65rem;
+  }
+}
+
+.portal-table-btn {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-accent, #3b82f6);
+    color: #1d4ed8;
+  }
+
+  &--inline {
+    margin-left: 0.35rem;
+    vertical-align: middle;
   }
 }

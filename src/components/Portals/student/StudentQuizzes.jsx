@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost } from '../shared/portalApi';
 import {
   PortalLoading,
@@ -149,7 +150,7 @@ const StudentQuizzes = () => {
           <i className="fa-solid fa-question-circle" />
         </div>
         <div>
-          <h2>Course quizzes</h2>
+          <h2>Course Quizzes</h2>
           <p>Filter by course, take quizzes once, and review your scores when results are ready.</p>
         </div>
       </div>
@@ -172,7 +173,7 @@ const StudentQuizzes = () => {
       <div className="portal-panel">
           <div className="portal-panel__head">
             <div>
-              <h2>Quiz list</h2>
+              <h2>Quiz List</h2>
               <p>Due dates, scores, and actions</p>
             </div>
           </div>
@@ -189,7 +190,7 @@ const StudentQuizzes = () => {
                       <th>Quiz</th>
                       <th>Course</th>
                       <th>Due</th>
-                      <th>Your score</th>
+                      <th>Your Score</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -242,6 +243,7 @@ const StudentQuizzes = () => {
       {taking ? (
         <form className="portal-quiz-take-panel" onSubmit={submit}>
           <h3>{q.title}</h3>
+          <p className="portal-field-hint">Answer all questions <RequiredMark /></p>
           {q.resourceLink ? (
             <p>
               <a href={q.resourceLink} target="_blank" rel="noreferrer">

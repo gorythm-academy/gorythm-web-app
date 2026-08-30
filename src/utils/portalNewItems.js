@@ -1,5 +1,17 @@
 const PREFIX = 'gorythm_portal_seen_';
 
+export const ADMIN_SEEN_RESOURCES_SUBMISSIONS = 'admin_resources_submissions';
+export const ADMIN_SEEN_TAB_ASSIGNMENTS = 'admin_tab_assignments';
+export const ADMIN_SEEN_TAB_RESOURCES = 'admin_tab_resources';
+export const ADMIN_SEEN_TAB_SUBMISSIONS = 'admin_tab_submissions';
+export const TEACHER_SEEN_ADMIN_ASSIGNMENTS = 'teacher_admin_assignments';
+export const TEACHER_SEEN_ADMIN_RESOURCES = 'teacher_admin_resources';
+
+export function getPortalSeenCutoff(storageKey, fallbackDays = 7) {
+  const raw = localStorage.getItem(`${PREFIX}${storageKey}`);
+  return raw || new Date(Date.now() - fallbackDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
 export function getItemsNewSinceLastVisit(
   storageKey,
   items,

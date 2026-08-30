@@ -220,7 +220,7 @@
         color: #64748b;
         text-align: center;
         line-height: 1.2;
-        word-break: break-word;
+        overflow-wrap: anywhere;
     }
 
     .analytics-bar-value {
@@ -1886,7 +1886,7 @@
     .research-comment-text {
         max-width: 380px;
         white-space: pre-wrap;
-        word-break: break-word;
+        overflow-wrap: anywhere;
         line-height: 1.55;
         color: #334155;
     }

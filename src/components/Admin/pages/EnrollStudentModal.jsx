@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -389,7 +390,7 @@ const EnrollStudentModal = ({
                                 ) : (
                                     <>
                                         <div className="form-group">
-                                            <label><i className="fas fa-search"></i> Select Student *</label>
+                                            <label><i className="fas fa-search"></i> Select Student <RequiredMark /></label>
                                             <input
                                                 type="search"
                                                 className="form-input"
@@ -478,10 +479,10 @@ const EnrollStudentModal = ({
                             </div>
 
                             <div className="form-section form-card">
-                                <h3><i className="fas fa-book"></i> Course &amp; timeslot</h3>
+                                <h3><i className="fas fa-book"></i> Course &amp; Timeslot</h3>
 
                                 <div className="form-group">
-                                    <label><i className="fas fa-graduation-cap"></i> Select Course *</label>
+                                    <label><i className="fas fa-graduation-cap"></i> Select Course <RequiredMark /></label>
                                     <select
                                         name="courseId"
                                         value={formData.courseId}
@@ -505,7 +506,7 @@ const EnrollStudentModal = ({
                                     <div className="form-group">
                                         <label>
                                             <i className="fas fa-clock"></i> Teacher &amp; timeslot
-                                            {courseSchedules.length > 0 ? ' *' : ''}
+                                            {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                         </label>
                                         <select
                                             name="assignedScheduleId"
@@ -561,7 +562,7 @@ const EnrollStudentModal = ({
                                             </div>
                                         </div>
                                         <div className="form-group">
-                                            <label htmlFor="enroll-fee-status">Fee status</label>
+                                            <label htmlFor="enroll-fee-status">Fee Status</label>
                                             <select
                                                 id="enroll-fee-status"
                                                 name="paymentStatus"
@@ -594,7 +595,7 @@ const EnrollStudentModal = ({
                                     </div>
                                     <div className="preview-body">
                                         <p><strong>Course:</strong> {getSelectedCourse()?.title || '—'}</p>
-                                        <p><strong>Fee status:</strong> {formData.paymentStatus}</p>
+                                        <p><strong>Fee Status:</strong> {formData.paymentStatus}</p>
                                     </div>
                                 </div>
                             </div>

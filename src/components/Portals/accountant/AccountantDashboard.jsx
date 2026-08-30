@@ -45,7 +45,7 @@ const AccountantDashboard = () => {
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Finance overview" subtitle="Student fee reviews, teacher payroll, and exportable reports" />
+      <PortalPageHeader title="Finance Overview" subtitle="Student fee reviews, teacher payroll, and exportable reports" />
 
       <div className="portal-hero portal-hero--accountant">
         <div className="portal-hero__icon" aria-hidden="true">
@@ -78,24 +78,24 @@ const AccountantDashboard = () => {
 
       <SummaryGrid
         items={[
-          { label: 'Payroll to review', value: summary.payrollPendingReview ?? 0, to: '/accountant/payroll' },
-          { label: 'Payroll out of date', value: summary.payrollStale ?? 0, to: '/accountant/payroll' },
-          { label: 'Missing payroll', value: summary.payrollMissing ?? 0, to: '/accountant/payroll' },
-          { label: 'Payroll paid', value: summary.payrollPaid ?? 0, to: '/accountant/payroll' },
-          { label: 'Student payments', value: summary.payments, to: '/accountant/payments' },
-          { label: 'Pending payments', value: summary.pending, to: '/accountant/payments' },
+          { label: 'Payroll to Review', value: summary.payrollPendingReview ?? 0, to: '/accountant/payroll' },
+          { label: 'Payroll Out of Date', value: summary.payrollStale ?? 0, to: '/accountant/payroll' },
+          { label: 'Missing Payroll', value: summary.payrollMissing ?? 0, to: '/accountant/payroll' },
+          { label: 'Payroll Paid', value: summary.payrollPaid ?? 0, to: '/accountant/payroll' },
+          { label: 'Student Payments', value: summary.payments, to: '/accountant/payments' },
+          { label: 'Pending Payments', value: summary.pending, to: '/accountant/payments' },
         ]}
       />
 
       <div className="portal-quick-links">
         <Link to="/accountant/payments" className="portal-card portal-link-card">
-          Fee reviews →
+          Fee Reviews →
         </Link>
         <Link to="/accountant/payroll" className="portal-card portal-link-card">
-          Teacher payroll →
+          Teacher Payroll →
         </Link>
         <Link to="/accountant/reports" className="portal-card portal-link-card">
-          Financial reports →
+          Financial Reports →
         </Link>
       </div>
     </div>

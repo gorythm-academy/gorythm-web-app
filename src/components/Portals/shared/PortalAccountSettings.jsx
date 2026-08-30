@@ -1,3 +1,4 @@
+import RequiredMark from '../../shared/RequiredMark';
 import React, { useState } from 'react';
 import { PortalAlert, PortalPageHeader } from './PortalUi';
 import { changePortalPassword } from './portalApi';
@@ -61,7 +62,7 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
             <div className="portal-panel portal-account-settings__panel">
                 <div className="portal-panel__head">
                     <div>
-                        <h2>Change password</h2>
+                        <h2>Change Password</h2>
                         <p>Signed in as {user.email || 'your account'}</p>
                     </div>
                 </div>
@@ -71,7 +72,7 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
 
                     <form className="portal-account-settings__form" onSubmit={handleSubmit}>
                         <div className="portal-account-settings__field">
-                            <label htmlFor="portal-current-password">Current password</label>
+                            <label htmlFor="portal-current-password">Current password <RequiredMark /></label>
                             <div className="portal-account-settings__password-wrap">
                                 <input
                                     id="portal-current-password"
@@ -95,7 +96,7 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
                         </div>
 
                         <div className="portal-account-settings__field">
-                            <label htmlFor="portal-new-password">New password</label>
+                            <label htmlFor="portal-new-password">New password <RequiredMark /></label>
                             <div className="portal-account-settings__password-wrap">
                                 <input
                                     id="portal-new-password"
@@ -119,7 +120,7 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
                         </div>
 
                         <div className="portal-account-settings__field">
-                            <label htmlFor="portal-confirm-password">Confirm new password</label>
+                            <label htmlFor="portal-confirm-password">Confirm new password <RequiredMark /></label>
                             <div className="portal-account-settings__password-wrap">
                                 <input
                                     id="portal-confirm-password"

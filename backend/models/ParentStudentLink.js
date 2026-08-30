@@ -9,7 +9,8 @@ const parentStudentLinkSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-parentStudentLinkSchema.index({ parent: 1, student: 1 }, { unique: true });
-parentStudentLinkSchema.index({ student: 1 });
+/** One parent per student; a parent may still have many students. */
+parentStudentLinkSchema.index({ student: 1 }, { unique: true });
+parentStudentLinkSchema.index({ parent: 1 });
 
 module.exports = mongoose.model('ParentStudentLink', parentStudentLinkSchema);

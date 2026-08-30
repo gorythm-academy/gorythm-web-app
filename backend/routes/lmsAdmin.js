@@ -43,9 +43,19 @@ const Resource = require('../models/Resource');
 const PayrollRun = require('../models/PayrollRun');
 const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const { getTeacherPayrollAttendanceDetail } = require('../services/teacherPayrollAttendance');
-const { getTeachersForCourse } = require('../services/courseTeachers');
+const { getTeachersForCourse, getTeachersByCourseIds } = require('../services/courseTeachers');
+const {
+    assertDueDateNotPast,
+    resolveValidTargetPairs,
+    newPublishGroupId,
+    recordDueDateExtension,
+    startOfDay,
+    normalizeIdList,
+    buildDueDateExtensionNotice,
+    mapSubmissionForPortal,
+} = require('../utils/lmsContentRules');
 const { activeUserFilter } = require('../utils/userQuery');
-const { activeCourseFilter } = require('../utils/courseQuery');
+const { activeCourseFilter, publishedActiveCourseFilter } = require('../utils/courseQuery');
 const {
     validateScheduleTimes,
     resolveScheduleTeacher,
@@ -55,6 +65,13 @@ const {
 } = require('../utils/scheduleValidation');
 const { activeLmsFilter, trashedLmsFilter, parseTrashQuery } = require('../utils/lmsTrashQuery');
 const { softDeleteMany, restoreMany, permanentDeleteMany, countTrashed } = require('../services/lmsTrashOps');
+const {
+    collectAssignmentUrls,
+    collectResourceUrls,
+    collectSubmissionUrls,
+    cleanupUrlsAfterPermanentDelete,
+} = require('../utils/lmsUploadCleanup');
+const { buildQuizReviewPayload, formatScoreDisplay } = require('../utils/quizReview');
 
 router.use(authMiddleware);
 router.use(validateSessionUser);
@@ -137,7 +154,7 @@ async function buildQuizAttemptSearchFilter(search) {
 }
 
 async function loadActiveCoursesMeta() {
-    return Course.find({ ...activeCourseFilter() })
+    return Course.find({ ...publishedActiveCourseFilter() })
         .select('title instructorName')
         .sort({ title: 1 })
         .lean();
@@ -381,6 +398,9 @@ router.post('/parent-links', async (req, res) => {
         if (!parent || !student) {
             return res.status(400).json({ success: false, error: 'Invalid or removed parent/student' });
         }
+        const { assertStudentCanLinkToParent } = require('../utils/parentStudentLinkRules');
+        await assertStudentCanLinkToParent(studentId, parentId);
+
         const existing = await ParentStudentLink.findOne({ parent: parentId, student: studentId });
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parentId, student: studentId },
@@ -391,6 +411,15 @@ router.post('/parent-links', async (req, res) => {
             .populate('student', 'name email studentId');
         res.json({ success: true, link, created: !existing });
     } catch (error) {
+        if (error.status === 400) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+        if (error?.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'This student already has a parent linked. Remove the existing link first, or edit that link.',
+            });
+        }
         res.status(500).json({ success: false, error: 'Failed to link parent and student' });
     }
 });
@@ -404,6 +433,59 @@ router.delete('/parent-links/:id', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to remove link' });
+    }
+});
+
+router.patch('/parent-links/:id', async (req, res) => {
+    try {
+        const link = await ParentStudentLink.findById(req.params.id);
+        if (!link) {
+            return res.status(404).json({ success: false, error: 'Link not found' });
+        }
+
+        const relation = String(req.body?.relation || '').trim();
+        const parentId = req.body?.parentId;
+        const studentId = req.body?.studentId;
+        const allowedRelations = ['father', 'mother', 'guardian', 'other'];
+
+        if (relation && allowedRelations.includes(relation)) {
+            link.relation = relation;
+        }
+        if (parentId) {
+            const parent = await User.findOne({ _id: parentId, role: 'parent', ...activeUserFilter() });
+            if (!parent) {
+                return res.status(400).json({ success: false, error: 'Invalid or removed parent' });
+            }
+            link.parent = parent._id;
+        }
+        if (studentId) {
+            const student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() });
+            if (!student) {
+                return res.status(400).json({ success: false, error: 'Invalid or removed student' });
+            }
+            link.student = student._id;
+        }
+
+        const { assertStudentCanLinkToParent } = require('../utils/parentStudentLinkRules');
+        await assertStudentCanLinkToParent(link.student, link.parent, { exceptLinkId: link._id });
+
+        await link.save();
+        const populated = await ParentStudentLink.findById(link._id)
+            .populate('parent', 'name email deletedAt')
+            .populate('student', 'name email studentId deletedAt')
+            .lean();
+        res.json({ success: true, link: populated });
+    } catch (error) {
+        if (error.status === 400) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+        if (error?.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'This student already has a parent linked. Remove the existing link first, or edit that link.',
+            });
+        }
+        res.status(500).json({ success: false, error: 'Failed to update parent link' });
     }
 });
 
@@ -877,6 +959,48 @@ router.get('/lms-tab-badges', async (req, res) => {
     }
 });
 
+/** Pending Resources & Submissions activity since client last visit.
+ *  Counts teacher-created assignments/resources and student submissions only —
+ *  admin publishes do not increment the admin portal's own badges. */
+router.get('/resources-submissions-badge', async (req, res) => {
+    try {
+        const fallbackSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const parseSince = (raw) => {
+            if (!raw) return fallbackSince;
+            const d = new Date(raw);
+            return Number.isNaN(d.getTime()) ? fallbackSince : d;
+        };
+        const since = parseSince(req.query.since);
+        const sinceAssignments = parseSince(req.query.sinceAssignments || req.query.since);
+        const sinceResources = parseSince(req.query.sinceResources || req.query.since);
+        const sinceSubmissions = parseSince(req.query.sinceSubmissions || req.query.since);
+        const [submissions, assignments, resources] = await Promise.all([
+            AssignmentSubmission.countDocuments({
+                ...activeLmsFilter(),
+                submittedAt: { $gt: sinceSubmissions },
+            }),
+            Assignment.countDocuments({
+                ...activeLmsFilter(),
+                createdByRole: 'teacher',
+                createdAt: { $gt: sinceAssignments },
+            }),
+            Resource.countDocuments({
+                ...activeLmsFilter(),
+                createdByRole: 'teacher',
+                createdAt: { $gt: sinceResources },
+            }),
+        ]);
+        res.json({
+            success: true,
+            count: submissions + assignments + resources,
+            breakdown: { submissions, assignments, resources },
+            tabCounts: { assignments, resources, submissions },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load resources badge count' });
+    }
+});
+
 router.get('/attendance-pending-count', async (req, res) => {
     try {
         const [dailyPending, monthlyPending] = await Promise.all([
@@ -952,58 +1076,146 @@ router.get('/resources', async (req, res) => {
         const metaOnly = parseMetaOnly(req);
         const scope = await resourceScopeFilter(req.query.courseId);
         const listFilter = { ...scope, ...(trash ? trashedLmsFilter() : activeLmsFilter()) };
-        const coursesPromise = Course.find({ ...activeCourseFilter() })
+        const coursesPromise = Course.find({ ...publishedActiveCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
             .sort({ title: 1 })
             .lean();
+        const teachersPromise = User.find({ role: 'teacher', ...activeUserFilter() })
+            .select('name email')
+            .sort({ name: 1 })
+            .lean();
         const trashCountPromise = countTrashed(Resource, scope);
 
         if (metaOnly) {
-            const [trashCount, courses] = await Promise.all([trashCountPromise, coursesPromise]);
-            return res.json({ success: true, resources: [], courses, trashCount });
+            const [trashCount, courses, teachers] = await Promise.all([
+                trashCountPromise,
+                coursesPromise,
+                teachersPromise,
+            ]);
+            const courseTeachers = await getTeachersByCourseIds(courses.map((c) => c._id));
+            return res.json({ success: true, resources: [], courses, teachers, courseTeachers, trashCount });
         }
 
-        const [resources, trashCount, courses] = await Promise.all([
+        const [resources, trashCount, courses, teachers] = await Promise.all([
             Resource.find(listFilter)
-                .select('title description fileUrl attachments type course uploadedBy createdAt updatedAt deletedAt')
+                .select(
+                    'title description fileUrl attachments type course teacher scope uploadedBy createdByRole lockedForTeacher publishGroupId createdAt updatedAt deletedAt'
+                )
                 .populate('course', 'title instructorName')
+                .populate('teacher', 'name email')
                 .populate('uploadedBy', 'name email role')
                 .sort({ createdAt: -1 })
                 .lean(),
             trashCountPromise,
             coursesPromise,
         ]);
-        res.json({ success: true, resources, courses, trashCount });
+        res.json({ success: true, resources, courses, teachers, trashCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load resources' });
     }
 });
 
+router.post('/resources/preview-targets', async (req, res) => {
+    try {
+        const { courseIds, teacherIds, targets } = req.body || {};
+        const pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
+        res.json({ success: true, count: pairs.length, pairs });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to preview targets' });
+    }
+});
+
 router.post('/resources', async (req, res) => {
     try {
-        const { courseId, title, description, fileUrl, type, attachments } = req.body;
-        if (!courseId || !title) {
-            return res.status(400).json({ success: false, error: 'courseId and title are required' });
+        const {
+            courseId,
+            teacherId,
+            courseIds,
+            teacherIds,
+            targets,
+            title,
+            description,
+            fileUrl,
+            type,
+            attachments,
+            scope = 'teacher',
+        } = req.body;
+        if (!title) {
+            return res.status(400).json({ success: false, error: 'title is required' });
         }
-        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
-        if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
         const attachmentList = normalizeResourceAttachments({ attachments, fileUrl });
-        const resource = await Resource.create({
-            title: String(title).trim(),
-            description: description || '',
-            fileUrl: attachmentList[0] || '',
-            attachments: attachmentList,
-            type: type || 'file',
-            course: courseId,
-            uploadedBy: req.user.userId,
-        });
-        const populated = await Resource.findById(resource._id)
+        const adminUserId = req.user?.userId || null;
+        const resourceScope = scope === 'course' ? 'course' : 'teacher';
+
+        let pairs = [];
+        if (courseId) {
+            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
+            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
+            if (resourceScope === 'teacher') {
+                const resolvedTeacher = teacherId || course.instructor;
+                if (!resolvedTeacher) {
+                    return res.status(400).json({ success: false, error: 'Teacher is required for teacher-scoped resources' });
+                }
+                pairs = await resolveValidTargetPairs({
+                    explicitTargets: [{ courseId, teacherId: resolvedTeacher }],
+                });
+            } else {
+                pairs = [{ courseId, teacherId: teacherId || course.instructor || null }];
+            }
+        } else {
+            const normalizedCourses = normalizeIdList(courseIds);
+            if (!normalizedCourses.length) {
+                return res.status(400).json({ success: false, error: 'Select at least one course' });
+            }
+            if (resourceScope === 'course') {
+                pairs = normalizedCourses.map((cid) => ({ courseId: cid, teacherId: null }));
+            } else {
+                pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
+            }
+        }
+        if (!pairs.length) {
+            return res.status(400).json({
+                success: false,
+                error: 'No valid course+teacher pairs. Each teacher must teach the selected course.',
+            });
+        }
+
+        const publishGroupId = pairs.length > 1 ? newPublishGroupId() : null;
+        const created = await Resource.insertMany(
+            pairs.map(({ courseId: cid, teacherId: tid }) => ({
+                title: String(title).trim(),
+                description: description || '',
+                fileUrl: attachmentList[0] || '',
+                attachments: attachmentList,
+                type: type || 'file',
+                course: cid,
+                teacher: resourceScope === 'teacher' ? tid : tid || null,
+                scope: resourceScope,
+                uploadedBy: adminUserId,
+                createdByRole: 'admin',
+                createdByUser: adminUserId,
+                lockedForTeacher: true,
+                publishGroupId,
+            }))
+        );
+
+        const populated = await Resource.find({ _id: { $in: created.map((r) => r._id) } })
             .populate('course', 'title')
+            .populate('teacher', 'name email')
             .populate('uploadedBy', 'name role');
-        res.status(201).json({ success: true, resource: populated });
+
+        res.status(201).json({
+            success: true,
+            createdCount: populated.length,
+            publishGroupId,
+            resources: populated,
+            resource: populated[0] || null,
+        });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to create resource' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to create resource' });
     }
 });
 
@@ -1011,22 +1223,37 @@ router.patch('/resources/:id', async (req, res) => {
     try {
         const resource = await Resource.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
-        const { courseId, title, description, fileUrl, type, attachments } = req.body;
+        const { courseId, teacherId, title, description, fileUrl, type, attachments, scope } = req.body;
         if (courseId) {
-            const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
-            if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
+            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
+            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
             resource.course = courseId;
         }
+        if (teacherId !== undefined) {
+            if (teacherId) {
+                const targetCourse = courseId || resource.course;
+                const pairs = await resolveValidTargetPairs({
+                    explicitTargets: [{ courseId: targetCourse, teacherId }],
+                });
+                if (!pairs.length) {
+                    return res.status(400).json({ success: false, error: 'Selected teacher does not teach this course' });
+                }
+            }
+            resource.teacher = teacherId || null;
+        }
+        if (scope !== undefined) resource.scope = scope === 'course' ? 'course' : 'teacher';
         if (title !== undefined) resource.title = String(title).trim();
         if (description !== undefined) resource.description = description || '';
         applyResourceFiles(resource, { fileUrl, attachments, type });
         await resource.save();
         const populated = await Resource.findById(resource._id)
             .populate('course', 'title')
+            .populate('teacher', 'name email')
             .populate('uploadedBy', 'name role');
         res.json({ success: true, resource: populated });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to update resource' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to update resource' });
     }
 });
 
@@ -1062,7 +1289,10 @@ router.post('/resources/bulk-permanent-delete', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
+        const docs = await Resource.find({ _id: { $in: ids }, ...trashedLmsFilter() }).lean();
+        const fileUrls = docs.flatMap(collectResourceUrls);
         const deletedCount = await permanentDeleteMany(Resource, ids);
+        await cleanupUrlsAfterPermanentDelete(fileUrls);
         res.json({ success: true, deletedCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to permanently delete resources' });
@@ -1092,7 +1322,7 @@ router.get('/assignments', async (req, res) => {
         const metaOnly = parseMetaOnly(req);
         const scope = await assignmentScopeFilter(req.query.courseId);
         const listFilter = { ...scope, ...(trash ? trashedLmsFilter() : activeLmsFilter()) };
-        const coursesPromise = Course.find({ ...activeCourseFilter() })
+        const coursesPromise = Course.find({ ...publishedActiveCourseFilter() })
             .select('title instructorName instructor')
             .populate('instructor', 'name email')
             .sort({ title: 1 })
@@ -1109,12 +1339,15 @@ router.get('/assignments', async (req, res) => {
                 coursesPromise,
                 teachersPromise,
             ]);
-            return res.json({ success: true, assignments: [], courses, teachers, trashCount });
+            const courseTeachers = await getTeachersByCourseIds(courses.map((c) => c._id));
+            return res.json({ success: true, assignments: [], courses, teachers, courseTeachers, trashCount });
         }
 
         const [assignments, trashCount, courses, teachers] = await Promise.all([
             Assignment.find(listFilter)
-                .select('title description dueDate status course teacher attachments createdAt updatedAt deletedAt')
+                .select(
+                    'title description dueDate status course teacher attachments createdByRole lockedForTeacher publishGroupId dueDateExtensions createdAt updatedAt deletedAt'
+                )
                 .populate('course', 'title instructorName')
                 .populate('teacher', 'name email')
                 .sort({ dueDate: -1 })
@@ -1123,36 +1356,106 @@ router.get('/assignments', async (req, res) => {
             coursesPromise,
             teachersPromise,
         ]);
-        res.json({ success: true, assignments, courses, teachers, trashCount });
+        res.json({
+            success: true,
+            assignments: assignments.map((a) => ({
+                ...a,
+                dueDateNotice: buildDueDateExtensionNotice(a, { viewerRole: 'admin' }),
+            })),
+            courses,
+            teachers,
+            trashCount,
+        });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load assignments' });
     }
 });
 
+router.post('/assignments/preview-targets', async (req, res) => {
+    try {
+        const { courseIds, teacherIds, targets } = req.body || {};
+        const pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
+        res.json({ success: true, count: pairs.length, pairs });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to preview targets' });
+    }
+});
+
 router.post('/assignments', async (req, res) => {
     try {
-        const { courseId, teacherId, title, description, dueDate, status, attachments } = req.body;
-        if (!courseId || !title || !dueDate) {
-            return res.status(400).json({ success: false, error: 'courseId, title, and dueDate are required' });
+        const {
+            courseId,
+            teacherId,
+            courseIds,
+            teacherIds,
+            targets,
+            title,
+            description,
+            dueDate,
+            status,
+            attachments,
+        } = req.body;
+        if (!title || !dueDate) {
+            return res.status(400).json({ success: false, error: 'title and dueDate are required' });
         }
-        const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
-        if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
-        const teacher = teacherId || course.instructor;
-        const assignment = await Assignment.create({
-            title: String(title).trim(),
-            description: description || '',
-            course: courseId,
-            teacher,
-            dueDate: new Date(dueDate),
-            attachments: Array.isArray(attachments) ? attachments : [],
-            status: status || 'published',
-        });
-        const populated = await Assignment.findById(assignment._id)
+        const parsedDueDate = assertDueDateNotPast(dueDate);
+        const attachmentList = Array.isArray(attachments) ? attachments : [];
+        const adminUserId = req.user?.userId || null;
+        const publishStatus = status || 'published';
+
+        let pairs = [];
+        if (courseId) {
+            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
+            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
+            const resolvedTeacher = teacherId || course.instructor;
+            if (!resolvedTeacher) {
+                return res.status(400).json({ success: false, error: 'Teacher is required for this course' });
+            }
+            pairs = await resolveValidTargetPairs({
+                explicitTargets: [{ courseId, teacherId: resolvedTeacher }],
+            });
+        } else {
+            pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
+        }
+        if (!pairs.length) {
+            return res.status(400).json({
+                success: false,
+                error: 'No valid course+teacher pairs. Each teacher must teach the selected course.',
+            });
+        }
+
+        const publishGroupId = pairs.length > 1 ? newPublishGroupId() : null;
+        const created = await Assignment.insertMany(
+            pairs.map(({ courseId: cid, teacherId: tid }) => ({
+                title: String(title).trim(),
+                description: description || '',
+                course: cid,
+                teacher: tid,
+                dueDate: parsedDueDate,
+                attachments: attachmentList,
+                status: publishStatus,
+                createdByRole: 'admin',
+                createdByUser: adminUserId,
+                lockedForTeacher: true,
+                publishGroupId,
+            }))
+        );
+
+        const populated = await Assignment.find({ _id: { $in: created.map((a) => a._id) } })
             .populate('course', 'title')
-            .populate('teacher', 'name');
-        res.status(201).json({ success: true, assignment: populated });
+            .populate('teacher', 'name email');
+
+        res.status(201).json({
+            success: true,
+            createdCount: populated.length,
+            publishGroupId,
+            assignments: populated,
+            assignment: populated[0] || null,
+        });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to create assignment' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to create assignment' });
     }
 });
 
@@ -1160,26 +1463,61 @@ router.patch('/assignments/:id', async (req, res) => {
     try {
         const assignment = await Assignment.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
-        const { courseId, teacherId, title, description, dueDate, status, attachments } = req.body;
+        const { courseId, teacherId, title, description, dueDate, status, attachments, extendDueDate } = req.body;
         if (courseId) {
-            const course = await Course.findOne({ _id: courseId, ...activeCourseFilter() });
-            if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
+            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
+            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
             assignment.course = courseId;
             if (!teacherId) assignment.teacher = course.instructor;
         }
-        if (teacherId) assignment.teacher = teacherId;
+        if (teacherId) {
+            const targetCourse = courseId || assignment.course;
+            const pairs = await resolveValidTargetPairs({
+                explicitTargets: [{ courseId: targetCourse, teacherId }],
+            });
+            if (!pairs.length) {
+                return res.status(400).json({ success: false, error: 'Selected teacher does not teach this course' });
+            }
+            assignment.teacher = teacherId;
+        }
         if (title !== undefined) assignment.title = String(title).trim();
         if (description !== undefined) assignment.description = description || '';
-        if (dueDate) assignment.dueDate = new Date(dueDate);
+        if (dueDate) {
+            if (extendDueDate) {
+                const extRole = req.user?.role || 'admin';
+                recordDueDateExtension(assignment, dueDate, req.user?.userId || null, extRole);
+            } else {
+                const parsed = assertDueDateNotPast(dueDate);
+                const prev = assignment.dueDate ? startOfDay(assignment.dueDate) : null;
+                if (prev && startOfDay(parsed).getTime() > prev.getTime()) {
+                    recordDueDateExtension(
+                        assignment,
+                        dueDate,
+                        req.user?.userId || null,
+                        req.user?.role || 'admin'
+                    );
+                } else {
+                    assignment.dueDate = parsed;
+                }
+            }
+        }
         if (status !== undefined) assignment.status = status;
         if (attachments !== undefined) assignment.attachments = Array.isArray(attachments) ? attachments : [];
         await assignment.save();
         const populated = await Assignment.findById(assignment._id)
             .populate('course', 'title')
             .populate('teacher', 'name');
-        res.json({ success: true, assignment: populated });
+        const assignmentObj = populated.toObject ? populated.toObject() : populated;
+        res.json({
+            success: true,
+            assignment: {
+                ...assignmentObj,
+                dueDateNotice: buildDueDateExtensionNotice(assignmentObj, { viewerRole: 'admin' }),
+            },
+        });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to update assignment' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to update assignment' });
     }
 });
 
@@ -1237,8 +1575,17 @@ router.post('/assignments/bulk-permanent-delete', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
+        const [assignmentDocs, submissionDocs] = await Promise.all([
+            Assignment.find({ _id: { $in: ids }, ...trashedLmsFilter() }).lean(),
+            AssignmentSubmission.find({ assignment: { $in: ids }, ...trashedLmsFilter() }).lean(),
+        ]);
+        const fileUrls = [
+            ...assignmentDocs.flatMap(collectAssignmentUrls),
+            ...submissionDocs.flatMap(collectSubmissionUrls),
+        ];
         await AssignmentSubmission.deleteMany({ assignment: { $in: ids }, ...trashedLmsFilter() });
         const deletedCount = await permanentDeleteMany(Assignment, ids);
+        await cleanupUrlsAfterPermanentDelete(fileUrls);
         res.json({ success: true, deletedCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to permanently delete assignments' });
@@ -1266,41 +1613,6 @@ router.delete('/assignments/:id', async (req, res) => {
     }
 });
 
-function formatScoreDisplay(score, maxPoints) {
-    if (score == null) return '—';
-    if (maxPoints != null && maxPoints > 0) return `${score} / ${maxPoints}`;
-    return String(score);
-}
-
-function buildQuizReviewPayload(quiz, answers) {
-    const questions = quiz?.questions || [];
-    const items = questions.map((q, idx) => {
-        const picked = answers[idx];
-        const correct = Number(q.correctAnswer);
-        const isCorrect = picked != null && Number(picked) === correct;
-        return {
-            question: q.question,
-            options: q.options || [],
-            pickedIndex: picked,
-            correctIndex: correct,
-            isCorrect,
-        };
-    });
-    const correctCount = items.filter((i) => i.isCorrect).length;
-    const total = items.length;
-    const normalizedScore =
-        quiz?.totalMarks != null && quiz.totalMarks > 0 && total
-            ? Math.round((correctCount / total) * quiz.totalMarks)
-            : correctCount;
-    return {
-        items,
-        correctCount,
-        totalQuestions: total,
-        score: normalizedScore,
-        scoreDisplay: formatScoreDisplay(normalizedScore, quiz?.totalMarks),
-    };
-}
-
 // ——— Assignment submissions (admin view by course) ———
 router.get('/submissions', async (req, res) => {
     try {
@@ -1317,7 +1629,7 @@ router.get('/submissions', async (req, res) => {
         const trashScope = courseId ? await submissionListFilter(courseId, true) : { ...trashedLmsFilter() };
 
         const listQuery = AssignmentSubmission.find(filter)
-            .select('student assignment submittedAt status deletedAt createdAt updatedAt')
+            .select('student assignment submittedAt status revisionCount deletedAt createdAt updatedAt')
             .populate('student', 'name email studentId deletedAt')
             .populate({
                 path: 'assignment',
@@ -1352,7 +1664,7 @@ router.get('/submissions', async (req, res) => {
 
         const payload = {
             success: true,
-            submissions,
+            submissions: submissions.map((s) => mapSubmissionForPortal(s)),
             trashCount,
             total,
             page,
@@ -1393,16 +1705,19 @@ router.get('/submissions/:id', async (req, res) => {
 
 router.delete('/submissions/:id/permanent', async (req, res) => {
     try {
-        const doc = await AssignmentSubmission.findOneAndDelete({
+        const doc = await AssignmentSubmission.findOne({
             _id: req.params.id,
             ...trashedLmsFilter(),
-        });
+        }).lean();
         if (!doc) {
             return res.status(404).json({
                 success: false,
                 error: 'Submission must be in trash before permanent delete',
             });
         }
+        const fileUrls = collectSubmissionUrls(doc);
+        await AssignmentSubmission.findOneAndDelete({ _id: req.params.id, ...trashedLmsFilter() });
+        await cleanupUrlsAfterPermanentDelete(fileUrls);
         res.json({ success: true, deletedCount: 1, message: 'Permanently deleted' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to permanently delete submission' });
@@ -1486,7 +1801,10 @@ router.post('/submissions/bulk-permanent-delete', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
+        const docs = await AssignmentSubmission.find({ _id: { $in: ids }, ...trashedLmsFilter() }).lean();
+        const fileUrls = docs.flatMap(collectSubmissionUrls);
         const deletedCount = await permanentDeleteMany(AssignmentSubmission, ids);
+        await cleanupUrlsAfterPermanentDelete(fileUrls);
         res.json({ success: true, deletedCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to permanently delete submissions' });

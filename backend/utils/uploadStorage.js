@@ -14,7 +14,10 @@ const FLAT_LMS_CATEGORIES = new Set(['content/books']);
 
 const LMS_CATEGORIES = new Set([...ROLE_SUBDIR_CATEGORIES, ...FLAT_LMS_CATEGORIES]);
 
-const PORTAL_UPLOAD_ROLES = new Set(['manager', 'teacher', 'student']);
+/** Legacy manager folder kept for reading old files only. */
+const LEGACY_ADMIN_ROLE_FOLDER = 'manager';
+
+const PORTAL_UPLOAD_ROLES = new Set(['admin', 'teacher', 'student']);
 
 const CATEGORY_DIRS = {
     books: 'content/books',
@@ -113,6 +116,26 @@ function categoryAbsolutePathFromPublic(publicPath) {
     const normalizedRoot = path.normalize(UPLOAD_ROOT);
     const normalizedAbs = path.normalize(abs);
     if (!normalizedAbs.startsWith(normalizedRoot)) return null;
+    if (fs.existsSync(normalizedAbs)) return normalizedAbs;
+
+    // Legacy files saved under assignments/manager or quizzes/manager
+    const legacyRelative = relative.replace(/\/(assignments|quizzes)\/admin\//, '/$1/manager/');
+    if (legacyRelative !== relative) {
+        const legacyAbs = path.join(UPLOAD_ROOT, ...legacyRelative.split('/'));
+        const normalizedLegacy = path.normalize(legacyAbs);
+        if (normalizedLegacy.startsWith(normalizedRoot) && fs.existsSync(normalizedLegacy)) {
+            return normalizedLegacy;
+        }
+    }
+    const adminToLegacy = relative.replace(/\/(assignments|quizzes)\/manager\//, '/$1/admin/');
+    if (adminToLegacy !== relative) {
+        const adminAbs = path.join(UPLOAD_ROOT, ...adminToLegacy.split('/'));
+        const normalizedAdmin = path.normalize(adminAbs);
+        if (normalizedAdmin.startsWith(normalizedRoot) && fs.existsSync(normalizedAdmin)) {
+            return normalizedAdmin;
+        }
+    }
+
     return normalizedAbs;
 }
 
@@ -133,6 +156,7 @@ function resolveCategoryUploadFilename({ category, uploaderRole, originalName, o
         overrideName,
         replacePath,
         publicPathFor: (filename) => categoryPublicPath(category, uploaderRole, filename),
+        onDuplicate: 'suffix',
     });
 }
 

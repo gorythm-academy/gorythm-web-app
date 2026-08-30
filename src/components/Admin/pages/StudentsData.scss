@@ -1788,15 +1788,16 @@
         }
     }
 
+    &__toolbar {
+        flex-shrink: 0;
+        margin: 0 24px 12px;
+    }
+
     &__body {
         flex: 1;
         min-height: 0;
         overflow: auto;
         padding: 16px 24px 24px;
-    }
-
-    &__toolbar {
-        margin-bottom: 12px;
     }
 
     &__select-hint {

@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../../../config/constants';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
 import { useAdminDialog } from '../AdminDialogContext';
-import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import './PaymentsManagement.scss';
 
 const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
@@ -387,11 +387,11 @@ const PaymentsManagement = () => {
         setSelectedPayments([]);
         await fetchPayments();
         if (moved === ids.length) {
-            showAlert(`${moved} payment record(s) moved to trash.`, 'success');
+            showAlert(`${moved} payment record(s) ${MOVED_TO_QUARANTINE_PHRASE}.`, 'success');
         } else if (moved > 0) {
-            showAlert(`${moved} of ${ids.length} payment record(s) moved to trash.`, 'warning');
+            showAlert(`${moved} of ${ids.length} payment record(s) ${MOVED_TO_QUARANTINE_PHRASE}.`, 'warning');
         } else {
-            showAlert('Failed to move selected payments to trash.', 'error');
+            showAlert(`Failed to move selected payments to ${QUARANTINE_LABEL}.`, 'error');
         }
     };
 
@@ -543,9 +543,9 @@ const PaymentsManagement = () => {
             });
             setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
             await fetchPayments();
-            showAlert('Payment moved to trash.', 'success');
+            showAlert(`Payment ${MOVED_TO_QUARANTINE_PHRASE}.`, 'success');
         } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to move payment to trash.', 'error');
+            showAlert(error.response?.data?.error || `${FAILED_MOVE_TO_QUARANTINE_PHRASE}.`, 'error');
         }
     };
 
@@ -1248,7 +1248,7 @@ const PaymentsManagement = () => {
                 {sortedPayments.length === 0 && (
                     <div className="no-results">
                         <i className="fas fa-credit-card"></i>
-                        <h3>No payments found</h3>
+                        <h3>No Payments Found</h3>
                         <p>Try a different search term or filter</p>
                     </div>
                 )}
@@ -1307,7 +1307,7 @@ const PaymentsManagement = () => {
                     <div className="payment-receipt-modal__backdrop" onClick={() => setReceiptModal(null)} />
                     <div className="payment-receipt-modal__panel">
                         <div className="payment-receipt-modal__head">
-                            <h3>Payment receipt</h3>
+                            <h3>Payment Receipt</h3>
                             <button type="button" className="payment-receipt-modal__close" onClick={() => setReceiptModal(null)}>
                                 <i className="fas fa-times" />
                             </button>

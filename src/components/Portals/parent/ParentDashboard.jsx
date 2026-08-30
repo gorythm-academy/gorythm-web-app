@@ -41,17 +41,17 @@ const ParentDashboard = () => {
           <i className="fa-solid fa-users" />
         </div>
         <div>
-          <h2>Family learning hub</h2>
+          <h2>Family Learning Hub</h2>
           <p>View enrollments, attendance, assignments, quiz results, and fees for each linked child.</p>
         </div>
       </div>
 
       <SummaryGrid
         items={[
-          { label: 'Children linked', value: s.childrenCount ?? 0, to: '/parent/children' },
+          { label: 'Children Linked', value: s.childrenCount ?? 0, to: '/parent/children' },
           { label: 'Enrollments', value: s.enrollmentsCount ?? 0, to: '/parent/progress' },
-          { label: 'Attendance records', value: s.attendanceRecords ?? 0, to: '/parent/progress' },
-          { label: 'Pending fees', value: s.pendingFees ?? 0, to: '/parent/progress' },
+          { label: 'Attendance Records', value: s.attendanceRecords ?? 0, to: '/parent/progress' },
+          { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/parent/progress' },
         ]}
       />
 
@@ -60,7 +60,7 @@ const ParentDashboard = () => {
           My children →
         </Link>
         <Link to="/parent/progress" className="portal-card portal-link-card">
-          Progress & results →
+          Progress & Results →
         </Link>
       </div>
     </div>

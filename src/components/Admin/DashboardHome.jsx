@@ -118,7 +118,6 @@ const DashboardHome = () => {
     const [activitiesExpanded, setActivitiesExpanded] = useState(false);
     const [upcomingClasses, setUpcomingClasses] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [feedsLoading, setFeedsLoading] = useState(true);
     const [error, setError] = useState('');
     const [connection, setConnection] = useState({ api: 'checking', db: 'checking' });
     const overallStatus = deriveOverallStatus(connection.api, connection.db);
@@ -163,14 +162,12 @@ const DashboardHome = () => {
     const fetchDashboardData = useCallback(async () => {
         try {
             setLoading(true);
-            setFeedsLoading(true);
             setError('');
             
             const token = getAuthToken(AUTH_REALM.ADMIN);
             
             if (!token) {
                 setLoading(false);
-                setFeedsLoading(false);
                 navigate('/admin/login', { replace: true });
                 return;
             }
@@ -221,13 +218,11 @@ const DashboardHome = () => {
             } else {
                 setUpcomingClasses([]);
             }
-            setFeedsLoading(false);
             return;
             
         } catch (error) {
             if (error.response?.status === 401) {
                 setLoading(false);
-                setFeedsLoading(false);
                 navigate('/admin/login', { replace: true });
                 return;
             }
@@ -247,7 +242,6 @@ const DashboardHome = () => {
             
             setError(getDashboardErrorMessage(error));
             setLoading(false);
-            setFeedsLoading(false);
         }
     }, [navigate]);
 
@@ -408,7 +402,7 @@ const DashboardHome = () => {
             <div className="dashboard-card lms-portals-card lms-portals-card--hint-only">
                 <div className="card-header">
                     <h3>
-                        <i className="fas fa-window-restore" aria-hidden="true"></i> LMS portals
+                        <i className="fas fa-window-restore" aria-hidden="true"></i> LMS Portals
                     </h3>
                 </div>
                 <div className="card-body">
@@ -422,7 +416,7 @@ const DashboardHome = () => {
 
             <div className="dashboard-card dashboard-appearance-card">
                 <div className="card-header">
-                    <h3><i className="fas fa-palette"></i> Dashboard appearance</h3>
+                    <h3><i className="fas fa-palette"></i> Dashboard Appearance</h3>
                 </div>
                 <div className="card-body">
                     <p className="dashboard-appearance-hint">
@@ -445,7 +439,7 @@ const DashboardHome = () => {
                         ))}
                     </div>
                     <div className="dashboard-appearance-custom">
-                        <label htmlFor="admin-dashboard-accent-custom">Custom color</label>
+                        <label htmlFor="admin-dashboard-accent-custom">Custom Color</label>
                         <input
                             id="admin-dashboard-accent-custom"
                             type="color"
@@ -574,7 +568,7 @@ const DashboardHome = () => {
                 <div className="card-header">
                     <h3><i className="fas fa-calendar-alt"></i> Upcoming Classes</h3>
                     <button type="button" className="view-all" onClick={() => navigate('/admin/lms?tab=schedules')}>
-                        <i className="fas fa-calendar"></i> View schedules
+                        <i className="fas fa-calendar"></i> View Schedules
                     </button>
                 </div>
                 <div className="card-body">

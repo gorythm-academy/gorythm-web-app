@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { useSearchParams } from 'react-router-dom';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
 import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
@@ -639,7 +640,7 @@ const TeacherAttendance = () => {
   return (
     <div className="portal-page portal-teacher-attendance">
       <PortalPageHeader
-        title="Students attendance"
+        title="Students Attendance"
         subtitle="Mark daily attendance, then review records by day, week, or month."
       />
 
@@ -647,10 +648,10 @@ const TeacherAttendance = () => {
       {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
 
       <form className="portal-card portal-form-card" onSubmit={submitAttendance} autoComplete="off">
-        <h3>Mark attendance</h3>
+        <h3>Mark Attendance</h3>
 
         <label className="portal-field-label">
-          <span>Course</span>
+          <span>Course <RequiredMark /></span>
           <select value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
             <option value="">Select course</option>
             {courses.map((c) => (
@@ -662,7 +663,7 @@ const TeacherAttendance = () => {
         </label>
 
         <label className="portal-field-label">
-          <span>Attendance date</span>
+          <span>Attendance date <RequiredMark /></span>
           <input
             type="date"
             value={date}
@@ -781,7 +782,7 @@ const TeacherAttendance = () => {
       </form>
 
       <section className="portal-content-section portal-attendance-report-section">
-        <h2 className="portal-content-section-title">Attendance report</h2>
+        <h2 className="portal-content-section-title">Attendance Report</h2>
         <p className="portal-attendance-report-hint">
           {!viewCourseId
             ? 'Select a course to view attendance records.'
@@ -1116,7 +1117,7 @@ const TeacherAttendance = () => {
                 <i className="fas fa-user-edit" />
               </div>
               <div>
-                <h3>Edit attendance</h3>
+                <h3>Edit Attendance</h3>
                 <p>{editRecord.student?.name}</p>
                 <small>
                   {editRecord.course?.title} · {new Date(editRecord.date).toLocaleDateString()}

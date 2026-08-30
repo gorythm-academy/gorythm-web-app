@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -132,8 +133,6 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
         onClose: handleClose,
         blockEscape: loading || Boolean(success),
     });
-
-    const getSelectedCourse = () => sortedCourses.find((c) => c._id === formData.courseId);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -290,7 +289,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-name">
-                                        <i className="fas fa-user"></i> Full name *
+                                        <i className="fas fa-user"></i> Full name <RequiredMark />
                                     </label>
                                     <input
                                         id="add-student-name"
@@ -307,7 +306,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-email-local">
-                                        <i className="fas fa-envelope"></i> Portal email *
+                                        <i className="fas fa-envelope"></i> Portal email <RequiredMark />
                                     </label>
                                     <div className={`email-input-group ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -337,7 +336,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-password">
-                                        <i className="fas fa-lock"></i> Password *
+                                        <i className="fas fa-lock"></i> Password <RequiredMark />
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -367,7 +366,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-confirm-password">
-                                        <i className="fas fa-lock"></i> Confirm password *
+                                        <i className="fas fa-lock"></i> Confirm password <RequiredMark />
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -467,7 +466,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label>
-                                        <i className="fas fa-graduation-cap"></i> Select course *
+                                        <i className="fas fa-graduation-cap"></i> Select course <RequiredMark />
                                     </label>
                                     <select
                                         name="courseId"
@@ -495,7 +494,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                         <label>
                                             <i className="fas fa-clock"></i>{' '}
                                             Class timeslot
-                                            {courseSchedules.length > 0 ? ' *' : ''}
+                                            {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                         </label>
                                         <select
                                             name="assignedScheduleId"
@@ -550,7 +549,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-fee-status">
-                                        <i className="fas fa-credit-card"></i> Fee status
+                                        <i className="fas fa-credit-card"></i> Fee Status
                                     </label>
                                     <select
                                         id="add-student-fee-status"

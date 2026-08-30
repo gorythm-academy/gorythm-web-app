@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { portalGet } from '../components/Portals/shared/portalApi';
 import { getItemsNewSinceLastVisit } from '../utils/portalNewItems';
+import { hasAssignmentEditsSince } from '../utils/portalAssignmentNotices';
 
 const SEEN_ASSIGNMENTS = 'student_assignments';
 const SEEN_QUIZZES = 'student_quizzes';
@@ -11,7 +12,12 @@ export const PORTAL_SEEN_UPDATED_EVENT = 'portal-seen-updated';
 
 export function useStudentPortalBadges(enabled) {
   const location = useLocation();
-  const [badges, setBadges] = useState({ assignments: 0, quizzes: 0, content: 0 });
+  const [badges, setBadges] = useState({
+    assignments: 0,
+    assignmentsEdit: false,
+    quizzes: 0,
+    content: 0,
+  });
 
   const refresh = useCallback(() => {
     if (!enabled) return;
@@ -26,13 +32,14 @@ export function useStudentPortalBadges(enabled) {
         const resources = cRes.success ? cRes.resources || [] : [];
         setBadges({
           assignments: getItemsNewSinceLastVisit(SEEN_ASSIGNMENTS, assignments).length,
+          assignmentsEdit: hasAssignmentEditsSince(assignments, SEEN_ASSIGNMENTS),
           quizzes: getItemsNewSinceLastVisit(SEEN_QUIZZES, quizzes).length,
           content: getItemsNewSinceLastVisit(SEEN_CONTENT, resources).length,
         });
       })
       .catch((err) => {
         console.warn('Student portal badges failed:', err);
-        setBadges({ assignments: 0, quizzes: 0, content: 0 });
+        setBadges({ assignments: 0, assignmentsEdit: false, quizzes: 0, content: 0 });
       });
   }, [enabled]);
 

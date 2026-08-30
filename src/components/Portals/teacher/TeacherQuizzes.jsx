@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
 import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
@@ -355,11 +356,11 @@ const TeacherQuizzes = () => {
 
           <form onSubmit={saveQuiz} autoComplete="off">
             <label className="portal-field-label">
-              <span>Title</span>
+              <span>Title <RequiredMark /></span>
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
             <label className="portal-field-label">
-              <span>Course</span>
+              <span>Course <RequiredMark /></span>
               <select
                 value={form.courseId}
                 onChange={(e) => setForm({ ...form, courseId: e.target.value })}
@@ -403,6 +404,8 @@ const TeacherQuizzes = () => {
               category="quizzes"
             />
 
+            <p className="portal-field-hint">At least one complete question (text and all three options) is required <RequiredMark /></p>
+
             {form.questions.map((q, idx) => (
               <div
                 key={idx}
@@ -410,7 +413,7 @@ const TeacherQuizzes = () => {
               >
                 <div className="teacher-quizzes__question-label">Question {idx + 1}</div>
                 <label className="portal-field-label">
-                  <span>Question text</span>
+                  <span>Question text{idx === 0 ? <RequiredMark /> : null}</span>
                   <input
                     value={q.question}
                     onChange={(e) => updateQuestion(idx, { question: e.target.value })}
@@ -420,7 +423,7 @@ const TeacherQuizzes = () => {
                 </label>
                 {OPTION_LABELS.map((label, oi) => (
                   <label key={oi} className="portal-field-label">
-                    <span>Option {label}</span>
+                    <span>Option {label}{idx === 0 ? <RequiredMark /> : null}</span>
                     <input
                       value={(q.options || [])[oi] || ''}
                       disabled={editingAttemptCount > 0}
@@ -474,7 +477,7 @@ const TeacherQuizzes = () => {
 
         <section className="teacher-quizzes__library">
           <div className="teacher-quizzes__library-head">
-            <h2>Your quizzes</h2>
+            <h2>Your Quizzes</h2>
             <div className="teacher-quizzes__library-actions">
               {renderCourseFilter(quizCourseFilter, setQuizCourseFilter, filteredQuizzes.length)}
               {!showForm ? (
@@ -495,7 +498,7 @@ const TeacherQuizzes = () => {
                   <th>Title</th>
                   <th>Course</th>
                   <th>Questions</th>
-                  <th>Max marks</th>
+                  <th>Max Marks</th>
                   <th>Due</th>
                   <th>Submissions</th>
                   <th>Actions</th>
@@ -524,7 +527,7 @@ const TeacherQuizzes = () => {
 
         <section className="teacher-quizzes__submissions" ref={submissionsRef}>
           <div className="teacher-quizzes__submissions-head">
-            <h2>Student submissions</h2>
+            <h2>Student Submissions</h2>
             <div className="teacher-quizzes__submissions-filter">
               {renderCourseFilter(submissionCourseFilter, (value) => {
                 setSubmissionCourseFilter(value);
@@ -557,7 +560,7 @@ const TeacherQuizzes = () => {
               <thead>
                 <tr>
                   <th>Student</th>
-                  <th>Roll no.</th>
+                  <th>Roll No.</th>
                   <th>Quiz</th>
                   <th>Course</th>
                   <th>Score</th>

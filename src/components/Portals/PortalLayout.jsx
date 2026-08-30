@@ -9,11 +9,13 @@ import {
   ADMIN_DASHBOARD_ACCENT_STORAGE_KEY,
 } from '../../utils/adminDashboardTheme';
 import BrandLogo from '../BrandLogo/BrandLogo';
+import { PortalDialogProvider } from './shared/PortalDialogContext';
 import { useStudentPortalBadges } from '../../hooks/useStudentPortalBadges';
 import { useTeacherPortalBadges } from '../../hooks/useTeacherPortalBadges';
 import { useAccountantPortalBadges } from '../../hooks/useAccountantPortalBadges';
 import './PortalLayout.scss';
 import './accountant/AccountantPortalTheme.scss';
+import '../Admin/Admin.scss';
 
 const MOBILE_MAX_WIDTH = 1024;
 const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
@@ -21,9 +23,9 @@ const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
 const NAV_BY_ROLE = {
   student: [
     { to: '/student', label: 'Dashboard', icon: 'fas fa-home', end: true },
-    { to: '/student/schedule', label: 'Class schedules', icon: 'fas fa-clock' },
+    { to: '/student/schedule', label: 'Class Schedules', icon: 'fas fa-clock' },
     { to: '/student/fees', label: 'Fees', icon: 'fas fa-file-invoice-dollar' },
-    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments' },
+    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments', editDotKey: 'assignmentsEdit' },
     { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes' },
     { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open', badgeKey: 'content' },
     { to: '/student/attendance', label: 'Attendance', icon: 'fas fa-user-check' },
@@ -32,9 +34,9 @@ const NAV_BY_ROLE = {
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/teacher/classes', label: 'Classes', icon: 'fas fa-chalkboard' },
-    { to: '/teacher/attendance', label: 'Students attendance', icon: 'fas fa-user-check' },
-    { to: '/teacher/content', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'submissions' },
-    { to: '/teacher/resources', label: 'Resources', icon: 'fas fa-folder-open' },
+    { to: '/teacher/attendance', label: 'Students Attendance', icon: 'fas fa-user-check' },
+    { to: '/teacher/content', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'submissions', editDotKey: 'submissionsEdit' },
+    { to: '/teacher/resources', label: 'Resources', icon: 'fas fa-folder-open', badgeKey: 'adminResources' },
     { to: '/teacher/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizAttempts' },
     { to: '/teacher/my-attendance', label: 'My Attendance', icon: 'fas fa-calendar-check' },
     { to: '/teacher/account', label: 'Account', icon: 'fas fa-user-cog' },
@@ -42,15 +44,15 @@ const NAV_BY_ROLE = {
   parent: [
     { to: '/parent', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/parent/children', label: 'Children', icon: 'fas fa-child' },
-    { to: '/parent/schedule', label: 'Class schedules', icon: 'fas fa-clock' },
+    { to: '/parent/schedule', label: 'Class Schedules', icon: 'fas fa-clock' },
     { to: '/parent/progress', label: 'Progress', icon: 'fas fa-chart-line' },
     { to: '/parent/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
   accountant: [
     { to: '/accountant', label: 'Overview', icon: 'fas fa-chart-pie', end: true },
-    { to: '/accountant/payments', label: 'Fee reviews', icon: 'fas fa-file-invoice-dollar', badgeKey: 'payments' },
-    { to: '/accountant/payroll', label: 'Teacher payroll', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
-    { to: '/accountant/reports', label: 'Financial reports', icon: 'fas fa-file-export' },
+    { to: '/accountant/payments', label: 'Fee Reviews', icon: 'fas fa-file-invoice-dollar', badgeKey: 'payments' },
+    { to: '/accountant/payroll', label: 'Teacher Payroll', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
+    { to: '/accountant/reports', label: 'Financial Reports', icon: 'fas fa-file-export' },
     { to: '/accountant/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
 };
@@ -156,7 +158,14 @@ const PortalLayout = ({ role, title }) => {
         <nav className="sidebar-menu" aria-label="Portal navigation">
           {nav.map((item) => {
             const badgeCount = item.badgeKey ? navBadges[item.badgeKey] || 0 : 0;
-            const showBadge = badgeCount > 0;
+            const showCountBadge = badgeCount > 0;
+            const showEditDot = item.editDotKey ? Boolean(navBadges[item.editDotKey]) : false;
+            const showBadge = showCountBadge || showEditDot;
+            const collapsedTitleSuffix = showCountBadge
+              ? ` (${badgeCount})`
+              : showEditDot
+                ? ' (updated)'
+                : '';
             return (
               <Link
                 key={item.to}
@@ -166,7 +175,7 @@ const PortalLayout = ({ role, title }) => {
                 }`}
                 title={
                   !sidebarOpen && showBadge
-                    ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
+                    ? `${item.label}${item.badgeDot && !showCountBadge ? ' (pending)' : collapsedTitleSuffix}`
                     : !sidebarOpen
                       ? item.label
                       : undefined
@@ -177,27 +186,47 @@ const PortalLayout = ({ role, title }) => {
                   <span className="menu-item__label">
                     {item.label}
                     {showBadge ? (
-                      item.badgeDot ? (
-                        <span className="menu-item__badge menu-item__badge--dot" aria-label="Pending items" />
-                      ) : (
-                        <span className="menu-item__badge" aria-label={`${badgeCount} new`}>
-                          {badgeCount > 99 ? '99+' : badgeCount}
-                        </span>
-                      )
+                      <span className="menu-item__badges">
+                        {showCountBadge ? (
+                          item.badgeDot ? (
+                            <span className="menu-item__badge menu-item__badge--dot" aria-label="Pending items" />
+                          ) : (
+                            <span className="menu-item__badge" aria-label={`${badgeCount} new`}>
+                              {badgeCount > 99 ? '99+' : badgeCount}
+                            </span>
+                          )
+                        ) : null}
+                        {showEditDot ? (
+                          <span
+                            className="menu-item__badge menu-item__badge--dot menu-item__badge--edit"
+                            aria-label="Updated items"
+                          />
+                        ) : null}
+                      </span>
                     ) : null}
                   </span>
                 )}
                 {!sidebarOpen && showBadge ? (
-                  item.badgeDot ? (
-                    <span
-                      className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
-                      aria-label="Pending items"
-                    />
-                  ) : (
-                    <span className="menu-item__badge menu-item__badge--collapsed" aria-label={`${badgeCount} new`}>
-                      {badgeCount > 9 ? '9+' : badgeCount}
-                    </span>
-                  )
+                  <span className="menu-item__badges menu-item__badges--collapsed">
+                    {showCountBadge ? (
+                      item.badgeDot ? (
+                        <span
+                          className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
+                          aria-label="Pending items"
+                        />
+                      ) : (
+                        <span className="menu-item__badge menu-item__badge--collapsed" aria-label={`${badgeCount} new`}>
+                          {badgeCount > 9 ? '9+' : badgeCount}
+                        </span>
+                      )
+                    ) : null}
+                    {showEditDot ? (
+                      <span
+                        className="menu-item__badge menu-item__badge--dot menu-item__badge--edit menu-item__badge--collapsed"
+                        aria-label="Updated items"
+                      />
+                    ) : null}
+                  </span>
                 ) : null}
               </Link>
             );
@@ -226,7 +255,9 @@ const PortalLayout = ({ role, title }) => {
 
       <main className="admin-main">
         <div className="admin-content">
-          <Outlet />
+          <PortalDialogProvider>
+            <Outlet />
+          </PortalDialogProvider>
         </div>
       </main>
     </div>

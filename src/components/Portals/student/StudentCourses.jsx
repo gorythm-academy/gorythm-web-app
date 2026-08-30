@@ -42,14 +42,14 @@ const StudentCourses = () => {
           <i className="fa-solid fa-book" />
         </div>
         <div>
-          <h2>Your enrollments</h2>
+          <h2>Your Enrollments</h2>
           <p>Active and completed courses linked to your student account.</p>
         </div>
       </div>
 
       <div className="portal-panel">
         <div className="portal-panel__head">
-          <h2>Course list</h2>
+          <h2>Course List</h2>
         </div>
         <div className="portal-panel__body">
           {rows.length === 0 ? (

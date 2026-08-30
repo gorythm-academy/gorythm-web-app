@@ -8,4 +8,15 @@ const trashedCourseFilter = () => ({
 
 const isCourseTrashed = (course) => !!(course?.deletedAt);
 
-module.exports = { activeCourseFilter, trashedCourseFilter, isCourseTrashed };
+/** Active (non-quarantine) courses visible in LMS admin pickers. */
+const publishedActiveCourseFilter = () => ({
+    isPublished: true,
+    ...activeCourseFilter(),
+});
+
+module.exports = {
+    activeCourseFilter,
+    trashedCourseFilter,
+    publishedActiveCourseFilter,
+    isCourseTrashed,
+};

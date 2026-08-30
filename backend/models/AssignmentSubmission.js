@@ -8,6 +8,8 @@ const assignmentSubmissionSchema = new mongoose.Schema(
         attachments: [{ type: String }],
         status: { type: String, enum: ['submitted'], default: 'submitted' },
         submittedAt: { type: Date, default: Date.now },
+        /** Incremented when the student updates an existing submission. */
+        revisionCount: { type: Number, default: 0 },
         deletedAt: { type: Date, default: null },
     },
     { timestamps: true }

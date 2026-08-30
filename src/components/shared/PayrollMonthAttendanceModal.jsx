@@ -130,7 +130,7 @@ const PayrollMonthAttendanceModal = ({ data, onClose, formatMonth }) => {
                 <th>Date</th>
                 <th>Day</th>
                 <th>Status</th>
-                <th>Admin approval</th>
+                <th>Admin Approval</th>
                 <th>Notes</th>
               </tr>
             </thead>

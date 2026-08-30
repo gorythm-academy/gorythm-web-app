@@ -31,7 +31,15 @@ export async function uploadLmsFile(file, category = 'assignments', realm = AUTH
     });
     const path = res.data?.url;
     if (!path) throw new Error(res.data?.error || 'Upload failed');
-    return path.startsWith('http') ? path : `${base}${path}`;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      try {
+        const parsed = new URL(path);
+        return parsed.pathname;
+      } catch {
+        return path;
+      }
+    }
+    return path.startsWith('/') ? path : `/${path}`;
   } catch (err) {
     if (err.response?.status === 413) {
       throw new Error(uploadTooLargeMessage());
@@ -53,12 +61,8 @@ export function hasLmsUploadValue(value) {
 /** Upload pending files on submit; pass through existing URL strings unchanged. */
 export async function resolveLmsUploadList(values, category = 'assignments', realm = AUTH_REALM.PORTAL) {
   const list = Array.isArray(values) ? values : values ? [values] : [];
-  const resolved = [];
-  for (const item of list) {
-    const url = await resolveLmsUploadValue(item, category, realm);
-    if (url) resolved.push(url);
-  }
-  return resolved;
+  const resolved = await Promise.all(list.map((item) => resolveLmsUploadValue(item, category, realm)));
+  return resolved.filter(Boolean);
 }
 
 /** Upload pending file on submit; pass through existing URL strings unchanged. */

@@ -1,3 +1,4 @@
+import RequiredMark from '../../shared/RequiredMark';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   payrollGet,
@@ -13,8 +14,8 @@ import './AccountantPayroll.scss';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All' },
-  { value: 'pending_review', label: 'Pending review' },
-  { value: 'stale', label: 'Out of date' },
+  { value: 'pending_review', label: 'Pending Review' },
+  { value: 'stale', label: 'Out of Date' },
   { value: 'rejected', label: 'Rejected' },
   { value: 'paid', label: 'Paid' },
 ];
@@ -33,7 +34,7 @@ const PAYROLL_QUEUE_COLS = {
 
 const statusLabel = (status) => {
   if (status === 'pending_review') return 'Pending review';
-  if (status === 'stale') return 'Out of date';
+  if (status === 'stale') return 'Out of Date';
   if (status === 'rejected') return 'Rejected';
   if (status === 'paid') return 'Paid';
   return status || '—';
@@ -360,7 +361,7 @@ const AccountantPayroll = () => {
   return (
     <div className="portal-page accountant-payroll">
       <PortalPageHeader
-        title="Teacher payroll"
+        title="Teacher Payroll"
         subtitle="Set salary profiles, review auto-generated payroll after admin approval, and mark runs paid."
       />
 
@@ -369,7 +370,7 @@ const AccountantPayroll = () => {
           <i className="fa-solid fa-money-check-dollar" />
         </div>
         <div>
-          <h2>Payroll workspace</h2>
+          <h2>Payroll Workspace</h2>
           <p>
             Add salary profiles for teachers, review attendance-backed payroll runs, edit amounts when needed,
             then mark them paid.
@@ -387,7 +388,7 @@ const AccountantPayroll = () => {
         </div>
         <div className="accountant-payroll-stat accountant-payroll-stat--stale">
           <span className="accountant-payroll-stat__value">{stats.stale}</span>
-          <span className="accountant-payroll-stat__label">Out of date</span>
+          <span className="accountant-payroll-stat__label">Out of Date</span>
         </div>
         <div className="accountant-payroll-stat accountant-payroll-stat--paid">
           <span className="accountant-payroll-stat__value">{stats.paid}</span>
@@ -395,13 +396,13 @@ const AccountantPayroll = () => {
         </div>
         <div className="accountant-payroll-stat accountant-payroll-stat--warn">
           <span className="accountant-payroll-stat__value">{profileRows.length}</span>
-          <span className="accountant-payroll-stat__label">Teacher profiles</span>
+          <span className="accountant-payroll-stat__label">Teacher Profiles</span>
         </div>
       </div>
 
       <section className="accountant-payroll-section">
         <div className="accountant-payroll-section__head">
-          <h2>Teacher profiles</h2>
+          <h2>Teacher Profiles</h2>
         </div>
         <p className="accountant-payroll-hint">
           Pick a teacher from the list and set their monthly salary. Teachers who already have a
@@ -415,28 +416,33 @@ const AccountantPayroll = () => {
           </p>
         ) : (
           <form className="accountant-payroll-form accountant-payroll-form--inline" onSubmit={saveNewProfile}>
-            <select
-              value={profileForm.teacherId}
-              onChange={(e) => setProfileForm({ ...profileForm, teacherId: e.target.value })}
-              required
-              aria-label="Teacher"
-            >
-              <option value="">Select teacher</option>
-              {teachersForNewProfile.map((row) => (
-                <option key={row.teacher._id} value={row.teacher._id}>
-                  {row.teacher.name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Monthly salary"
-              value={profileForm.monthlySalary}
-              onChange={(e) => setProfileForm({ ...profileForm, monthlySalary: e.target.value })}
-              required
-            />
+            <label className="portal-field-label">
+              <span>Teacher <RequiredMark /></span>
+              <select
+                value={profileForm.teacherId}
+                onChange={(e) => setProfileForm({ ...profileForm, teacherId: e.target.value })}
+                required
+              >
+                <option value="">Select teacher</option>
+                {teachersForNewProfile.map((row) => (
+                  <option key={row.teacher._id} value={row.teacher._id}>
+                    {row.teacher.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="portal-field-label">
+              <span>Monthly salary <RequiredMark /></span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Monthly salary"
+                value={profileForm.monthlySalary}
+                onChange={(e) => setProfileForm({ ...profileForm, monthlySalary: e.target.value })}
+                required
+              />
+            </label>
             <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--primary">
               Add salary profile
             </button>
@@ -448,7 +454,7 @@ const AccountantPayroll = () => {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Monthly salary</th>
+                <th>Monthly Salary</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -513,7 +519,7 @@ const AccountantPayroll = () => {
 
       <section className="accountant-payroll-section">
         <div className="accountant-payroll-section__head">
-          <h2>Payroll queue</h2>
+          <h2>Payroll Queue</h2>
           <div className="accountant-payroll-section__tools">
             <button
               type="button"
@@ -552,12 +558,12 @@ const AccountantPayroll = () => {
               <thead>
                 <tr>
                   {renderQueueTh('teacher', 'Teacher')}
-                  {renderQueueTh('profileSalary', 'Profile salary')}
+                  {renderQueueTh('profileSalary', 'Profile Salary')}
                   {renderQueueTh('month', 'Month')}
                   {renderQueueTh('present', 'Present')}
                   {renderQueueTh('absent', 'Absent')}
                   {renderQueueTh('deduction', 'Deduction')}
-                  {renderQueueTh('finalSalary', 'Final salary')}
+                  {renderQueueTh('finalSalary', 'Final Salary')}
                   {renderQueueTh('status', 'Status')}
                   {renderQueueTh('actions', 'Actions')}
                 </tr>
@@ -716,26 +722,29 @@ const AccountantPayroll = () => {
       {showExceptions ? (
         <section className="accountant-payroll-section accountant-payroll-section--nested">
           <form className="accountant-payroll-form" onSubmit={saveException}>
-            <h3>Manual attendance (exception only)</h3>
+            <h3>Manual Attendance (Exception Only)</h3>
             <p className="accountant-payroll-hint">
               Use only when admin-approved attendance is unavailable.
             </p>
-            <select
-              value={exceptionForm.teacherId}
-              onChange={(e) => setExceptionForm({ ...exceptionForm, teacherId: e.target.value })}
-              required
-            >
-              <option value="">Teacher</option>
-              {salaryRows
-                .filter((row) => row.teacher?._id)
-                .map((row) => (
-                <option key={row.teacher._id} value={row.teacher._id}>
-                  {row.teacher.name}
-                </option>
-              ))}
-            </select>
             <label className="portal-field-label">
-              Month
+              <span>Teacher <RequiredMark /></span>
+              <select
+                value={exceptionForm.teacherId}
+                onChange={(e) => setExceptionForm({ ...exceptionForm, teacherId: e.target.value })}
+                required
+              >
+                <option value="">Teacher</option>
+                {salaryRows
+                  .filter((row) => row.teacher?._id)
+                  .map((row) => (
+                  <option key={row.teacher._id} value={row.teacher._id}>
+                    {row.teacher.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="portal-field-label">
+              <span>Month <RequiredMark /></span>
               <input
                 type="month"
                 value={exceptionForm.monthKey}
@@ -781,10 +790,10 @@ const AccountantPayroll = () => {
             aria-labelledby="edit-profile-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id="edit-profile-title">Edit teacher profile</h3>
+            <h3 id="edit-profile-title">Edit Teacher Profile</h3>
             <form onSubmit={saveEditedProfile}>
               <label className="portal-field-label">
-                Name
+                <span>Name <RequiredMark /></span>
                 <input
                   type="text"
                   value={editingProfile.name}
@@ -793,7 +802,7 @@ const AccountantPayroll = () => {
                 />
               </label>
               <label className="portal-field-label">
-                Monthly salary
+                <span>Monthly salary <RequiredMark /></span>
                 <input
                   type="number"
                   min="0"
@@ -858,7 +867,7 @@ const AccountantPayroll = () => {
                 />
               </label>
               <label className="portal-field-label">
-                Final salary ($)
+                <span>Final salary ($) <RequiredMark /></span>
                 <input
                   type="number"
                   min="0"
@@ -914,7 +923,7 @@ const AccountantPayroll = () => {
             </p>
             <form onSubmit={rejectPayroll}>
               <label className="portal-field-label">
-                Rejection note (required)
+                <span>Rejection note <RequiredMark /></span>
                 <textarea
                   rows={4}
                   value={rejectModal.note}

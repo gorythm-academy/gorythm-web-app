@@ -101,6 +101,43 @@ export function PortalNewBanner({ title, items, itemLabel, onDismiss }) {
   );
 }
 
+export function PortalActivityBanner({
+  title,
+  rows,
+  rowKey = (row) => `${row.id}-${row.message}`,
+  onDismiss,
+  tone,
+  dismissLabel = 'Dismiss',
+  className = '',
+}) {
+  if (!rows?.length) return null;
+  return (
+    <div
+      className={`portal-admin-edit-banner${tone ? ` portal-admin-edit-banner--${tone}` : ''}${className ? ` ${className}` : ''}`}
+      role="status"
+    >
+      <strong>{title}</strong>
+      <ul>
+        {rows.map((row) => (
+          <li key={rowKey(row)}>
+            <span>{row.title}: </span>
+            {row.message}
+          </li>
+        ))}
+      </ul>
+      {onDismiss ? (
+        <button
+          type="button"
+          className="lms-btn-secondary lms-btn-secondary--compact portal-admin-edit-banner__dismiss"
+          onClick={onDismiss}
+        >
+          {dismissLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function SimpleTable({
   columns,
   rows,

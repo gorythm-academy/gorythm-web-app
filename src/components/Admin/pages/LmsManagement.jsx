@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/constants';
@@ -17,10 +18,13 @@ import ScheduleRoomOrLink from '../../Portals/shared/ScheduleRoomOrLink';
 import { DEFAULT_ACADEMY_TIMEZONE } from '../../../utils/scheduleTimezone';
 import { sortPublishedCourses } from '../../../utils/studentAdminValidation';
 import PayrollMonthAttendanceModal from '../../shared/PayrollMonthAttendanceModal';
+import AdminSearchBox from '../shared/AdminSearchBox';
+import { useAdminSearch } from '../../../hooks/useAdminSearch';
+import { filterByKeywordSearch } from '../../../utils/adminSearch';
 import './LmsManagement.scss';
 
 const PARENT_LINKS_PAGE_SIZE = 20;
-const LINK_PICKER_LIMIT = 50;
+const LINK_PICKER_LIMIT = 500;
 
 const browserTimezone = () => {
   try {
@@ -105,10 +109,10 @@ const statusMeta = (status) =>
   };
 
 const TABS = [
-  { id: 'schedules', label: 'Class schedules' },
-  { id: 'parent-links', label: 'Parent links' },
-  { id: 'teacher-attendance', label: 'Teacher attendance' },
-  { id: 'teacher-payroll', label: 'Teacher payroll' },
+  { id: 'schedules', label: 'Class Schedules' },
+  { id: 'parent-links', label: 'Parent Links' },
+  { id: 'teacher-attendance', label: 'Teacher Attendance Approvals' },
+  { id: 'teacher-payroll', label: 'Teacher Payroll Records' },
 ];
 
 const LMS_TAB_IDS = TABS.map((t) => t.id);
@@ -117,7 +121,7 @@ const PAYROLL_STATUS_FILTERS = [
   { value: 'paid', label: 'Paid' },
   { value: 'all', label: 'All' },
   { value: 'pending_review', label: 'Pending' },
-  { value: 'stale', label: 'Out of date' },
+  { value: 'stale', label: 'Out of Date' },
   { value: 'rejected', label: 'Rejected' },
 ];
 
@@ -132,7 +136,7 @@ const formatPayrollMonth = (monthKey) => {
 
 const payrollStatusLabel = (status) => {
   if (status === 'pending_review') return 'Pending review';
-  if (status === 'stale') return 'Out of date';
+  if (status === 'stale') return 'Out of Date';
   if (status === 'paid') return 'Paid';
   if (status === 'rejected') return 'Rejected';
   return status || '—';
@@ -195,6 +199,12 @@ const EMPTY_SCHEDULE_FORM = {
 };
 
 const EMPTY_LINK_FORM = { parentId: '', studentId: '', relation: 'guardian' };
+const PARENT_RELATION_OPTIONS = [
+  { value: 'guardian', label: 'Guardian' },
+  { value: 'father', label: 'Father' },
+  { value: 'mother', label: 'Mother' },
+  { value: 'other', label: 'Other' },
+];
 
 const LmsManagement = () => {
   const { showAlert, showConfirm } = useAdminDialog();
@@ -243,12 +253,20 @@ const LmsManagement = () => {
   const [links, setLinks] = useState([]);
   const [parents, setParents] = useState([]);
   const [students, setStudents] = useState([]);
-  const [parentPickerSearch, setParentPickerSearch] = useState('');
-  const [studentPickerSearch, setStudentPickerSearch] = useState('');
+  const parentLinkListSearch = useAdminSearch();
+  const scheduleListSearch = useAdminSearch();
+  const attendanceListSearch = useAdminSearch();
+  const payrollListSearch = useAdminSearch();
   const [pickersLoading, setPickersLoading] = useState(false);
   const [linkForm, setLinkForm] = useState(EMPTY_LINK_FORM);
-  const [parentLinkSearch, setParentLinkSearch] = useState('');
   const [parentLinksPage, setParentLinksPage] = useState(1);
+  const [editingLinkId, setEditingLinkId] = useState(null);
+  const [editLinkForm, setEditLinkForm] = useState({
+    parentId: '',
+    studentId: '',
+    relation: 'guardian',
+  });
+  const [editLinkSaving, setEditLinkSaving] = useState(false);
   const [linksLoading, setLinksLoading] = useState(false);
   const [requests, setRequests] = useState([]);
   const [attendanceFilter, setAttendanceFilter] = useState('pending');
@@ -360,13 +378,17 @@ const LmsManagement = () => {
             segment: 'students',
             limit: LINK_PICKER_LIMIT,
             search: studentSearch.trim() || undefined,
-            sortBy: 'student',
+            sortBy: 'name',
             sortOrder: 'asc',
           },
         }),
       ]);
-      if (parentRes.data?.success) setParents(parentRes.data.users || []);
-      if (studentRes.data?.success) setStudents(studentRes.data.users || []);
+      if (parentRes.data?.success) {
+        setParents((parentRes.data.users || []).filter((u) => u.role === 'parent'));
+      }
+      if (studentRes.data?.success) {
+        setStudents((studentRes.data.users || []).filter((u) => u.role === 'student'));
+      }
     } catch {
       setParents([]);
       setStudents([]);
@@ -574,13 +596,12 @@ const LmsManagement = () => {
   }, [tab, loadSchedules, loadLinks, loadPayrollRuns, loadLmsTabBadges, loadPendingAttendanceSummary]);
 
   useEffect(() => {
-    if (tab !== 'parent-links') return undefined;
-    const delay = parentPickerSearch.trim() || studentPickerSearch.trim() ? 300 : 0;
-    const timer = window.setTimeout(() => {
-      fetchLinkPickers(parentPickerSearch, studentPickerSearch);
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [tab, parentPickerSearch, studentPickerSearch, fetchLinkPickers]);
+    if (tab === 'parent-links') fetchLinkPickers('', '');
+  }, [tab, fetchLinkPickers]);
+
+  useEffect(() => {
+    setParentLinksPage(1);
+  }, [parentLinkListSearch.debouncedSearch]);
 
   useEffect(() => {
     if (tab === 'teacher-attendance') loadRequests();
@@ -635,10 +656,6 @@ const LmsManagement = () => {
 
     attendanceFocusInitializedRef.current = true;
   }, [tab, pendingAttendanceSummary, pendingMonthlySummary, dailyMonth]);
-
-  useEffect(() => {
-    setParentLinksPage(1);
-  }, [parentLinkSearch]);
 
   useEffect(() => {
     setSelectedScheduleIds([]);
@@ -770,14 +787,6 @@ const LmsManagement = () => {
     );
   };
 
-  const toggleAllSchedules = () => {
-    if (selectedScheduleIds.length === schedules.length && schedules.length > 0) {
-      setSelectedScheduleIds([]);
-    } else {
-      setSelectedScheduleIds(schedules.map((s) => s._id));
-    }
-  };
-
   const removeSelectedSchedules = async () => {
     if (!selectedScheduleIds.length || scheduleBulkBusy) return;
     const ok = await showConfirm({
@@ -843,11 +852,70 @@ const LmsManagement = () => {
       if (res.success) {
         showAlert('Link removed.', 'success');
         setLinks((prev) => prev.filter((l) => String(l._id) !== String(id)));
+        if (String(editingLinkId) === String(id)) {
+          setEditingLinkId(null);
+        }
       } else showAlert(res.error || 'Failed', 'error');
     } catch (err) {
       showAlert(err.message, 'error');
     }
   };
+
+  const startEditLink = (link) => {
+    const parentId = String(link.parent?._id || link.parent || '');
+    const studentId = String(link.student?._id || link.student || '');
+    setEditingLinkId(link._id);
+    setEditLinkForm({
+      parentId,
+      studentId,
+      relation: link.relation || 'guardian',
+    });
+    // Keep current people in picker lists while editing
+    if (link.parent && !parents.some((p) => String(p._id) === parentId)) {
+      setParents((prev) => [link.parent, ...prev]);
+    }
+    if (link.student && !students.some((s) => String(s._id) === studentId)) {
+      setStudents((prev) => [link.student, ...prev]);
+    }
+  };
+
+  const cancelEditLink = () => {
+    setEditingLinkId(null);
+    setEditLinkForm({ parentId: '', studentId: '', relation: 'guardian' });
+  };
+
+  const saveEditLink = async (linkId) => {
+    if (!linkId || editLinkSaving) return;
+    if (!editLinkForm.parentId || !editLinkForm.studentId) {
+      showAlert('Parent and student are required.', 'error');
+      return;
+    }
+    setEditLinkSaving(true);
+    try {
+      const res = await lmsAdminPatch(`/parent-links/${linkId}`, {
+        parentId: editLinkForm.parentId,
+        studentId: editLinkForm.studentId,
+        relation: editLinkForm.relation,
+      });
+      if (res.success && res.link) {
+        showAlert('Parent link updated.', 'success');
+        setLinks((prev) =>
+          prev.map((l) => (String(l._id) === String(linkId) ? res.link : l))
+        );
+        setEditingLinkId(null);
+        setEditLinkForm({ parentId: '', studentId: '', relation: 'guardian' });
+      } else {
+        showAlert(res.error || 'Failed to update link', 'error');
+      }
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      setEditLinkSaving(false);
+    }
+  };
+
+  const formatRelationLabel = (relation) =>
+    PARENT_RELATION_OPTIONS.find((o) => o.value === relation)?.label || relation || '—';
 
   const reviewDailyDay = async (id, status) => {
     if (!id) return;
@@ -900,9 +968,19 @@ const LmsManagement = () => {
   }, [payrollRuns]);
 
   const payrollFilteredRuns = useMemo(() => {
-    if (payrollFilter === 'all') return payrollRuns;
-    return payrollRuns.filter((r) => r.status === payrollFilter);
-  }, [payrollRuns, payrollFilter]);
+    const byStatus =
+      payrollFilter === 'all'
+        ? payrollRuns
+        : payrollRuns.filter((r) => r.status === payrollFilter);
+    return filterByKeywordSearch(byStatus, payrollListSearch.debouncedSearch, (r) => [
+      r.teacher?.name,
+      r.teacherName,
+      r.teacher?.email,
+      r.monthKey,
+      r.status,
+      r.source,
+    ]);
+  }, [payrollRuns, payrollFilter, payrollListSearch.debouncedSearch]);
 
   const reviewRequest = async (id, status) => {
     if (!id) {
@@ -984,9 +1062,13 @@ const LmsManagement = () => {
     return 0;
   };
 
-  const dayOptions = dayLabels.length
-    ? dayLabels
-    : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOptions = useMemo(
+    () =>
+      dayLabels.length
+        ? dayLabels
+        : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    [dayLabels]
+  );
 
   const timezoneOptions = useMemo(() => {
     const options = new Set(COMMON_TIMEZONES);
@@ -1006,16 +1088,48 @@ const LmsManagement = () => {
     return [{ _id: scheduleForm.courseId, title }, ...courses];
   }, [courses, scheduleForm.courseId, schedules]);
 
-  const filteredParentLinks = useMemo(() => {
-    const q = parentLinkSearch.trim().toLowerCase();
-    if (!q) return links;
-    return links.filter((l) => {
-      const parentText = `${l.parent?.name || ''} ${l.parent?.email || ''}`.toLowerCase();
-      const studentText = `${l.student?.name || ''} ${l.student?.studentId || ''} ${l.student?.email || ''}`.toLowerCase();
-      const relation = String(l.relation || '').toLowerCase();
-      return parentText.includes(q) || studentText.includes(q) || relation.includes(q);
-    });
-  }, [links, parentLinkSearch]);
+  const filteredSchedules = useMemo(
+    () =>
+      filterByKeywordSearch(schedules, scheduleListSearch.debouncedSearch, (s) => [
+        s.course?.title,
+        s.teacher?.name,
+        s.teacher?.email,
+        dayOptions[s.dayOfWeek],
+        s.startTime,
+        s.endTime,
+        s.timezone,
+        s.roomOrLink,
+      ]),
+    [schedules, scheduleListSearch.debouncedSearch, dayOptions]
+  );
+
+  const filteredDailyDays = useMemo(
+    () =>
+      filterByKeywordSearch(dailyDays, attendanceListSearch.debouncedSearch, (d) => [
+        d.date,
+        d.teacher?.name,
+        d.teacherName,
+        d.approvalStatus,
+        d.status,
+        d.notes,
+        d.teacherNotes,
+      ]),
+    [dailyDays, attendanceListSearch.debouncedSearch]
+  );
+
+  const filteredParentLinks = useMemo(
+    () =>
+      filterByKeywordSearch(links, parentLinkListSearch.debouncedSearch, (l) => [
+        l.parent?.name,
+        l.parent?.email,
+        l.student?.name,
+        l.student?.studentId,
+        l.student?.email,
+        l.relation,
+        formatRelationLabel(l.relation),
+      ]),
+    [links, parentLinkListSearch.debouncedSearch]
+  );
 
   const parentLinksTotalPages = Math.max(
     1,
@@ -1031,7 +1145,7 @@ const LmsManagement = () => {
 
   return (
     <div className="lms-management">
-      <h1>LMS management</h1>
+      <h1>LMS Management</h1>
       <p className="lms-management-lead">
         Class timings, parent–child links, teacher attendance approvals, and paid payroll records.
       </p>
@@ -1076,13 +1190,13 @@ const LmsManagement = () => {
                   <i className={`fas ${editingScheduleId ? 'fa-pen' : 'fa-plus'}`} />
                 </span>
                 <div>
-                  <h2>{editingScheduleId ? 'Edit class schedule' : 'Add class schedule'}</h2>
+                  <h2>{editingScheduleId ? 'Edit Class Schedule' : 'Add Class Schedule'}</h2>
                   <p>One row = one weekly time slot with a teacher for a course.</p>
                 </div>
               </header>
               <form className="lms-schedule-form-grid" onSubmit={saveSchedule}>
                 <label className="lms-schedule-field lms-schedule-field--full">
-                  <span><i className="fas fa-book" /> Course</span>
+                  <span><i className="fas fa-book" /> Course <RequiredMark /></span>
                   <select
                     value={scheduleForm.courseId}
                     onChange={(e) =>
@@ -1133,7 +1247,7 @@ const LmsManagement = () => {
                   </select>
                 </label>
                 <label className="lms-schedule-field">
-                  <span><i className="fas fa-clock" /> Start</span>
+                  <span><i className="fas fa-clock" /> Start <RequiredMark /></span>
                   <input
                     type="time"
                     value={scheduleForm.startTime}
@@ -1142,7 +1256,7 @@ const LmsManagement = () => {
                   />
                 </label>
                 <label className="lms-schedule-field">
-                  <span><i className="fas fa-clock" /> End</span>
+                  <span><i className="fas fa-clock" /> End <RequiredMark /></span>
                   <input
                     type="time"
                     value={scheduleForm.endTime}
@@ -1164,7 +1278,7 @@ const LmsManagement = () => {
                   </select>
                 </label>
                 <label className="lms-schedule-field lms-schedule-field--full">
-                  <span><i className="fas fa-link" /> Room or meeting link</span>
+                  <span><i className="fas fa-link" /> Room or Meeting Link</span>
                   <input
                     type="text"
                     placeholder="Room 2 or https://meet…"
@@ -1193,38 +1307,55 @@ const LmsManagement = () => {
                     <i className="fa-solid fa-calendar-days" />
                   </span>
                   <div>
-                    <h3>Class schedule list</h3>
+                    <h3>Class Schedule List</h3>
                     <p>Filter by course, select rows, and remove in bulk.</p>
                   </div>
                 </div>
-                <label className="lms-field-label lms-schedule-board__filter">
-                  <span>View by course</span>
-                  <select
-                    value={scheduleListCourseFilter}
-                    onChange={(e) => setScheduleListCourseFilter(e.target.value)}
-                  >
-                    <option value="all">All courses</option>
-                    {scheduleCourseOptions.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              </div>
+              <div className="controls-bar lms-schedule-board__controls">
+                <AdminSearchBox
+                  placeholder="Course, teacher, day, time, room…"
+                  value={scheduleListSearch.searchTerm}
+                  onChange={(e) => scheduleListSearch.setSearchTerm(e.target.value)}
+                  onEnter={() => scheduleListSearch.flushSearch()}
+                />
+                <div className="filter-controls">
+                  <label className="lms-field-label lms-schedule-board__filter">
+                    <span>View by Course</span>
+                    <select
+                      value={scheduleListCourseFilter}
+                      onChange={(e) => setScheduleListCourseFilter(e.target.value)}
+                    >
+                      <option value="all">All courses</option>
+                      {scheduleCourseOptions.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </div>
 
               {schedulesLoading ? (
                 <LmsPanelLoading label="Loading class schedules…" />
-              ) : schedules.length === 0 ? (
+              ) : filteredSchedules.length === 0 ? (
                 <div className="lms-schedule-board__empty">
                   <i className="fas fa-calendar-xmark" />
-                  <p>No class timings for this selection. Add one using the form.</p>
+                  <p>
+                    {schedules.length === 0
+                      ? 'No class timings for this selection. Add one using the form.'
+                      : 'No schedules match your search.'}
+                  </p>
                 </div>
               ) : (
                 <>
                   <div className="lms-schedule-board__meta">
                     <span className="lms-schedule-board__count">
-                      {schedules.length} slot{schedules.length === 1 ? '' : 's'}
+                      {filteredSchedules.length} slot{filteredSchedules.length === 1 ? '' : 's'}
+                      {scheduleListSearch.debouncedSearch && schedules.length !== filteredSchedules.length
+                        ? ` (of ${schedules.length})`
+                        : ''}
                     </span>
                   </div>
                   {selectedScheduleIds.length > 0 ? (
@@ -1262,10 +1393,19 @@ const LmsManagement = () => {
                               type="checkbox"
                               aria-label="Select all schedules"
                               checked={
-                                schedules.length > 0 &&
-                                selectedScheduleIds.length === schedules.length
+                                filteredSchedules.length > 0 &&
+                                filteredSchedules.every((s) => selectedScheduleIds.includes(s._id))
                               }
-                              onChange={toggleAllSchedules}
+                              onChange={() => {
+                                if (
+                                  filteredSchedules.length > 0 &&
+                                  filteredSchedules.every((s) => selectedScheduleIds.includes(s._id))
+                                ) {
+                                  setSelectedScheduleIds([]);
+                                } else {
+                                  setSelectedScheduleIds(filteredSchedules.map((s) => s._id));
+                                }
+                              }}
                             />
                           </th>
                           <th>Day</th>
@@ -1273,12 +1413,12 @@ const LmsManagement = () => {
                           <th>Timezone</th>
                           <th>Course</th>
                           <th>Teacher</th>
-                          <th>Room / link</th>
+                          <th>Room / Link</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {schedules.map((s) => (
+                        {filteredSchedules.map((s) => (
                           <tr
                             key={s._id}
                             className={[
@@ -1358,70 +1498,82 @@ const LmsManagement = () => {
           aria-labelledby="lms-tab-parent-links"
         >
           <form className="lms-form" onSubmit={addLink}>
-            <h2>Link parent to student</h2>
-            <input
-              type="search"
-              placeholder="Search parents…"
-              value={parentPickerSearch}
-              onChange={(e) => setParentPickerSearch(e.target.value)}
-            />
-            <select
-              value={linkForm.parentId}
-              onChange={(e) => setLinkForm({ ...linkForm, parentId: e.target.value })}
-              required
-              disabled={pickersLoading}
-            >
-              <option value="">{pickersLoading ? 'Loading parents…' : 'Parent'}</option>
-              {parents.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name} ({p.email})
+            <h2>Link Parent to Student</h2>
+            <p className="lms-form-hint">
+              One parent per student. A parent can be linked to multiple students.
+            </p>
+            <label className="lms-field-label">
+              <span>Parent <RequiredMark /></span>
+              <select
+                value={linkForm.parentId}
+                onChange={(e) => setLinkForm({ ...linkForm, parentId: e.target.value })}
+                required
+                disabled={pickersLoading}
+              >
+                <option value="">
+                  {pickersLoading
+                    ? 'Loading parents…'
+                    : parents.length
+                      ? 'Select parent…'
+                      : 'No parents found'}
                 </option>
-              ))}
-            </select>
-            <input
-              type="search"
-              placeholder="Search students…"
-              value={studentPickerSearch}
-              onChange={(e) => setStudentPickerSearch(e.target.value)}
-            />
-            <select
-              value={linkForm.studentId}
-              onChange={(e) => setLinkForm({ ...linkForm, studentId: e.target.value })}
-              required
-              disabled={pickersLoading}
-            >
-              <option value="">{pickersLoading ? 'Loading students…' : 'Student'}</option>
+                {parents.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="lms-field-label">
+              <span>Student <RequiredMark /></span>
+              <select
+                value={linkForm.studentId}
+                onChange={(e) => setLinkForm({ ...linkForm, studentId: e.target.value })}
+                required
+                disabled={pickersLoading}
+              >
+              <option value="">
+                {pickersLoading
+                  ? 'Loading students…'
+                  : students.length
+                    ? 'Select student…'
+                    : 'No students found'}
+              </option>
               {students.map((s) => (
                 <option key={s._id} value={s._id}>
-                  {s.name} {s.studentId ? `(${s.studentId})` : ''}
+                  {s.name}
                 </option>
               ))}
-            </select>
-            <select
-              value={linkForm.relation}
-              onChange={(e) => setLinkForm({ ...linkForm, relation: e.target.value })}
-            >
-              <option value="guardian">Guardian</option>
-              <option value="father">Father</option>
-              <option value="mother">Mother</option>
-              <option value="other">Other</option>
-            </select>
+              </select>
+            </label>
+            <label className="lms-field-label">
+              <span>Relation</span>
+              <select
+                value={linkForm.relation}
+                onChange={(e) => setLinkForm({ ...linkForm, relation: e.target.value })}
+              >
+              {PARENT_RELATION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+              </select>
+            </label>
             <button type="submit">Link</button>
           </form>
 
-          <div className="lms-parent-links-toolbar">
-            <label className="lms-parent-links-search">
-              <span>Search</span>
-              <input
-                type="search"
-                placeholder="Parent, student, or relation…"
-                value={parentLinkSearch}
-                onChange={(e) => setParentLinkSearch(e.target.value)}
-              />
-            </label>
-            <span className="lms-parent-links-count">
-              {filteredParentLinks.length} link{filteredParentLinks.length === 1 ? '' : 's'}
-            </span>
+          <div className="controls-bar lms-parent-links-toolbar">
+            <AdminSearchBox
+              placeholder="Parent, student, or relation…"
+              value={parentLinkListSearch.searchTerm}
+              onChange={(e) => parentLinkListSearch.setSearchTerm(e.target.value)}
+              onEnter={() => parentLinkListSearch.flushSearch()}
+            />
+            <div className="filter-controls">
+              <span className="lms-parent-links-count">
+                {filteredParentLinks.length} link{filteredParentLinks.length === 1 ? '' : 's'}
+              </span>
+            </div>
           </div>
 
           {linksLoading ? (
@@ -1432,30 +1584,149 @@ const LmsManagement = () => {
             </div>
           ) : (
             <>
-              <ul className="lms-list lms-parent-links-list">
-                {pagedParentLinks.map((l) => (
-                  <li key={l._id}>
-                    <span className="lms-parent-link-line">
-                      <strong>{l.parent?.name}</strong>
-                      {' → '}
-                      <strong>{l.student?.name}</strong>
-                      {' '}
-                      <span className="lms-parent-link-line__relation">({l.relation})</span>
-                    </span>
-                    <div className="lms-list-actions">
-                      <button
-                        type="button"
-                        className="lms-schedule-action lms-schedule-action--delete"
-                        title="Remove"
-                        aria-label="Remove link"
-                        onClick={() => removeLink(l._id)}
-                      >
-                        <i className="fas fa-trash" aria-hidden />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="lms-schedule-table-wrap">
+                <table className="lms-schedule-table lms-parent-links-table">
+                  <thead>
+                    <tr>
+                      <th>Parent</th>
+                      <th>Student</th>
+                      <th>Relation</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedParentLinks.map((l) => {
+                      const isEditing = String(editingLinkId) === String(l._id);
+                      return (
+                        <tr key={l._id} className={isEditing ? 'is-editing' : undefined}>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                className="lms-parent-links-table__select"
+                                value={editLinkForm.parentId}
+                                onChange={(e) =>
+                                  setEditLinkForm((prev) => ({
+                                    ...prev,
+                                    parentId: e.target.value,
+                                  }))
+                                }
+                                disabled={editLinkSaving}
+                              >
+                                <option value="">Select parent…</option>
+                                {parents.map((p) => (
+                                  <option key={p._id} value={p._id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="lms-schedule-course">{l.parent?.name || '—'}</span>
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                className="lms-parent-links-table__select"
+                                value={editLinkForm.studentId}
+                                onChange={(e) =>
+                                  setEditLinkForm((prev) => ({
+                                    ...prev,
+                                    studentId: e.target.value,
+                                  }))
+                                }
+                                disabled={editLinkSaving}
+                              >
+                                <option value="">Select student…</option>
+                                {students.map((s) => (
+                                  <option key={s._id} value={s._id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="lms-schedule-course">{l.student?.name || '—'}</span>
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                className="lms-parent-links-table__select"
+                                value={editLinkForm.relation}
+                                onChange={(e) =>
+                                  setEditLinkForm((prev) => ({
+                                    ...prev,
+                                    relation: e.target.value,
+                                  }))
+                                }
+                                disabled={editLinkSaving}
+                              >
+                                {PARENT_RELATION_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="lms-schedule-day-badge">
+                                {formatRelationLabel(l.relation)}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="lms-list-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="lms-schedule-action lms-schedule-action--edit"
+                                    title="Save"
+                                    aria-label="Save link"
+                                    disabled={editLinkSaving}
+                                    onClick={() => saveEditLink(l._id)}
+                                  >
+                                    <i className="fas fa-check" aria-hidden />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="lms-schedule-action"
+                                    title="Cancel"
+                                    aria-label="Cancel edit"
+                                    disabled={editLinkSaving}
+                                    onClick={cancelEditLink}
+                                  >
+                                    <i className="fas fa-times" aria-hidden />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="lms-schedule-action lms-schedule-action--edit"
+                                    title="Edit link"
+                                    aria-label="Edit link"
+                                    onClick={() => startEditLink(l)}
+                                  >
+                                    <i className="fas fa-pen" aria-hidden />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="lms-schedule-action lms-schedule-action--delete"
+                                    title="Remove"
+                                    aria-label="Remove link"
+                                    onClick={() => removeLink(l._id)}
+                                  >
+                                    <i className="fas fa-trash" aria-hidden />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               {parentLinksTotalPages > 1 ? (
                 <div className="lms-parent-links-pagination">
                   <button
@@ -1494,7 +1765,7 @@ const LmsManagement = () => {
               <i className="fas fa-user-check" />
             </div>
             <div className="lms-attendance-hero__text">
-              <h2>Teacher attendance approval</h2>
+              <h2>Teacher Attendance Approval</h2>
               <p>
                 Approve daily submissions during the month. Approve the monthly rollup only after the
                 month ends — payroll is then auto-generated for the accountant. Sundays are auto-counted.
@@ -1642,13 +1913,25 @@ const LmsManagement = () => {
             <h3 className="lms-attendance-section__title">
               <i className="fas fa-calendar-day" aria-hidden="true" /> Daily submissions
             </h3>
+            <div className="controls-bar lms-attendance-section__search">
+              <AdminSearchBox
+                placeholder="Search teacher, date, status, notes…"
+                value={attendanceListSearch.searchTerm}
+                onChange={(e) => attendanceListSearch.setSearchTerm(e.target.value)}
+                onEnter={() => attendanceListSearch.flushSearch()}
+              />
+            </div>
 
             {attendanceLoading ? (
               <LmsPanelLoading label="Loading daily submissions…" />
-            ) : dailyDays.length === 0 ? (
+            ) : filteredDailyDays.length === 0 ? (
               <div className="lms-attendance-empty">
                 <i className="fas fa-inbox" aria-hidden="true" />
-                <p>No daily attendance for this month and filter.</p>
+                <p>
+                  {dailyDays.length === 0
+                    ? 'No daily attendance for this month and filter.'
+                    : 'No submissions match your search.'}
+                </p>
               </div>
             ) : (
               <div className="lms-attendance-table-wrap">
@@ -1665,7 +1948,7 @@ const LmsManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {dailyDays.map((d) => {
+                    {filteredDailyDays.map((d) => {
                       const meta = statusMeta(d.status);
                       const approval = d.approvalStatus || 'pending';
                       return (
@@ -1957,7 +2240,7 @@ const LmsManagement = () => {
               <i className="fas fa-money-check-alt" />
             </div>
             <div className="lms-payroll-hero__text">
-              <h2>Teacher payroll records</h2>
+              <h2>Teacher Payroll Records</h2>
               <p>
                 Payroll is auto-generated when admin approves monthly attendance. The accountant reviews,
                 edits if needed, and marks runs paid — completed payments appear here by default.
@@ -1970,7 +2253,7 @@ const LmsManagement = () => {
           <div className="lms-payroll-stat-row">
             <div className="lms-payroll-stat lms-payroll-stat--total">
               <span className="lms-payroll-stat__value">{payrollStats.total}</span>
-              <span className="lms-payroll-stat__label">Total runs</span>
+              <span className="lms-payroll-stat__label">Total Runs</span>
             </div>
             <div className="lms-payroll-stat lms-payroll-stat--paid">
               <span className="lms-payroll-stat__value">{payrollStats.paid}</span>
@@ -1978,11 +2261,11 @@ const LmsManagement = () => {
             </div>
             <div className="lms-payroll-stat lms-payroll-stat--pending">
               <span className="lms-payroll-stat__value">{payrollStats.pending}</span>
-              <span className="lms-payroll-stat__label">Pending review</span>
+              <span className="lms-payroll-stat__label">Pending Review</span>
             </div>
             <div className="lms-payroll-stat lms-payroll-stat--stale">
               <span className="lms-payroll-stat__value">{payrollStats.stale}</span>
-              <span className="lms-payroll-stat__label">Out of date</span>
+              <span className="lms-payroll-stat__label">Out of Date</span>
             </div>
             <div className="lms-payroll-stat lms-payroll-stat--rejected">
               <span className="lms-payroll-stat__value">{payrollStats.rejected}</span>
@@ -1990,30 +2273,38 @@ const LmsManagement = () => {
             </div>
           </div>
 
-          <div className="lms-payroll-toolbar">
-            <div className="lms-payroll-filters" role="tablist" aria-label="Payroll status">
-              {PAYROLL_STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={payrollFilter === f.value}
-                  className={payrollFilter === f.value ? 'active' : ''}
-                  onClick={() => setPayrollFilter(f.value)}
-                >
-                  {f.label}
-                </button>
-              ))}
+          <div className="controls-bar lms-payroll-toolbar">
+            <AdminSearchBox
+              placeholder="Search teacher, month, status…"
+              value={payrollListSearch.searchTerm}
+              onChange={(e) => payrollListSearch.setSearchTerm(e.target.value)}
+              onEnter={() => payrollListSearch.flushSearch()}
+            />
+            <div className="filter-controls">
+              <div className="lms-payroll-filters" role="tablist" aria-label="Payroll status">
+                {PAYROLL_STATUS_FILTERS.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={payrollFilter === f.value}
+                    className={payrollFilter === f.value ? 'active' : ''}
+                    onClick={() => setPayrollFilter(f.value)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="refresh-btn"
+                onClick={loadPayrollRuns}
+                title="Refresh"
+                aria-label="Refresh"
+              >
+                <i className="fas fa-sync-alt" aria-hidden="true" />
+              </button>
             </div>
-            <button
-              type="button"
-              className="lms-payroll-refresh-btn"
-              onClick={loadPayrollRuns}
-              title="Refresh"
-              aria-label="Refresh"
-            >
-              <i className="fas fa-sync-alt" aria-hidden="true" />
-            </button>
           </div>
 
           <div className="lms-payroll-section">
@@ -2029,7 +2320,9 @@ const LmsManagement = () => {
                 <p>
                   {payrollRuns.length === 0
                     ? 'No payroll runs yet. They appear after admin approves monthly attendance and the accountant processes them.'
-                    : 'No payroll runs match this filter.'}
+                    : payrollListSearch.debouncedSearch
+                      ? 'No payroll runs match your search.'
+                      : 'No payroll runs match this filter.'}
                 </p>
               </div>
             ) : (
@@ -2039,11 +2332,11 @@ const LmsManagement = () => {
                     <tr>
                       <th>Teacher</th>
                       <th>Month</th>
-                      <th>Profile salary</th>
+                      <th>Profile Salary</th>
                       <th>Present</th>
                       <th>Absent</th>
                       <th>Deduction</th>
-                      <th>Final salary</th>
+                      <th>Final Salary</th>
                       <th>Status</th>
                       <th>Source</th>
                       <th>Paid</th>

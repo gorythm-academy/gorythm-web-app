@@ -87,6 +87,7 @@
 
 // Legacy alias used on Payments page
 .payments-tab-badge {
+    /* stylelint-disable-next-line scss/at-extend-no-missing-placeholder -- compatibility alias */
     @extend .admin-list-tab-badge;
 }
 

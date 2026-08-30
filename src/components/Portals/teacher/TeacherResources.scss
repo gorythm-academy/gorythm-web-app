@@ -359,6 +359,27 @@
     }
   }
 
+  .teacher-resources__admin-tag {
+    display: inline-flex;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    vertical-align: middle;
+  }
+
+  .teacher-resources__view-only {
+    font-size: 0.82rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
   .teacher-resources__list a {
     color: var(--color-accent, #059669);
     font-weight: 600;

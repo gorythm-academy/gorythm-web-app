@@ -13,6 +13,7 @@ backend/node_modules
 /build
 
 # misc
+.cursor/
 .DS_Store
 .env
 backend/.env

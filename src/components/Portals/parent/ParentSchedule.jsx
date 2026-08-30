@@ -75,7 +75,7 @@ const ParentSchedule = () => {
   return (
     <div className="portal-page student-schedule">
       <PortalPageHeader
-        title="Class schedules"
+        title="Class Schedules"
         subtitle="Read-only view of each child’s assigned course, teacher, and class times."
       />
 
@@ -137,7 +137,7 @@ const ParentSchedule = () => {
                     <th>Time</th>
                     <th>Course</th>
                     <th>Teacher</th>
-                    <th>Room / link</th>
+                    <th>Room / Link</th>
                   </tr>
                 </thead>
                 <tbody>

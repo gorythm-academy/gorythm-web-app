@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -97,10 +98,10 @@ const AdminLogin = () => {
         }
     };
 
-    const adminDestAfterAuth = () => {
+    const adminDestAfterAuth = useCallback(() => {
         const from = location.state?.from;
         return typeof from === 'string' && from.startsWith('/admin') ? from : '/admin';
-    };
+    }, [location.state]);
 
     useEffect(() => {
         if (isSetPasswordMode) return;
@@ -111,7 +112,7 @@ const AdminLogin = () => {
             return;
         }
         navigate(adminDestAfterAuth(), { replace: true });
-    }, [isSetPasswordMode, location.state, navigate]);
+    }, [adminDestAfterAuth, isSetPasswordMode, navigate]);
 
     useEffect(() => {
         if (!isSetPasswordMode) return;
@@ -134,7 +135,7 @@ const AdminLogin = () => {
                             <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
                                 <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                             </Link>
-                            <h1 className="auth-login__title">Set a new password</h1>
+                            <h1 className="auth-login__title">Set a New Password</h1>
                             <p className="auth-login__subtitle">
                                 Choose a secure password to continue to the admin dashboard.
                             </p>
@@ -142,7 +143,7 @@ const AdminLogin = () => {
                         <form className="auth-login__form" onSubmit={handlePasswordReset} noValidate>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="admin-reset-password">
-                                    New password
+                                    New password <RequiredMark />
                                 </label>
                                 <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
@@ -167,7 +168,7 @@ const AdminLogin = () => {
                             </div>
                             <div className="auth-login__field">
                                 <label className="auth-login__label" htmlFor="admin-reset-password-confirm">
-                                    Confirm password
+                                    Confirm password <RequiredMark />
                                 </label>
                                 <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                     <input
@@ -211,7 +212,7 @@ const AdminLogin = () => {
                         <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
                             <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                         </Link>
-                        <h1 className="auth-login__title">Admin sign in</h1>
+                        <h1 className="auth-login__title">Admin Sign In</h1>
                         <p className="auth-login__subtitle">Authorized access to the academy dashboard.</p>
                     </header>
                     <form className="auth-login__form" onSubmit={handleLogin} noValidate>
@@ -222,7 +223,7 @@ const AdminLogin = () => {
                         ) : null}
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="admin-login-email">
-                                Email
+                                Email <RequiredMark />
                             </label>
                             <div className="auth-login__input-wrap">
                                 <input
@@ -238,7 +239,7 @@ const AdminLogin = () => {
                         </div>
                         <div className="auth-login__field">
                             <label className="auth-login__label" htmlFor="admin-login-password">
-                                Password
+                                Password <RequiredMark />
                             </label>
                             <div className="auth-login__input-wrap auth-login__input-wrap--password">
                                 <input

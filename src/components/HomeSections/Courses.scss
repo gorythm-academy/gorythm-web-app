@@ -443,8 +443,10 @@
   // Very short landscape viewports (e.g., Galaxy Fold 882×344):
   // make both panels taller so left content stays inside the background card.
   .courses-section-inner {
+    /* stylelint-disable declaration-block-no-duplicate-custom-properties -- vh fallback for older browsers */
     --courses-panel-h: 130vh;
     --courses-panel-h: 130lvh;
+    /* stylelint-enable declaration-block-no-duplicate-custom-properties */
     align-items: stretch;
   }
 
@@ -509,8 +511,10 @@
   }
 
   .courses-section-inner {
+    /* stylelint-disable declaration-block-no-duplicate-custom-properties -- vh fallback for older browsers */
     --courses-panel-h: 130vh;
     --courses-panel-h: 130lvh;
+    /* stylelint-enable declaration-block-no-duplicate-custom-properties */
     grid-template-columns: 45% 55%;
     gap: 0 32px;
     align-items: stretch;

@@ -244,7 +244,7 @@ const ResearchComments = ({ embedded = false }) => {
         </div>
       ) : (
         <div className="lms-research-comments-intro">
-          <h2>Queries &amp; feedback</h2>
+          <h2>Queries &amp; Feedback</h2>
           <p>Approve pending items before they appear on the website. You can reply or delete items here.</p>
         </div>
       )}
@@ -453,7 +453,7 @@ const ResearchComments = ({ embedded = false }) => {
                             <tr>
                               <td colSpan={8}>
                                 <label className="lms-field-label">
-                                  <span>Admin response</span>
+                                  <span>Admin Response</span>
                                   <textarea
                                     value={replyDraft}
                                     onChange={(e) => setReplyDraft(e.target.value)}

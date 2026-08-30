@@ -47,7 +47,7 @@ const AccountantReports = () => {
         p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—',
       ]],
     });
-    const safeName = studentName.replace(/[^\w\-]+/g, '-').slice(0, 40);
+    const safeName = studentName.replace(/[^\w-]+/g, '-').slice(0, 40);
     doc.save(`payment-${safeName}.pdf`);
   };
 
@@ -67,7 +67,7 @@ const AccountantReports = () => {
         r.status || '—',
       ]],
     });
-    const safeName = teacherName.replace(/[^\w\-]+/g, '-').slice(0, 40);
+    const safeName = teacherName.replace(/[^\w-]+/g, '-').slice(0, 40);
     doc.save(`payroll-${safeName}-${r.monthKey || 'month'}.pdf`);
   };
 
@@ -128,14 +128,14 @@ const AccountantReports = () => {
           <i className="fa-solid fa-file-alt" />
         </div>
         <div>
-          <h2>Financial reports</h2>
+          <h2>Financial Reports</h2>
           <p>Review student payment and teacher payroll data in full tables, then export PDF summaries.</p>
         </div>
       </div>
 
       <section className="portal-report-block">
         <div className="portal-report-block__intro">
-          <h2>Student payments report</h2>
+          <h2>Student Payments Report</h2>
           <p>
             Lists every recorded student course payment. <strong>Student</strong> is the payer name.{' '}
             <strong>Course</strong> is the enrolled program. <strong>Amount</strong> is the payment value in USD.{' '}
@@ -150,7 +150,7 @@ const AccountantReports = () => {
         </div>
         <div className="portal-panel">
           <div className="portal-panel__head">
-            <h3>Payments data — {payments.length} row{payments.length === 1 ? '' : 's'}</h3>
+            <h3>Payments Data — {payments.length} row{payments.length === 1 ? '' : 's'}</h3>
           </div>
           <div className="portal-panel__body">
             {payments.length === 0 ? (
@@ -166,8 +166,8 @@ const AccountantReports = () => {
                       <th>Course</th>
                       <th>Amount (USD)</th>
                       <th>Status</th>
-                      <th>Payment method</th>
-                      <th>Record date</th>
+                      <th>Payment Method</th>
+                      <th>Record Date</th>
                       <th>Download</th>
                     </tr>
                   </thead>
@@ -199,7 +199,7 @@ const AccountantReports = () => {
 
       <section className="portal-report-block">
         <div className="portal-report-block__intro">
-          <h2>Teacher payroll report</h2>
+          <h2>Teacher Payroll Report</h2>
           <p>
             Monthly payroll runs for instructors. <strong>Teacher</strong> is the staff member.{' '}
             <strong>Month</strong> is the payroll period. <strong>Monthly salary</strong> is the base amount before
@@ -214,7 +214,7 @@ const AccountantReports = () => {
         </div>
         <div className="portal-panel">
           <div className="portal-panel__head">
-            <h3>Payroll data — {runs.length} row{runs.length === 1 ? '' : 's'}</h3>
+            <h3>Payroll Data — {runs.length} row{runs.length === 1 ? '' : 's'}</h3>
           </div>
           <div className="portal-panel__body">
             {runs.length === 0 ? (
@@ -227,10 +227,10 @@ const AccountantReports = () => {
                   <thead>
                     <tr>
                       <th>Teacher</th>
-                      <th>Payroll month</th>
-                      <th>Monthly salary</th>
+                      <th>Payroll Month</th>
+                      <th>Monthly Salary</th>
                       <th>Deduction</th>
-                      <th>Final salary</th>
+                      <th>Final Salary</th>
                       <th>Status</th>
                       <th>Download</th>
                     </tr>

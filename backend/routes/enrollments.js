@@ -32,8 +32,12 @@ const {
     countTrashedStudentUsers,
     countEnrollmentStats,
 } = require('../utils/enrollmentStudentsList');
+const {
+    assertStudentScheduleAvailable,
+    findStudentScheduleConflict,
+    studentScheduleConflictMessage,
+} = require('../utils/enrollmentScheduleRules');
 const ParentStudentLink = require('../models/ParentStudentLink');
-
 router.use(authMiddleware);
 router.use(validateSessionUser);
 router.use(allowRoles('super-admin', 'manager'));
@@ -478,6 +482,17 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ success: false, message: timeslotRequired });
         }
 
+        if (assignedSchedule) {
+            try {
+                await assertStudentScheduleAvailable(student._id, assignedSchedule);
+            } catch (error) {
+                if (error.status === 400) {
+                    return res.status(400).json({ success: false, message: error.message });
+                }
+                throw error;
+            }
+        }
+
         const feeStatus = ALLOWED_FEE_STATUSES.includes(paymentStatus) ? paymentStatus : 'pending';
 
         // Only fill a course:null placeholder when this student has NO course enrollments yet.
@@ -604,6 +619,20 @@ router.put('/:id', async (req, res) => {
             }
         }
 
+        if (slotWasTouched && enrollment.assignedSchedule) {
+            try {
+                const studentId = enrollment.student?._id || enrollment.student;
+                await assertStudentScheduleAvailable(studentId, enrollment.assignedSchedule, {
+                    exceptEnrollmentId: enrollment._id,
+                });
+            } catch (error) {
+                if (error.status === 400) {
+                    return res.status(400).json({ success: false, message: error.message });
+                }
+                throw error;
+            }
+        }
+
         if (status !== undefined) enrollment.status = normalizeEnrollmentStatusInput(status);
         if (paymentStatus !== undefined) {
             if (ALLOWED_FEE_STATUSES.includes(paymentStatus)) enrollment.paymentStatus = paymentStatus;
@@ -672,6 +701,19 @@ router.patch('/:id/restore', async (req, res) => {
                     success: false,
                     message: 'Cannot restore: student already has an active enrollment for this course. Remove or quarantine the active row first.',
                 });
+            }
+            if (pending.assignedSchedule) {
+                const scheduleConflict = await findStudentScheduleConflict(
+                    pending.student,
+                    pending.assignedSchedule,
+                    { exceptEnrollmentId: pending._id }
+                );
+                if (scheduleConflict) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Cannot restore: ${studentScheduleConflictMessage(scheduleConflict)}`,
+                    });
+                }
             }
         }
 
@@ -844,6 +886,20 @@ router.post('/bulk-restore', async (req, res) => {
                             { $set: { deletedAt: new Date() } }
                         );
                         throw new Error('Already has an active enrollment for this course');
+                    }
+                    if (enrollment.assignedSchedule) {
+                        const scheduleConflict = await findStudentScheduleConflict(
+                            enrollment.student,
+                            enrollment.assignedSchedule,
+                            { exceptEnrollmentId: enrollment._id }
+                        );
+                        if (scheduleConflict) {
+                            await Enrollment.updateOne(
+                                { _id: enrollment._id },
+                                { $set: { deletedAt: new Date() } }
+                            );
+                            throw new Error(studentScheduleConflictMessage(scheduleConflict));
+                        }
                     }
                 }
                 if (enrollment.student) {

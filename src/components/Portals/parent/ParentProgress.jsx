@@ -96,14 +96,14 @@ const ParentProgress = () => {
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Child progress" subtitle="Same records your child sees in the student portal" />
+      <PortalPageHeader title="Child Progress" subtitle="Same records your child sees in the student portal" />
 
       <div className="portal-hero portal-hero--parent">
         <div className="portal-hero__icon" aria-hidden="true">
           <i className="fa-solid fa-chart-line" />
         </div>
         <div>
-          <h2>Progress & results</h2>
+          <h2>Progress & Results</h2>
           <p>
             {selectedChild?.student?.name
               ? `Viewing records for ${selectedChild.student.name}.`
@@ -140,7 +140,7 @@ const ParentProgress = () => {
       {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
           <div className="portal-panel">
             <div className="portal-panel__head">
-              <h2>Enrollments & fees</h2>
+              <h2>Enrollments & Fees</h2>
             </div>
             <div className="portal-panel__body">
               <div className="portal-data-table-wrap">
@@ -149,7 +149,7 @@ const ParentProgress = () => {
                     <tr>
                       <th>Course</th>
                       <th>Price</th>
-                      <th>Fee status</th>
+                      <th>Fee Status</th>
                       <th>Enrollment</th>
                     </tr>
                   </thead>
@@ -230,7 +230,7 @@ const ParentProgress = () => {
 
           <div className="portal-panel">
             <div className="portal-panel__head">
-              <h2>Quiz results</h2>
+              <h2>Quiz Results</h2>
             </div>
             <div className="portal-panel__body">
               <div className="portal-data-table-wrap">

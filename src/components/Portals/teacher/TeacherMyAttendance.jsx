@@ -59,11 +59,11 @@ const formatMonthLabel = (monthKey) => {
 const payrollStatusMeta = (record) => {
   if (!record || record.approvalStatus !== 'approved') return null;
   if (record.payrollMissingReason) {
-    return { label: 'Payroll issue', className: 'portal-attendance-chip--absent', detail: record.payrollMissingReason };
+    return { label: 'Payroll Issue', className: 'portal-attendance-chip--absent', detail: record.payrollMissingReason };
   }
   const payroll = record.payroll;
   if (!payroll) {
-    return { label: 'Payroll processing', className: 'portal-attendance-chip--muted', detail: null };
+    return { label: 'Payroll Processing', className: 'portal-attendance-chip--muted', detail: null };
   }
   if (payroll.status === 'paid') {
     return {
@@ -73,7 +73,7 @@ const payrollStatusMeta = (record) => {
     };
   }
   if (payroll.status === 'stale') {
-    return { label: 'Payroll updating', className: 'portal-attendance-chip--late', detail: null };
+    return { label: 'Payroll Updating', className: 'portal-attendance-chip--late', detail: null };
   }
   return {
     label: `Pending payment ($${Number(payroll.finalSalary || 0).toFixed(2)})`,
@@ -536,7 +536,7 @@ const TeacherMyAttendance = () => {
   return (
     <div className="portal-page teacher-my-attendance">
       <PortalPageHeader
-        title="My attendance"
+        title="My Attendance"
         subtitle="Mark each day, then review your records by day, week, or month."
       />
 
@@ -550,7 +550,7 @@ const TeacherMyAttendance = () => {
             <i className="fas fa-calendar-check" />
           </div>
           <div>
-            <h3>Daily attendance</h3>
+            <h3>Daily Attendance</h3>
             <p>Choose a date, set your status, and submit for admin approval.</p>
           </div>
         </div>
@@ -775,7 +775,7 @@ const TeacherMyAttendance = () => {
       </form>
 
       <section className="portal-content-section portal-attendance-report-section my-attendance-records-section">
-        <h2 className="portal-content-section-title">Attendance report</h2>
+        <h2 className="portal-content-section-title">Attendance Report</h2>
         <p className="portal-attendance-report-hint">
           {reportPeriodLabel || 'Review your submitted attendance.'}
         </p>
@@ -909,14 +909,14 @@ const TeacherMyAttendance = () => {
                 <thead>
                   <tr>
                     <th>Month</th>
-                    <th>Working days</th>
+                    <th>Working Days</th>
                     <th>Present</th>
                     <th>Late</th>
                     <th>Leave</th>
                     <th>Absent (deduct)</th>
                     <th>Holiday</th>
                     <th>Weekend</th>
-                    <th>Month rollup</th>
+                    <th>Month Rollup</th>
                     <th>Payroll</th>
                   </tr>
                 </thead>

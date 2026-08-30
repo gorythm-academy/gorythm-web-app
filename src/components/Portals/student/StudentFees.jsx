@@ -57,7 +57,7 @@ const StudentFees = () => {
           <i className="fa-solid fa-file-invoice-dollar" />
         </div>
         <div>
-          <h2>Fee overview</h2>
+          <h2>Fee Overview</h2>
           <p>Enrollment fee status and your payment history in one place.</p>
         </div>
       </div>
@@ -65,7 +65,7 @@ const StudentFees = () => {
       <div className="portal-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>By enrollment</h2>
+            <h2>By Enrollment</h2>
             <p>Course price and payment status per enrollment</p>
           </div>
         </div>
@@ -80,8 +80,8 @@ const StudentFees = () => {
                 <thead>
                   <tr>
                     <th>Course</th>
-                    <th>Course price</th>
-                    <th>Fee status</th>
+                    <th>Course Price</th>
+                    <th>Fee Status</th>
                     <th>Enrollment</th>
                   </tr>
                 </thead>
@@ -108,7 +108,7 @@ const StudentFees = () => {
       <div className="portal-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>Payment history</h2>
+            <h2>Payment History</h2>
             <p>Recorded payments for your enrollments</p>
           </div>
         </div>

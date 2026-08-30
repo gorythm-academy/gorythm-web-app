@@ -60,6 +60,12 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
           </button>
         </header>
 
+        {item.dueDateNotice ? (
+          <p className="lms-material-preview__notice" role="status">
+            {item.dueDateNotice}
+          </p>
+        ) : null}
+
         <dl className="lms-material-preview__meta">
           {isResearch ? (
             <>
@@ -93,7 +99,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
             <>
               <dt>Type</dt>
               <dd>{item.type || 'file'}</dd>
-              <dt>Uploaded by</dt>
+              <dt>Uploaded By</dt>
               <dd>
                 {item.uploadedBy?.name || '—'}
                 {item.uploadedBy?.role ? ` (${item.uploadedBy.role})` : ''}
@@ -104,7 +110,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
 
         {isResearch && item.imagePath ? (
           <section className="lms-material-preview__section">
-            <h4>Cover image</h4>
+            <h4>Cover Image</h4>
             <img
               className="lms-material-preview__cover"
               src={resolveMediaUrl(item.imagePath)}

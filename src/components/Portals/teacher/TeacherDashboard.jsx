@@ -49,10 +49,10 @@ const TeacherDashboard = () => {
       />
       <div className="portal-grid" style={{ marginTop: '1rem' }}>
         <Link to="/teacher/classes" className="portal-card portal-link-card">
-          My classes →
+          My Classes →
         </Link>
         <Link to="/teacher/attendance" className="portal-card portal-link-card">
-          Students attendance →
+          Students Attendance →
         </Link>
         <Link to="/teacher/content" className="portal-card portal-link-card">
           Assignments →
@@ -61,7 +61,7 @@ const TeacherDashboard = () => {
           Resources →
         </Link>
         <Link to="/teacher/my-attendance" className="portal-card portal-link-card">
-          My attendance →
+          My Attendance →
         </Link>
       </div>
     </div>

@@ -156,8 +156,8 @@ const AttendanceSummaryTable = ({ summary, weekendDays }) => (
           {SUMMARY_STATUS_ROWS.map(({ key, label }) => (
             <th key={key}>{label}</th>
           ))}
-          <th>Total marked</th>
-          {weekendDays != null ? <th>Weekend days</th> : null}
+          <th>Total Marked</th>
+          {weekendDays != null ? <th>Weekend Days</th> : null}
         </tr>
       </thead>
       <tbody>

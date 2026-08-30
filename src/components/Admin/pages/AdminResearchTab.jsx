@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import {
   adminApiDelete,
   adminApiGet,
@@ -17,7 +18,7 @@ import { slugifyResearchTitle } from '../../../utils/researchPosts';
 import { useAdminDialog } from '../AdminDialogContext';
 import AdminMediaGallery from '../shared/AdminMediaGallery';
 import LmsTrashTabs from '../shared/LmsTrashTabs';
-import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import LmsCollapsibleFormPanel from '../shared/LmsCollapsibleFormPanel';
 import LmsMaterialPreviewModal from '../shared/LmsMaterialPreviewModal';
 
@@ -66,7 +67,7 @@ const AdminResearchTab = () => {
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [imageFileName, setImageFileName] = useState('');
-  const [pendingImageExt, setPendingImageExt] = useState('.webp');
+  const [, setPendingImageExt] = useState('.webp');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -374,7 +375,7 @@ const AdminResearchTab = () => {
             : await adminApiPost('/research/bulk-permanent-delete', { ids: idList });
       }
       const n = data.deletedCount ?? data.restoredCount ?? idList.length;
-      const verb = action === 'trash' ? 'moved to trash' : action === 'restore' ? 'restored' : 'deleted forever';
+      const verb = action === 'trash' ? MOVED_TO_QUARANTINE_PHRASE : action === 'restore' ? 'restored' : 'deleted forever';
       showAlert(`${n} article${n !== 1 ? 's' : ''} ${verb}.`, 'success');
       setSelectedIds(new Set());
       if (editingId && idList.includes(editingId)) resetForm();
@@ -391,7 +392,7 @@ const AdminResearchTab = () => {
   return (
     <div className="lms-panel">
       <LmsCollapsibleFormPanel
-        title={editingId ? 'Edit research article' : 'Add Research Article'}
+        title={editingId ? 'Edit Research Article' : 'Add Research Article'}
         subtitle={editingId ? 'Update article content and cover' : 'Publish to the public Research section'}
         icon="fa-newspaper"
         tone="violet"
@@ -401,7 +402,7 @@ const AdminResearchTab = () => {
       <form className="lms-form-grid portal-form-card" onSubmit={savePost} autoComplete="off">
 
         <label className="lms-field-label">
-          <span>Title</span>
+          <span>Title <RequiredMark /></span>
           <input
             value={form.title}
             onChange={(e) => onTitleChange(e.target.value)}
@@ -464,7 +465,7 @@ const AdminResearchTab = () => {
         </label>
 
         <div className="research-image-upload">
-          <span className="research-image-upload__label">Cover image</span>
+          <span className="research-image-upload__label">Cover Image</span>
           <div
             className={`research-image-upload__dropzone${imageDragActive ? ' is-dragging' : ''}${
               uploadingImage ? ' is-uploading' : ''
@@ -560,7 +561,7 @@ const AdminResearchTab = () => {
           </label>
         )}
 
-        <label className="lms-field-label lms-field-label--checkbox">
+        <label className="lms-checkbox-field" style={{ gridColumn: '1 / -1' }}>
           <input
             type="checkbox"
             checked={form.isPublished}
@@ -588,7 +589,7 @@ const AdminResearchTab = () => {
 
       <div className="lms-resources-library">
         <div className="lms-list-toolbar">
-          <h3>Research articles (uploaded)</h3>
+          <h3>Research Articles (Uploaded)</h3>
         </div>
 
         <LmsTrashTabs
@@ -600,52 +601,59 @@ const AdminResearchTab = () => {
           }}
         />
 
-        {loading ? <p className="lms-empty">Loading…</p> : null}
-
-        {!loading && selectedIds.size > 0 ? (
-          <div className="lms-resources-bulk-bar">
-            <span>{selectedIds.size} selected</span>
-            <div className="lms-form-actions">
-              <button type="button" className="lms-btn-secondary" onClick={() => setSelectedIds(new Set())}>
-                Clear
-              </button>
-              {isTrashView ? (
-                <>
-                  <button
-                    type="button"
-                    className="lms-btn-restore"
-                    onClick={() => handlePosts('restore', [...selectedIds], `Restore ${selectedIds.size} article(s)?`)}
-                    disabled={deleting}
-                  >
-                    <i className="fas fa-undo" aria-hidden /> Restore selected
-                  </button>
-                  <button
-                    type="button"
-                    className="lms-btn-delete-forever"
-                    onClick={() =>
-                      handlePosts('permanent', [...selectedIds], `Permanently delete ${selectedIds.size} article(s)?`)
-                    }
-                    disabled={deleting}
-                  >
-                    <i className="fas fa-trash-alt" aria-hidden /> Delete forever
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="lms-btn-trash"
-                  onClick={() => handlePosts('trash', [...selectedIds], `Move ${selectedIds.size} article(s) to trash?`)}
-                  disabled={deleting}
-                >
-                  <i className="fas fa-trash" aria-hidden /> Move to trash
-                </button>
-              )}
-            </div>
-          </div>
-        ) : null}
-
         {!loading ? (
-          <div className="lms-table-wrap">
+          <>
+            {selectedIds.size > 0 ? (
+              <div className="lms-resources-bulk-bar lms-research-bulk-bar">
+                <span>{selectedIds.size} selected</span>
+                <div className="lms-form-actions">
+                  <button
+                    type="button"
+                    className="lms-btn-secondary"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    Clear
+                  </button>
+                  {isTrashView ? (
+                    <>
+                      <button
+                        type="button"
+                        className="lms-btn-delete-forever"
+                        onClick={() =>
+                          handlePosts('permanent', [...selectedIds], `Permanently delete ${selectedIds.size} article(s)?`)
+                        }
+                        disabled={deleting}
+                      >
+                        <i className="fas fa-trash-alt" aria-hidden="true" />
+                        {deleting ? 'Working…' : `Delete forever (${selectedIds.size})`}
+                      </button>
+                      <button
+                        type="button"
+                        className="lms-btn-restore"
+                        onClick={() => handlePosts('restore', [...selectedIds], `Restore ${selectedIds.size} article(s)?`)}
+                        disabled={deleting}
+                      >
+                        <i className="fas fa-undo" aria-hidden="true" /> Restore selected
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lms-btn-trash"
+                      onClick={() =>
+                        handlePosts('trash', [...selectedIds], `Move ${selectedIds.size} article(s) to ${QUARANTINE_LABEL}?`)
+                      }
+                      disabled={deleting}
+                    >
+                      <i className="fas fa-archive" aria-hidden="true" />
+                      {deleting ? 'Working…' : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedIds.size})`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="lms-table-wrap">
             <table className="lms-table lms-table--resources">
               <thead>
                 <tr>
@@ -720,7 +728,7 @@ const AdminResearchTab = () => {
                           <button
                             type="button"
                             className="lms-btn-trash"
-                            onClick={() => handlePosts('trash', [post.id], 'Move this article to trash?')}
+                            onClick={() => handlePosts('trash', [post.id], `Move this article to ${QUARANTINE_LABEL}?`)}
                             disabled={deleting}
                           >
                             <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
@@ -740,7 +748,10 @@ const AdminResearchTab = () => {
               </p>
             ) : null}
           </div>
-        ) : null}
+          </>
+        ) : (
+          <p className="lms-empty">Loading…</p>
+        )}
       </div>
       <LmsMaterialPreviewModal
         open={Boolean(researchPreview)}

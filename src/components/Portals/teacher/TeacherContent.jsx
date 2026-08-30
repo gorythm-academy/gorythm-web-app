@@ -1,40 +1,66 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
-import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
+import RequiredMark from '../../shared/RequiredMark';
+import { portalGet, portalPost, portalPatch } from '../shared/portalApi';
+import { resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
 import PortalModal from '../shared/PortalModal';
 import SubmissionFiles from '../shared/SubmissionFiles';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalLoading, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
+import { toLocalDateStr } from '../../../utils/academyWeek';
+import { collectAdminAssignmentEditNotices } from '../../../utils/adminEditNotices';
+import {
+  collectAssignmentUpdateNotices,
+  collectSubmissionRevisionNotices,
+  collectTeacherSubmissionRemovalNotices,
+  dismissActivityNotices,
+  dismissSubmissionRemoval,
+  filterDismissedActivityNotices,
+  getSubmissionRevisionLabel,
+} from '../../../utils/portalAssignmentNotices';
+import { scheduleScrollToElement } from '../../../utils/portalScroll';
+import { usePortalDialog } from '../shared/PortalDialogContext';
 import {
   filterPortalItemsByCourse,
   filterPortalItemsByCourseField,
   groupPortalItemsByCourse,
   markPortalPageVisited,
+  TEACHER_SEEN_ADMIN_ASSIGNMENTS,
 } from '../../../utils/portalNewItems';
 import './TeacherContent.scss';
 
 const SEEN_SUBMISSIONS_KEY = 'teacher_submissions';
+const SEEN_SUBMISSION_REMOVALS_KEY = 'teacher_submission_removals';
+const SEEN_ACTIVITY_KEY = 'teacher_assignments_activity';
+
+const minDueDateValue = () => toLocalDateStr(new Date());
+
+const isAdminLockedAssignment = (a) => !!(a?.lockedForTeacher || a?.createdByRole === 'admin');
 
 const EMPTY_ASSIGN = {
   title: '',
   courseId: '',
   dueDate: '',
   description: '',
-  fileUrl: '',
+  attachments: [],
 };
 
 const TeacherContent = () => {
+  const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [submissionRemovals, setSubmissionRemovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [assignForm, setAssignForm] = useState(EMPTY_ASSIGN);
   const [editingAssignId, setEditingAssignId] = useState(null);
+  const [editingLockedAssign, setEditingLockedAssign] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const savingRef = useRef(false);
+  const assignFormPanelRef = useRef(null);
+  const pendingFormScrollRef = useRef(false);
   const [viewAssignment, setViewAssignment] = useState(null);
   const [submissionModal, setSubmissionModal] = useState(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState(() => new Set());
@@ -43,9 +69,12 @@ const TeacherContent = () => {
   const [showForm, setShowForm] = useState(false);
   const [assignmentCourseFilter, setAssignmentCourseFilter] = useState('all');
   const [submissionCourseFilter, setSubmissionCourseFilter] = useState('all');
+  const [activityDismissTick, setActivityDismissTick] = useState(0);
+  const [removalDismissTick, setRemovalDismissTick] = useState(0);
 
   const resetAssignForm = () => {
     setEditingAssignId(null);
+    setEditingLockedAssign(false);
     setAssignForm(EMPTY_ASSIGN);
     setShowForm(false);
   };
@@ -59,7 +88,10 @@ const TeacherContent = () => {
       .then(([c, a, s]) => {
         if (c.success) setCourses(c.courses || []);
         if (a.success) setAssignments(a.assignments || []);
-        if (s.success) setSubmissions(s.submissions || []);
+        if (s.success) {
+          setSubmissions(s.submissions || []);
+          setSubmissionRemovals(s.submissionRemovals || []);
+        }
         setLoadError('');
       })
       .catch((err) => setLoadError(err.message || 'Failed to load assignments data'));
@@ -70,6 +102,7 @@ const TeacherContent = () => {
 
   useEffect(() => {
     markPortalPageVisited(SEEN_SUBMISSIONS_KEY);
+    markPortalPageVisited(TEACHER_SEEN_ADMIN_ASSIGNMENTS);
   }, []);
 
   useEffect(() => {
@@ -78,6 +111,12 @@ const TeacherContent = () => {
     return () => clearTimeout(t);
   }, [msg]);
 
+  useEffect(() => {
+    if (!pendingFormScrollRef.current || !showForm) return;
+    scheduleScrollToElement(() => assignFormPanelRef.current);
+    pendingFormScrollRef.current = false;
+  }, [showForm, editingAssignId]);
+
   const saveAssignment = async (e) => {
     e.preventDefault();
     if (savingRef.current) return;
@@ -85,27 +124,33 @@ const TeacherContent = () => {
     setSaving(true);
     setMsg('');
     try {
-      const fileUrl = await resolveLmsUploadValue(assignForm.fileUrl, 'assignments');
+      const attachmentList = await resolveLmsUploadList(assignForm.attachments, 'assignments');
       const payload = {
         ...assignForm,
-        attachments: fileUrl ? [fileUrl] : [],
+        attachments: attachmentList,
       };
       if (editingAssignId) {
         const id = portalDocId(editingAssignId);
         if (!id) {
-          setMsg('Cannot save: open Edit from the assignment list first (missing id).');
+          await showAlert({ type: 'error', message: 'Cannot save: open Edit from the assignment list first (missing id).' });
           return;
         }
-        await portalPatch(`/teacher/assignments/${id}`, payload);
-        setMsg('Assignment updated.');
+        const patchPayload = editingLockedAssign
+          ? { dueDate: assignForm.dueDate, extendDueDate: true }
+          : payload;
+        await portalPatch(`/teacher/assignments/${id}`, patchPayload);
+        await showAlert({
+          type: 'success',
+          message: editingLockedAssign ? 'Due date extended.' : 'Assignment updated.',
+        });
       } else {
         await portalPost('/teacher/assignments', payload);
-        setMsg('Assignment published.');
+        await showAlert({ type: 'success', message: 'Assignment published.' });
       }
       resetAssignForm();
       await reload();
     } catch (err) {
-      setMsg(err.message || 'Failed');
+      await showAlert({ type: 'error', message: err.message || 'Failed' });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -118,33 +163,39 @@ const TeacherContent = () => {
       setMsg('This assignment has no id — refresh the page or contact admin.');
       return;
     }
+    const locked = isAdminLockedAssignment(a);
     setEditingAssignId(id);
+    setEditingLockedAssign(locked);
     setAssignForm({
       title: a.title || '',
       courseId: String(a.course?._id || a.course || ''),
-      dueDate: a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : '',
+      dueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
       description: a.description || '',
-      fileUrl: (a.attachments && a.attachments[0]) || '',
+      attachments: a.attachments?.length ? [...a.attachments] : [],
     });
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    pendingFormScrollRef.current = true;
+  };
+
+  const extendDueDateAssignment = (a) => {
+    startEditAssignment(a);
   };
 
   const deleteAssignmentsByIds = async (ids, confirmText) => {
     const idList = [...ids].filter(Boolean);
     if (!idList.length) return;
-    if (
-      !window.confirm(
-        confirmText || `Delete ${idList.length} assignment(s)? All related submissions will be removed.`
-      )
-    ) {
-      return;
-    }
+    const ok = await showConfirm({
+      title: 'Delete assignments?',
+      message:
+        confirmText || `Delete ${idList.length} assignment(s)? All related submissions will be removed.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       const res = await portalPost('/teacher/assignments/bulk-delete', { ids: idList });
       const removed = res.deletedCount ?? idList.length;
-      setMsg(`Removed ${removed} assignment(s).`);
+      await showAlert({ type: 'success', message: `Removed ${removed} assignment(s).` });
       setSelectedAssignmentIds((prev) => {
         const next = new Set(prev);
         idList.forEach((id) => next.delete(id));
@@ -158,7 +209,7 @@ const TeacherContent = () => {
       }
       await reload();
     } catch (err) {
-      setMsg(err.message || 'Delete failed');
+      await showAlert({ type: 'error', message: err.message || 'Delete failed' });
     } finally {
       setDeleting(false);
     }
@@ -206,12 +257,17 @@ const TeacherContent = () => {
   const deleteSubmissionsByIds = async (ids, confirmText) => {
     const idList = [...ids].filter(Boolean);
     if (!idList.length) return;
-    if (!window.confirm(confirmText || `Delete ${idList.length} submission(s)? Students can resubmit.`)) return;
+    const ok = await showConfirm({
+      title: 'Delete submissions?',
+      message: confirmText || `Delete ${idList.length} submission(s)? Students can resubmit.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       const res = await portalPost('/teacher/submissions/bulk-delete', { ids: idList });
       const removed = res.deletedCount ?? idList.length;
-      setMsg(`Removed ${removed} submission(s).`);
+      await showAlert({ type: 'success', message: `Removed ${removed} submission(s).` });
       setSelectedSubmissionIds((prev) => {
         const next = new Set(prev);
         idList.forEach((id) => next.delete(id));
@@ -222,7 +278,7 @@ const TeacherContent = () => {
       }
       await reload();
     } catch (err) {
-      setMsg(err.message || 'Delete failed');
+      await showAlert({ type: 'error', message: err.message || 'Delete failed' });
     } finally {
       setDeleting(false);
     }
@@ -257,6 +313,67 @@ const TeacherContent = () => {
       ),
     [submissions, submissionCourseFilter]
   );
+
+  const adminEditNotices = useMemo(
+    () => collectAdminAssignmentEditNotices(filteredAssignments),
+    [filteredAssignments]
+  );
+
+  const assignmentUpdateNotices = useMemo(
+    () => collectAssignmentUpdateNotices(filteredAssignments, TEACHER_SEEN_ADMIN_ASSIGNMENTS, { viewerRole: 'teacher' }),
+    [filteredAssignments]
+  );
+
+  const submissionRevisionNotices = useMemo(
+    () => collectSubmissionRevisionNotices(filteredSubmissions, SEEN_SUBMISSIONS_KEY),
+    [filteredSubmissions]
+  );
+
+  const portalActivityNotices = useMemo(() => {
+    const seen = new Set();
+    const rows = [];
+    for (const row of [...adminEditNotices, ...assignmentUpdateNotices, ...submissionRevisionNotices]) {
+      const key = `${row.id}-${row.message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+    }
+    return rows;
+  }, [adminEditNotices, assignmentUpdateNotices, submissionRevisionNotices]);
+
+  const visibleActivityNotices = useMemo(
+    () => {
+      void activityDismissTick;
+      return filterDismissedActivityNotices(SEEN_ACTIVITY_KEY, portalActivityNotices);
+    },
+    [portalActivityNotices, activityDismissTick]
+  );
+
+  const submissionRemovalNotices = useMemo(
+    () => {
+      void removalDismissTick;
+      return collectTeacherSubmissionRemovalNotices(
+        submissionRemovals,
+        SEEN_SUBMISSION_REMOVALS_KEY
+      );
+    },
+    [submissionRemovals, removalDismissTick]
+  );
+
+  const dismissActivityBanner = () => {
+    dismissActivityNotices(
+      SEEN_ACTIVITY_KEY,
+      visibleActivityNotices.map((row) => `${row.id}-${row.message}`)
+    );
+    setActivityDismissTick((n) => n + 1);
+  };
+
+  const dismissRemovalBanner = () => {
+    submissionRemovalNotices.forEach((row) =>
+      dismissSubmissionRemoval(SEEN_SUBMISSION_REMOVALS_KEY, row.id, row.removedAt)
+    );
+    setRemovalDismissTick((n) => n + 1);
+  };
 
   const assignmentGroups = useMemo(() => {
     if (assignmentCourseFilter !== 'all') return null;
@@ -304,6 +421,7 @@ const TeacherContent = () => {
     rows.map((a) => {
       const assignId = portalDocId(a);
       const assignSelected = selectedAssignmentIds.has(assignId);
+      const locked = isAdminLockedAssignment(a);
       return (
         <tr key={assignId} className={assignSelected ? 'teacher-assignments__row--selected' : ''}>
           <td className="teacher-assignments__check-col">
@@ -312,22 +430,41 @@ const TeacherContent = () => {
               checked={assignSelected}
               onChange={() => toggleAssignmentSelect(assignId)}
               aria-label={`Select ${a.title}`}
+              disabled={locked}
             />
           </td>
-          <td>{a.title}</td>
+          <td>
+            {a.title}
+            {locked ? (
+              <span className="teacher-assignments__admin-badge" title="Published by admin">
+                Admin
+              </span>
+            ) : null}
+          </td>
           <td>{a.course?.title}</td>
-          <td>{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}</td>
+          <td>
+            {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
+            {a.dueDateNotice ? <div className="lms-due-date-notice">{a.dueDateNotice}</div> : null}
+          </td>
           <td>
             <div className="portal-table-actions">
               <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => setViewAssignment(a)}>
                 View
               </button>
-              <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => startEditAssignment(a)}>
-                Edit
-              </button>
-              <button type="button" className="teacher-assignments__btn teacher-assignments__btn--danger teacher-assignments__btn--small" disabled={deleting} onClick={() => deleteAssignment(a)}>
-                Delete
-              </button>
+              {locked ? (
+                <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => extendDueDateAssignment(a)}>
+                  Extend due
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => startEditAssignment(a)}>
+                    Edit
+                  </button>
+                  <button type="button" className="teacher-assignments__btn teacher-assignments__btn--danger teacher-assignments__btn--small" disabled={deleting} onClick={() => deleteAssignment(a)}>
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           </td>
         </tr>
@@ -355,7 +492,12 @@ const TeacherContent = () => {
           <td>{r.student?.studentId || '—'}</td>
           <td>{r.assignment?.title || '—'}</td>
           <td>{r.assignment?.course?.title || '—'}</td>
-          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td>
+          <td>
+            {r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}
+            {getSubmissionRevisionLabel(r) ? (
+              <div className="lms-due-date-notice">{getSubmissionRevisionLabel(r)}</div>
+            ) : null}
+          </td>
           <td>
             <div className="portal-table-actions">
               <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => openSubmission(r)}>
@@ -399,16 +541,37 @@ const TeacherContent = () => {
         subtitle="Publish homework, review student submissions, or remove invalid entries."
       />
 
+      <PortalActivityBanner
+        title="Recent updates"
+        rows={visibleActivityNotices}
+        onDismiss={dismissActivityBanner}
+      />
+
+      <PortalActivityBanner
+        title="Submission removed by admin"
+        rows={submissionRemovalNotices}
+        rowKey={(row) => `${row.id}-${row.removedAt}`}
+        tone="info"
+        onDismiss={dismissRemovalBanner}
+      />
+
+      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
+      {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
+
       <div className="teacher-assignments__layout">
         {showForm ? (
-        <aside className="teacher-assignments__form-panel">
+        <aside className="teacher-assignments__form-panel" ref={assignFormPanelRef}>
           <div className="teacher-assignments__form-head">
             <div className="teacher-assignments__form-icon" aria-hidden="true">
               <i className="fas fa-tasks" />
             </div>
             <div>
-              <h2>{editingAssignId ? 'Edit assignment' : 'Create assignment'}</h2>
-              <p>Students with active enrollment can view and submit work.</p>
+              <h2>{editingLockedAssign ? 'Extend Due Date' : editingAssignId ? 'Edit Assignment' : 'Create Assignment'}</h2>
+              <p>
+                {editingLockedAssign
+                  ? 'This assignment was published by admin. You can extend the due date only.'
+                  : 'Students on your class slot can view and submit before the due date.'}
+              </p>
             </div>
             <button
               type="button"
@@ -420,55 +583,75 @@ const TeacherContent = () => {
             </button>
           </div>
           <form onSubmit={saveAssignment} autoComplete="off">
+            {!editingLockedAssign ? (
+              <>
+                <label className="portal-field-label">
+                  <span>Title <RequiredMark /></span>
+                  <input
+                    value={assignForm.title}
+                    onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })}
+                    required
+                  />
+                </label>
+                <label className="portal-field-label">
+                  <span>Course <RequiredMark /></span>
+                  <select
+                    value={assignForm.courseId}
+                    onChange={(e) => setAssignForm({ ...assignForm, courseId: e.target.value })}
+                    required
+                    disabled={!!editingAssignId}
+                  >
+                    <option value="">Select course</option>
+                    {courses.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <p className="teacher-assignments__locked-meta">
+                  <strong>{assignForm.title}</strong>
+                </p>
+                <p className="teacher-assignments__locked-meta">
+                  Course: {courses.find((c) => String(c._id) === String(assignForm.courseId))?.title || '—'}
+                </p>
+              </>
+            )}
             <label className="portal-field-label">
-              <span>Title</span>
-              <input
-                value={assignForm.title}
-                onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })}
-                required
-              />
-            </label>
-            <label className="portal-field-label">
-              <span>Course</span>
-              <select
-                value={assignForm.courseId}
-                onChange={(e) => setAssignForm({ ...assignForm, courseId: e.target.value })}
-                required
-              >
-                <option value="">Select course</option>
-                {courses.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="portal-field-label">
-              <span>Due date</span>
+              <span>Due date <RequiredMark /></span>
               <input
                 type="date"
                 value={assignForm.dueDate}
+                min={minDueDateValue()}
                 onChange={(e) => setAssignForm({ ...assignForm, dueDate: e.target.value })}
                 required
               />
             </label>
-            <label className="portal-field-label">
-              <span>Description</span>
-              <textarea
-                value={assignForm.description}
-                onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
-                rows={3}
-              />
-            </label>
-            <FileUploadField
-              label="Attachment for students (PDF / file)"
-              value={assignForm.fileUrl}
-              onChange={(url) => setAssignForm({ ...assignForm, fileUrl: url })}
-              category="assignments"
-            />
+            {!editingLockedAssign ? (
+              <>
+                <label className="portal-field-label">
+                  <span>Description</span>
+                  <textarea
+                    value={assignForm.description}
+                    onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
+                    rows={3}
+                  />
+                </label>
+                <FileUploadField
+                  label="Attachments for students (PDF / file)"
+                  value={assignForm.attachments}
+                  onChange={(attachments) => setAssignForm({ ...assignForm, attachments })}
+                  category="assignments"
+                  multiple
+                />
+              </>
+            ) : null}
             <div className="portal-table-actions">
               <button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : editingAssignId ? 'Save changes' : 'Publish'}
+                {saving ? 'Saving…' : editingLockedAssign ? 'Extend due date' : editingAssignId ? 'Save changes' : 'Publish'}
               </button>
               <button
                 type="button"
@@ -485,7 +668,7 @@ const TeacherContent = () => {
         <div className="teacher-assignments__main">
           <section className="teacher-assignments__panel">
             <div className="teacher-assignments__panel-head">
-              <h2>Published assignments</h2>
+              <h2>Published Assignments</h2>
               <div className="teacher-assignments__panel-actions">
                 {renderCourseFilter(assignmentCourseFilter, setAssignmentCourseFilter, filteredAssignments.length)}
                 {!showForm ? (
@@ -494,7 +677,7 @@ const TeacherContent = () => {
                     className="teacher-assignments__make-btn"
                     onClick={() => setShowForm(true)}
                   >
-                    <i className="fas fa-plus" aria-hidden="true" /> Create assignment
+                    <i className="fas fa-plus" aria-hidden="true" /> Create Assignment
                   </button>
                 ) : null}
               </div>
@@ -564,7 +747,7 @@ const TeacherContent = () => {
 
           <section className="teacher-assignments__panel">
             <div className="teacher-assignments__panel-head">
-              <h2>Student submissions</h2>
+              <h2>Student Submissions</h2>
               {renderCourseFilter(submissionCourseFilter, setSubmissionCourseFilter, filteredSubmissions.length)}
             </div>
 
@@ -595,7 +778,7 @@ const TeacherContent = () => {
                       <input type="checkbox" checked={allSubsSelected} onChange={toggleAllSubmissions} aria-label="Select all submissions" />
                     </th>
                     <th>Student</th>
-                    <th>Roll no.</th>
+                    <th>Roll No.</th>
                     <th>Assignment</th>
                     <th>Course</th>
                     <th>Submitted</th>
@@ -643,7 +826,7 @@ const TeacherContent = () => {
           onClose={() => setSubmissionModal(null)}
           wide
         >
-          <p><strong>Roll no.:</strong> {submissionModal.student?.studentId || '—'}</p>
+          <p><strong>Roll No.:</strong> {submissionModal.student?.studentId || '—'}</p>
           <p><strong>Assignment:</strong> {submissionModal.assignment?.title}</p>
           <p><strong>Course:</strong> {submissionModal.assignment?.course?.title || '—'}</p>
           <p><strong>Submitted:</strong> {submissionModal.submittedAt ? new Date(submissionModal.submittedAt).toLocaleString() : '—'}</p>

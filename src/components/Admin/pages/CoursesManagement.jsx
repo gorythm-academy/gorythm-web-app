@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken, AUTH_REALM } from '../../../utils/authStorage';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import {
-    CATEGORY_ORDER,
     getCategorySortIndex,
     getDisplayOrder,
 } from '../../../utils/courseMasonry';
@@ -18,7 +18,7 @@ import {
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import AdminMediaGallery from '../shared/AdminMediaGallery';
 import { useAdminDialog } from '../AdminDialogContext';
-import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import './CoursesManagement.scss';
 
 const COLUMN_DEFS = [
@@ -253,38 +253,46 @@ const CoursesManagement = () => {
         return map;
     }, [teachers]);
 
-    /** Teachers column: active teachers only, first names only. */
+    /** Teachers column: populated API data (list view does not rely on form picker state). */
     const formatCourseTeachersColumn = useCallback(
         (course) => {
             const names = [];
             const seen = new Set();
-            const pushId = (rawId, fallbackName = '') => {
+            const pushTeacher = (rawId, fallbackName = '') => {
                 const id = String(rawId || '');
-                if (!id || seen.has(id) || !activeTeacherIdSet.has(id)) return;
-                seen.add(id);
                 const full =
                     fallbackName ||
-                    teacherNameById.get(id) ||
+                    (id ? teacherNameById.get(id) : '') ||
                     '';
                 const first = teacherFirstName(full);
-                if (first) names.push(first);
+                const dedupeKey = id || first.toLowerCase();
+                if (!first || seen.has(dedupeKey)) return;
+                seen.add(dedupeKey);
+                names.push(first);
             };
 
             for (const t of course.instructors || []) {
-                pushId(t?._id || t, typeof t === 'object' ? t.name : '');
+                pushTeacher(t?._id || t, typeof t === 'object' ? t.name : '');
             }
             if (course.instructor) {
-                pushId(
+                pushTeacher(
                     course.instructor._id || course.instructor,
                     typeof course.instructor === 'object' ? course.instructor.name : ''
                 );
             }
             for (const id of course.instructorIds || []) {
-                pushId(id);
+                pushTeacher(id);
+            }
+            if (!names.length && course.instructorName) {
+                return course.instructorName
+                    .split(',')
+                    .map((part) => teacherFirstName(part.trim()))
+                    .filter(Boolean)
+                    .join(', ') || '—';
             }
             return names.length ? names.join(', ') : '—';
         },
-        [activeTeacherIdSet, teacherNameById]
+        [teacherNameById]
     );
 
     useEffect(() => {
@@ -798,11 +806,11 @@ const CoursesManagement = () => {
             
             setSelectedCourses(prev => prev.filter(id => id !== courseId));
             await reloadAfterMutation();
-            showConfirmation('Course moved to trash.');
+            showConfirmation(`Course ${MOVED_TO_QUARANTINE_PHRASE}.`);
         } catch (error) {
-            console.error('Error moving course to trash:', error);
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to move course to trash';
-            showAlert(`Failed to move course to trash: ${errorMessage}. Please try again.`, 'error');
+            console.error(`Error moving course to ${QUARANTINE_LABEL}:`, error);
+            const errorMessage = error.response?.data?.error || error.message || FAILED_MOVE_TO_QUARANTINE_PHRASE;
+            showAlert(`${FAILED_MOVE_TO_QUARANTINE_PHRASE}: ${errorMessage}. Please try again.`, 'error');
         }
     };
 
@@ -878,7 +886,7 @@ const CoursesManagement = () => {
 
             await reloadAfterMutation();
             setSelectedCourses([]);
-            showConfirmation(response.data.message || `${selectedCourses.length} course(s) moved to trash.`);
+            showConfirmation(response.data.message || `${selectedCourses.length} course(s) ${MOVED_TO_QUARANTINE_PHRASE}.`);
         } catch (error) {
             console.error('Error deleting selected courses:', error);
             console.error('Error details:', error.response?.data);
@@ -1272,7 +1280,7 @@ const CoursesManagement = () => {
                     <form onSubmit={handleFormSubmit} className="course-form">
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Title *</label>
+                                <label>Title <RequiredMark /></label>
                                 <input
                                     type="text"
                                     name="title"
@@ -1294,7 +1302,7 @@ const CoursesManagement = () => {
                                 <span className="form-field-hint">Public URL: /courses/{formData.slug || slugifyCourseTitle(formData.title) || '…'}</span>
                             </div>
                             <div className="form-group">
-                                <label>Category *</label>
+                                <label>Category <RequiredMark /></label>
                                 <select
                                     name="category"
                                     value={formData.category}
@@ -1357,7 +1365,7 @@ const CoursesManagement = () => {
                         </div>
                         <div className="form-row">
                             <div className="form-group form-group-full">
-                                <label>Description *</label>
+                                <label>Description <RequiredMark /></label>
                                 <textarea
                                     name="description"
                                     value={formData.description}
@@ -1370,7 +1378,7 @@ const CoursesManagement = () => {
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Price ($) *</label>
+                                <label>Price ($) <RequiredMark /></label>
                                 <input
                                     type="number"
                                     name="price"
@@ -1394,7 +1402,7 @@ const CoursesManagement = () => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Duration *</label>
+                                <label>Duration <RequiredMark /></label>
                                 <input
                                     type="text"
                                     name="duration"
@@ -1493,7 +1501,7 @@ const CoursesManagement = () => {
                                 </div>
                             </div>
                             <div className="course-image-section__gallery-head">
-                                <span>Image gallery</span>
+                                <span>Image Gallery</span>
                                 {galleryLoading && (
                                     <span className="course-image-section__gallery-loading">
                                         <i className="fas fa-spinner fa-spin" aria-hidden="true" /> Loading…

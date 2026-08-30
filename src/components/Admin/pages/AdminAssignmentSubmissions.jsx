@@ -1,17 +1,28 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lmsAdminGet, lmsAdminPost, lmsAdminDelete, lmsAdminPatch } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import PortalModal from '../../Portals/shared/PortalModal';
 import SubmissionFiles from '../../Portals/shared/SubmissionFiles';
 import QuizReviewPanel from '../../Portals/shared/QuizReviewPanel';
 import LmsTrashTabs from '../shared/LmsTrashTabs';
-import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import { formatScore } from '../../../utils/formatScore';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
+import AdminSearchBox from '../shared/AdminSearchBox';
+import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import AdminTablePagination from '../shared/AdminTablePagination';
+import { PortalActivityBanner } from '../../Portals/shared/PortalUi';
+import {
+  collectSubmissionRevisionNotices,
+  dismissActivityNotices,
+  filterDismissedActivityNotices,
+  getSubmissionRevisionLabel,
+} from '../../../utils/portalAssignmentNotices';
+import { ADMIN_SEEN_TAB_SUBMISSIONS } from '../../../utils/portalNewItems';
 import './AdminAssignmentSubmissions.scss';
 
 const SUBMISSIONS_PAGE_SIZE = 25;
+const SEEN_SUBMISSION_ACTIVITY_KEY = 'admin_submissions_activity';
 
 function CollapsibleSubmissionTable({
   title,
@@ -78,8 +89,8 @@ function CollapsibleSubmissionTable({
                   </>
                 ) : (
                   <button type="button" className="lms-btn-trash" onClick={onBulkTrash} disabled={deleting}>
-                    <i className="fas fa-trash" aria-hidden />
-                    {deleting ? 'Working…' : `Move to ${QUARANTINE_LABEL} (${selectedCount})`}
+                    <i className="fas fa-archive" aria-hidden />
+                    {deleting ? 'Working…' : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedCount})`}
                   </button>
                 )}
               </div>
@@ -104,8 +115,12 @@ const AdminAssignmentSubmissions = () => {
   const [quizAttempts, setQuizAttempts] = useState([]);
   const [courseFilter, setCourseFilter] = useState('all');
   const [loadingData, setLoadingData] = useState(false);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const {
+    searchTerm: search,
+    setSearchTerm: setSearch,
+    debouncedSearch,
+    flushSearch: flushSubmissionSearch,
+  } = useAdminSearch();
   const [assignmentDetail, setAssignmentDetail] = useState(null);
   const [quizDetail, setQuizDetail] = useState(null);
   const [loadingAssignmentDetail, setLoadingAssignmentDetail] = useState(false);
@@ -125,14 +140,10 @@ const AdminAssignmentSubmissions = () => {
   const [quizPages, setQuizPages] = useState(1);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [quizTotal, setQuizTotal] = useState(0);
+  const [activityDismissTick, setActivityDismissTick] = useState(0);
   const assignCacheRef = useRef(createListCache());
   const quizCacheRef = useRef(createListCache());
   const coursesLoadedRef = useRef(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
 
   const invalidateSubmissionCaches = useCallback(() => {
     assignCacheRef.current.clear();
@@ -334,7 +345,7 @@ const AdminAssignmentSubmissions = () => {
       }
       if (!res.success) throw new Error(res.error || 'Request failed');
       const n = res.deletedCount ?? res.restoredCount ?? idList.length;
-      const verb = action === 'trash' ? 'moved to trash' : action === 'restore' ? 'restored' : 'deleted forever';
+      const verb = action === 'trash' ? MOVED_TO_QUARANTINE_PHRASE : action === 'restore' ? 'restored' : 'deleted forever';
       showAlert(`${n} submission${n === 1 ? '' : 's'} ${verb}.`, 'success');
       if (assignmentDetail && idList.includes(String(assignmentDetail._id))) setAssignmentDetail(null);
       setSelectedAssignmentIds(new Set());
@@ -373,7 +384,7 @@ const AdminAssignmentSubmissions = () => {
       }
       if (!res.success) throw new Error(res.error || 'Request failed');
       const n = res.deletedCount ?? res.restoredCount ?? idList.length;
-      const verb = action === 'trash' ? 'moved to trash' : action === 'restore' ? 'restored' : 'deleted forever';
+      const verb = action === 'trash' ? MOVED_TO_QUARANTINE_PHRASE : action === 'restore' ? 'restored' : 'deleted forever';
       showAlert(`${n} quiz attempt${n === 1 ? '' : 's'} ${verb}.`, 'success');
       if (quizDetail && idList.includes(String(quizDetail._id))) setQuizDetail(null);
       setSelectedQuizIds(new Set());
@@ -400,6 +411,27 @@ const AdminAssignmentSubmissions = () => {
       ? 'No quiz attempts yet.'
       : 'No quiz attempts for this course.';
 
+  const submissionRevisionNotices = useMemo(
+    () => collectSubmissionRevisionNotices(submissions, ADMIN_SEEN_TAB_SUBMISSIONS),
+    [submissions]
+  );
+
+  const visibleSubmissionRevisionNotices = useMemo(
+    () => {
+      void activityDismissTick;
+      return filterDismissedActivityNotices(SEEN_SUBMISSION_ACTIVITY_KEY, submissionRevisionNotices);
+    },
+    [submissionRevisionNotices, activityDismissTick]
+  );
+
+  const dismissSubmissionActivityBanner = () => {
+    dismissActivityNotices(
+      SEEN_SUBMISSION_ACTIVITY_KEY,
+      visibleSubmissionRevisionNotices.map((row) => `${row.id}-${row.message}`)
+    );
+    setActivityDismissTick((n) => n + 1);
+  };
+
   return (
     <div className="admin-submissions">
       <div className="admin-submissions__hero">
@@ -407,7 +439,7 @@ const AdminAssignmentSubmissions = () => {
           <i className="fas fa-file-signature" />
         </div>
         <div>
-          <h2>Student submissions</h2>
+          <h2>Student Submissions</h2>
           <p>
             Use {QUARANTINE_LABEL} to move records out of active lists. Restore or delete forever from the {QUARANTINE_LABEL} tab.
           </p>
@@ -420,42 +452,41 @@ const AdminAssignmentSubmissions = () => {
           <strong>{courseSelected ? assignmentTotal : '—'}</strong>
         </div>
         <div className="admin-submissions__stat admin-submissions__stat--pending">
-          <span>Quiz attempts</span>
+          <span>Quiz Attempts</span>
           <strong>{courseSelected ? quizTotal : '—'}</strong>
         </div>
       </div>
 
-      <div className="admin-submissions__toolbar">
-        <label className="admin-submissions__field">
-          <span>Course</span>
-          <select
-            value={courseFilter}
-            onChange={(e) => {
-              setCourseFilter(e.target.value);
-              setSearch('');
-              setAssignmentPage(1);
-              setQuizPage(1);
-            }}
-            disabled={loadingData && !courses.length}
-          >
-            <option value="all">All courses</option>
-            {courses.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-submissions__field admin-submissions__field--search">
-          <span>Search</span>
-          <input
-            type="search"
-            placeholder="Name, roll no., title, teacher…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            disabled={!courseSelected}
-          />
-        </label>
+      <div className="controls-bar admin-submissions__toolbar">
+        <AdminSearchBox
+          placeholder="Name, roll no., title, teacher…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onEnter={() => flushSubmissionSearch()}
+          disabled={!courseSelected}
+        />
+        <div className="filter-controls">
+          <label className="admin-submissions__field">
+            <span>Course</span>
+            <select
+              value={courseFilter}
+              onChange={(e) => {
+                setCourseFilter(e.target.value);
+                setSearch('');
+                setAssignmentPage(1);
+                setQuizPage(1);
+              }}
+              disabled={loadingData && !courses.length}
+            >
+              <option value="all">All courses</option>
+              {courses.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <LmsTrashTabs
@@ -470,12 +501,19 @@ const AdminAssignmentSubmissions = () => {
         }}
       />
 
+      <PortalActivityBanner
+        title="Student submission updates"
+        rows={visibleSubmissionRevisionNotices}
+        onDismiss={dismissSubmissionActivityBanner}
+        className="admin-submissions__activity-banner"
+      />
+
       {loadingData && !submissions.length && !quizAttempts.length ? (
         <p className="admin-submissions__loading">Loading submissions…</p>
       ) : (
         <>
           <CollapsibleSubmissionTable
-            title="Assignment submissions"
+            title="Assignment Submissions"
             icon="fa-file-alt"
             expanded={assignmentTableExpanded}
             onToggle={() => setAssignmentTableExpanded((v) => !v)}
@@ -484,7 +522,7 @@ const AdminAssignmentSubmissions = () => {
             onClearSelection={() => setSelectedAssignmentIds(new Set())}
             isTrashView={isTrashView}
             onBulkTrash={() =>
-              handleSubmissions('trash', selectedAssignmentIds, `Move ${selectedAssignmentIds.size} submission(s) to trash?`)
+              handleSubmissions('trash', selectedAssignmentIds, `Move ${selectedAssignmentIds.size} submission(s) to ${QUARANTINE_LABEL}?`)
             }
             onBulkRestore={() =>
               handleSubmissions('restore', selectedAssignmentIds, `Restore ${selectedAssignmentIds.size} submission(s)?`)
@@ -514,7 +552,7 @@ const AdminAssignmentSubmissions = () => {
                     />
                   </th>
                   <th>Student</th>
-                  <th>Roll no.</th>
+                  <th>Roll No.</th>
                   <th>Assignment</th>
                   <th>Course</th>
                   <th>Teacher</th>
@@ -541,7 +579,12 @@ const AdminAssignmentSubmissions = () => {
                       <td>{s.assignment?.title || '—'}</td>
                       <td>{s.assignment?.course?.title || '—'}</td>
                       <td>{s.assignment?.teacher?.name || s.assignment?.course?.instructorName || '—'}</td>
-                      <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleString() : '—'}</td>
+                      <td>
+                        {s.submittedAt ? new Date(s.submittedAt).toLocaleString() : '—'}
+                        {getSubmissionRevisionLabel(s) ? (
+                          <div className="lms-due-date-notice">{getSubmissionRevisionLabel(s)}</div>
+                        ) : null}
+                      </td>
                       <td className="admin-submissions__actions">
                         <button
                           type="button"
@@ -584,7 +627,7 @@ const AdminAssignmentSubmissions = () => {
                             className="lms-btn-trash"
                             disabled={deletingAssignments}
                             onClick={() =>
-                              handleSubmissions('trash', [sid], `Move submission from ${s.student?.name || 'student'} to trash?`)
+                              handleSubmissions('trash', [sid], `Move submission from ${s.student?.name || 'student'} to ${QUARANTINE_LABEL}?`)
                             }
                           >
                             <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
@@ -604,7 +647,7 @@ const AdminAssignmentSubmissions = () => {
           </CollapsibleSubmissionTable>
 
           <CollapsibleSubmissionTable
-            title="Quiz submissions"
+            title="Quiz Submissions"
             icon="fa-clipboard-check"
             expanded={quizTableExpanded}
             onToggle={() => setQuizTableExpanded((v) => !v)}
@@ -613,7 +656,7 @@ const AdminAssignmentSubmissions = () => {
             onClearSelection={() => setSelectedQuizIds(new Set())}
             isTrashView={isTrashView}
             onBulkTrash={() =>
-              handleQuizzes('trash', selectedQuizIds, `Move ${selectedQuizIds.size} quiz attempt(s) to trash?`)
+              handleQuizzes('trash', selectedQuizIds, `Move ${selectedQuizIds.size} quiz attempt(s) to ${QUARANTINE_LABEL}?`)
             }
             onBulkRestore={() =>
               handleQuizzes('restore', selectedQuizIds, `Restore ${selectedQuizIds.size} quiz attempt(s)?`)
@@ -643,7 +686,7 @@ const AdminAssignmentSubmissions = () => {
                     />
                   </th>
                   <th>Student</th>
-                  <th>Roll no.</th>
+                  <th>Roll No.</th>
                   <th>Quiz</th>
                   <th>Course</th>
                   <th>Teacher</th>
@@ -715,7 +758,7 @@ const AdminAssignmentSubmissions = () => {
                             className="lms-btn-trash"
                             disabled={deletingQuizzes}
                             onClick={() =>
-                              handleQuizzes('trash', [aid], `Move quiz attempt from ${a.student?.name || 'student'} to trash?`)
+                              handleQuizzes('trash', [aid], `Move quiz attempt from ${a.student?.name || 'student'} to ${QUARANTINE_LABEL}?`)
                             }
                           >
                             <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
@@ -736,7 +779,7 @@ const AdminAssignmentSubmissions = () => {
         <PortalModal title={`Assignment — ${assignmentDetail.student?.name}`} onClose={() => setAssignmentDetail(null)} wide>
           <div className="admin-submissions__detail-grid">
             <p>
-              <strong>Roll no.:</strong> {assignmentDetail.student?.studentId || '—'}
+              <strong>Roll No.:</strong> {assignmentDetail.student?.studentId || '—'}
             </p>
             <p>
               <strong>Email:</strong> <span className="admin-email">{assignmentDetail.student?.email || '—'}</span>
@@ -773,7 +816,7 @@ const AdminAssignmentSubmissions = () => {
         <PortalModal title={`Quiz — ${quizDetail.student?.name}`} onClose={() => setQuizDetail(null)} wide>
           <div className="admin-submissions__detail-grid">
             <p>
-              <strong>Roll no.:</strong> {quizDetail.student?.studentId || '—'}
+              <strong>Roll No.:</strong> {quizDetail.student?.studentId || '—'}
             </p>
             <p>
               <strong>Quiz:</strong> {quizDetail.quiz?.title}
@@ -789,7 +832,7 @@ const AdminAssignmentSubmissions = () => {
               <strong>Score:</strong> {quizDetail.scoreDisplay || formatScore(quizDetail.score, quizDetail.quiz?.totalMarks)}
             </p>
           </div>
-          {quizDetail.review ? <QuizReviewPanel review={quizDetail.review} title="Student answers" /> : null}
+          {quizDetail.review ? <QuizReviewPanel review={quizDetail.review} title="Student Answers" /> : null}
         </PortalModal>
       ) : null}
     </div>

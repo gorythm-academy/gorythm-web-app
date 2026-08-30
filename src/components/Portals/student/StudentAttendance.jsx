@@ -6,7 +6,7 @@ import './StudentAttendance.scss';
 const StudentAttendance = () => (
   <div className="portal-page student-attendance">
     <PortalPageHeader
-      title="My attendance"
+      title="My Attendance"
       subtitle="View attendance by course — daily, weekly, or monthly."
     />
 
@@ -15,7 +15,7 @@ const StudentAttendance = () => (
         <i className="fas fa-user-check" />
       </div>
       <div>
-        <h2>Course attendance</h2>
+        <h2>Course Attendance</h2>
         <p>
           Select a course below. If you are enrolled in multiple courses, switch the dropdown to see each one
           separately.

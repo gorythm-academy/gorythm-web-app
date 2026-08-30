@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
@@ -262,7 +263,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
             <div className="modal-container fullscreen-modal">
                 <div className="modal-header edit-enrollment-modal-header">
                     <div className="edit-enrollment-modal-header__main">
-                        <h2><i className="fas fa-edit"></i> Edit this enrollment</h2>
+                        <h2><i className="fas fa-edit"></i> Edit This Enrollment</h2>
                         <div className="header-subtitle">
                             <span className={`status-badge ${formData.status}`}>{formData.status}</span>
                         </div>
@@ -439,7 +440,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                                 <div className="form-group">
                                     <label>
                                         <i className="fas fa-clock" /> Class timeslot
-                                        {courseSchedules.length > 0 ? ' *' : ''}
+                                        {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                     </label>
                                     <select
                                         value={formData.assignedScheduleId}
@@ -501,7 +502,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Fee status</label>
+                                <label>Fee Status</label>
                                 <select
                                     value={formData.paymentStatus}
                                     onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}

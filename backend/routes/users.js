@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
+const ClassSchedule = require('../models/ClassSchedule');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
@@ -147,6 +148,29 @@ function escapeRegex(value) {
     return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+async function parentIdsMatchingChildSearch(regex) {
+    const matchingStudents = await User.find({
+        role: 'student',
+        ...activeUserFilter(),
+        $or: [
+            { name: regex },
+            { email: regex },
+            { personalEmail: regex },
+            { studentId: regex },
+            { phone: regex },
+        ],
+    })
+        .select('_id')
+        .lean();
+    if (!matchingStudents.length) return [];
+    const studentIds = matchingStudents.map((s) => s._id);
+    return ParentStudentLink.find({ student: { $in: studentIds } }).distinct('parent');
+}
+
+async function parentIdsMatchingRelationSearch(regex) {
+    return ParentStudentLink.find({ relation: regex }).distinct('parent');
+}
+
 function mapUserListRow(user) {
     return {
         _id: user._id,
@@ -188,6 +212,11 @@ async function bulkUpsertParentChildLinks(parentId, studentIds, relation = 'guar
         const err = new Error('One or more students not found or removed');
         err.status = 400;
         throw err;
+    }
+
+    const { assertStudentCanLinkToParent } = require('../utils/parentStudentLinkRules');
+    for (const studentId of parsed.ids) {
+        await assertStudentCanLinkToParent(studentId, parentId);
     }
 
     await Promise.all(
@@ -248,6 +277,10 @@ router.get('/', async (req, res) => {
         } else if (role && role !== 'all') {
             filter.role = role;
         }
+        const trash = req.query.trash === 'true' || req.query.trash === '1';
+        const statusFilter = trash ? trashedUserFilter() : activeUserFilter();
+        const andClauses = [statusFilter];
+
         const searchTerm = String(search || '').trim();
         if (searchTerm) {
             const regex = { $regex: escapeRegex(searchTerm), $options: 'i' };
@@ -261,31 +294,21 @@ router.get('/', async (req, res) => {
                 searchOr.push({ studentId: regex });
             }
             if (segment === 'parents') {
-                const matchingStudents = await User.find({
-                    role: 'student',
-                    $or: [
-                        { name: regex },
-                        { email: regex },
-                        { personalEmail: regex },
-                        { studentId: regex },
-                        { phone: regex },
-                    ],
-                }).select('_id').lean();
-                if (matchingStudents.length) {
-                    const studentIds = matchingStudents.map((s) => s._id);
-                    const parentIds = await ParentStudentLink.find({
-                        student: { $in: studentIds },
-                    }).distinct('parent');
-                    if (parentIds.length) {
-                        searchOr.push({ _id: { $in: parentIds } });
-                    }
+                const [childParentIds, relationParentIds] = await Promise.all([
+                    parentIdsMatchingChildSearch(regex),
+                    parentIdsMatchingRelationSearch(regex),
+                ]);
+                const linkedParentIds = [
+                    ...new Set([...childParentIds, ...relationParentIds].map(String)),
+                ];
+                if (linkedParentIds.length) {
+                    searchOr.push({ _id: { $in: linkedParentIds } });
                 }
             }
-            filter.$or = searchOr;
+            andClauses.push({ $or: searchOr });
         }
 
-        const trash = req.query.trash === 'true' || req.query.trash === '1';
-        Object.assign(filter, trash ? trashedUserFilter() : activeUserFilter());
+        filter.$and = andClauses;
 
         const [users, total] = await Promise.all([
             User.find(filter)
@@ -994,6 +1017,18 @@ router.put('/:id/assigned-courses', async (req, res) => {
             const next = teacherIdsOnCourse(course).filter((id) => id !== String(teacher._id));
             await applyInstructorsToCourse(course, next, { requireAll: false });
             await course.save();
+
+            const removedScheduleIds = await ClassSchedule.find({
+                course: course._id,
+                teacher: teacher._id,
+            }).distinct('_id');
+            if (removedScheduleIds.length) {
+                await Enrollment.updateMany(
+                    { assignedSchedule: { $in: removedScheduleIds } },
+                    { $set: { assignedSchedule: null } }
+                );
+                await ClassSchedule.deleteMany({ _id: { $in: removedScheduleIds } });
+            }
         }
 
         const assigned = await Course.find({
@@ -1069,6 +1104,8 @@ router.post('/:id/child-links', async (req, res) => {
         if (!student) {
             return res.status(400).json({ success: false, error: 'Student not found or removed' });
         }
+        const { assertStudentCanLinkToParent } = require('../utils/parentStudentLinkRules');
+        await assertStudentCanLinkToParent(studentId, parent._id);
         const link = await ParentStudentLink.findOneAndUpdate(
             { parent: parent._id, student: studentId },
             { relation },
@@ -1078,6 +1115,15 @@ router.post('/:id/child-links', async (req, res) => {
             .populate('student', 'name email studentId');
         res.json({ success: true, link });
     } catch (error) {
+        if (error.status === 400) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+        if (error?.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'This student already has a parent linked. Remove the existing link first, or edit that link.',
+            });
+        }
         res.status(500).json({ success: false, error: 'Failed to link child' });
     }
 });

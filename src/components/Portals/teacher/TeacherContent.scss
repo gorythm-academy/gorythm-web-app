@@ -154,7 +154,7 @@
   .teacher-assignments__panel-actions {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: center;
     gap: 0.75rem;
   }
 
@@ -303,6 +303,27 @@
     }
   }
 
+  .teacher-assignments__admin-badge {
+    display: inline-flex;
+    margin-left: 0.4rem;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    vertical-align: middle;
+  }
+
+  .teacher-assignments__locked-meta {
+    margin: 0 0 0.75rem;
+    color: #475569;
+    font-size: 0.92rem;
+  }
+
   .teacher-assignments__empty {
     text-align: center;
     padding: 1.5rem;
@@ -330,5 +351,13 @@
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid #e2e8f0;
+  }
+
+  .lms-due-date-notice {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #1d4ed8;
+    line-height: 1.35;
   }
 }

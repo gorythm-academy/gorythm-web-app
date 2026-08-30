@@ -1,6 +1,17 @@
 // ===============================================================
 // ADMIN DASHBOARD: header menu and blur area black (only when on /admin)
 // ===============================================================
+.academy-app.admin-route {
+  height: 100vh;
+  overflow: hidden;
+
+  .main-content {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
 .academy-app.admin-route .header {
   display: none;
 
