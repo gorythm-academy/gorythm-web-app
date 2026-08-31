@@ -1,22 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import RequiredMark from '../../shared/RequiredMark';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
-import FileUploadField from '../../Portals/shared/FileUploadField';
 import { AUTH_REALM } from '../../../utils/authStorage';
 import AdminAssignmentSubmissions from './AdminAssignmentSubmissions';
 import AdminResearchTab from './AdminResearchTab';
 import ResearchComments from './ResearchComments';
-import LmsTrashTabs from '../shared/LmsTrashTabs';
-import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
-import LmsCollapsibleFormPanel from '../shared/LmsCollapsibleFormPanel';
+import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import LmsMaterialPreviewModal from '../shared/LmsMaterialPreviewModal';
-import AdminSearchBox from '../shared/AdminSearchBox';
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import { filterByKeywordSearch } from '../../../utils/adminSearch';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
+import AssignmentsTab from './ResourcesManagement/AssignmentsTab';
+import ResourcesTab from './ResourcesManagement/ResourcesTab';
+import { computeTargetPairs } from './ResourcesManagement/lmsTargeting';
 import { markPortalPageVisited, ADMIN_SEEN_TAB_ASSIGNMENTS, ADMIN_SEEN_TAB_RESOURCES, ADMIN_SEEN_TAB_SUBMISSIONS } from '../../../utils/portalNewItems';
 import { scheduleScrollToElement } from '../../../utils/portalScroll';
 import { useAdminPortalBadges } from '../../../hooks/useAdminPortalBadges';
@@ -53,131 +51,6 @@ const EMPTY_RESOURCE = {
   type: 'file',
   scope: 'teacher',
 };
-
-const minDueDateValue = () => toLocalDateStr(new Date());
-
-function computeTargetPairs(courseIds, teacherIds, courseTeachers) {
-  const pairs = [];
-  const courses = (courseIds || []).map(String);
-  const teachers = (teacherIds || []).map(String);
-  for (const courseId of courses) {
-    const allowed = new Set((courseTeachers?.[courseId] || []).map((t) => String(t._id)));
-    for (const teacherId of teachers) {
-      if (allowed.has(teacherId)) pairs.push({ courseId, teacherId });
-    }
-  }
-  return pairs;
-}
-
-function LmsTargetSelect({
-  courses,
-  teachers,
-  courseTeachers,
-  selectedCourseIds,
-  selectedTeacherIds,
-  onCoursesChange,
-  onTeachersChange,
-  previewNoun,
-  requireTeachers = true,
-}) {
-  const allCourseIds = courses.map((c) => String(c._id));
-  const allTeacherIds = teachers.map((t) => String(t._id));
-  const allCoursesSelected =
-    allCourseIds.length > 0 && allCourseIds.every((id) => selectedCourseIds.includes(id));
-  const allTeachersSelected =
-    allTeacherIds.length > 0 && allTeacherIds.every((id) => selectedTeacherIds.includes(id));
-  const pairCount = requireTeachers
-    ? computeTargetPairs(selectedCourseIds, selectedTeacherIds, courseTeachers).length
-    : selectedCourseIds.length;
-
-  return (
-    <div className="lms-target-select">
-      <div className="lms-target-select__group">
-        <div className="lms-target-select__head">
-          <span>Courses *</span>
-          <label className="lms-checkbox-field lms-target-select__select-all">
-            <input
-              type="checkbox"
-              checked={allCoursesSelected}
-              onChange={() => onCoursesChange(allCoursesSelected ? [] : allCourseIds)}
-            />
-            <span>Select all</span>
-          </label>
-        </div>
-        <div className="lms-target-select__grid">
-          {courses.map((c) => {
-            const id = String(c._id);
-            return (
-              <label key={id} className="lms-checkbox-field lms-target-select__item">
-                <input
-                  type="checkbox"
-                  checked={selectedCourseIds.includes(id)}
-                  onChange={() =>
-                    onCoursesChange(
-                      selectedCourseIds.includes(id)
-                        ? selectedCourseIds.filter((x) => x !== id)
-                        : [...selectedCourseIds, id]
-                    )
-                  }
-                />
-                <span>{c.title}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-      {requireTeachers ? (
-        <div className="lms-target-select__group">
-          <div className="lms-target-select__head">
-            <span>Teachers *</span>
-            <label className="lms-checkbox-field lms-target-select__select-all">
-              <input
-                type="checkbox"
-                checked={allTeachersSelected}
-                onChange={() => onTeachersChange(allTeachersSelected ? [] : allTeacherIds)}
-              />
-              <span>Select all</span>
-            </label>
-          </div>
-          <div className="lms-target-select__grid">
-            {teachers.map((t) => {
-              const id = String(t._id);
-              return (
-                <label key={id} className="lms-checkbox-field lms-target-select__item">
-                  <input
-                    type="checkbox"
-                    checked={selectedTeacherIds.includes(id)}
-                    onChange={() =>
-                      onTeachersChange(
-                        selectedTeacherIds.includes(id)
-                          ? selectedTeacherIds.filter((x) => x !== id)
-                          : [...selectedTeacherIds, id]
-                      )
-                    }
-                  />
-                  <span>{t.name}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-      <p className="lms-target-select__preview">
-        {pairCount > 0 ? (
-          <>
-            <i className="fas fa-check-circle" aria-hidden="true" /> {pairCount} {previewNoun}
-            {pairCount === 1 ? '' : 's'} will be published (valid course + teacher pairs only)
-          </>
-        ) : (
-          <>
-            <i className="fas fa-info-circle" aria-hidden="true" /> Select courses
-            {requireTeachers ? ' and teachers' : ''} — only matching pairs are published
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
 
 const listAttachments = (record) => {
   if (Array.isArray(record?.attachments) && record.attachments.length) {
@@ -866,725 +739,82 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         })}
       </div>
       {tab === 'assignments' ? (
-        <div className="lms-panel">
-          <div ref={assignFormAnchorRef}>
-          <LmsCollapsibleFormPanel
-            title={editingAssignId ? 'Edit Assignment' : 'Add Assignment'}
-            subtitle={editingAssignId ? 'Update assignment details' : 'Publish homework for teachers and students'}
-            icon="fa-tasks"
-            tone="indigo"
-            expanded={assignFormExpanded}
-            onToggle={() => setAssignFormExpanded((v) => !v)}
-          >
-          <form className="lms-form-grid portal-form-card" onSubmit={saveAssignment} autoComplete="off">
-            {editingAssignId ? (
-              <>
-                <label className="lms-field-label">
-                  <span>Course <RequiredMark /></span>
-                  <select
-                    value={assignForm.courseId}
-                    onChange={(e) => onCourseChangeAssign(e.target.value)}
-                    required
-                  >
-                    <option value="">Select course</option>
-                    {courses.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="lms-field-label">
-                  <span>Teacher <RequiredMark /></span>
-                  <select
-                    value={assignForm.teacherId}
-                    onChange={(e) => setAssignForm({ ...assignForm, teacherId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select teacher</option>
-                    {(courseTeachers[String(assignForm.courseId)] || teachers).map((t) => (
-                      <option key={t._id} value={t._id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : (
-              <LmsTargetSelect
-                courses={courses}
-                teachers={teachers}
-                courseTeachers={courseTeachers}
-                selectedCourseIds={assignForm.courseIds}
-                selectedTeacherIds={assignForm.teacherIds}
-                onCoursesChange={(courseIds) => setAssignForm({ ...assignForm, courseIds })}
-                onTeachersChange={(teacherIds) => setAssignForm({ ...assignForm, teacherIds })}
-                previewNoun="assignment"
-              />
-            )}
-            <label className="lms-field-label">
-              <span>Title <RequiredMark /></span>
-              <input
-                value={assignForm.title}
-                onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })}
-                placeholder="Title shown to teachers and students"
-                required
-                autoComplete="off"
-              />
-            </label>
-            <label className="lms-field-label">
-              <span>Due date <RequiredMark /></span>
-              <input
-                type="date"
-                value={assignForm.dueDate}
-                min={minDueDateValue()}
-                onChange={(e) => setAssignForm({ ...assignForm, dueDate: e.target.value })}
-                required
-              />
-            </label>
-            <label className="lms-field-label">
-              <span>Description</span>
-              <textarea
-                value={assignForm.description}
-                onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
-                placeholder="Instructions or details for this assignment"
-              />
-            </label>
-            <FileUploadField
-              label="Attachments (PDF / files)"
-              value={assignForm.attachments}
-              onChange={(attachments) => setAssignForm({ ...assignForm, attachments })}
-              multiple
-            />
-            <div className="lms-form-actions">
-              <button type="submit" disabled={savingAssignment}>
-                {savingAssignment
-                  ? editingAssignId
-                    ? 'Saving…'
-                    : 'Publishing…'
-                  : editingAssignId
-                    ? 'Save changes'
-                    : 'Publish assignment'}
-              </button>
-              {editingAssignId ? (
-                <button type="button" className="lms-btn-secondary" onClick={resetAssignForm}>
-                  Cancel edit
-                </button>
-              ) : null}
-            </div>
-          </form>
-          </LmsCollapsibleFormPanel>
-          </div>
-          <div className="lms-list-toolbar">
-            <h3>Assignments List</h3>
-          </div>
-          <div className="controls-bar lms-list-toolbar-controls">
-            <AdminSearchBox
-              placeholder="Search title, course, teacher…"
-              value={assignmentListSearch.searchTerm}
-              onChange={(e) => assignmentListSearch.setSearchTerm(e.target.value)}
-              onEnter={() => assignmentListSearch.flushSearch()}
-              disabled={!assignListCourseFilter}
-            />
-            <div className="filter-controls">
-              <label className="lms-field-label lms-list-toolbar__filter">
-                <span>View by Course</span>
-                <select
-                  value={assignListCourseFilter}
-                  onChange={(e) => {
-                    setAssignListCourseFilter(e.target.value);
-                    setSelectedAssignmentIds(new Set());
-                  }}
-                >
-                  <option value="">Select course</option>
-                  <option value="all">All courses</option>
-                  {courses.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-
-          {assignListCourseFilter ? (
-            <LmsTrashTabs
-              mode={assignListMode}
-              trashCount={assignTrashCount}
-              onChange={(mode) => {
-                setAssignListMode(mode);
-                setSelectedAssignmentIds(new Set());
-              }}
-            />
-          ) : null}
-
-          {!assignListCourseFilter ? (
-            <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view assignments.</p>
-          ) : (
-            <>
-              {selectedAssignmentIds.size > 0 ? (
-                <div className="lms-resources-bulk-bar">
-                  <span>{selectedAssignmentIds.size} selected</span>
-                  <div className="lms-form-actions">
-                    <button type="button" className="lms-btn-secondary" onClick={() => setSelectedAssignmentIds(new Set())}>
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      className={assignListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
-                      onClick={bulkAssignmentAction}
-                      disabled={deletingAssignments}
-                    >
-                      <i className={`fas ${assignListMode === 'trash' ? 'fa-trash-alt' : 'fa-archive'}`} aria-hidden />
-                      {deletingAssignments
-                        ? 'Working…'
-                        : assignListMode === 'trash'
-                          ? `Delete forever (${selectedAssignmentIds.size})`
-                          : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedAssignmentIds.size})`}
-                    </button>
-                    {assignListMode === 'trash' ? (
-                      <button
-                        type="button"
-                        className="lms-btn-restore"
-                        onClick={bulkRestoreAssignments}
-                        disabled={deletingAssignments}
-                      >
-                        <i className="fas fa-undo" aria-hidden />
-                        Restore selected
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              <div className="lms-table-wrap">
-                <table className="lms-table lms-table--resources">
-                  <thead>
-                    <tr>
-                      <th className="lms-table-check-col">
-                        <input
-                          type="checkbox"
-                          checked={
-                            filteredAssignments.length > 0 &&
-                            filteredAssignments.every((a) => selectedAssignmentIds.has(String(a._id)))
-                          }
-                          onChange={() => {
-                            if (
-                              filteredAssignments.length > 0 &&
-                              filteredAssignments.every((a) => selectedAssignmentIds.has(String(a._id)))
-                            ) {
-                              setSelectedAssignmentIds(new Set());
-                            } else {
-                              setSelectedAssignmentIds(
-                                new Set(filteredAssignments.map((a) => String(a._id)))
-                              );
-                            }
-                          }}
-                          aria-label="Select all assignments"
-                        />
-                      </th>
-                      <th>Title</th>
-                      <th>Course</th>
-                      <th>Teacher</th>
-                      <th>Due</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAssignments.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="lms-empty-cell">
-                          {assignments.length === 0
-                            ? 'No assignments for this selection.'
-                            : 'No assignments match your search.'}
-                        </td>
-                      </tr>
-                    ) : (
-                    filteredAssignments.map((a) => {
-                      const aid = String(a._id);
-                      const selected = selectedAssignmentIds.has(aid);
-                      return (
-                        <tr key={a._id} className={selected ? 'lms-table-row--selected' : ''}>
-                          <td className="lms-table-check-col">
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleAssignmentSelect(aid)}
-                              aria-label={`Select ${a.title}`}
-                            />
-                          </td>
-                          <td>
-                            {a.title}
-                            {a.lockedForTeacher || a.createdByRole === 'admin' ? (
-                              <span className="lms-target-badge" title="Admin-published; teacher can view and extend due date only">
-                                Admin
-                              </span>
-                            ) : null}
-                          </td>
-                          <td>{a.course?.title}</td>
-                          <td>{a.teacher?.name || '—'}</td>
-                          <td>
-                            {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
-                            {a.dueDateNotice ? (
-                              <div className="lms-due-date-notice">{a.dueDateNotice}</div>
-                            ) : null}
-                          </td>
-                          <td className="lms-table-actions">
-                            {assignListMode === 'trash' ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="lms-btn-restore"
-                                  onClick={() => restoreAssignment(a._id)}
-                                  disabled={deletingAssignments}
-                                >
-                                  <i className="fas fa-undo" aria-hidden /> Restore
-                                </button>
-                                <button
-                                  type="button"
-                                  className="lms-btn-delete-forever"
-                                  onClick={() => removeAssignment(a._id)}
-                                  disabled={deletingAssignments}
-                                >
-                                  <i className="fas fa-trash-alt" aria-hidden /> Delete forever
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  className="lms-btn-secondary"
-                                  onClick={() => setMaterialPreview({ kind: 'assignment', item: a })}
-                                >
-                                  <i className="fas fa-eye" aria-hidden /> Preview
-                                </button>
-                                <button type="button" className="lms-btn-secondary" onClick={() => startEditAssignment(a)}>
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="lms-btn-trash"
-                                  onClick={() => removeAssignment(a._id)}
-                                  disabled={deletingAssignments}
-                                >
-                                  <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
+        <AssignmentsTab
+          assignFormAnchorRef={assignFormAnchorRef}
+          editingAssignId={editingAssignId}
+          assignFormExpanded={assignFormExpanded}
+          setAssignFormExpanded={setAssignFormExpanded}
+          saveAssignment={saveAssignment}
+          assignForm={assignForm}
+          setAssignForm={setAssignForm}
+          onCourseChangeAssign={onCourseChangeAssign}
+          courses={courses}
+          teachers={teachers}
+          courseTeachers={courseTeachers}
+          savingAssignment={savingAssignment}
+          resetAssignForm={resetAssignForm}
+          assignmentListSearch={assignmentListSearch}
+          assignListCourseFilter={assignListCourseFilter}
+          setAssignListCourseFilter={setAssignListCourseFilter}
+          setSelectedAssignmentIds={setSelectedAssignmentIds}
+          assignListMode={assignListMode}
+          setAssignListMode={setAssignListMode}
+          assignTrashCount={assignTrashCount}
+          selectedAssignmentIds={selectedAssignmentIds}
+          bulkAssignmentAction={bulkAssignmentAction}
+          deletingAssignments={deletingAssignments}
+          bulkRestoreAssignments={bulkRestoreAssignments}
+          filteredAssignments={filteredAssignments}
+          assignments={assignments}
+          toggleAssignmentSelect={toggleAssignmentSelect}
+          restoreAssignment={restoreAssignment}
+          setMaterialPreview={setMaterialPreview}
+          startEditAssignment={startEditAssignment}
+          removeAssignment={removeAssignment}
+        />
       ) : tab === 'research' ? (
         <div className="lms-research-section">
           <div className="lms-research-subtabs">
-            <button
-              type="button"
-              className={researchSubTab === 'articles' ? 'active' : ''}
-              onClick={() => setResearchSubTab('articles')}
-            >
-              Articles
-            </button>
-            <button
-              type="button"
-              className={researchSubTab === 'comments' ? 'active' : ''}
-              onClick={() => setResearchSubTab('comments')}
-            >
-              Queries & Feedback
-            </button>
+            <button type="button" className={researchSubTab === 'articles' ? 'active' : ''} onClick={() => setResearchSubTab('articles')}>Articles</button>
+            <button type="button" className={researchSubTab === 'comments' ? 'active' : ''} onClick={() => setResearchSubTab('comments')}>Queries & Feedback</button>
           </div>
-          {researchSubTab === 'comments' ? (
-            <ResearchComments embedded />
-          ) : (
-            <AdminResearchTab />
-          )}
+          {researchSubTab === 'comments' ? <ResearchComments embedded /> : <AdminResearchTab />}
         </div>
       ) : tab === 'resources' ? (
-        <div className="lms-panel">
-          <div ref={resourceFormAnchorRef}>
-          <LmsCollapsibleFormPanel
-            title={editingResourceId ? 'Edit Resource' : 'Add Book / Resource'}
-            subtitle={editingResourceId ? 'Update course material' : 'Upload PDFs, links, or notes for a course'}
-            icon="fa-book"
-            tone="emerald"
-            expanded={resourceFormExpanded}
-            onToggle={() => setResourceFormExpanded((v) => !v)}
-          >
-          <form className="lms-form-grid portal-form-card" onSubmit={saveResource} autoComplete="off">
-            <label className="lms-field-label">
-              <span>Visibility</span>
-              <select
-                value={resourceForm.scope}
-                onChange={(e) =>
-                  setResourceForm({
-                    ...resourceForm,
-                    scope: e.target.value,
-                    teacherIds: [],
-                    teacherId: '',
-                  })
-                }
-              >
-                <option value="teacher">Teacher slot (students with that teacher only)</option>
-                <option value="course">Whole course (all enrolled students)</option>
-              </select>
-            </label>
-            {editingResourceId ? (
-              <>
-                <label className="lms-field-label">
-                  <span>Course <RequiredMark /></span>
-                  <select
-                    value={resourceForm.courseId}
-                    onChange={(e) => setResourceForm({ ...resourceForm, courseId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select course</option>
-                    {courses.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {resourceForm.scope === 'teacher' ? (
-                  <label className="lms-field-label">
-                    <span>Teacher <RequiredMark /></span>
-                    <select
-                      value={resourceForm.teacherId}
-                      onChange={(e) => setResourceForm({ ...resourceForm, teacherId: e.target.value })}
-                      required
-                    >
-                      <option value="">Select teacher</option>
-                      {(courseTeachers[String(resourceForm.courseId)] || teachers).map((t) => (
-                        <option key={t._id} value={t._id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </>
-            ) : (
-              <LmsTargetSelect
-                courses={courses}
-                teachers={teachers}
-                courseTeachers={courseTeachers}
-                selectedCourseIds={resourceForm.courseIds}
-                selectedTeacherIds={resourceForm.teacherIds}
-                onCoursesChange={(courseIds) => setResourceForm({ ...resourceForm, courseIds })}
-                onTeachersChange={(teacherIds) => setResourceForm({ ...resourceForm, teacherIds })}
-                previewNoun="resource"
-                requireTeachers={resourceForm.scope === 'teacher'}
-              />
-            )}
-            <label className="lms-field-label">
-              <span>Title <RequiredMark /></span>
-              <input
-                value={resourceForm.title}
-                onChange={(e) => setResourceForm({ ...resourceForm, title: e.target.value })}
-                placeholder="Name of the book, PDF, or resource"
-                required
-                autoComplete="off"
-              />
-            </label>
-            <label className="lms-field-label">
-              <span>Type</span>
-              <select
-                value={resourceForm.type}
-                onChange={(e) => {
-                  const type = e.target.value;
-                  setResourceForm({
-                    ...resourceForm,
-                    type,
-                    attachments: type === 'file' ? resourceForm.attachments : [],
-                    fileUrl: type === 'link' ? resourceForm.fileUrl : '',
-                  });
-                }}
-              >
-                <option value="file">File / PDF</option>
-                <option value="link">Link</option>
-                <option value="note">Note</option>
-              </select>
-            </label>
-            {resourceForm.type === 'file' ? (
-              <>
-                {!editingResourceId ? (
-                  <p className="lms-field-hint" style={{ gridColumn: '1 / -1' }}>
-                    Provide at least one uploaded file or external URL <RequiredMark />
-                  </p>
-                ) : null}
-                <FileUploadField
-                  label="Upload files or paste URL below"
-                  value={resourceForm.attachments}
-                  onChange={(attachments) => setResourceForm({ ...resourceForm, attachments })}
-                  multiple
-                />
-                <label className="lms-field-label">
-                  <span>Or external URL</span>
-                  <input
-                    placeholder="Paste a link to a PDF or external resource"
-                    value={resourceForm.fileUrl}
-                    onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
-                    autoComplete="off"
-                  />
-                </label>
-              </>
-            ) : null}
-            {resourceForm.type === 'link' ? (
-              <label className="lms-field-label">
-                <span>Link URL{!editingResourceId ? <RequiredMark /> : null}</span>
-                <input
-                  placeholder="https://…"
-                  value={resourceForm.fileUrl}
-                  onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
-                  required={!editingResourceId}
-                  autoComplete="off"
-                />
-              </label>
-            ) : null}
-            <label className="lms-field-label">
-              <span>Description</span>
-              <textarea
-                value={resourceForm.description}
-                onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-              />
-            </label>
-            <div className="lms-form-actions">
-              <button type="submit" disabled={savingResource}>
-                {savingResource ? 'Saving…' : editingResourceId ? 'Save changes' : 'Add resource'}
-              </button>
-              {editingResourceId ? (
-                <button type="button" className="lms-btn-secondary" onClick={resetResourceForm}>
-                  Cancel edit
-                </button>
-              ) : null}
-            </div>
-          </form>
-          </LmsCollapsibleFormPanel>
-          </div>
-          <div className="lms-resources-library">
-            <div className="lms-list-toolbar">
-              <h3>Course Resources</h3>
-            </div>
-            <div className="controls-bar lms-list-toolbar-controls">
-              <AdminSearchBox
-                placeholder="Search title, course, type, link…"
-                value={resourceListSearch.searchTerm}
-                onChange={(e) => resourceListSearch.setSearchTerm(e.target.value)}
-                onEnter={() => resourceListSearch.flushSearch()}
-                disabled={!resourceListCourseFilter}
-              />
-              <div className="filter-controls">
-                <label className="lms-field-label lms-list-toolbar__filter">
-                  <span>View by Course</span>
-                  <select
-                    value={resourceListCourseFilter}
-                    onChange={(e) => {
-                      setResourceListCourseFilter(e.target.value);
-                      setSelectedResourceIds(new Set());
-                    }}
-                  >
-                    <option value="">Select course</option>
-                    <option value="all">All courses</option>
-                    {courses.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            {resourceListCourseFilter ? (
-              <LmsTrashTabs
-                mode={resourceListMode}
-                trashCount={resourceTrashCount}
-                onChange={(mode) => {
-                  setResourceListMode(mode);
-                  setSelectedResourceIds(new Set());
-                }}
-              />
-            ) : null}
-
-            {!resourceListCourseFilter ? (
-              <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view resources.</p>
-            ) : null}
-
-            {resourceListCourseFilter ? (
-            <div className="lms-table-wrap">
-              <p className="lms-resources-library__count" style={{ padding: '0.5rem 0 0.75rem', margin: 0 }}>
-                {filteredResources.length} shown
-                {resourceListSearch.debouncedSearch && resources.length !== filteredResources.length
-                  ? ` (of ${resources.length})`
-                  : ''}
-              </p>
-              {selectedResourceIds.size > 0 ? (
-              <div className="lms-resources-bulk-bar">
-                <span>{selectedResourceIds.size} selected</span>
-                <div className="lms-form-actions">
-                  <button
-                    type="button"
-                    className="lms-btn-secondary"
-                    onClick={() => setSelectedResourceIds(new Set())}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    className={resourceListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
-                    onClick={bulkResourceAction}
-                    disabled={deletingResources}
-                  >
-                    <i className={`fas ${resourceListMode === 'trash' ? 'fa-trash-alt' : 'fa-archive'}`} aria-hidden />
-                    {deletingResources
-                      ? 'Working…'
-                      : resourceListMode === 'trash'
-                        ? `Delete forever (${selectedResourceIds.size})`
-                        : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedResourceIds.size})`}
-                  </button>
-                  {resourceListMode === 'trash' ? (
-                    <button
-                      type="button"
-                      className="lms-btn-restore"
-                      onClick={bulkRestoreResources}
-                      disabled={deletingResources}
-                    >
-                      <i className="fas fa-undo" aria-hidden />
-                      Restore selected
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              ) : null}
-              <table className="lms-table lms-table--resources">
-                <thead>
-                  <tr>
-                    <th className="lms-table-check-col">
-                      <input
-                        type="checkbox"
-                        checked={
-                          filteredResources.length > 0 &&
-                          filteredResources.every((r) => selectedResourceIds.has(String(r._id)))
-                        }
-                        onChange={() => {
-                          if (
-                            filteredResources.length > 0 &&
-                            filteredResources.every((r) => selectedResourceIds.has(String(r._id)))
-                          ) {
-                            setSelectedResourceIds(new Set());
-                          } else {
-                            setSelectedResourceIds(
-                              new Set(filteredResources.map((r) => String(r._id)))
-                            );
-                          }
-                        }}
-                        aria-label="Select all resources"
-                      />
-                    </th>
-                    <th>Title</th>
-                    <th>Course</th>
-                    <th>Type</th>
-                    <th>Uploaded By</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredResources.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="lms-empty-cell">
-                        {resources.length === 0
-                          ? 'No resources for this selection.'
-                          : 'No resources match your search.'}
-                      </td>
-                    </tr>
-                  ) : (
-                  filteredResources.map((r) => {
-                    const rid = String(r._id);
-                    const selected = selectedResourceIds.has(rid);
-                    return (
-                      <tr key={r._id} className={selected ? 'lms-table-row--selected' : ''}>
-                        <td className="lms-table-check-col">
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() => toggleResourceSelect(rid)}
-                            aria-label={`Select ${r.title}`}
-                          />
-                        </td>
-                        <td>{r.title}</td>
-                        <td>{r.course?.title}</td>
-                        <td>
-                          <span className="lms-resource-type-pill">{r.type}</span>
-                        </td>
-                        <td>
-                          {r.uploadedBy?.name || '—'}
-                          {r.uploadedBy?.role ? ` (${r.uploadedBy.role})` : ''}
-                        </td>
-                        <td className="lms-table-actions">
-                          {resourceListMode === 'trash' ? (
-                            <>
-                              <button
-                                type="button"
-                                className="lms-btn-restore"
-                                onClick={() => restoreResource(r._id)}
-                                disabled={deletingResources}
-                              >
-                                <i className="fas fa-undo" aria-hidden /> Restore
-                              </button>
-                              <button
-                                type="button"
-                                className="lms-btn-delete-forever"
-                                onClick={() => removeResource(r._id)}
-                                disabled={deletingResources}
-                              >
-                                <i className="fas fa-trash-alt" aria-hidden /> Delete forever
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                className="lms-btn-secondary"
-                                onClick={() => setMaterialPreview({ kind: 'resource', item: r })}
-                              >
-                                <i className="fas fa-eye" aria-hidden /> Preview
-                              </button>
-                              <button type="button" className="lms-btn-secondary" onClick={() => startEditResource(r)}>
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="lms-btn-trash"
-                                onClick={() => removeResource(r._id)}
-                                disabled={deletingResources}
-                              >
-                                <i className="fas fa-archive" aria-hidden /> {QUARANTINE_LABEL}
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                  )}
-                </tbody>
-              </table>
-              {!resources.length ? <p className="lms-empty">No resources for this selection.</p> : null}
-            </div>
-            ) : null}
-          </div>
-        </div>
+        <ResourcesTab
+          resourceFormAnchorRef={resourceFormAnchorRef}
+          editingResourceId={editingResourceId}
+          resourceFormExpanded={resourceFormExpanded}
+          setResourceFormExpanded={setResourceFormExpanded}
+          saveResource={saveResource}
+          resourceForm={resourceForm}
+          setResourceForm={setResourceForm}
+          courses={courses}
+          teachers={teachers}
+          courseTeachers={courseTeachers}
+          savingResource={savingResource}
+          resetResourceForm={resetResourceForm}
+          resourceListSearch={resourceListSearch}
+          resourceListCourseFilter={resourceListCourseFilter}
+          setResourceListCourseFilter={setResourceListCourseFilter}
+          setSelectedResourceIds={setSelectedResourceIds}
+          resourceListMode={resourceListMode}
+          setResourceListMode={setResourceListMode}
+          resourceTrashCount={resourceTrashCount}
+          filteredResources={filteredResources}
+          resources={resources}
+          selectedResourceIds={selectedResourceIds}
+          bulkResourceAction={bulkResourceAction}
+          deletingResources={deletingResources}
+          bulkRestoreResources={bulkRestoreResources}
+          toggleResourceSelect={toggleResourceSelect}
+          restoreResource={restoreResource}
+          setMaterialPreview={setMaterialPreview}
+          startEditResource={startEditResource}
+          removeResource={removeResource}
+        />
       ) : (
-        <div className="lms-panel">
-          <AdminAssignmentSubmissions />
-        </div>
+        <div className="lms-panel"><AdminAssignmentSubmissions /></div>
       )}
       <LmsMaterialPreviewModal
         open={Boolean(materialPreview)}

@@ -7,13 +7,15 @@ import AddStudentUnifiedModal from './AddStudentUnifiedModal';
 import EnrollStudentModal from './EnrollStudentModal';
 import EditEnrollmentModal from './EditEnrollmentModal';
 import StudentDetailOverlay from './StudentDetailOverlay';
+import StudentCard from './StudentsData/StudentCard';
+import StudentsControlsBar from './StudentsData/StudentsControlsBar';
+import StudentsPagination from './StudentsData/StudentsPagination';
+import StudentsStatsGrid from './StudentsData/StudentsStatsGrid';
 import { useAdminDialog } from '../AdminDialogContext';
 import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
 import { portalEmailDisplayLabel, isUnsetPortalEmail } from '../../../utils/studentPortalEmail';
 import {
     normalizeEnrollmentStatus,
-    getEnrollmentStatusIcon,
-    FEE_STATUS_VALUES,
 } from '../../../utils/studentAdminValidation';
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_COURSES_LABEL, QUARANTINE_STUDENTS_LABEL } from '../../../utils/adminListLabels';
 import './StudentsData.scss';
@@ -1018,46 +1020,7 @@ const StudentsData = () => {
                 </div>
             )}
 
-            {listTab === 'active' && (
-                <div className="stats-grid">
-                    <div className="stat-card total">
-                        <div className="stat-icon">
-                            <i className="fas fa-user-graduate"></i>
-                        </div>
-                        <div className="stat-info">
-                            <h3>{stats.uniqueStudents || stats.totalStudentAccounts || 0}</h3>
-                            <p>Students</p>
-                        </div>
-                    </div>
-                    <div className="stat-card active">
-                        <div className="stat-icon">
-                            <i className="fas fa-table"></i>
-                        </div>
-                        <div className="stat-info">
-                            <h3>{stats.totalRows}</h3>
-                            <p>Enrolled courses</p>
-                        </div>
-                    </div>
-                    <div className="stat-card inactive">
-                        <div className="stat-icon">
-                            <i className="fas fa-chart-line"></i>
-                        </div>
-                        <div className="stat-info">
-                            <h3>{stats.activeRows}</h3>
-                            <p>Active enrolled courses</p>
-                        </div>
-                    </div>
-                    <div className="stat-card completed">
-                        <div className="stat-icon">
-                            <i className="fas fa-pause-circle"></i>
-                        </div>
-                        <div className="stat-info">
-                            <h3>{stats.inactiveRows}</h3>
-                            <p>Inactive enrolled courses</p>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {listTab === 'active' && <StudentsStatsGrid stats={stats} />}
 
             <div className="students-list-tabs">
                 <button
@@ -1091,67 +1054,20 @@ const StudentsData = () => {
                 </button>
             </div>
 
-            <div className="controls-bar">
-                <div className="search-box">
-                    <i className="fas fa-search"></i>
-                    <input
-                        type="text"
-                        placeholder="Search by student name, Student ID, email, phone, or course..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-
-                <div className="filter-controls">
-                    <select
-                        className="status-filter"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                        <option value="all">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="completed">Completed</option>
-                    </select>
-
-                    <select
-                        className="status-filter"
-                        value={filterFeeStatus}
-                        onChange={(e) => setFilterFeeStatus(e.target.value)}
-                        aria-label="Filter by fee status"
-                    >
-                        <option value="all">All fee status</option>
-                        {FEE_STATUS_VALUES.map(({ value, label }) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-
-                    <select
-                        className="status-filter students-sort-select"
-                        value={`${sortBy}:${sortOrder}`}
-                        onChange={(e) => {
-                            const [nextBy, nextOrder] = String(e.target.value).split(':');
-                            setSortBy(nextBy === 'student' ? 'student' : 'studentId');
-                            setSortOrder(nextOrder === 'desc' ? 'desc' : 'asc');
-                        }}
-                        aria-label="Sort students"
-                        title="Rearrange student cards"
-                    >
-                        <option value="studentId:asc">Roll number ↑</option>
-                        <option value="studentId:desc">Roll number ↓</option>
-                        <option value="student:asc">Name A–Z</option>
-                        <option value="student:desc">Name Z–A</option>
-                    </select>
-
-                    <button className="refresh-btn" onClick={handleManualRefresh} type="button" title="Refresh" aria-label="Refresh">
-                        <i className="fas fa-sync-alt"></i>
-                            </button>
-
-                    <button className="btn-secondary download-btn" onClick={downloadStudentsDataCsv}>
-                        <i className="fas fa-file-export"></i> Download CSV
-                    </button>
-                </div>
-            </div>
+            <StudentsControlsBar
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                filterStatus={filterStatus}
+                setFilterStatus={setFilterStatus}
+                filterFeeStatus={filterFeeStatus}
+                setFilterFeeStatus={setFilterFeeStatus}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                handleManualRefresh={handleManualRefresh}
+                downloadStudentsDataCsv={downloadStudentsDataCsv}
+            />
 
             {loading && studentCards.length > 0 ? (
                 <div className="students-cards-loading" aria-live="polite">
@@ -1161,84 +1077,13 @@ const StudentsData = () => {
 
             {studentCards.length > 0 ? (
                 <div className="students-cards-grid">
-                    {studentCards.map((card) => {
-                        const statusKey = String(card.statusLabel || 'active').toLowerCase();
-                        const feeKey = String(card.feeStatusLabel || 'pending').toLowerCase();
-                                return (
-                            <button
-                                type="button"
-                                key={card.key}
-                                className={`student-card${card.pendingSetup ? ' student-card--pending-setup' : ''}`}
-                                onClick={() => openStudentDetail(card)}
-                            >
-                                <div className="student-card__header">
-                                    <div className="student-card__avatar" aria-hidden>
-                                        {(card.student.name || '?').charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="student-card__identity">
-                                        <div className="student-card__name-row">
-                                            <strong className="student-card__name">
-                                                {card.student.name || 'Unknown Student'}
-                                            </strong>
-                                            {card.student.studentId ? (
-                                                <span className="student-id-cell">{card.student.studentId}</span>
-                                            ) : (
-                                                <span className="student-id-cell no-id">—</span>
-                                            )}
-                                        </div>
-                                        <span className="student-card__email">
-                                            <span className="student-card__email-label">Portal</span>
-                                            <span className="student-card__email-value">
-                                                {portalEmailDisplayLabel(card.student.email)}
-                                            </span>
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                <div className="student-card__courses">
-                                    <span className="student-card__section-label">
-                                        {card.courseCount > 0
-                                            ? `${card.courseCount} course${card.courseCount === 1 ? '' : 's'}`
-                                            : 'Courses'}
-                                            </span>
-                                    <span className="student-card__courses-text" title={card.courseSummary}>
-                                        {card.courseSummary}
-                                    </span>
-                                                    </div>
-
-                                <div className="student-card__status">
-                                    <div className="student-card__status-pair">
-                                        <span className="student-card__section-label">Status</span>
-                                        <span className={`student-card__status-value is-${statusKey}`}>
-                                            <i
-                                                className={`fas fa-${getEnrollmentStatusIcon(statusKey === 'mixed' ? 'active' : statusKey)}`}
-                                                aria-hidden
-                                            />
-                                            {card.statusLabel}
-                                        </span>
-                                                </div>
-                                    <div className="student-card__status-pair">
-                                        <span className="student-card__section-label">Fee</span>
-                                        <span className={`student-card__status-value is-fee-${feeKey}`}>
-                                            {card.feeStatusLabel}
-                                        </span>
-                                                </div>
-                                    {card.pendingSetup ? (
-                                        <span className="student-card__setup-flag">Pending setup</span>
-                                    ) : null}
-                                </div>
-
-                                <div className="student-card__footer">
-                                    <span className="student-card__enrollments">
-                                        {card.enrollmentCount} enrollment{card.enrollmentCount === 1 ? '' : 's'}
-                                            </span>
-                                    <span className="student-card__cta">
-                                        View courses <i className="fas fa-arrow-right" aria-hidden />
-                                            </span>
-                                            </div>
-                                                        </button>
-                        );
-                    })}
+                    {studentCards.map((card) => (
+                        <StudentCard
+                            key={card.key}
+                            card={card}
+                            onOpen={openStudentDetail}
+                        />
+                    ))}
                 </div>
             ) : loading ? (
                 <div className="students-cards-grid students-cards-grid--skeleton" aria-hidden>
@@ -1267,44 +1112,13 @@ const StudentsData = () => {
                                     </div>
                         )}
 
-            <nav className="pagination-controls" aria-label="Students pagination">
-                <button
-                    type="button"
-                    className="pagination-controls__nav"
-                    disabled={page <= 1 || loading || total === 0}
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    aria-label="Previous page"
-                >
-                    <i className="fas fa-chevron-left" aria-hidden />
-                    <span>Prev</span>
-                </button>
-
-                <div className="pagination-controls__center">
-                    <div className="pagination-controls__pages" aria-live="polite">
-                        <span className="pagination-controls__current">
-                            {total === 0 ? 0 : page}
-                </span>
-                        <span className="pagination-controls__divider" aria-hidden>/</span>
-                        <span className="pagination-controls__total-pages">
-                            {total === 0 ? 0 : totalPages}
-                        </span>
-                    </div>
-                    <span className="pagination-controls__count">
-                        {total} student{total === 1 ? '' : 's'}
-                    </span>
-                </div>
-
-                <button
-                    type="button"
-                    className="pagination-controls__nav"
-                    disabled={page >= totalPages || loading || total === 0}
-                    onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                    aria-label="Next page"
-                >
-                    <span>Next</span>
-                    <i className="fas fa-chevron-right" aria-hidden />
-                </button>
-            </nav>
+            <StudentsPagination
+                page={page}
+                setPage={setPage}
+                loading={loading}
+                total={total}
+                totalPages={totalPages}
+            />
 
             <div className="database-info">
                 <div className="info-card">
