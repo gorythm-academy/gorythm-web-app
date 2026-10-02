@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { portalGet } from '../components/Portals/shared/portalApi';
-import { getItemsNewSinceLastVisit } from '../utils/portalNewItems';
-import { hasAssignmentEditsSince } from '../utils/portalAssignmentNotices';
+import { getPortalSeenCutoff } from '../utils/portalNewItems';
 
 const SEEN_ASSIGNMENTS = 'student_assignments';
 const SEEN_QUIZZES = 'student_quizzes';
@@ -11,41 +9,41 @@ const SEEN_CONTENT = 'student_content';
 export const PORTAL_SEEN_UPDATED_EVENT = 'portal-seen-updated';
 
 export function useStudentPortalBadges(enabled) {
-  const location = useLocation();
   const [badges, setBadges] = useState({
     assignments: 0,
     assignmentsEdit: false,
     quizzes: 0,
+    quizzesEdit: false,
     content: 0,
   });
 
   const refresh = useCallback(() => {
     if (!enabled) return;
-    Promise.all([
-      portalGet('/student/assignments'),
-      portalGet('/student/quizzes'),
-      portalGet('/student/content'),
-    ])
-      .then(([aRes, qRes, cRes]) => {
-        const assignments = aRes.success ? aRes.assignments || [] : [];
-        const quizzes = qRes.success ? qRes.quizzes || [] : [];
-        const resources = cRes.success ? cRes.resources || [] : [];
+    const q = new URLSearchParams({
+      sinceAssignments: getPortalSeenCutoff(SEEN_ASSIGNMENTS),
+      sinceQuizzes: getPortalSeenCutoff(SEEN_QUIZZES),
+      sinceContent: getPortalSeenCutoff(SEEN_CONTENT),
+    });
+    portalGet(`/student/badges?${q.toString()}`)
+      .then((res) => {
+        if (!res?.success) throw new Error(res?.error || 'Failed to load badges');
         setBadges({
-          assignments: getItemsNewSinceLastVisit(SEEN_ASSIGNMENTS, assignments).length,
-          assignmentsEdit: hasAssignmentEditsSince(assignments, SEEN_ASSIGNMENTS),
-          quizzes: getItemsNewSinceLastVisit(SEEN_QUIZZES, quizzes).length,
-          content: getItemsNewSinceLastVisit(SEEN_CONTENT, resources).length,
+          assignments: Number(res.assignments) || 0,
+          assignmentsEdit: Boolean(res.assignmentsEdit),
+          quizzes: Number(res.quizzes) || 0,
+          quizzesEdit: Boolean(res.quizzesEdit),
+          content: Number(res.content) || 0,
         });
       })
       .catch((err) => {
         console.warn('Student portal badges failed:', err);
-        setBadges({ assignments: 0, assignmentsEdit: false, quizzes: 0, content: 0 });
+        setBadges({ assignments: 0, assignmentsEdit: false, quizzes: 0, quizzesEdit: false, content: 0 });
       });
   }, [enabled]);
 
   useEffect(() => {
     refresh();
-  }, [refresh, location.pathname]);
+  }, [refresh]);
 
   useEffect(() => {
     if (!enabled) return undefined;

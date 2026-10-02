@@ -4,9 +4,11 @@ const router = express.Router();
 const Course = require('../../models/Course');
 const User = require('../../models/User');
 const Resource = require('../../models/Resource');
+const ClassSchedule = require('../../models/ClassSchedule');
 const { getTeachersByCourseIds } = require('../../services/courseTeachers');
 const {
     resolveValidTargetPairs,
+    resolveValidScheduleTargets,
     newPublishGroupId,
     normalizeIdList,
 } = require('../../utils/lmsContentRules');
@@ -20,6 +22,16 @@ const { parseMetaOnly } = require('./shared');
 async function resourceScopeFilter(courseId) {
     if (!courseId) return {};
     return { course: courseId };
+}
+
+async function loadResourceSchedules(courseId) {
+    const filter = courseId ? { course: courseId } : {};
+    return ClassSchedule.find(filter)
+        .select('course teacher dayOfWeek startTime endTime roomOrLink')
+        .populate('course', 'title')
+        .populate('teacher', 'name email')
+        .sort({ dayOfWeek: 1, startTime: 1 })
+        .lean();
 }
 
 function normalizeResourceAttachments(input) {
@@ -57,32 +69,44 @@ router.get('/resources', async (req, res) => {
             .sort({ name: 1 })
             .lean();
         const trashCountPromise = countTrashed(Resource, scope);
+        const schedulesPromise = loadResourceSchedules(req.query.courseId);
 
         if (metaOnly) {
-            const [trashCount, courses, teachers] = await Promise.all([
+            const [trashCount, courses, teachers, schedules] = await Promise.all([
                 trashCountPromise,
                 coursesPromise,
                 teachersPromise,
+                schedulesPromise,
             ]);
             const courseTeachers = await getTeachersByCourseIds(courses.map((c) => c._id));
-            return res.json({ success: true, resources: [], courses, teachers, courseTeachers, trashCount });
+            return res.json({
+                success: true,
+                resources: [],
+                courses,
+                teachers,
+                courseTeachers,
+                schedules,
+                trashCount,
+            });
         }
 
-        const [resources, trashCount, courses, teachers] = await Promise.all([
+        const [resources, trashCount, courses, teachers, schedules] = await Promise.all([
             Resource.find(listFilter)
                 .select(
-                    'title description fileUrl attachments type course teacher scope uploadedBy createdByRole lockedForTeacher publishGroupId createdAt updatedAt deletedAt'
+                    'title description fileUrl attachments type course teacher assignedSchedule scope uploadedBy createdByRole lockedForTeacher publishGroupId createdAt updatedAt deletedAt'
                 )
                 .populate('course', 'title instructorName')
                 .populate('teacher', 'name email')
+                .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
                 .populate('uploadedBy', 'name email role')
                 .sort({ createdAt: -1 })
                 .lean(),
             trashCountPromise,
             coursesPromise,
             teachersPromise,
+            schedulesPromise,
         ]);
-        res.json({ success: true, resources, courses, teachers, trashCount });
+        res.json({ success: true, resources, courses, teachers, schedules, trashCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load resources' });
     }
@@ -90,7 +114,15 @@ router.get('/resources', async (req, res) => {
 
 router.post('/resources/preview-targets', async (req, res) => {
     try {
-        const { courseIds, teacherIds, targets } = req.body || {};
+        const { courseIds, teacherIds, scheduleIds, targets, scope = 'teacher' } = req.body || {};
+        if (scope === 'course') {
+            const ids = normalizeIdList(courseIds);
+            return res.json({ success: true, count: ids.length, pairs: ids.map((courseId) => ({ courseId })) });
+        }
+        if (Array.isArray(scheduleIds) && scheduleIds.length) {
+            const scheduleTargets = await resolveValidScheduleTargets({ scheduleIds });
+            return res.json({ success: true, count: scheduleTargets.length, scheduleTargets });
+        }
         const pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
         res.json({ success: true, count: pairs.length, pairs });
     } catch (error) {
@@ -104,8 +136,10 @@ router.post('/resources', async (req, res) => {
         const {
             courseId,
             teacherId,
+            scheduleId,
             courseIds,
             teacherIds,
+            scheduleIds,
             targets,
             title,
             description,
@@ -121,50 +155,89 @@ router.post('/resources', async (req, res) => {
         const adminUserId = req.user?.userId || null;
         const resourceScope = scope === 'course' ? 'course' : 'teacher';
 
-        let pairs = [];
-        if (courseId) {
-            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
-            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
-            if (resourceScope === 'teacher') {
-                const resolvedTeacher = teacherId || course.instructor;
-                if (!resolvedTeacher) {
-                    return res.status(400).json({ success: false, error: 'Teacher is required for teacher-scoped resources' });
+        if (resourceScope === 'course') {
+            let courseTargets = [];
+            if (courseId) {
+                const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
+                if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
+                courseTargets = [{ courseId: String(courseId), teacherId: null, scheduleId: null }];
+            } else {
+                const normalizedCourses = normalizeIdList(courseIds);
+                if (!normalizedCourses.length) {
+                    return res.status(400).json({ success: false, error: 'Select at least one course' });
                 }
-                pairs = await resolveValidTargetPairs({
-                    explicitTargets: [{ courseId, teacherId: resolvedTeacher }],
-                });
-            } else {
-                pairs = [{ courseId, teacherId: teacherId || course.instructor || null }];
+                courseTargets = normalizedCourses.map((cid) => ({
+                    courseId: cid,
+                    teacherId: null,
+                    scheduleId: null,
+                }));
             }
-        } else {
-            const normalizedCourses = normalizeIdList(courseIds);
-            if (!normalizedCourses.length) {
-                return res.status(400).json({ success: false, error: 'Select at least one course' });
-            }
-            if (resourceScope === 'course') {
-                pairs = normalizedCourses.map((cid) => ({ courseId: cid, teacherId: null }));
-            } else {
-                pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
-            }
-        }
-        if (!pairs.length) {
-            return res.status(400).json({
-                success: false,
-                error: 'No valid course+teacher pairs. Each teacher must teach the selected course.',
+            const publishGroupId = courseTargets.length > 1 ? newPublishGroupId() : null;
+            const created = await Resource.insertMany(
+                courseTargets.map(({ courseId: cid }) => ({
+                    title: String(title).trim(),
+                    description: description || '',
+                    fileUrl: attachmentList[0] || '',
+                    attachments: attachmentList,
+                    type: type || 'file',
+                    course: cid,
+                    teacher: null,
+                    assignedSchedule: null,
+                    scope: 'course',
+                    uploadedBy: adminUserId,
+                    createdByRole: 'admin',
+                    createdByUser: adminUserId,
+                    lockedForTeacher: true,
+                    publishGroupId,
+                }))
+            );
+            const populated = await Resource.find({ _id: { $in: created.map((r) => r._id) } })
+                .populate('course', 'title')
+                .populate('teacher', 'name email')
+                .populate('assignedSchedule', 'dayOfWeek startTime endTime')
+                .populate('uploadedBy', 'name role');
+            return res.status(201).json({
+                success: true,
+                createdCount: populated.length,
+                publishGroupId,
+                resources: populated,
+                resource: populated[0] || null,
             });
         }
 
-        const publishGroupId = pairs.length > 1 ? newPublishGroupId() : null;
+        let scheduleTargets = [];
+        if (courseId && (scheduleId || teacherId)) {
+            if (!scheduleId) {
+                return res.status(400).json({ success: false, error: 'Class slot is required' });
+            }
+            scheduleTargets = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                courseId,
+                ...(teacherId ? { teacherId } : {}),
+            });
+        } else if (Array.isArray(scheduleIds) && scheduleIds.length) {
+            scheduleTargets = await resolveValidScheduleTargets({ scheduleIds });
+        } else if (Array.isArray(targets) && targets.some((row) => row?.scheduleId)) {
+            scheduleTargets = await resolveValidScheduleTargets({ explicitTargets: targets });
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'Select at least one class slot to publish this resource.',
+            });
+        }
+
+        const publishGroupId = scheduleTargets.length > 1 ? newPublishGroupId() : null;
         const created = await Resource.insertMany(
-            pairs.map(({ courseId: cid, teacherId: tid }) => ({
+            scheduleTargets.map(({ courseId: cid, teacherId: tid, scheduleId: sid }) => ({
                 title: String(title).trim(),
                 description: description || '',
                 fileUrl: attachmentList[0] || '',
                 attachments: attachmentList,
                 type: type || 'file',
                 course: cid,
-                teacher: resourceScope === 'teacher' ? tid : tid || null,
-                scope: resourceScope,
+                teacher: tid,
+                assignedSchedule: sid,
+                scope: 'teacher',
                 uploadedBy: adminUserId,
                 createdByRole: 'admin',
                 createdByUser: adminUserId,
@@ -176,6 +249,7 @@ router.post('/resources', async (req, res) => {
         const populated = await Resource.find({ _id: { $in: created.map((r) => r._id) } })
             .populate('course', 'title')
             .populate('teacher', 'name email')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime')
             .populate('uploadedBy', 'name role');
 
         res.status(201).json({
@@ -195,14 +269,14 @@ router.patch('/resources/:id', async (req, res) => {
     try {
         const resource = await Resource.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
-        const { courseId, teacherId, title, description, fileUrl, type, attachments, scope } = req.body;
+        const { courseId, teacherId, scheduleId, title, description, fileUrl, type, attachments, scope } = req.body;
         if (courseId) {
             const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
             resource.course = courseId;
         }
         if (teacherId !== undefined) {
-            if (teacherId) {
+            if (teacherId && resource.scope !== 'course') {
                 const targetCourse = courseId || resource.course;
                 const pairs = await resolveValidTargetPairs({
                     explicitTargets: [{ courseId: targetCourse, teacherId }],
@@ -213,7 +287,23 @@ router.patch('/resources/:id', async (req, res) => {
             }
             resource.teacher = teacherId || null;
         }
-        if (scope !== undefined) resource.scope = scope === 'course' ? 'course' : 'teacher';
+        if (scheduleId && resource.scope !== 'course') {
+            const [target] = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                courseId: courseId || resource.course,
+                ...(teacherId || resource.teacher ? { teacherId: teacherId || resource.teacher } : {}),
+            });
+            resource.assignedSchedule = target.scheduleId;
+            resource.course = target.courseId;
+            resource.teacher = target.teacherId;
+        }
+        if (scope !== undefined) {
+            resource.scope = scope === 'course' ? 'course' : 'teacher';
+            if (resource.scope === 'course') {
+                resource.teacher = null;
+                resource.assignedSchedule = null;
+            }
+        }
         if (title !== undefined) resource.title = String(title).trim();
         if (description !== undefined) resource.description = description || '';
         applyResourceFiles(resource, { fileUrl, attachments, type });
@@ -221,6 +311,7 @@ router.patch('/resources/:id', async (req, res) => {
         const populated = await Resource.findById(resource._id)
             .populate('course', 'title')
             .populate('teacher', 'name email')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
             .populate('uploadedBy', 'name role');
         res.json({ success: true, resource: populated });
     } catch (error) {

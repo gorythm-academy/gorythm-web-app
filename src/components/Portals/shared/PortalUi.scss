@@ -216,7 +216,7 @@
 
 .portal-attendance-grid-header {
   display: grid;
-  grid-template-columns: 1fr 180px 1fr;
+  grid-template-columns: minmax(140px, 1fr) minmax(300px, 2fr) 1fr;
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.5rem 0;
@@ -230,11 +230,71 @@
 
 .portal-attendance-row--cols {
   display: grid;
-  grid-template-columns: 1fr 180px 1fr;
+  grid-template-columns: minmax(140px, 1fr) minmax(300px, 2fr) 1fr;
   gap: 0.5rem;
   align-items: center;
   padding: 0.5rem 0;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.portal-attendance-status-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.portal-attendance-status-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  user-select: none;
+
+  input {
+    margin: 0;
+    accent-color: currentColor;
+  }
+
+  &:hover {
+    border-color: #cbd5e1;
+  }
+
+  &--present.is-active {
+    border-color: #16a34a;
+    background: #dcfce7;
+    color: #166534;
+  }
+  &--absent.is-active {
+    border-color: #dc2626;
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  &--late.is-active {
+    border-color: #9333ea;
+    background: #f3e8ff;
+    color: #6b21a8;
+  }
+  &--leave.is-active {
+    border-color: #64748b;
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+  &--holiday.is-active {
+    border-color: #2563eb;
+    background: #dbeafe;
+    color: #1e40af;
+  }
 }
 
 .portal-attendance-student-name {
@@ -581,6 +641,9 @@
 
 .portal-attendance-records-table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #fff;
@@ -588,6 +651,7 @@
 
 .portal-attendance-records-table {
   width: 100%;
+  min-width: 1100px;
   border-collapse: collapse;
   font-size: 0.9rem;
 
@@ -800,6 +864,44 @@
   margin: 0.5rem 0;
 }
 
+.portal-data-section--loading {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.portal-summary-grid--skeleton .portal-summary-card--skeleton {
+  pointer-events: none;
+}
+
+.portal-skeleton-line {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 45%, #e2e8f0 90%);
+  background-size: 200% 100%;
+  animation: portal-skeleton-shimmer 1.2s ease-in-out infinite;
+
+  &--label {
+    width: 55%;
+    height: 0.75rem;
+    margin-bottom: 0.65rem;
+  }
+
+  &--value {
+    width: 35%;
+    height: 1.35rem;
+  }
+}
+
+@keyframes portal-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .portal-ui-alert {
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
@@ -833,20 +935,39 @@
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
-  text-transform: capitalize;
+  text-transform: none;
 
   &--paid {
     background: #dcfce7;
     color: #166534;
   }
 
+  &--unpaid,
   &--pending {
     background: #fef3c7;
     color: #92400e;
   }
 
+  &--awaiting_review,
+  &--processing {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+
+  &--overdue {
+    background: #ffedd5;
+    color: #9a3412;
+  }
+
+  &--paused {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
   &--failed,
-  &--refunded {
+  &--refunded,
+  &--cancelled,
+  &--rejected {
     background: #fee2e2;
     color: #991b1b;
   }
@@ -854,11 +975,15 @@
 
 .portal-table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
   margin-top: 0.75rem;
 }
 
 .portal-table {
   width: 100%;
+  min-width: 1100px;
   border-collapse: collapse;
   font-size: 0.9rem;
 

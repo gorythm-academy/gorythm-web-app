@@ -1,97 +1,186 @@
 @import '../../../styles/breakpoints';
 
-// ==================== COURSE MODAL – single color scheme ====================
+// Course overlay matches the students overlay chrome (wide panel, dark header, fixed X).
 .course-modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    inset: 0;
+    z-index: 1100;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
-    z-index: 1000;
-    padding: 20px;
-    backdrop-filter: blur(6px);
-    animation: fadeIn 0.3s ease;
-    overflow: hidden;
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
 }
 
 .course-modal {
-    background: #fff;
-    border-radius: 16px;
-    max-width: 920px;
     width: 100%;
-    max-height: 85vh;
+    max-width: 1400px;
+    background: #f8fafc;
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-    overscroll-behavior: contain;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
-    animation: modalSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    border: 2px solid var(--color-accent);
+    max-height: calc(100vh - 32px);
+    animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+    &__header {
+        flex-shrink: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px 24px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: #fff;
+    }
+
+    &__identity {
+        min-width: 0;
+
+        h2 {
+            margin: 0 0 8px;
+            font-size: 1.45rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            i { color: #93c5fd; }
+        }
+
+        p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.92;
+        }
+    }
+
+    &__sid {
+        display: inline-flex;
+        font-weight: 700;
+        font-size: 0.86rem;
+        background: rgba(255, 255, 255, 0.12);
+        padding: 2px 10px;
+        border-radius: 999px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__header-actions {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+        }
+    }
+
+    &__close-icon {
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        cursor: pointer;
+    }
+
+    &__body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    &__form {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+
+        > .form-actions {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 0.7rem;
+            margin: 0;
+            padding: 0.95rem 1.2rem 1.1rem;
+            border-top: 1px solid #dbe6ff;
+            background: #fff;
+
+            .btn-primary {
+                background: var(--color-accent);
+                color: #fff;
+                padding: 0.72rem 1.2rem;
+                font-size: 1rem;
+                border-radius: 10px;
+                border: none;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.45rem;
+
+                &:hover:not(:disabled) {
+                    filter: brightness(1.08);
+                    transform: translateY(-2px);
+                }
+
+                &:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+            }
+
+            .btn-secondary {
+                background: #e2e8f0;
+                color: #334155;
+                border: none;
+                padding: 0.72rem 1.2rem;
+                border-radius: 10px;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.45rem;
+
+                &:hover:not(:disabled) {
+                    background: #cfd8e3;
+                }
+
+                &:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+            }
+        }
+    }
     
     .course-form-card {
         margin: 0;
         border: none;
-        border-radius: 14px;
-        padding: 2rem;
-        background: transparent;
+        border-radius: 0;
+        padding: 1.5rem 1.75rem 1.25rem;
+        background: #fff;
         
-        .form-header {
-            position: relative;
-            padding-right: 3.5rem;
-            padding-bottom: 1.25rem;
-            margin-bottom: 1.5rem;
-            border-bottom: 2px solid var(--color-accent);
-            
-            h2 {
-                font-size: 1.4rem;
-                color: #0f172a;
-                margin: 0;
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                
-                i {
-                    color: var(--color-accent);
-                }
-            }
-            
-            .editing-indicator {
-                i, strong { color: #0f172a; }
-            }
-        }
-        
-        .modal-close-btn {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            border: 2px solid #e2e8f0;
-            background: #f8fafc;
-            color: #475569;
-            font-size: 1.2rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            
-            &:hover {
-                border-color: var(--color-accent);
-                background: var(--color-accent);
-                color: #fff;
-            }
-        }
-        
-        .course-form {
-            .form-row {
+        .form-row {
                 margin-bottom: 1.25rem;
             }
             
@@ -483,44 +572,8 @@
                     }
                 }
             }
-            
-            .form-actions {
-                padding-top: 1.5rem;
-                margin-top: 1.5rem;
-                border-top: 2px solid #e2e8f0;
-                gap: 1rem;
-                
-                .btn-primary {
-                    background: var(--color-accent);
-                    color: #fff;
-                    padding: 0.75rem 1.75rem;
-                    font-size: 1rem;
-                    border-radius: 10px;
-                    border: none;
-                    font-weight: 500;
-                    
-                    &:hover:not(:disabled) {
-                        filter: brightness(1.08);
-                        transform: translateY(-2px);
-                    }
-                }
-                
-                .btn-secondary {
-                    background: #e2e8f0;
-                    color: #475569;
-                    border: 2px solid #cbd5e1;
-                    padding: 0.75rem 1.75rem;
-                    border-radius: 10px;
-                    
-                    &:hover {
-                        background: #cbd5e1;
-                        color: #334155;
-                    }
-                }
-            }
         }
     }
-}
 
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -595,8 +648,6 @@
     }
 }
 
-// Modal close button (scoped inside .course-form-card above)
-
 // =============================================================================
 // RESPONSIVE – CoursesManagement modal
 // =============================================================================
@@ -608,29 +659,31 @@
     }
 
     .course-modal {
-        max-height: 92vh;
+        max-height: calc(100vh - 24px);
+
+        .course-modal__header {
+            padding: 16px 18px;
+        }
+
+        .course-modal__identity h2 {
+            font-size: 1.2rem;
+        }
 
         .course-form-card {
             padding: 1.1rem;
 
-            .form-header {
-                padding-right: 2.8rem;
+            .form-row {
+                margin-bottom: 0.9rem;
             }
+        }
 
-            .course-form {
-                .form-row {
-                    margin-bottom: 0.9rem;
-                }
+        .course-modal__form > .form-actions {
+            flex-direction: column;
 
-                .form-actions {
-                    flex-direction: column;
-
-                    .btn-primary,
-                    .btn-secondary {
-                        width: 100%;
-                        justify-content: center;
-                    }
-                }
+            .btn-primary,
+            .btn-secondary {
+                width: 100%;
+                justify-content: center;
             }
         }
     }
@@ -643,10 +696,10 @@
 
         .course-form-card {
             padding: 0.9rem;
+        }
 
-            .form-header h2 {
-                font-size: 1.15rem;
-            }
+        .course-modal__identity h2 {
+            font-size: 1.15rem;
         }
     }
 }

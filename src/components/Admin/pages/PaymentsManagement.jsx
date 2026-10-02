@@ -1,21 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { jsPDF } from 'jspdf';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
-import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
+import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { useAdminDialog } from '../AdminDialogContext';
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
+import { markPortalPageVisited, ADMIN_SEEN_PAYMENTS } from '../../../utils/portalNewItems';
 import './PaymentsManagement.scss';
 
 const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
 
-const formatPaymentStatus = (status) => {
-    if (status === 'completed') return 'paid';
-    if (status === 'awaiting_review') return 'awaiting review';
-    return status || '—';
+const formatPaymentStatus = (status, displayStatus) => {
+    const key = displayStatus || status;
+    if (key === 'completed' || key === 'paid') return 'Paid';
+    if (key === 'awaiting_review' || key === 'processing') return 'Pending Verification';
+    if (key === 'pending' || key === 'unpaid') return 'Unpaid';
+    if (key === 'overdue') return 'Overdue';
+    if (key === 'refunded') return 'Refunded';
+    if (key === 'cancelled' || key === 'rejected') return 'Declined';
+    return key || '—';
 };
 
 const canOpenStudentFromPayment = (payment) => {
@@ -37,11 +42,125 @@ const COLUMN_DEFS = [
     'date',
     'actions',
 ];
-const DEFAULT_COLUMN_WIDTHS = [60, 132, 200, 200, 120, 200, 130, 110, 110, 170, 1];
-const COLUMN_MIN_WIDTHS = [50, 88, 140, 140, 90, 140, 96, 100, 100, 130, 90];
-const COLUMN_MAX_WIDTHS = [90, 280, 360, 360, 220, 420, 220, 220, 220, 320, 280];
+const DEFAULT_COLUMN_WIDTHS = [60, 240, 200, 200, 120, 200, 130, 110, 110, 170, 1];
+const COLUMN_MIN_WIDTHS = [50, 140, 140, 140, 90, 140, 96, 100, 100, 130, 90];
+const COLUMN_MAX_WIDTHS = [90, 960, 360, 360, 220, 420, 220, 220, 220, 320, 420];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const PAYMENTS_PAGE_SIZE = 25;
+
+const toDateInputValue = (value) => {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const checkoutGroupKey = (payment) => {
+    if (payment?.groupId) return `group:${payment.groupId}`;
+    if (payment?.stripePaymentIntentId) return `pi:${payment.stripePaymentIntentId}`;
+    if (payment?.transactionId) return `txn:${payment.transactionId}`;
+    return `id:${payment?._id}`;
+};
+
+const paymentAsLine = (payment) => ({
+    studentName: payment.user?.name || payment.studentName || '',
+    courseName: payment.course?.title || payment.courseName || 'Course',
+    amount: payment.amount,
+    course: payment.course,
+    student: payment.user,
+});
+
+const refId = (value) => {
+    if (!value) return '';
+    if (typeof value === 'object') return String(value._id || value.id || '');
+    return String(value);
+};
+
+const separateInvoiceTargets = (siblings, primary) => {
+    const combined = siblings.length === 1 && (
+        primary.invoiceMode === 'combined'
+        || (Array.isArray(primary.lines) && primary.lines.length > 1)
+    );
+    if (combined) {
+        const lines = Array.isArray(primary.lines) && primary.lines.length
+            ? primary.lines
+            : [paymentAsLine(primary)];
+        return lines.map((line, index) => ({
+            key: `${primary._id}-line-${index}`,
+            label: line.courseName || primary.course?.title || 'Course',
+            payment: primary,
+            courseId: refId(line.course) || refId(primary.course),
+            studentId: refId(line.student) || refId(primary.user),
+            courseName: line.courseName || primary.course?.title || primary.courseName || '',
+        }));
+    }
+    return siblings.map((row) => ({
+        key: String(row._id),
+        label: row.course?.title || row.courseName || row.lines?.[0]?.courseName || 'Invoice',
+        payment: row,
+        courseId: refId(row.lines?.[0]?.course) || refId(row.course),
+        studentId: refId(row.lines?.[0]?.student) || refId(row.user),
+        courseName: row.course?.title || row.courseName || row.lines?.[0]?.courseName || '',
+    }));
+};
+
+const groupPaymentsForAdminTable = (payments) => {
+    const buckets = new Map();
+    for (const payment of payments || []) {
+        const key = checkoutGroupKey(payment);
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(payment);
+    }
+    return [...buckets.values()].map((siblings) => {
+        const primary = siblings[0];
+        const groupedPaymentIds = siblings.map((row) => row._id);
+        const combined = siblings.length === 1 && (
+            primary.invoiceMode === 'combined'
+            || (Array.isArray(primary.lines) && primary.lines.length > 1)
+        );
+        const lines = siblings.flatMap((row) =>
+            Array.isArray(row.lines) && row.lines.length
+                ? row.lines.map((line) => ({ ...line, paymentId: row._id }))
+                : [{ ...paymentAsLine(row), paymentId: row._id }]
+        );
+        const separateTargets = separateInvoiceTargets(siblings, primary);
+        const invoiceButtons = [{
+            key: `${primary._id}-invoice`,
+            label: 'Invoice',
+            payment: primary,
+            multi: separateTargets.length > 1,
+            separateTargets,
+        }];
+        if (siblings.length === 1 && combined) {
+            return { ...primary, groupedPaymentIds, invoiceMode: 'combined', invoiceButtons, lines: primary.lines || lines };
+        }
+        if (siblings.length === 1) {
+            return {
+                ...primary,
+                groupedPaymentIds,
+                invoiceMode: primary.invoiceMode || 'separate',
+                invoiceButtons,
+            };
+        }
+        return {
+            ...primary,
+            amount: siblings.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+            lines,
+            groupedPaymentIds,
+            invoiceMode: 'separate',
+            invoiceButtons,
+        };
+    });
+};
+
+const idsForPaymentRow = (payment) =>
+    (Array.isArray(payment.groupedPaymentIds) && payment.groupedPaymentIds.length
+        ? payment.groupedPaymentIds
+        : [payment._id]
+    ).map(String);
 
 const csvEscape = (value) => {
     const text = String(value ?? '');
@@ -84,9 +203,15 @@ const PaymentsManagement = () => {
     const [trashBusy, setTrashBusy] = useState(false);
     const [bankSaving, setBankSaving] = useState(false);
     const [bankMessage, setBankMessage] = useState('');
+    const [dueDateDefault, setDueDateDefault] = useState('');
+    const [dueDateSaving, setDueDateSaving] = useState(false);
+    const [dueDateMessage, setDueDateMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
-    const [receiptModal, setReceiptModal] = useState(null);
+    const [dueDateModal, setDueDateModal] = useState(null);
+    const [declineModal, setDeclineModal] = useState(null);
+    const [proofModal, setProofModal] = useState(null);
+    const [invoicePicker, setInvoicePicker] = useState(null);
     const [dateRange, setDateRange] = useState('all');
     const [stats, setStats] = useState({
         totalRevenue: 0,
@@ -110,9 +235,18 @@ const PaymentsManagement = () => {
 
     const fetchBankDetails = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/payments/bank-details`);
-            if (response.data?.success) {
-                setBankForm(bankDetailsToForm(response.data.bankDetails));
+            const token = getAuthToken();
+            const [bankRes, dueRes] = await Promise.all([
+                axios.get(`${API_BASE_URL}/api/payments/bank-details`),
+                axios.get(`${API_BASE_URL}/api/payments/admin/fee-due-settings`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            ]);
+            if (bankRes.data?.success) {
+                setBankForm(bankDetailsToForm(bankRes.data.bankDetails));
+            }
+            if (dueRes.data?.success) {
+                setDueDateDefault(dueRes.data.defaultFeeDueDate || '');
             }
         } catch (error) {
             console.error('Error fetching bank details:', error);
@@ -141,7 +275,41 @@ const PaymentsManagement = () => {
         }
     };
 
-    const fetchPayments = useCallback(async ({ soft = false, page: pageOverride } = {}) => {
+    const saveDefaultDueDate = async () => {
+        if (!dueDateDefault) {
+            setDueDateMessage('Choose a due date first.');
+            return;
+        }
+        const confirmed = await showConfirm({
+            title: 'Replace due dates everywhere?',
+            message: 'This replaces the due date on all active courses, all student enrollments that are not completed or cancelled, and the student and parent Fees pages. Course-specific and student-specific due dates will be overwritten.',
+            confirmLabel: 'Save due date',
+        });
+        if (!confirmed) return;
+        setDueDateSaving(true);
+        setDueDateMessage('');
+        try {
+            const token = getAuthToken();
+            const response = await axios.put(
+                `${API_BASE_URL}/api/payments/admin/fee-due-settings`,
+                { defaultFeeDueDate: dueDateDefault, confirm: true },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (!response.data?.success) {
+                throw new Error(response.data?.error || 'Failed to save');
+            }
+            setDueDateDefault(response.data.defaultFeeDueDate || dueDateDefault);
+            setDueDateMessage('Default due date saved for all active courses.');
+        } catch (error) {
+            const msg = error.response?.data?.error || error.message || 'Failed to save due date';
+            setDueDateMessage(msg);
+            await showAlert(msg, 'error');
+        } finally {
+            setDueDateSaving(false);
+        }
+    };
+
+    const fetchPayments = useCallback(async ({ soft = false, page: pageOverride, withStats } = {}) => {
         if (!soft && !hasLoadedOnceRef.current) {
             setLoading(true);
         } else {
@@ -152,6 +320,7 @@ const PaymentsManagement = () => {
         try {
             const token = getAuthToken();
             const effectivePage = pageOverride ?? page;
+            const includeStats = listTab === 'active' && (withStats ?? !soft);
             const response = await axios.get(`${API_BASE_URL}/api/payments`, {
                 headers: { Authorization: `Bearer ${token}` },
                 params: {
@@ -164,7 +333,7 @@ const PaymentsManagement = () => {
                     sortOrder,
                     ...(listTab === 'trash' ? { trash: '1' } : {}),
                     includeCounts: 1,
-                    includeStats: listTab === 'active' ? 1 : 0,
+                    includeStats: includeStats ? 1 : 0,
                 },
             });
             const fetchedPayments = Array.isArray(response.data.payments) ? response.data.payments : [];
@@ -199,6 +368,10 @@ const PaymentsManagement = () => {
         fetchPayments();
         fetchBankDetails();
     }, [fetchPayments, fetchBankDetails]);
+
+    useEffect(() => {
+        markPortalPageVisited(ADMIN_SEEN_PAYMENTS);
+    }, []);
 
     useEffect(() => {
         setSelectedPayments([]);
@@ -305,10 +478,13 @@ const PaymentsManagement = () => {
         }
     };
 
-    const togglePaymentSelection = (paymentId) => {
-        setSelectedPayments((prev) =>
-            prev.includes(paymentId) ? prev.filter((id) => id !== paymentId) : [...prev, paymentId]
-        );
+    const togglePaymentSelection = (payment) => {
+        const ids = idsForPaymentRow(payment);
+        setSelectedPayments((prev) => {
+            const allSelected = ids.every((id) => prev.includes(id));
+            if (allSelected) return prev.filter((id) => !ids.includes(id));
+            return [...new Set([...prev, ...ids])];
+        });
     };
 
     const calculateStats = (paymentData) => {
@@ -336,11 +512,10 @@ const PaymentsManagement = () => {
         setStats(stats);
     };
 
-    const sortedPayments = payments;
+    const paginatedPayments = useMemo(() => groupPaymentsForAdminTable(payments), [payments]);
 
     const totalPages = Math.max(1, Math.ceil(totalPayments / PAYMENTS_PAGE_SIZE));
     const currentPage = Math.min(page, totalPages);
-    const paginatedPayments = sortedPayments;
 
     useEffect(() => {
         if (page > totalPages) {
@@ -349,7 +524,7 @@ const PaymentsManagement = () => {
     }, [page, totalPages]);
 
     const toggleAllPayments = () => {
-        const visibleIds = paginatedPayments.map((payment) => payment._id);
+        const visibleIds = paginatedPayments.flatMap((payment) => idsForPaymentRow(payment));
         const allVisibleSelected = visibleIds.every((id) => selectedPayments.includes(id));
         if (visibleIds.length > 0 && allVisibleSelected) {
             setSelectedPayments((prev) => prev.filter((id) => !visibleIds.includes(id)));
@@ -507,7 +682,9 @@ const PaymentsManagement = () => {
         }
     };
 
-    const selectedVisibleCount = paginatedPayments.filter((payment) => selectedPayments.includes(payment._id)).length;
+    const selectedVisibleCount = paginatedPayments.filter((payment) =>
+        idsForPaymentRow(payment).every((id) => selectedPayments.includes(id))
+    ).length;
 
     useEffect(() => {
         if (!selectAllRef.current) return;
@@ -519,16 +696,190 @@ const PaymentsManagement = () => {
     }, [selectedVisibleCount, paginatedPayments.length]);
 
     useEffect(() => {
-        if (!receiptModal) return undefined;
+        if (!dueDateModal && !declineModal && !proofModal && !invoicePicker) return undefined;
         const onKeyDown = (event) => {
-            if (event.key === 'Escape') setReceiptModal(null);
+            if (event.key !== 'Escape') return;
+            if (dueDateModal && !dueDateModal.saving) setDueDateModal(null);
+            if (declineModal && !declineModal.saving) setDeclineModal(null);
+            if (proofModal) setProofModal(null);
+            if (invoicePicker) setInvoicePicker(null);
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [receiptModal]);
+    }, [dueDateModal, declineModal, proofModal, invoicePicker]);
 
-    const handleDeletePayment = async (paymentId) => {
+    const runPaymentAction = async (paymentId, action, body = {}, confirm) => {
+        if (confirm) {
+            const ok = await showConfirm(confirm);
+            if (!ok) return false;
+        }
+        try {
+            const token = getAuthToken();
+            const url = `${API_BASE_URL}/api/payments/${paymentId}/${action}`;
+            if (action === 'due-date') {
+                await axios.patch(url, body, { headers: { Authorization: `Bearer ${token}` } });
+            } else {
+                await axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } });
+            }
+            await fetchPayments({ soft: true, withStats: false });
+            showAlert('Updated.', 'success');
+            return true;
+        } catch (error) {
+            showAlert(error.response?.data?.error || error.message || 'Action failed', 'error');
+            return false;
+        }
+    };
+
+    const downloadInvoice = async (payment, query = {}) => {
+        try {
+            const token = getAuthToken();
+            const paymentId = String(payment?._id || payment?.id || '');
+            const params = { kind: 'invoice' };
+            if (query.scope) params.scope = query.scope;
+            if (query.courseId && !String(query.courseId).includes('[object')) params.courseId = query.courseId;
+            if (query.studentId && !String(query.studentId).includes('[object')) params.studentId = query.studentId;
+            if (query.courseName) params.courseName = query.courseName;
+            const response = await axios.get(`${API_BASE_URL}/api/payments/${paymentId}/invoice`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params,
+                responseType: 'blob',
+            });
+            const contentType = String(response.headers['content-type'] || '');
+            if (contentType.includes('application/json')) {
+                const text = await response.data.text();
+                const parsed = JSON.parse(text);
+                throw new Error(parsed.error || parsed.message || 'Could not download the invoice.');
+            }
+            const url = window.URL.createObjectURL(response.data);
+            const a = document.createElement('a');
+            a.href = url;
+            const coursePart = String(query.courseName || '').replace(/[^a-zA-Z0-9-_]/g, '_');
+            a.download = `invoice_${String(payment.invoiceNumber || payment.transactionId || paymentId).replace(/[^a-zA-Z0-9-_]/g, '_')}${coursePart ? `_${coursePart}` : ''}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            let message = error.response?.data?.error || error.message || 'Could not download the invoice.';
+            const data = error.response?.data;
+            if (typeof Blob !== 'undefined' && data instanceof Blob) {
+                try {
+                    const parsed = JSON.parse(await data.text());
+                    message = parsed.error || parsed.message || message;
+                } catch {
+                    /* keep message */
+                }
+            }
+            showAlert(message, 'error');
+            throw error;
+        }
+    };
+
+    const handleInvoiceButtonClick = (button) => {
+        if (button?.multi) {
+            setInvoicePicker(button);
+            return;
+        }
+        const target = button?.separateTargets?.[0];
+        downloadInvoice(target?.payment || button.payment, {
+            courseId: target?.courseId,
+            studentId: target?.studentId,
+            courseName: target?.courseName,
+        }).catch(() => {});
+    };
+
+    const downloadCombinedFromPicker = async () => {
+        if (!invoicePicker) return;
+        const picker = invoicePicker;
+        setInvoicePicker(null);
+        try {
+            await downloadInvoice(picker.payment, { scope: 'combined' });
+        } catch {
+            /* alert already shown */
+        }
+    };
+
+    const downloadSeparateFromPicker = async () => {
+        if (!invoicePicker) return;
+        const targets = invoicePicker.separateTargets || [];
+        setInvoicePicker(null);
+        const failed = [];
+        for (const target of targets) {
+            try {
+                await downloadInvoice(target.payment, {
+                    courseId: target.courseId,
+                    studentId: target.studentId,
+                    courseName: target.courseName,
+                });
+            } catch (err) {
+                failed.push(`${target.label}: ${err?.message || 'download failed'}`);
+            }
+        }
+        if (failed.length) {
+            showAlert(
+                failed.length === targets.length
+                    ? `Could not download invoices. ${failed.join(' | ')}`
+                    : `Some invoices did not download: ${failed.join(' | ')}`,
+                'error'
+            );
+        }
+    };
+
+    const handleRefundPayment = (payment) =>
+        runPaymentAction(payment._id, 'refund', {}, {
+            title: 'Refund this payment?',
+            message: payment.groupId
+                ? 'This was part of a combined checkout. The full Stripe charge will be refunded.'
+                : 'This will refund the Stripe charge if one exists, or mark a bank/manual payment as refunded.',
+            confirmLabel: 'Refund',
+        });
+
+    const handleMarkReceived = (payment) =>
+        runPaymentAction(payment._id, 'mark-received', {}, {
+            title: 'Mark as received?',
+            message: 'This marks the bill paid and enrolls the student(s). Use this for bank or cash payments.',
+            confirmLabel: 'Mark received',
+        });
+
+    const handleDeclinePayment = (payment) => {
+        setDeclineModal({
+            id: payment._id,
+            note: '',
+            saving: false,
+            label: payment.course?.title || payment.courseName || 'this bill',
+        });
+    };
+
+    const submitDecline = async () => {
+        if (!declineModal?.id) return;
+        setDeclineModal((prev) => (prev ? { ...prev, saving: true } : prev));
+        const ok = await runPaymentAction(declineModal.id, 'cancel', {
+            reason: String(declineModal.note || '').trim(),
+        });
+        if (ok) setDeclineModal(null);
+        else setDeclineModal((prev) => (prev ? { ...prev, saving: false } : prev));
+    };
+
+    const handleExtendDueDate = (payment) => {
+        setDueDateModal({
+            id: payment._id,
+            date: toDateInputValue(payment.dueDate),
+            saving: false,
+            label: payment.course?.title || payment.courseName || 'this bill',
+        });
+    };
+
+    const submitDueDate = async () => {
+        if (!dueDateModal?.id || !dueDateModal.date) return;
+        setDueDateModal((prev) => (prev ? { ...prev, saving: true } : prev));
+        const ok = await runPaymentAction(dueDateModal.id, 'due-date', { dueDate: dueDateModal.date });
+        if (ok) setDueDateModal(null);
+        else setDueDateModal((prev) => (prev ? { ...prev, saving: false } : prev));
+    };
+
+    const handleDeletePayment = async (payment) => {
         if (listTab !== 'active') return;
+        const ids = idsForPaymentRow(payment);
         const confirmed = await showConfirm({
             title: `Move to ${QUARANTINE_LABEL}?`,
             message: `Move this payment record to ${QUARANTINE_LABEL}? You can restore it from the ${QUARANTINE_LABEL} tab.`,
@@ -538,116 +889,19 @@ const PaymentsManagement = () => {
 
         try {
             const token = getAuthToken();
-            await axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setSelectedPayments((prev) => prev.filter((id) => id !== paymentId));
-            await fetchPayments();
+            await Promise.all(
+                ids.map((paymentId) =>
+                    axios.delete(`${API_BASE_URL}/api/payments/${paymentId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    })
+                )
+            );
+            setSelectedPayments((prev) => prev.filter((id) => !ids.includes(id)));
+            await fetchPayments({ soft: true, withStats: false });
             showAlert(`Payment ${MOVED_TO_QUARANTINE_PHRASE}.`, 'success');
         } catch (error) {
             showAlert(error.response?.data?.error || `${FAILED_MOVE_TO_QUARANTINE_PHRASE}.`, 'error');
         }
-    };
-
-    const triggerDownload = (blob, fileName) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    };
-
-    const downloadInvoice = async (payment) => {
-        const safeTransactionId = (payment.transactionId || payment._id || 'invoice').replace(/[^a-zA-Z0-9-_]/g, '_');
-        const fileName = `invoice_${safeTransactionId}.pdf`;
-
-        try {
-            const token = getAuthToken();
-            const response = await axios.get(`${API_BASE_URL}/api/payments/${payment._id}/invoice`, {
-                headers: { Authorization: `Bearer ${token}` },
-                responseType: 'blob'
-            });
-
-            const contentType = response.headers['content-type'] || 'application/pdf';
-            const extension = contentType.includes('pdf') ? 'pdf' : 'txt';
-            triggerDownload(response.data, `invoice_${safeTransactionId}.${extension}`);
-            return;
-        } catch (error) {
-            console.warn('Invoice endpoint unavailable, generating local invoice file instead:', error);
-        }
-
-        const doc = new jsPDF();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const marginX = 14;
-        let cursorY = 18;
-
-        const rowHeight = 10;
-        const leftColWidth = 55;
-        const rightColWidth = pageWidth - (marginX * 2) - leftColWidth;
-        const tableWidth = leftColWidth + rightColWidth;
-
-        const invoiceRows = [
-            ['Transaction ID', payment.transactionId || 'N/A'],
-            ['Student', payment.user?.name || payment.studentName || 'Unknown'],
-            ['Email', paymentRegistrationEmail(payment) || 'N/A'],
-            ['Phone', payment.phone || 'N/A'],
-            ['Course', payment.course?.title || payment.courseName || 'Unknown Course'],
-            ['Amount', `$${Number(payment.amount || 0).toFixed(2)} ${payment.currency || ''}`.trim()],
-            ['Status', payment.status || 'N/A'],
-            ['Payment Method', payment.paymentMethod || 'N/A'],
-            ['Payment Date', payment.createdAt ? new Date(payment.createdAt).toLocaleString() : 'N/A'],
-            ['Generated At', new Date().toLocaleString()]
-        ];
-
-        doc.setFontSize(17);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Gorythm - Payment Invoice', marginX, cursorY);
-        cursorY += 8;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Invoice #: ${safeTransactionId}`, marginX, cursorY);
-        cursorY += 10;
-
-        // Table header
-        doc.setFillColor(243, 244, 246);
-        doc.rect(marginX, cursorY, tableWidth, rowHeight, 'F');
-        doc.rect(marginX, cursorY, leftColWidth, rowHeight);
-        doc.rect(marginX + leftColWidth, cursorY, rightColWidth, rowHeight);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text('Field', marginX + 2, cursorY + 6.5);
-        doc.text('Value', marginX + leftColWidth + 2, cursorY + 6.5);
-        cursorY += rowHeight;
-
-        // Table body
-        invoiceRows.forEach(([label, value], idx) => {
-            if (idx % 2 === 0) {
-                doc.setFillColor(250, 250, 250);
-                doc.rect(marginX, cursorY, tableWidth, rowHeight, 'F');
-            }
-
-            doc.rect(marginX, cursorY, leftColWidth, rowHeight);
-            doc.rect(marginX + leftColWidth, cursorY, rightColWidth, rowHeight);
-            doc.setFont('helvetica', 'bold');
-            doc.text(String(label), marginX + 2, cursorY + 6.5);
-            doc.setFont('helvetica', 'normal');
-
-            const wrappedValue = doc.splitTextToSize(String(value), rightColWidth - 4);
-            doc.text(wrappedValue, marginX + leftColWidth + 2, cursorY + 6.5);
-
-            const dynamicRowHeight = Math.max(rowHeight, (wrappedValue.length * 5) + 3);
-            if (dynamicRowHeight > rowHeight) {
-                doc.rect(marginX, cursorY, leftColWidth, dynamicRowHeight);
-                doc.rect(marginX + leftColWidth, cursorY, rightColWidth, dynamicRowHeight);
-            }
-
-            cursorY += dynamicRowHeight;
-        });
-
-        doc.save(fileName);
     };
 
     const exportPayments = async () => {
@@ -733,6 +987,7 @@ const PaymentsManagement = () => {
             </div>
 
             {listTab === 'active' ? (
+            <>
             <div className="payments-bank-config">
                 <button
                     type="button"
@@ -822,9 +1077,38 @@ const PaymentsManagement = () => {
                     </div>
                 ) : null}
             </div>
+            <div className="payments-bank-config">
+                <div className="payments-bank-config__body" style={{ display: 'block', padding: '1rem 1.25rem' }}>
+                    <p className="payments-bank-config__lead">
+                        Default fee due date for all courses. Student and parent Fees pages show this date. It is not
+                        shown on the public website. Unpaid through this date; Overdue from the next day (Pakistan time).
+                    </p>
+                    <div className="payments-bank-config__grid">
+                        <div className="form-group">
+                            <label>Default due date</label>
+                            <input
+                                type="date"
+                                value={dueDateDefault}
+                                onChange={(e) => setDueDateDefault(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="payments-bank-config__actions">
+                        {dueDateMessage ? <span className="payments-bank-config__msg">{dueDateMessage}</span> : null}
+                        <button
+                            type="button"
+                            className="btn-primary btn-save"
+                            onClick={saveDefaultDueDate}
+                            disabled={dueDateSaving}
+                        >
+                            <i className={`fas ${dueDateSaving ? 'fa-spinner fa-spin' : 'fa-calendar-day'}`} />{' '}
+                            {dueDateSaving ? 'Saving…' : 'Save default due date'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            </>
             ) : null}
-
-            {/* Stats Cards */}
             {listTab === 'active' ? (
             <div className="stats-grid">
                 <div
@@ -839,7 +1123,7 @@ const PaymentsManagement = () => {
                         <i className="fas fa-dollar-sign"></i>
                     </div>
                     <div className="stat-info">
-                        <h3>${stats.totalRevenue.toFixed(2)}</h3>
+                        <h3>${Number(stats.totalRevenue || 0).toFixed(2)}</h3>
                         <p>Total Revenue</p>
                     </div>
                 </div>
@@ -929,13 +1213,13 @@ const PaymentsManagement = () => {
                         onChange={(e) => setFilterStatus(e.target.value)}
                     >
                         <option value="all">All Status</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="awaiting_review">Pending Verification</option>
                         <option value="paid">Paid</option>
-                        <option value="awaiting_review">Awaiting review</option>
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="failed">Failed</option>
                         <option value="refunded">Refunded</option>
+                        <option value="cancelled">Declined</option>
+                        <option value="failed">Failed</option>
                     </select>
                     
                     <select 
@@ -951,7 +1235,7 @@ const PaymentsManagement = () => {
                     
                     <button
                         className={`refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
-                        onClick={() => fetchPayments({ soft: true })}
+                        onClick={() => fetchPayments({ soft: true, withStats: true })}
                         disabled={refreshing}
                         type="button"
                         title="Refresh"
@@ -1096,13 +1380,16 @@ const PaymentsManagement = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {paginatedPayments.map((payment) => (
-                            <tr key={payment._id} className={selectedPayments.includes(payment._id) ? 'selected' : ''}>
+                        {paginatedPayments.map((payment) => {
+                            const rowIds = idsForPaymentRow(payment);
+                            const rowSelected = rowIds.every((id) => selectedPayments.includes(id));
+                            return (
+                            <tr key={payment._id} className={rowSelected ? 'selected' : ''}>
                                 <td className="checkbox-cell">
                                     <input
                                         type="checkbox"
-                                        checked={selectedPayments.includes(payment._id)}
-                                        onChange={() => togglePaymentSelection(payment._id)}
+                                        checked={rowSelected}
+                                        onChange={() => togglePaymentSelection(payment)}
                                     />
                                 </td>
                                 <td className="transaction-id-cell">
@@ -1111,7 +1398,9 @@ const PaymentsManagement = () => {
                                         title={payment.transactionId ? `Full ID: ${payment.transactionId}` : ''}
                                     >
                                         <i className="fas fa-receipt" aria-hidden />
-                                        <code className="transaction-id-short">{shortenTxnId(payment.transactionId)}</code>
+                                        <code className="transaction-id-full" title={payment.transactionId || ''}>
+                                            {payment.transactionId || '—'}
+                                        </code>
                                         {payment.transactionId ? (
                                             <button
                                                 type="button"
@@ -1144,6 +1433,16 @@ const PaymentsManagement = () => {
                                         <i className="fas fa-book"></i>
                                         {payment.course?.title || payment.courseName || 'Unknown Course'}
                                     </div>
+                                    {Array.isArray(payment.lines) && payment.lines.length > 1 ? (
+                                        <ul className="payment-line-list">
+                                            {payment.lines.map((line, index) => (
+                                                <li key={`${payment._id}-line-${index}`}>
+                                                    {line.studentName ? `${line.studentName} · ` : ''}
+                                                    {line.courseName} · ${Number(line.amount || 0).toFixed(2)}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : null}
                                 </td>
                                 <td>
                                     <span className="amount-badge">
@@ -1158,10 +1457,19 @@ const PaymentsManagement = () => {
                                 </td>
                                 <td className="phone-cell">{payment.phone || '—'}</td>
                                 <td>
-                                    <span className={`status-badge ${payment.status === 'completed' ? 'paid' : payment.status}`}>
-                                        <i className={`fas fa-${getStatusIcon(payment.status)}`}></i>
-                                        {formatPaymentStatus(payment.status)}
+                                    <span className={`status-badge ${payment.displayStatus === 'paid' || payment.status === 'completed' ? 'paid' : (payment.displayStatus || payment.status)}`}>
+                                        <i className={`fas fa-${getStatusIcon(payment.displayStatus || payment.status)}`}></i>
+                                        {formatPaymentStatus(payment.status, payment.displayStatus)}
                                     </span>
+                                    {payment.displayStatus === 'overdue' && (payment.overdueSince || payment.dueDate) ? (
+                                        <div className="payment-failure-reason">
+                                            Overdue since {new Date(payment.overdueSince || payment.dueDate).toLocaleDateString()}
+                                        </div>
+                                    ) : !isPaymentPaid(payment.status) && payment.dueDate ? (
+                                        <div className="payment-failure-reason">
+                                            Due {new Date(payment.dueDate).toLocaleDateString()}
+                                        </div>
+                                    ) : null}
                                     {payment.failureReason ? (
                                         <div className="payment-failure-reason" title={payment.failureReason}>
                                             {payment.failureReason}
@@ -1173,6 +1481,11 @@ const PaymentsManagement = () => {
                                         <i className={methodIconClass(payment.paymentMethod)}></i>
                                         {payment.paymentMethod}
                                     </span>
+                                    {payment.cardLast4 ? (
+                                        <div className="payment-failure-reason">
+                                            {`${String(payment.cardBrand || 'Card').replace(/^./, (ch) => ch.toUpperCase())} •••• ${payment.cardLast4}`}
+                                        </div>
+                                    ) : null}
                                 </td>
                                 <td>
                                     {listTab === 'trash'
@@ -1188,12 +1501,24 @@ const PaymentsManagement = () => {
                                                 {payment.proofUrl ? (
                                                     <button
                                                         className="action-btn receipt-btn"
-                                                        title="View receipt"
-                                                        onClick={() => setReceiptModal(payment)}
+                                                        type="button"
+                                                        title="View payment proof"
+                                                        onClick={() => setProofModal(payment)}
                                                     >
-                                                        <i className="fas fa-receipt"></i> Receipt
+                                                        <i className="fas fa-image"></i> Proof
                                                     </button>
                                                 ) : null}
+                                                {(payment.invoiceButtons || [{ key: payment._id, label: 'Invoice', payment }]).map((button) => (
+                                                    <button
+                                                        key={button.key}
+                                                        className="action-btn invoice-btn"
+                                                        type="button"
+                                                        title="Download invoice"
+                                                        onClick={() => handleInvoiceButtonClick(button)}
+                                                    >
+                                                        <i className="fas fa-file-invoice"></i> Invoice
+                                                    </button>
+                                                ))}
                                                 {canOpenStudentFromPayment(payment) ? (
                                                     <Link
                                                         className="action-btn students-btn"
@@ -1203,17 +1528,30 @@ const PaymentsManagement = () => {
                                                         <i className="fas fa-user-graduate"></i> Student
                                                     </Link>
                                                 ) : null}
-                                                <button
-                                                    className="action-btn invoice-btn"
-                                                    title="Download Invoice"
-                                                    onClick={() => downloadInvoice(payment)}
-                                                >
-                                                    <i className="fas fa-file-invoice"></i> Invoice
-                                                </button>
+                                                {!isPaymentPaid(payment.status) && payment.status !== 'refunded' && payment.status !== 'cancelled' ? (
+                                                    <>
+                                                        <button className="action-btn students-btn" type="button" onClick={() => handleMarkReceived(payment)}>
+                                                            Mark received
+                                                        </button>
+                                                        {payment.status !== 'awaiting_review' && payment.status !== 'processing' ? (
+                                                            <button className="action-btn invoice-btn" type="button" onClick={() => handleExtendDueDate(payment)}>
+                                                                Extend due date
+                                                            </button>
+                                                        ) : null}
+                                                        <button className="action-btn delete-btn" type="button" onClick={() => handleDeclinePayment(payment)}>
+                                                            Decline
+                                                        </button>
+                                                    </>
+                                                ) : null}
+                                                {isPaymentPaid(payment.status) ? (
+                                                    <button className="action-btn restore-btn" type="button" onClick={() => handleRefundPayment(payment)}>
+                                                        Refund
+                                                    </button>
+                                                ) : null}
                                                 <button
                                                     className="action-btn delete-btn"
                                                     title={`Move to ${QUARANTINE_LABEL}`}
-                                                    onClick={() => handleDeletePayment(payment._id)}
+                                                    onClick={() => handleDeletePayment(payment)}
                                                 >
                                                     <i className="fas fa-trash"></i> Delete
                                                 </button>
@@ -1241,11 +1579,12 @@ const PaymentsManagement = () => {
                                     </div>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
 
-                {sortedPayments.length === 0 && (
+                {payments.length === 0 && (
                     <div className="no-results">
                         <i className="fas fa-credit-card"></i>
                         <h3>No Payments Found</h3>
@@ -1254,7 +1593,7 @@ const PaymentsManagement = () => {
                 )}
             </div>
 
-            {sortedPayments.length > 0 ? (
+            {payments.length > 0 ? (
                 <div className="payments-pagination">
                     <button
                         type="button"
@@ -1266,7 +1605,7 @@ const PaymentsManagement = () => {
                     </button>
                     <span className="payments-pagination__info">
                         Page {currentPage} of {totalPages} | {totalPayments} matching payment
-                        {sortedPayments.length === 1 ? '' : 's'}
+                        {totalPayments === 1 ? '' : 's'}
                     </span>
                     <button
                         type="button"
@@ -1302,36 +1641,191 @@ const PaymentsManagement = () => {
                 </div>
             </div>
 
-            {receiptModal?.proofUrl ? (
+            {invoicePicker ? (
+                <div className="payment-invoice-picker" role="dialog" aria-modal="true" aria-labelledby="payment-invoice-picker-title">
+                    <div
+                        className="payment-invoice-picker__backdrop"
+                        onClick={() => setInvoicePicker(null)}
+                    />
+                    <div className="payment-invoice-picker__panel">
+                        <header className="payment-invoice-picker__head">
+                            <h3 id="payment-invoice-picker-title">Download invoice</h3>
+                            <button
+                                type="button"
+                                className="payment-invoice-picker__close"
+                                onClick={() => setInvoicePicker(null)}
+                                aria-label="Close"
+                            >
+                                ×
+                            </button>
+                        </header>
+                        <div className="payment-invoice-picker__body">
+                            <p>
+                                This row includes more than one course. Download one combined invoice, or a separate invoice for each course.
+                            </p>
+                            <div className="payment-invoice-picker__actions">
+                                <button
+                                    type="button"
+                                    className="payment-invoice-picker__btn"
+                                    onClick={downloadCombinedFromPicker}
+                                >
+                                    Combined invoice
+                                </button>
+                                <button
+                                    type="button"
+                                    className="payment-invoice-picker__btn"
+                                    onClick={downloadSeparateFromPicker}
+                                >
+                                    Separate invoices
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {dueDateModal ? (
                 <div className="payment-receipt-modal" role="dialog" aria-modal="true">
-                    <div className="payment-receipt-modal__backdrop" onClick={() => setReceiptModal(null)} />
-                    <div className="payment-receipt-modal__panel">
+                    <div
+                        className="payment-receipt-modal__backdrop"
+                        onClick={() => !dueDateModal.saving && setDueDateModal(null)}
+                    />
+                    <div className="payment-receipt-modal__panel payment-due-modal">
                         <div className="payment-receipt-modal__head">
-                            <h3>Payment Receipt</h3>
-                            <button type="button" className="payment-receipt-modal__close" onClick={() => setReceiptModal(null)}>
+                            <h3>Extend due date</h3>
+                            <button
+                                type="button"
+                                className="payment-receipt-modal__close"
+                                onClick={() => !dueDateModal.saving && setDueDateModal(null)}
+                            >
                                 <i className="fas fa-times" />
                             </button>
                         </div>
                         <p>
-                            {receiptModal.studentName || receiptModal.user?.name || 'Student'} —{' '}
-                            {receiptModal.course?.title || receiptModal.courseName || 'Course'}
+                            Choose a later due date for {dueDateModal.label}. Unpaid stays Unpaid through this date.
+                            Overdue starts the next day. To set the first due date, open Students → the student →
+                            Edit course → Fee due date.
                         </p>
-                        {String(receiptModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
-                            <a
-                                href={resolveMediaUrl(receiptModal.proofUrl)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="payment-receipt-modal__pdf-link"
+                        <label className="payment-due-modal__field">
+                            Due date
+                            <input
+                                type="date"
+                                value={dueDateModal.date || ''}
+                                onChange={(e) => setDueDateModal((prev) => (prev ? { ...prev, date: e.target.value } : prev))}
+                                disabled={dueDateModal.saving}
+                            />
+                        </label>
+                        <div className="payment-due-modal__actions">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={dueDateModal.saving}
+                                onClick={() => setDueDateModal(null)}
                             >
-                                <i className="fas fa-file-pdf" /> Open PDF receipt
-                            </a>
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-add"
+                                disabled={dueDateModal.saving || !dueDateModal.date}
+                                onClick={submitDueDate}
+                            >
+                                {dueDateModal.saving ? 'Saving…' : 'Save due date'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {declineModal ? (
+                <div className="payment-receipt-modal" role="dialog" aria-modal="true">
+                    <div
+                        className="payment-receipt-modal__backdrop"
+                        onClick={() => !declineModal.saving && setDeclineModal(null)}
+                    />
+                    <div className="payment-receipt-modal__panel payment-due-modal">
+                        <div className="payment-receipt-modal__head">
+                            <h3>Decline this unpaid bill?</h3>
+                            <button
+                                type="button"
+                                className="payment-receipt-modal__close"
+                                onClick={() => !declineModal.saving && setDeclineModal(null)}
+                            >
+                                <i className="fas fa-times" />
+                            </button>
+                        </div>
+                        <p>
+                            Paid payments cannot be declined. Use refund for paid charges. A note here is shown on the student and parent Fees pages.
+                        </p>
+                        <label className="payment-due-modal__field">
+                            Note for student / parent
+                            <textarea
+                                rows={4}
+                                maxLength={500}
+                                value={declineModal.note || ''}
+                                onChange={(e) => setDeclineModal((prev) => (prev ? { ...prev, note: e.target.value } : prev))}
+                                disabled={declineModal.saving}
+                                placeholder="Why this bill is declined"
+                            />
+                        </label>
+                        <div className="payment-due-modal__actions">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={declineModal.saving}
+                                onClick={() => setDeclineModal(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-add"
+                                disabled={declineModal.saving}
+                                onClick={submitDecline}
+                            >
+                                {declineModal.saving ? 'Declining…' : 'Decline'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {proofModal?.proofUrl ? (
+                <div className="payment-receipt-modal" role="dialog" aria-modal="true">
+                    <div className="payment-receipt-modal__backdrop" onClick={() => setProofModal(null)} />
+                    <div className="payment-receipt-modal__panel">
+                        <div className="payment-receipt-modal__head">
+                            <h3>Payment proof</h3>
+                            <button type="button" className="payment-receipt-modal__close" onClick={() => setProofModal(null)}>
+                                <i className="fas fa-times" />
+                            </button>
+                        </div>
+                        <p>
+                            {proofModal.studentName || proofModal.user?.name || 'Student'} —{' '}
+                            {proofModal.course?.title || proofModal.courseName || 'Course'}
+                        </p>
+                        {String(proofModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
+                            <iframe
+                                title="Payment proof PDF"
+                                src={resolveMediaUrl(proofModal.proofUrl)}
+                                className="payment-receipt-modal__image"
+                            />
                         ) : (
                             <img
-                                src={resolveMediaUrl(receiptModal.proofUrl)}
+                                src={resolveMediaUrl(proofModal.proofUrl)}
                                 alt="Payment proof"
                                 className="payment-receipt-modal__image"
                             />
                         )}
+                        <a
+                            href={resolveMediaUrl(proofModal.proofUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                            className="payment-receipt-modal__pdf-link"
+                        >
+                            <i className="fas fa-download" /> Download proof
+                        </a>
                     </div>
                 </div>
             ) : null}
@@ -1389,7 +1883,10 @@ const getStatusIcon = (status) => {
         case 'paid':
         case 'completed': return 'check-circle';
         case 'awaiting_review': return 'hourglass-half';
+        case 'overdue': return 'exclamation-circle';
+        case 'unpaid':
         case 'pending': return 'clock';
+        case 'cancelled':
         case 'rejected': return 'ban';
         case 'failed': return 'times-circle';
         case 'refunded': return 'undo';

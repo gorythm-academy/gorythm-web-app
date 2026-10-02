@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM } from './authStorage';
+import { getAuthToken, AUTH_REALM, inferAuthRealm } from './authStorage';
 
 const PROTECTED_UPLOAD_PREFIXES = [
   '/api/uploads/payment-proofs/',
@@ -26,6 +26,10 @@ export function normalizeStoredUploadPath(path) {
 
   if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
     const relative = raw.startsWith('/') ? raw : `/${raw}`;
+    if (relative.startsWith('/api/uploads/')) return relative.split('?')[0];
+    if (!relative.includes('..')) {
+      return `/api/uploads/${relative.replace(/^\//, '')}`.split('?')[0];
+    }
     return relative.split('?')[0];
   }
 
@@ -46,10 +50,49 @@ function appendUploadAuth(url, options = {}) {
   }
   if (typeof window === 'undefined') return url;
 
-  const token = getAuthToken(AUTH_REALM.PORTAL) || getAuthToken(AUTH_REALM.ADMIN);
+  const realm = options.realm || inferAuthRealm();
+  const token =
+    getAuthToken(realm) ||
+    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN);
   if (!token) return url;
 
   return `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+}
+
+/** Download a protected upload using JWT (falls back to opening in a new tab). */
+export async function downloadProtectedUpload(path, options = {}) {
+  const href = absFileUrl(path, options);
+  if (!href) return;
+
+  const realm = options.realm || inferAuthRealm();
+  const token =
+    getAuthToken(realm) ||
+    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN);
+
+  if (token) {
+    try {
+      const res = await fetch(href, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = uploadDisplayName(path);
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+    } catch {
+      /* fall through to open in new tab */
+    }
+  }
+
+  window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 /** Turn stored upload path or full URL into a browser-openable link */

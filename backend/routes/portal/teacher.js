@@ -40,6 +40,7 @@ const {
     recordDueDateExtension,
     isAssignmentLockedForTeacher,
     mapSubmissionForPortal,
+    resolveValidScheduleTargets,
 } = require('../../utils/lmsContentRules');
 const { buildQuizReviewPayload, formatScoreDisplay } = require('../../utils/quizReview');
 const {
@@ -49,6 +50,8 @@ const {
     teacherQuizScopeFilter,
     assertTeacherOwnsAssignment,
     findQuizForTeacher,
+    normalizeQuizFiles,
+    isAdminLockedQuiz,
     normalizeQuizQuestions,
     dedupeAttendanceRecords,
     attendancePeriodBounds,
@@ -132,6 +135,7 @@ router.get('/teacher/assignments', allowPortalRoles('teacher'), async (req, res)
         })
             .populate('course', 'title')
             .populate('teacher', 'name')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime')
             .sort({ dueDate: -1 });
         res.json({
             success: true,
@@ -575,26 +579,49 @@ router.get('/teacher/attendance/report', allowPortalRoles('teacher'), async (req
 
 router.post('/teacher/assignments', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const { courseId, title, description, dueDate, status, attachments } = req.body;
+        const { courseId, scheduleId, scheduleIds, title, description, dueDate, status, attachments } = req.body;
         if (!courseId || !title || !dueDate) {
             return res.status(400).json({ success: false, error: 'courseId, title, and dueDate are required' });
         }
         await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const parsedDueDate = assertDueDateNotPast(dueDate);
-        const assignment = await Assignment.create({
-            title: String(title).trim(),
-            description: description || '',
-            course: courseId,
-            teacher: req.portalActorId,
-            dueDate: parsedDueDate,
-            attachments: Array.isArray(attachments) ? attachments : [],
-            status: status || 'published',
-            createdByRole: 'teacher',
-            createdByUser: req.portalActorId,
-            lockedForTeacher: false,
+        const ids = Array.isArray(scheduleIds) && scheduleIds.length
+            ? scheduleIds
+            : scheduleId
+              ? [scheduleId]
+              : [];
+        if (!ids.length) {
+            return res.status(400).json({ success: false, error: 'Select at least one class slot' });
+        }
+        const targets = await resolveValidScheduleTargets({
+            scheduleIds: ids,
+            teacherId: req.portalActorId,
+            courseId,
         });
-        const populated = await Assignment.findById(assignment._id).populate('course', 'title');
-        res.status(201).json({ success: true, assignment: populated });
+        const created = await Assignment.insertMany(
+            targets.map(({ courseId: cid, teacherId: tid, scheduleId: sid }) => ({
+                title: String(title).trim(),
+                description: description || '',
+                course: cid,
+                teacher: tid,
+                assignedSchedule: sid,
+                dueDate: parsedDueDate,
+                attachments: Array.isArray(attachments) ? attachments : [],
+                status: status || 'published',
+                createdByRole: 'teacher',
+                createdByUser: req.portalActorId,
+                lockedForTeacher: false,
+            }))
+        );
+        const populated = await Assignment.find({ _id: { $in: created.map((a) => a._id) } })
+            .populate('course', 'title')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
+        res.status(201).json({
+            success: true,
+            createdCount: populated.length,
+            assignments: populated.map((a) => mapAssignmentForPortal(a, { viewerRole: 'teacher' })),
+            assignment: populated[0] ? mapAssignmentForPortal(populated[0], { viewerRole: 'teacher' }) : null,
+        });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to create assignment' });
@@ -603,25 +630,40 @@ router.post('/teacher/assignments', allowPortalRoles('teacher'), async (req, res
 
 router.post('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) => {
     try {
-        const { courseId, title, questions, totalMarks, dueDate, status, resourceLink, resourceFileUrl } =
-            req.body;
+        const { courseId, title, questions, totalMarks, dueDate, status } = req.body;
+        const quizType = req.body.quizType === 'file' ? 'file' : 'mcq';
         if (!courseId || !title) {
             return res.status(400).json({ success: false, error: 'courseId and title are required' });
         }
-        const normalized = normalizeQuizQuestions(questions);
-        if (!normalized.length) {
-            return res.status(400).json({ success: false, error: 'Add at least one question with 3 options' });
+        const files = normalizeQuizFiles(req.body);
+        let normalized = [];
+        if (quizType === 'file') {
+            if (!files.resourceLink && !files.attachments.length) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Add a reading link or a study file for a file/reading quiz',
+                });
+            }
+        } else {
+            normalized = normalizeQuizQuestions(questions);
+            if (!normalized.length) {
+                return res.status(400).json({ success: false, error: 'Add at least one question with 3 options' });
+            }
         }
         await assertTeacherOwnsCourse(req.portalActorId, courseId);
         const quiz = await Quiz.create({
             title: String(title).trim(),
             course: courseId,
             teacher: req.portalActorId,
+            quizType,
             questions: normalized,
-            totalMarks: totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null,
+            totalMarks: quizType === 'file' ? null : (totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null),
             dueDate: dueDate ? new Date(dueDate) : null,
-            resourceLink: resourceLink ? String(resourceLink).trim() : '',
-            resourceFileUrl: resourceFileUrl ? String(resourceFileUrl).trim() : '',
+            resourceLink: quizType === 'file' ? files.resourceLink : '',
+            resourceFileUrl: quizType === 'file' ? files.resourceFileUrl : '',
+            attachments: quizType === 'file' ? files.attachments : [],
+            createdByRole: 'teacher',
+            lockedForTeacher: false,
             status: status || 'published',
         });
         res.status(201).json({ success: true, quiz });
@@ -675,7 +717,7 @@ router.patch('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
         await assertTeacherOwnsAssignment(req.portalActorId, assignment);
         const locked = isAssignmentLockedForTeacher(assignment);
-        const { title, description, dueDate, status, attachments, extendDueDate } = req.body;
+        const { title, description, dueDate, status, attachments, extendDueDate, scheduleId } = req.body;
 
         if (locked) {
             if (dueDate && (extendDueDate || locked)) {
@@ -695,12 +737,21 @@ router.patch('/teacher/assignments/:id', allowPortalRoles('teacher'), async (req
             }
             if (status !== undefined) assignment.status = status;
             if (attachments !== undefined) assignment.attachments = Array.isArray(attachments) ? attachments : [];
+            if (scheduleId) {
+                const [target] = await resolveValidScheduleTargets({
+                    scheduleIds: [scheduleId],
+                    teacherId: req.portalActorId,
+                    courseId: assignment.course,
+                });
+                assignment.assignedSchedule = target.scheduleId;
+            }
         }
 
         await assignment.save();
         const populated = await Assignment.findById(assignment._id)
             .populate('course', 'title')
-            .populate('teacher', 'name');
+            .populate('teacher', 'name')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
         res.json({
             success: true,
             assignment: mapAssignmentForPortal(populated, { viewerRole: 'teacher' }),
@@ -841,15 +892,32 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
         }
         const quiz = await findQuizForTeacher(req.portalActorId, req.params.id);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
+        if (isAdminLockedQuiz(quiz)) {
+            return res.status(403).json({ success: false, error: 'This quiz was published by admin and cannot be edited here.' });
+        }
         const attemptCount = await QuizAttempt.countDocuments({ quiz: quiz._id, ...activeLmsFilter() });
-        const { courseId, title, questions, totalMarks, dueDate, status, resourceLink, resourceFileUrl } =
-            req.body;
+        const { courseId, title, questions, totalMarks, dueDate, status } = req.body;
         if (courseId) {
             await assertTeacherOwnsCourse(req.portalActorId, courseId);
             quiz.course = courseId;
         }
         if (title !== undefined) quiz.title = String(title).trim();
-        if (questions !== undefined) {
+        if (quiz.quizType === 'file') {
+            const files = normalizeQuizFiles({
+                resourceLink: req.body.resourceLink !== undefined ? req.body.resourceLink : quiz.resourceLink,
+                resourceFileUrl: req.body.resourceFileUrl,
+                attachments: req.body.attachments !== undefined ? req.body.attachments : quiz.attachments,
+            });
+            quiz.resourceLink = files.resourceLink;
+            quiz.resourceFileUrl = files.resourceFileUrl;
+            quiz.attachments = files.attachments;
+            if (!quiz.resourceLink && !quiz.attachments.length) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'A file/reading quiz needs a reading link or a study file',
+                });
+            }
+        } else if (questions !== undefined) {
             if (attemptCount > 0) {
                 return res.status(400).json({
                     success: false,
@@ -862,15 +930,14 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
                 return res.status(400).json({ success: false, error: 'Add at least one valid question' });
             }
             quiz.questions = normalized;
+            quiz.attachments = [];
+            quiz.resourceFileUrl = '';
+            quiz.resourceLink = '';
         }
-        if (totalMarks !== undefined) {
+        if (totalMarks !== undefined && quiz.quizType !== 'file') {
             quiz.totalMarks = totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null;
         }
         if (dueDate !== undefined) quiz.dueDate = dueDate ? new Date(dueDate) : null;
-        if (resourceLink !== undefined) quiz.resourceLink = resourceLink ? String(resourceLink).trim() : '';
-        if (resourceFileUrl !== undefined) {
-            quiz.resourceFileUrl = resourceFileUrl ? String(resourceFileUrl).trim() : '';
-        }
         if (status !== undefined) quiz.status = status;
         await quiz.save();
         res.json({ success: true, quiz });
@@ -884,6 +951,9 @@ router.delete('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, r
     try {
         const quiz = await findQuizForTeacher(req.portalActorId, req.params.id);
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
+        if (isAdminLockedQuiz(quiz)) {
+            return res.status(403).json({ success: false, error: 'This quiz was published by admin and cannot be deleted here.' });
+        }
         const trashedAt = new Date();
         quiz.deletedAt = trashedAt;
         await quiz.save();

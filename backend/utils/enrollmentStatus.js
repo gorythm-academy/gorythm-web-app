@@ -1,4 +1,4 @@
-const ENROLLMENT_STATUS_OPTIONS = ['active', 'inactive', 'completed'];
+const ENROLLMENT_STATUS_OPTIONS = ['active', 'inactive', 'completed', 'paused'];
 const USER_STATUS_OPTIONS = ['active', 'inactive', 'completed'];
 
 /** Coerce legacy/missing values to active | inactive | completed. */
@@ -19,10 +19,22 @@ function isUserLoginAllowedFromStatus(status) {
     return normalized === 'active' || normalized === 'completed';
 }
 
+function isPausedEnrollment(status) {
+    return normalizeEnrollmentStatus(status) === 'paused';
+}
+
+/** In class: Active or Paused. Inactive is waiting / not in class. */
+function isClassOpenEnrollment(status) {
+    const normalized = normalizeEnrollmentStatus(status);
+    return normalized === 'active' || normalized === 'paused';
+}
+
 module.exports = {
     ENROLLMENT_STATUS_OPTIONS,
     USER_STATUS_OPTIONS,
     normalizeEnrollmentStatus,
     normalizeUserStatus,
     isUserLoginAllowedFromStatus,
+    isPausedEnrollment,
+    isClassOpenEnrollment,
 };

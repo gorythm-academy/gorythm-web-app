@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SummaryGrid } from '../shared/PortalUi';
+import {
+  PortalAlert,
+  PortalPageHeader,
+  PortalSummaryGridSkeleton,
+  SummaryGrid,
+} from '../shared/PortalUi';
 
 const formatMonth = (monthKey) => {
   const [y, m] = String(monthKey || '').split('-');
@@ -28,20 +33,7 @@ const AccountantDashboard = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (!summary) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = !summary;
 
   return (
     <div className="portal-page">
@@ -57,7 +49,8 @@ const AccountantDashboard = () => {
         </div>
       </div>
 
-      {payrollMissingAlerts.length > 0 ? (
+      {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
+      {!loading && payrollMissingAlerts.length > 0 ? (
         <PortalAlert type="warning">
           <strong>
             {payrollMissingAlerts.length} approved month{payrollMissingAlerts.length === 1 ? '' : 's'}{' '}
@@ -76,16 +69,20 @@ const AccountantDashboard = () => {
         </PortalAlert>
       ) : null}
 
-      <SummaryGrid
-        items={[
-          { label: 'Payroll to Review', value: summary.payrollPendingReview ?? 0, to: '/accountant/payroll' },
-          { label: 'Payroll Out of Date', value: summary.payrollStale ?? 0, to: '/accountant/payroll' },
-          { label: 'Missing Payroll', value: summary.payrollMissing ?? 0, to: '/accountant/payroll' },
-          { label: 'Payroll Paid', value: summary.payrollPaid ?? 0, to: '/accountant/payroll' },
-          { label: 'Student Payments', value: summary.payments, to: '/accountant/payments' },
-          { label: 'Pending Payments', value: summary.pending, to: '/accountant/payments' },
-        ]}
-      />
+      {loading ? (
+        <PortalSummaryGridSkeleton items={6} />
+      ) : (
+        <SummaryGrid
+          items={[
+            { label: 'Payroll to Review', value: summary.payrollPendingReview ?? 0, to: '/accountant/payroll' },
+            { label: 'Payroll Out of Date', value: summary.payrollStale ?? 0, to: '/accountant/payroll' },
+            { label: 'Missing Payroll', value: summary.payrollMissing ?? 0, to: '/accountant/payroll' },
+            { label: 'Payroll Paid', value: summary.payrollPaid ?? 0, to: '/accountant/payroll' },
+            { label: 'Student Payments', value: summary.payments, to: '/accountant/payments' },
+            { label: 'Pending Payments', value: summary.pending, to: '/accountant/payments' },
+          ]}
+        />
+      )}
 
       <div className="portal-quick-links">
         <Link to="/accountant/payments" className="portal-card portal-link-card">

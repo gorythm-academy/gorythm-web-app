@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 
 const ParentChildren = () => {
   const [children, setChildren] = useState(null);
@@ -15,26 +15,14 @@ const ParentChildren = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (children === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = children === null;
+  const list = children || [];
 
   return (
     <div className="portal-page">
       <PortalPageHeader
         title="My Children"
-        subtitle="Links are created by admin in LMS → Parent Links"
+        subtitle="Students linked to your parent account."
       />
 
       <div className="portal-hero portal-hero--parent">
@@ -43,7 +31,7 @@ const ParentChildren = () => {
         </div>
         <div>
           <h2>Linked Students</h2>
-          <p>Students connected to your parent account by the academy admin.</p>
+          <p>Students connected to your parent account by the academy.</p>
         </div>
       </div>
 
@@ -52,9 +40,10 @@ const ParentChildren = () => {
           <h2>Children List</h2>
         </div>
         <div className="portal-panel__body">
-          {children.length === 0 ? (
+          <PortalDataSection loading={loading} error={error} loadingLabel="Loading children…">
+            {list.length === 0 ? (
             <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-              No children linked yet. Contact admin.
+              No children are linked to this account yet. Please contact the academy to connect your child's profile.
             </p>
           ) : (
             <div className="portal-data-table-wrap">
@@ -67,7 +56,7 @@ const ParentChildren = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {children.map((r) => (
+                  {list.map((r) => (
                     <tr key={r._id}>
                       <td>
                         <strong>{r.student?.name || '—'}</strong>
@@ -79,7 +68,8 @@ const ParentChildren = () => {
                 </tbody>
               </table>
             </div>
-          )}
+            )}
+          </PortalDataSection>
         </div>
       </div>
     </div>

@@ -58,6 +58,7 @@ const AccountantPayroll = () => {
   const [attendanceModal, setAttendanceModal] = useState(null);
   const [editPayrollModal, setEditPayrollModal] = useState(null);
   const [rejectModal, setRejectModal] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [showExceptions, setShowExceptions] = useState(false);
   const [exceptionForm, setExceptionForm] = useState({
     teacherId: '',
@@ -168,11 +169,20 @@ const AccountantPayroll = () => {
     }
   };
 
-  const deleteProfile = async (row) => {
+  const deleteProfile = (row) => {
     const teacherId = row.teacher?._id || row.profile?.teacher;
     const teacherName = row.teacher?.name || 'this teacher';
     if (!teacherId) return;
-    if (!window.confirm(`Remove salary profile for ${teacherName}? This does not delete payroll runs.`)) return;
+    setConfirmModal({
+      title: 'Remove salary profile?',
+      message: `Remove salary profile for ${teacherName}? This does not delete payroll runs.`,
+      confirmLabel: 'Remove profile',
+      onConfirm: () => doDeleteProfile(teacherId),
+    });
+  };
+
+  const doDeleteProfile = async (teacherId) => {
+    setConfirmModal(null);
     setMsg('');
     setError('');
     try {
@@ -187,9 +197,18 @@ const AccountantPayroll = () => {
     }
   };
 
-  const deletePayrollRun = async (run) => {
+  const deletePayrollRun = (run) => {
     const label = run.teacher?.name || run.teacherName || 'this teacher';
-    if (!window.confirm(`Delete payroll for ${label} (${run.monthKey})? This cannot be undone.`)) return;
+    setConfirmModal({
+      title: 'Delete payroll run?',
+      message: `Delete payroll for ${label} (${run.monthKey})? This cannot be undone.`,
+      confirmLabel: 'Delete run',
+      onConfirm: () => doDeletePayrollRun(run),
+    });
+  };
+
+  const doDeletePayrollRun = async (run) => {
+    setConfirmModal(null);
     setBusyId(run._id);
     setMsg('');
     setError('');
@@ -206,8 +225,25 @@ const AccountantPayroll = () => {
     }
   };
 
-  const saveException = async (e) => {
+  const saveException = (e) => {
     e.preventDefault();
+    if (!exceptionForm.teacherId) {
+      setMsg('Select a teacher first.');
+      return;
+    }
+    const teacherName =
+      salaryRows.find((row) => row.teacher?._id === exceptionForm.teacherId)?.teacher?.name || 'this teacher';
+    setConfirmModal({
+      title: 'Override with manual attendance?',
+      message: `This replaces admin-approved attendance for ${teacherName} (${exceptionForm.monthKey}) with the manual counts you entered. Only use this when approved attendance is unavailable.`,
+      confirmLabel: 'Save manual attendance',
+      tone: 'primary',
+      onConfirm: doSaveException,
+    });
+  };
+
+  const doSaveException = async () => {
+    setConfirmModal(null);
     setMsg('');
     try {
       const res = await payrollPost('/attendance', {
@@ -949,6 +985,36 @@ const AccountantPayroll = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmModal ? (
+        <div className="accountant-payroll-modal-backdrop" role="presentation" onClick={() => setConfirmModal(null)}>
+          <div
+            className="accountant-payroll-modal"
+            role="dialog"
+            aria-labelledby="confirm-payroll-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="confirm-payroll-title">{confirmModal.title}</h3>
+            <p className="accountant-payroll-hint">{confirmModal.message}</p>
+            <div className="accountant-payroll-modal__actions">
+              <button
+                type="button"
+                className="accountant-payroll-btn accountant-payroll-btn--secondary"
+                onClick={() => setConfirmModal(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`accountant-payroll-btn accountant-payroll-btn--${confirmModal.tone || 'danger'}`}
+                onClick={confirmModal.onConfirm}
+              >
+                {confirmModal.confirmLabel || 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

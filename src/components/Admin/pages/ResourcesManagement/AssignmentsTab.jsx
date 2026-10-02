@@ -5,7 +5,8 @@ import LmsCollapsibleFormPanel from '../../shared/LmsCollapsibleFormPanel';
 import LmsTrashTabs from '../../shared/LmsTrashTabs';
 import AdminSearchBox from '../../shared/AdminSearchBox';
 import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE } from '../../../../utils/adminListLabels';
-import { LmsTargetSelect, minDueDateValue } from './lmsTargeting';
+import { LmsTargetSelect, minDueDateValue, minEditDueDateValue, filterSchedulesForTargeting } from './lmsTargeting';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
 
 const AssignmentsTab = ({
   assignFormAnchorRef,
@@ -18,6 +19,7 @@ const AssignmentsTab = ({
   onCourseChangeAssign,
   courses,
   teachers,
+  schedules,
   courseTeachers,
   savingAssignment,
   resetAssignForm,
@@ -73,7 +75,7 @@ const AssignmentsTab = ({
               <span>Teacher <RequiredMark /></span>
               <select
                 value={assignForm.teacherId}
-                onChange={(e) => setAssignForm({ ...assignForm, teacherId: e.target.value })}
+                onChange={(e) => setAssignForm({ ...assignForm, teacherId: e.target.value, scheduleId: '' })}
                 required
               >
                 <option value="">Select teacher</option>
@@ -84,16 +86,42 @@ const AssignmentsTab = ({
                 ))}
               </select>
             </label>
+            <label className="lms-field-label">
+              <span>Class slot <RequiredMark /></span>
+              <select
+                value={assignForm.scheduleId}
+                onChange={(e) => setAssignForm({ ...assignForm, scheduleId: e.target.value })}
+                required
+              >
+                <option value="">Select class slot</option>
+                {filterSchedulesForTargeting(
+                  schedules,
+                  assignForm.courseId ? [assignForm.courseId] : [],
+                  assignForm.teacherId ? [assignForm.teacherId] : []
+                ).map((slot) => (
+                  <option key={slot._id} value={slot._id}>
+                    {formatScheduleLabel(slot)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </>
         ) : (
           <LmsTargetSelect
             courses={courses}
             teachers={teachers}
+            schedules={schedules}
             courseTeachers={courseTeachers}
             selectedCourseIds={assignForm.courseIds}
             selectedTeacherIds={assignForm.teacherIds}
-            onCoursesChange={(courseIds) => setAssignForm({ ...assignForm, courseIds })}
-            onTeachersChange={(teacherIds) => setAssignForm({ ...assignForm, teacherIds })}
+            selectedScheduleIds={assignForm.scheduleIds}
+            onCoursesChange={(courseIds) =>
+              setAssignForm({ ...assignForm, courseIds, scheduleIds: [] })
+            }
+            onTeachersChange={(teacherIds) =>
+              setAssignForm({ ...assignForm, teacherIds, scheduleIds: [] })
+            }
+            onSchedulesChange={(scheduleIds) => setAssignForm({ ...assignForm, scheduleIds })}
             previewNoun="assignment"
           />
         )}
@@ -112,7 +140,11 @@ const AssignmentsTab = ({
           <input
             type="date"
             value={assignForm.dueDate}
-            min={minDueDateValue()}
+            min={
+              editingAssignId && assignForm.originalDueDate
+                ? minEditDueDateValue(assignForm.originalDueDate)
+                : minDueDateValue()
+            }
             onChange={(e) => setAssignForm({ ...assignForm, dueDate: e.target.value })}
             required
           />
@@ -261,6 +293,7 @@ const AssignmentsTab = ({
                   <th>Title</th>
                   <th>Course</th>
                   <th>Teacher</th>
+                  <th>Class slot</th>
                   <th>Due</th>
                   <th />
                 </tr>
@@ -268,7 +301,7 @@ const AssignmentsTab = ({
               <tbody>
                 {filteredAssignments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="lms-empty-cell">
+                    <td colSpan={7} className="lms-empty-cell">
                       {assignments.length === 0
                         ? 'No assignments for this selection.'
                         : 'No assignments match your search.'}
@@ -298,6 +331,11 @@ const AssignmentsTab = ({
                       </td>
                       <td>{a.course?.title}</td>
                       <td>{a.teacher?.name || '—'}</td>
+                      <td>
+                        {a.assignedSchedule
+                          ? formatScheduleTimeLabel(a.assignedSchedule)
+                          : '—'}
+                      </td>
                       <td>
                         {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
                         {a.dueDateNotice ? (

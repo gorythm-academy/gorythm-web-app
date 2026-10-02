@@ -234,63 +234,22 @@ tr.duplicate-display-order {
 
 // Updated Page Stats (above search bar)
 .page-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    
     .stat-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        transition: transform 0.3s;
-        
-        &:hover {
-            transform: translateY(-3px);
-        }
-        
         .stat-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
-            
             &.total {
-                background: var(--color-accent);
+                background: linear-gradient(135deg, var(--color-accent), #1d4ed8);
             }
-            
+
             &.published {
-                background: #10b981;
+                background: linear-gradient(135deg, #10b981, #047857);
             }
-            
+
             &.students {
-                background: #8b5cf6;
+                background: linear-gradient(135deg, #8b5cf6, #7c3aed);
             }
-            
+
             &.revenue {
-                background: #f59e0b;
-            }
-        }
-        
-        .stat-info {
-            h3 {
-                font-size: 1.8rem;
-                color: #1e293b;
-                margin: 0;
-            }
-            
-            p {
-                color: #64748b;
-                margin: 0.2rem 0 0;
-                font-size: 0.9rem;
+                background: linear-gradient(135deg, #f59e0b, #d97706);
             }
         }
     }
@@ -320,17 +279,6 @@ tr.duplicate-display-order {
             flex-wrap: wrap;
             justify-content: center;
         }
-    }
-    
-    .page-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-// ≤ 479px ($bp-xs): single-column stats grid on very small phones
-@media (max-width: $bp-xs) {
-    .page-stats {
-        grid-template-columns: 1fr;
     }
 }
 
@@ -883,33 +831,7 @@ tr.duplicate-display-order {
         }
     }
     
-    .page-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 1.5rem;
-        
-        .stat-item {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            
-            .stat-number {
-                display: block;
-                font-size: 2rem;
-                font-weight: 700;
-                color: #1e293b;
-                margin-bottom: 0.5rem;
-            }
-            
-            .stat-label {
-                color: #64748b;
-                font-size: 0.9rem;
-            }
-        }
-    }
+    // page-stats layout from _admin-stats-cards.scss
     
     @media (max-width: $bp-sm) {
         .page-header {
@@ -930,10 +852,6 @@ tr.duplicate-display-order {
                 font-size: 0.9rem;
             }
         }
-        
-        .page-stats {
-            grid-template-columns: repeat(2, 1fr);
-        }
     }
     
     @media (max-width: $bp-xs) {
@@ -949,9 +867,9 @@ tr.duplicate-display-order {
                 font-size: 0.85rem;
             }
         }
-        
-        .page-stats {
-            grid-template-columns: 1fr;
-        }
     }
+}
+
+.courses-management .course-modal .course-modal__form > .form-actions {
+    margin-top: 0;
 }

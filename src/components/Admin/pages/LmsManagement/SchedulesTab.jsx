@@ -320,7 +320,7 @@ const SchedulesTab = ({
                           title="Edit"
                           onClick={() => startEditSchedule(s)}
                         >
-                          <i className="fas fa-pen" />
+                          <i className="fas fa-pen" /> Edit
                         </button>
                         <button
                           type="button"
@@ -328,7 +328,7 @@ const SchedulesTab = ({
                           title="Remove"
                           onClick={() => removeSchedule(s._id)}
                         >
-                          <i className="fas fa-trash" />
+                          <i className="fas fa-trash" /> Remove
                         </button>
                       </td>
                     </tr>

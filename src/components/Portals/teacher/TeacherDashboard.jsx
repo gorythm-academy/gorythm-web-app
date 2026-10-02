@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SummaryGrid } from '../shared/PortalUi';
+import {
+  PortalAlert,
+  PortalPageHeader,
+  PortalSummaryGridSkeleton,
+  SummaryGrid,
+} from '../shared/PortalUi';
 
 const TeacherDashboard = () => {
   const [data, setData] = useState(null);
@@ -16,37 +21,29 @@ const TeacherDashboard = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (!data) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = !data;
+  const s = data?.summary || {};
 
-  const s = data.summary || {};
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Teacher Dashboard" />
-      <SummaryGrid
-        items={[
-          { label: 'Courses', value: s.coursesManaged ?? 0, to: '/teacher/classes' },
-          { label: 'Assignments', value: s.assignmentsCount ?? 0, to: '/teacher/content' },
-          { label: 'Quizzes', value: s.quizzesCount ?? 0, to: '/teacher/quizzes' },
-          {
-            label: 'Submissions',
-            value: s.submissionCount ?? 0,
-            to: '/teacher/content',
-          },
-        ]}
-      />
+      <PortalPageHeader title="Teacher Dashboard" subtitle="Your classes, assignments, and student activity" />
+      {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
+      {loading ? (
+        <PortalSummaryGridSkeleton items={4} />
+      ) : (
+        <SummaryGrid
+          items={[
+            { label: 'Courses', value: s.coursesManaged ?? 0, to: '/teacher/classes' },
+            { label: 'Assignments', value: s.assignmentsCount ?? 0, to: '/teacher/content' },
+            { label: 'Quizzes', value: s.quizzesCount ?? 0, to: '/teacher/quizzes' },
+            {
+              label: 'Submissions',
+              value: s.submissionCount ?? 0,
+              to: '/teacher/content',
+            },
+          ]}
+        />
+      )}
       <div className="portal-grid" style={{ marginTop: '1rem' }}>
         <Link to="/teacher/classes" className="portal-card portal-link-card">
           My Classes →

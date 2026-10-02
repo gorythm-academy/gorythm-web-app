@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SummaryGrid } from '../shared/PortalUi';
+import {
+  PortalAlert,
+  PortalPageHeader,
+  PortalSummaryGridSkeleton,
+  SummaryGrid,
+} from '../shared/PortalUi';
 
 const ParentDashboard = () => {
   const [data, setData] = useState(null);
@@ -16,22 +21,9 @@ const ParentDashboard = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (!data) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = !data;
+  const s = data?.summary || {};
 
-  const s = data.summary || {};
   return (
     <div className="portal-page">
       <PortalPageHeader title="Parent Dashboard" subtitle="Overview of your linked children" />
@@ -42,22 +34,30 @@ const ParentDashboard = () => {
         </div>
         <div>
           <h2>Family Learning Hub</h2>
-          <p>View enrollments, attendance, assignments, quiz results, and fees for each linked child.</p>
+          <p>View attendance, assignments, and quiz results in Progress. Courses and fees are on the Fees tab.</p>
         </div>
       </div>
 
-      <SummaryGrid
-        items={[
-          { label: 'Children Linked', value: s.childrenCount ?? 0, to: '/parent/children' },
-          { label: 'Enrollments', value: s.enrollmentsCount ?? 0, to: '/parent/progress' },
-          { label: 'Attendance Records', value: s.attendanceRecords ?? 0, to: '/parent/progress' },
-          { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/parent/progress' },
-        ]}
-      />
+      {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
+      {loading ? (
+        <PortalSummaryGridSkeleton items={4} />
+      ) : (
+        <SummaryGrid
+          items={[
+            { label: 'Children Linked', value: s.childrenCount ?? 0, to: '/parent/children' },
+            { label: 'Courses', value: s.enrollmentsCount ?? 0, to: '/parent/billing' },
+            { label: 'Attendance Records', value: s.attendanceRecords ?? 0, to: '/parent/progress' },
+            { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/parent/billing' },
+          ]}
+        />
+      )}
 
       <div className="portal-quick-links">
         <Link to="/parent/children" className="portal-card portal-link-card">
           My children →
+        </Link>
+        <Link to="/parent/billing" className="portal-card portal-link-card">
+          Pay fees →
         </Link>
         <Link to="/parent/progress" className="portal-card portal-link-card">
           Progress & Results →

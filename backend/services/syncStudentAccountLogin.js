@@ -22,7 +22,7 @@ async function syncStudentUserLoginFromAllEnrollments(studentUserId) {
     const statuses = enrollments.map((row) => normalizeStatus(row.status));
 
     let derived = 'inactive';
-    if (statuses.some((s) => s === 'active')) {
+    if (statuses.some((s) => s === 'active' || s === 'paused')) {
         derived = 'active';
     } else if (statuses.some((s) => s === 'completed')) {
         derived = 'completed';

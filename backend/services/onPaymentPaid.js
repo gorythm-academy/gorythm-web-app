@@ -110,13 +110,13 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
     const existingEnrollment = await Enrollment.findOne({
         student: userId,
         course: courseId,
-        paymentStatus: 'paid',
         deletedAt: null,
     });
     if (existingEnrollment) {
-        await syncStudentRosterFromEnrollments(userId);
-        await ensureStudentId(userId);
-        await syncStudentUserLoginFromAllEnrollments(userId);
+        const { applyInstallmentPayment, copyTotalFeeCountFromCourse } = require('./feeDuePolicy');
+        const course = await Course.findById(courseId).select('price totalFeeCount feeDueDate');
+        copyTotalFeeCountFromCourse(existingEnrollment, course);
+        await applyInstallmentPayment(existingEnrollment, payment, { course });
         return existingEnrollment;
     }
 
@@ -132,10 +132,22 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         await enrollment.save();
     }
 
+    const { applyInstallmentPayment, copyTotalFeeCountFromCourse, assignEnrollmentDueDate } = require('./feeDuePolicy');
+    const course = await Course.findById(courseId).select('price totalFeeCount feeDueDate');
+    copyTotalFeeCountFromCourse(enrollment, course);
+    if (!enrollment.feeDueDate) {
+        await assignEnrollmentDueDate(enrollment, { course, joinDate: enrollment.enrollmentDate });
+    }
+    await applyInstallmentPayment(enrollment, payment, { course });
+
     await addEnrollmentToRosters(userId, courseId);
-    await syncStudentRosterFromEnrollments(userId);
-    await ensureStudentId(userId);
-    await syncStudentUserLoginFromAllEnrollments(userId);
+    setImmediate(() => {
+        Promise.allSettled([
+            ensureStudentId(userId),
+            syncStudentRosterFromEnrollments(userId),
+            syncStudentUserLoginFromAllEnrollments(userId),
+        ]);
+    });
 
     return enrollment;
 }

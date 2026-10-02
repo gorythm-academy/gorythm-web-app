@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
-import { resolveLmsUploadValue } from '../../../utils/fileUploadApi';
+import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
-import PortalModal from '../shared/PortalModal';
-import QuizReviewPanel from '../shared/QuizReviewPanel';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
+import QuizPreviewModal from '../shared/QuizPreviewModal';
+import { collectQuizUpdateNotices } from '../../../utils/adminEditNotices';
+import { TEACHER_SEEN_QUIZ_UPDATES } from '../../../utils/portalNewItems';
 import { portalDocId } from '../../../utils/portalDocId';
 import { formatScore } from '../../../utils/formatScore';
+import { usePortalDialog } from '../shared/PortalDialogContext';
 import {
   filterPortalItemsByCourse,
   filterPortalItemsByCourseField,
@@ -20,22 +22,31 @@ const SEEN_QUIZ_ATTEMPTS_KEY = 'teacher_quiz_attempts';
 const EMPTY_Q = { question: '', options: ['', '', ''], correctAnswer: 0 };
 
 const EMPTY_FORM = {
+  quizType: 'mcq',
   title: '',
   courseId: '',
   totalMarks: '',
   dueDate: '',
   resourceLink: '',
-  resourceFileUrl: '',
+  resourceFiles: [],
   questions: [{ ...EMPTY_Q }],
 };
+
+const isAdminQuiz = (quiz) => !!(quiz?.lockedForTeacher || quiz?.createdByRole === 'admin');
+
+function quizFiles(quiz) {
+  const files = Array.isArray(quiz?.attachments) ? quiz.attachments.filter(Boolean) : [];
+  if (quiz?.resourceFileUrl && !files.includes(quiz.resourceFileUrl)) files.unshift(quiz.resourceFileUrl);
+  return files;
+}
 const OPTION_LABELS = ['A', 'B', 'C'];
 
 const TeacherQuizzes = () => {
+  const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingAttemptCount, setEditingAttemptCount] = useState(0);
   const [detailAttempt, setDetailAttempt] = useState(null);
@@ -44,9 +55,17 @@ const TeacherQuizzes = () => {
   const [quizFilter, setQuizFilter] = useState('');
   const submissionsRef = useRef(null);
   const [showForm, setShowForm] = useState(false);
+  const [viewQuiz, setViewQuiz] = useState(null);
+  const [updateTick, setUpdateTick] = useState(0);
   const [form, setForm] = useState({ ...EMPTY_FORM, questions: [{ ...EMPTY_Q }] });
-
   const [loadError, setLoadError] = useState('');
+
+  const notify = (message, type = 'info') => showAlert({ message, type });
+
+  const quizUpdateNotices = useMemo(
+    () => collectQuizUpdateNotices(quizzes, { storageKey: TEACHER_SEEN_QUIZ_UPDATES, audience: 'teacher' }),
+    [quizzes, updateTick]
+  );
 
   const reload = async () => {
     setLoadError('');
@@ -118,7 +137,7 @@ const TeacherQuizzes = () => {
   }, []);
 
   useEffect(() => {
-    markPortalPageVisited(SEEN_QUIZ_ATTEMPTS_KEY);
+    return () => markPortalPageVisited(SEEN_QUIZ_ATTEMPTS_KEY);
   }, []);
 
   const resetForm = () => {
@@ -127,12 +146,6 @@ const TeacherQuizzes = () => {
     setForm({ ...EMPTY_FORM, questions: [{ ...EMPTY_Q }] });
     setShowForm(false);
   };
-
-  useEffect(() => {
-    if (!msg) return undefined;
-    const t = setTimeout(() => setMsg(''), 4000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   const updateQuestion = (idx, patch) => {
     setForm((f) => {
@@ -144,58 +157,87 @@ const TeacherQuizzes = () => {
 
   const saveQuiz = async (e) => {
     e.preventDefault();
-    setMsg('');
-    const questions = form.questions
-      .filter((q) => q.question.trim())
-      .map((q) => ({
-        question: q.question.trim(),
-        options: (q.options || []).slice(0, 3).map((o) => String(o).trim()),
-        correctAnswer: Number(q.correctAnswer) || 0,
-      }));
-    if (!questions.length) {
-      setMsg('Add at least one question with 3 options.');
-      return;
-    }
-    for (const q of questions) {
-      if (q.options.filter(Boolean).length < 3) {
-        setMsg('Each question needs 3 options (A, B, C).');
+    const quizType = form.quizType === 'file' ? 'file' : 'mcq';
+    const link = String(form.resourceLink || '').trim();
+
+    let questions = [];
+    if (quizType === 'file') {
+      if (!link && !hasLmsUploadValue(form.resourceFiles)) {
+        notify('Add a reading link or at least one study file for a file/reading quiz.', 'warning');
         return;
+      }
+    } else {
+      const orphanIndex = form.questions.findIndex(
+        (q) => !q.question.trim() && (q.options || []).some((o) => String(o).trim())
+      );
+      if (orphanIndex !== -1) {
+        notify(
+          `Question ${orphanIndex + 1} has an option filled in but no question text. Add the question text or clear its options before publishing.`,
+          'warning'
+        );
+        return;
+      }
+      questions = form.questions
+        .filter((q) => q.question.trim())
+        .map((q) => ({
+          question: q.question.trim(),
+          options: (q.options || []).slice(0, 3).map((o) => String(o).trim()),
+          correctAnswer: Number(q.correctAnswer) || 0,
+        }));
+      if (!questions.length) {
+        notify('Add at least one question with 3 options.', 'warning');
+        return;
+      }
+      for (const q of questions) {
+        if (q.options.filter(Boolean).length < 3) {
+          notify('Each question needs 3 options (A, B, C).', 'warning');
+          return;
+        }
       }
     }
     const body = {
+      quizType,
       courseId: form.courseId,
       title: form.title,
-      totalMarks: form.totalMarks === '' ? null : Number(form.totalMarks),
+      totalMarks: quizType === 'file' || form.totalMarks === '' ? null : Number(form.totalMarks),
       dueDate: form.dueDate || null,
-      resourceLink: form.resourceLink || '',
+      resourceLink: quizType === 'file' ? link : '',
+      attachments: [],
       resourceFileUrl: '',
       questions,
     };
     try {
-      body.resourceFileUrl = await resolveLmsUploadValue(form.resourceFileUrl, 'quizzes');
+      if (quizType === 'file') {
+        body.attachments = await resolveLmsUploadList(form.resourceFiles, 'quizzes');
+        body.resourceFileUrl = body.attachments[0] || '';
+      }
       if (editingId) {
         const id = portalDocId(editingId);
         if (!id) {
-          setMsg('Cannot save: click Edit on the quiz row first.');
+          notify('Cannot save: click Edit on the quiz row first.', 'error');
           return;
         }
         await portalPatch(`/teacher/quizzes/${id}`, body);
-        setMsg('Quiz updated.');
+        notify('Quiz updated.', 'success');
       } else {
         await portalPost('/teacher/quizzes', body);
-        setMsg('Quiz published.');
+        notify('Quiz published.', 'success');
       }
       resetForm();
       reload();
     } catch (err) {
-      setMsg(err.message || 'Failed');
+      notify(err.message || 'Failed', 'error');
     }
   };
 
   const startEdit = (q) => {
     const id = portalDocId(q);
     if (!id) {
-      setMsg('This quiz has no id — refresh the page.');
+      notify('This quiz has no id — refresh the page.', 'error');
+      return;
+    }
+    if (isAdminQuiz(q)) {
+      notify('This quiz was published by admin. You can view results, but not edit it.', 'warning');
       return;
     }
     setEditingId(id);
@@ -206,12 +248,13 @@ const TeacherQuizzes = () => {
       return o.slice(0, 3);
     };
     setForm({
+      quizType: q.quizType === 'file' ? 'file' : 'mcq',
       title: q.title || '',
       courseId: String(q.course?._id || q.course || ''),
       totalMarks: q.totalMarks != null ? String(q.totalMarks) : '',
       dueDate: q.dueDate ? new Date(q.dueDate).toISOString().slice(0, 10) : '',
       resourceLink: q.resourceLink || '',
-      resourceFileUrl: q.resourceFileUrl || '',
+      resourceFiles: quizFiles(q),
       questions: q.questions?.length
         ? q.questions.map((qu) => ({
             question: qu.question || '',
@@ -225,20 +268,25 @@ const TeacherQuizzes = () => {
   };
 
   const deleteQuiz = async (q) => {
-    if (!window.confirm(`Delete quiz "${q.title}"?`)) return;
+    const ok = await showConfirm({
+      title: 'Delete quiz?',
+      message: `Delete quiz "${q.title}"?`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await portalDelete(`/teacher/quizzes/${portalDocId(q)}`);
-      setMsg('Quiz deleted.');
+      notify('Quiz deleted.', 'success');
       reload();
     } catch (err) {
-      setMsg(err.message || 'Failed');
+      notify(err.message || 'Failed', 'error');
     }
   };
 
   const viewAttempts = (q) => {
     const id = portalDocId(q);
     if (!id) {
-      setMsg('Quiz id missing.');
+      notify('Quiz id missing.', 'error');
       return;
     }
     setSubmissionCourseFilter('all');
@@ -248,7 +296,10 @@ const TeacherQuizzes = () => {
 
   const renderCourseFilter = (value, onChange, count) => (
     <label className="teacher-quizzes__course-filter">
-      <span className="teacher-quizzes__course-filter-label">Filter by course</span>
+      <span className="teacher-quizzes__course-filter-label">
+        Filter by course
+        {value ? <span className="teacher-quizzes__course-filter-meta">{count} shown</span> : null}
+      </span>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by course">
         <option value="all">All courses</option>
         {courseOptions.map((c) => (
@@ -257,32 +308,54 @@ const TeacherQuizzes = () => {
           </option>
         ))}
       </select>
-      {value ? <span className="teacher-quizzes__course-filter-meta">{count} shown</span> : null}
     </label>
   );
 
   const renderQuizRows = (rows) =>
     rows.map((r) => (
       <tr key={portalDocId(r)}>
-        <td>{r.title}</td>
+        <td>
+          {r.title}
+          {isAdminQuiz(r) ? (
+            <span className="teacher-quizzes__admin-badge" title="Published by admin">
+              Admin
+            </span>
+          ) : null}
+        </td>
+        <td>
+          <span
+            className={`teacher-quizzes__type-pill teacher-quizzes__type-pill--${
+              r.quizType === 'file' ? 'file' : 'mcq'
+            }`}
+          >
+            {r.quizType === 'file' ? 'File / Reading' : 'MCQ'}
+          </span>
+        </td>
         <td>{r.course?.title}</td>
         <td>
-          <span className="teacher-quizzes__pill">{r.questions?.length ?? 0}</span>
+          {r.quizType === 'file' ? '—' : <span className="teacher-quizzes__pill">{r.questions?.length ?? 0}</span>}
         </td>
-        <td>{r.totalMarks != null ? r.totalMarks : '—'}</td>
+        <td>{r.quizType === 'file' ? '—' : r.totalMarks != null ? r.totalMarks : '—'}</td>
         <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
         <td>{r.attemptCount > 0 ? `${r.attemptCount} taken` : 'None yet'}</td>
         <td>
-          <div className="portal-table-actions">
-            <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--primary" onClick={() => viewAttempts(r)}>
+          <div className="teacher-quizzes__row-actions">
+            <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--ghost teacher-quizzes__btn--small" onClick={() => setViewQuiz(r)}>
+              View
+            </button>
+            <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--ghost teacher-quizzes__btn--small" onClick={() => viewAttempts(r)}>
               Results
             </button>
-            <button type="button" className="teacher-quizzes__btn" onClick={() => startEdit(r)}>
-              Edit
-            </button>
-            <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--danger" onClick={() => deleteQuiz(r)}>
-              Delete
-            </button>
+            {isAdminQuiz(r) ? null : (
+              <>
+                <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--ghost teacher-quizzes__btn--small" onClick={() => startEdit(r)}>
+                  Edit
+                </button>
+                <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--danger teacher-quizzes__btn--small" onClick={() => deleteQuiz(r)}>
+                  Delete
+                </button>
+              </>
+            )}
           </div>
         </td>
       </tr>
@@ -300,7 +373,7 @@ const TeacherQuizzes = () => {
         <td>
           <button
             type="button"
-            className="teacher-quizzes__btn teacher-quizzes__btn--primary"
+            className="teacher-quizzes__btn teacher-quizzes__btn--primary teacher-quizzes__btn--small"
             onClick={() => setDetailAttempt(r)}
           >
             View answers
@@ -311,8 +384,12 @@ const TeacherQuizzes = () => {
 
   if (loading) {
     return (
-      <div className="portal-page">
-        <PortalLoading />
+      <div className="portal-page teacher-quizzes">
+        <PortalPageHeader
+          title="Quizzes"
+          subtitle="Build multiple-choice quizzes. Students see green/red feedback after submitting."
+        />
+        <PortalDataSection loading loadingLabel="Loading quizzes…" />
       </div>
     );
   }
@@ -324,7 +401,14 @@ const TeacherQuizzes = () => {
         subtitle="Build multiple-choice quizzes. Students see green/red feedback after submitting."
       />
       {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
-      {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
+      <PortalActivityBanner
+        title="Quiz updates"
+        rows={quizUpdateNotices}
+        onDismiss={() => {
+          markPortalPageVisited(TEACHER_SEEN_QUIZ_UPDATES);
+          setUpdateTick((n) => n + 1);
+        }}
+      />
 
       <div className="teacher-quizzes__layout">
         {showForm ? (
@@ -335,7 +419,11 @@ const TeacherQuizzes = () => {
             </div>
             <div>
               <h2>{editingId ? 'Edit quiz' : 'Create quiz'}</h2>
-              <p>Each question has three options (A, B, C).</p>
+              <p>
+                {form.quizType === 'file'
+                  ? 'Share a reading link or file — no scored questions.'
+                  : 'Each question has three options (A, B, C).'}
+              </p>
             </div>
             <button
               type="button"
@@ -353,6 +441,29 @@ const TeacherQuizzes = () => {
               title, due date, marks, and materials.
             </PortalAlert>
           ) : null}
+
+          <div className="teacher-quizzes__type-toggle" role="tablist" aria-label="Quiz type">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={form.quizType !== 'file'}
+              className={`teacher-quizzes__type-toggle-btn${form.quizType !== 'file' ? ' is-active' : ''}`}
+              disabled={Boolean(editingId)}
+              onClick={() => setForm((f) => ({ ...f, quizType: 'mcq' }))}
+            >
+              <i className="fas fa-list-check" aria-hidden="true" /> MCQ Quiz
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={form.quizType === 'file'}
+              className={`teacher-quizzes__type-toggle-btn${form.quizType === 'file' ? ' is-active' : ''}`}
+              disabled={Boolean(editingId)}
+              onClick={() => setForm((f) => ({ ...f, quizType: 'file' }))}
+            >
+              <i className="fas fa-file-lines" aria-hidden="true" /> File / Reading Quiz
+            </button>
+          </div>
 
           <form onSubmit={saveQuiz} autoComplete="off">
             <label className="portal-field-label">
@@ -374,107 +485,125 @@ const TeacherQuizzes = () => {
                 ))}
               </select>
             </label>
-            <label className="portal-field-label">
-              <span>Total marks (optional)</span>
-              <input
-                type="number"
-                min="1"
-                placeholder="Leave empty for raw correct count"
-                value={form.totalMarks}
-                onChange={(e) => setForm({ ...form, totalMarks: e.target.value })}
-              />
-            </label>
+            {form.quizType !== 'file' ? (
+              <label className="portal-field-label">
+                <span>Total marks (optional)</span>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Leave empty for raw correct count"
+                  value={form.totalMarks}
+                  onChange={(e) => setForm({ ...form, totalMarks: e.target.value })}
+                />
+              </label>
+            ) : null}
             <label className="portal-field-label">
               <span>Due date (optional)</span>
               <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </label>
-            <label className="portal-field-label">
-              <span>Reading link (optional)</span>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={form.resourceLink}
-                onChange={(e) => setForm({ ...form, resourceLink: e.target.value })}
-              />
-            </label>
-            <FileUploadField
-              label="Study file (optional PDF)"
-              value={form.resourceFileUrl}
-              onChange={(url) => setForm({ ...form, resourceFileUrl: url })}
-              category="quizzes"
-            />
-
-            <p className="portal-field-hint">At least one complete question (text and all three options) is required <RequiredMark /></p>
-
-            {form.questions.map((q, idx) => (
-              <div
-                key={idx}
-                className={`teacher-quizzes__question-card${editingAttemptCount > 0 ? ' teacher-quizzes__question-card--locked' : ''}`}
-              >
-                <div className="teacher-quizzes__question-label">Question {idx + 1}</div>
+            {form.quizType === 'file' ? (
+              <>
                 <label className="portal-field-label">
-                  <span>Question text{idx === 0 ? <RequiredMark /> : null}</span>
+                  <span>
+                    Reading link {!hasLmsUploadValue(form.resourceFiles) ? <RequiredMark /> : '(optional)'}
+                  </span>
                   <input
-                    value={q.question}
-                    onChange={(e) => updateQuestion(idx, { question: e.target.value })}
-                    required={idx === 0}
-                    disabled={editingAttemptCount > 0}
+                    type="url"
+                    placeholder="https://..."
+                    value={form.resourceLink}
+                    onChange={(e) => setForm({ ...form, resourceLink: e.target.value })}
                   />
                 </label>
-                {OPTION_LABELS.map((label, oi) => (
-                  <label key={oi} className="portal-field-label">
-                    <span>Option {label}{idx === 0 ? <RequiredMark /> : null}</span>
-                    <input
-                      value={(q.options || [])[oi] || ''}
-                      disabled={editingAttemptCount > 0}
-                      onChange={(e) => {
-                        const options = [...(q.options || ['', '', ''])];
-                        options[oi] = e.target.value;
-                        updateQuestion(idx, { options });
-                      }}
-                      required={idx === 0}
-                    />
-                  </label>
-                ))}
-                <fieldset className="portal-quiz-correct-pick" disabled={editingAttemptCount > 0}>
-                  <legend>Correct answer</legend>
-                  {OPTION_LABELS.map((label, oi) => (
-                    <label key={oi}>
-                      <input
-                        type="radio"
-                        name={`correct-${idx}`}
-                        checked={Number(q.correctAnswer) === oi}
-                        onChange={() => updateQuestion(idx, { correctAnswer: oi })}
-                      />{' '}
-                      {label}
-                    </label>
-                  ))}
-                </fieldset>
-              </div>
-            ))}
+                <FileUploadField
+                  label="Study files"
+                  multiple
+                  value={form.resourceFiles}
+                  onChange={(files) => setForm({ ...form, resourceFiles: files })}
+                  category="quizzes"
+                />
+                <p className="portal-field-hint">
+                  Add a reading link, one or more files, or both <RequiredMark />
+                </p>
+              </>
+            ) : null}
 
-            <button
-              type="button"
-              className="teacher-quizzes__add-q"
-              disabled={editingAttemptCount > 0}
-              onClick={() => setForm({ ...form, questions: [...form.questions, { ...EMPTY_Q }] })}
-            >
-              + Add question
-            </button>
-            <button type="submit">{editingId ? 'Save quiz' : 'Publish quiz'}</button>
-            {editingId ? (
-              <button type="button" className="teacher-quizzes__btn" onClick={resetForm}>
-                Cancel edit
+            {form.quizType !== 'file' ? (
+              <>
+                <p className="portal-field-hint">At least one complete question (text and all three options) is required <RequiredMark /></p>
+
+                {form.questions.map((q, idx) => (
+                  <div
+                    key={idx}
+                    className={`teacher-quizzes__question-card${editingAttemptCount > 0 ? ' teacher-quizzes__question-card--locked' : ''}`}
+                  >
+                    <div className="teacher-quizzes__question-label">Question {idx + 1}</div>
+                    <label className="portal-field-label">
+                      <span>Question text{idx === 0 ? <RequiredMark /> : null}</span>
+                      <input
+                        value={q.question}
+                        onChange={(e) => updateQuestion(idx, { question: e.target.value })}
+                        required={idx === 0}
+                        disabled={editingAttemptCount > 0}
+                      />
+                    </label>
+                    <div className="teacher-quizzes__options">
+                      <span className="teacher-quizzes__options-label">
+                        Options{idx === 0 ? <RequiredMark /> : null}
+                      </span>
+                      {OPTION_LABELS.map((label, oi) => (
+                        <div key={oi} className="teacher-quizzes__option-row">
+                          <label className="teacher-quizzes__option-radio">
+                            <input
+                              type="radio"
+                              name={`correct-${idx}`}
+                              checked={Number(q.correctAnswer) === oi}
+                              disabled={editingAttemptCount > 0}
+                              onChange={() => updateQuestion(idx, { correctAnswer: oi })}
+                            />
+                            <span>{label}</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={(q.options || [])[oi] || ''}
+                            disabled={editingAttemptCount > 0}
+                            placeholder={`Option ${label}`}
+                            aria-label={`Option ${label}`}
+                            onChange={(e) => {
+                              const options = [...(q.options || ['', '', ''])];
+                              options[oi] = e.target.value;
+                              updateQuestion(idx, { options });
+                            }}
+                            required={idx === 0}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="teacher-quizzes__add-q"
+                  disabled={editingAttemptCount > 0}
+                  onClick={() => setForm({ ...form, questions: [...form.questions, { ...EMPTY_Q }] })}
+                >
+                  + Add question
+                </button>
+              </>
+            ) : null}
+            <div className="teacher-quizzes__form-actions">
+              <button type="submit" className="teacher-quizzes__btn teacher-quizzes__btn--primary">
+                {editingId ? 'Save quiz' : 'Publish quiz'}
               </button>
-            ) : (
-              <button type="button" className="teacher-quizzes__btn" onClick={resetForm}>
-                Cancel
+              <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--ghost" onClick={resetForm}>
+                {editingId ? 'Cancel edit' : 'Cancel'}
               </button>
-            )}
+            </div>
           </form>
         </aside>
         ) : null}
 
+        <div className="teacher-quizzes__main">
         <section className="teacher-quizzes__library">
           <div className="teacher-quizzes__library-head">
             <h2>Your Quizzes</h2>
@@ -486,7 +615,7 @@ const TeacherQuizzes = () => {
                   className="teacher-quizzes__make-btn"
                   onClick={() => setShowForm(true)}
                 >
-                  <i className="fas fa-plus" aria-hidden="true" /> Make a quiz
+                  <i className="fas fa-plus" aria-hidden="true" /> Make a Quiz
                 </button>
               ) : null}
             </div>
@@ -496,6 +625,7 @@ const TeacherQuizzes = () => {
               <thead>
                 <tr>
                   <th>Title</th>
+                  <th>Type</th>
                   <th>Course</th>
                   <th>Questions</th>
                   <th>Max Marks</th>
@@ -508,7 +638,7 @@ const TeacherQuizzes = () => {
                 {quizGroups
                   ? quizGroups.flatMap((group) => [
                       <tr key={`head-${group.courseId}`} className="teacher-quizzes__course-row">
-                        <td colSpan={7}>
+                        <td colSpan={8}>
                           <span className="portal-course-group__title">{group.title}</span>
                         </td>
                       </tr>,
@@ -590,23 +720,25 @@ const TeacherQuizzes = () => {
             ) : null}
           </div>
         </section>
+        </div>
       </div>
 
-      {detailAttempt ? (
-        <PortalModal
-          title={`${detailAttempt.student?.name} — ${detailAttempt.quiz?.title || 'Quiz'}`}
-          onClose={() => setDetailAttempt(null)}
-          wide
-        >
-          <p>
-            <strong>Score:</strong>{' '}
-            {detailAttempt.scoreDisplay || formatScore(detailAttempt.score, detailAttempt.quiz?.totalMarks)}
-          </p>
-          {detailAttempt.review ? <QuizReviewPanel review={detailAttempt.review} /> : null}
-        </PortalModal>
-      ) : null}
+      <QuizPreviewModal quiz={viewQuiz} tone="teacher" showCorrect onClose={() => setViewQuiz(null)} />
 
-      {msg ? <div className="teacher-quizzes__toast" role="status">{msg}</div> : null}
+      <QuizPreviewModal
+        quiz={detailAttempt?.quiz || null}
+        review={detailAttempt?.review || null}
+        attempt={detailAttempt}
+        tone="teacher"
+        chosenLabel="Student answer"
+        heading={
+          detailAttempt
+            ? `${detailAttempt.student?.name || 'Student'} — ${detailAttempt.quiz?.title || 'Quiz'}`
+            : null
+        }
+        kicker="Student submission"
+        onClose={() => setDetailAttempt(null)}
+      />
     </div>
   );
 };

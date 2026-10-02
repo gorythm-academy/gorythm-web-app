@@ -1,15 +1,15 @@
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
 const Quiz = require('../models/Quiz');
+const QuizAttempt = require('../models/QuizAttempt');
 const Resource = require('../models/Resource');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { getTeacherCourseIds } = require('./teacherCourseAccess');
 const { uploadUrlVariants, normalizeUploadPublicPath } = require('../utils/uploadUrlMatch');
 const {
-    getStudentEnrollmentTeachers,
-    resourceVisibleToStudent,
-    teacherAssignmentScopeFilter,
+    getStudentEnrollmentSlots,
+    studentSlotMatchesResource,
 } = require('../utils/lmsContentRules');
 const { activeLmsFilter } = require('../utils/lmsTrashQuery');
 
@@ -66,7 +66,7 @@ async function findAssignmentsForUpload(publicPath) {
         ...buildFileMatchQuery(variants, suffixRegex, ['attachments']),
         ...activeLmsFilter(),
     })
-        .select('course teacher attachments')
+        .select('course teacher attachments assignedSchedule')
         .lean();
 }
 
@@ -81,7 +81,7 @@ async function findResourcesForUpload(publicPath) {
             : null;
     const fileQuery = buildFileMatchQuery(variants, suffixRegex, ['fileUrl', 'attachments']);
     return Resource.find({ ...fileQuery, deletedAt: null })
-        .select('course teacher scope uploadedBy fileUrl attachments')
+        .select('course teacher scope uploadedBy assignedSchedule fileUrl attachments')
         .lean();
 }
 
@@ -113,18 +113,29 @@ async function findQuizzesForUpload(publicPath) {
             ? new RegExp(`${relSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
             : null;
     return Quiz.find({
-        ...buildFileMatchQuery(variants, suffixRegex, ['resourceFileUrl']),
+        ...buildFileMatchQuery(variants, suffixRegex, ['resourceFileUrl', 'attachments']),
         ...activeLmsFilter(),
     })
         .select('course teacher resourceFileUrl')
         .lean();
 }
 
+function studentSlotMatchesAssignment(slot, assignment) {
+    const courseId = String(assignment.course || '');
+    const assignTeacher = String(assignment.teacher || '');
+    const assignSchedule = assignment.assignedSchedule
+        ? String(assignment.assignedSchedule._id || assignment.assignedSchedule)
+        : null;
+    if (!slot || slot.courseId !== courseId || slot.teacherId !== assignTeacher) return false;
+    if (!assignSchedule) return !slot.scheduleId;
+    return slot.scheduleId === assignSchedule;
+}
+
 async function studentCanAccessUpload(userId, publicPath) {
     const normalized = normalizeUploadPublicPath(publicPath);
     if (!normalized) return false;
 
-    const enrollmentTeachers = await getStudentEnrollmentTeachers(userId);
+    const enrollmentSlots = await getStudentEnrollmentSlots(userId);
     const variants = uploadUrlVariants(normalized);
 
     if (normalized.includes('/assignments/student/')) {
@@ -136,31 +147,39 @@ async function studentCanAccessUpload(userId, publicPath) {
         if (owned) return true;
     }
 
+    if (normalized.includes('/quizzes/student/')) {
+        const ownedQuizFile = await QuizAttempt.findOne({
+            student: userId,
+            attachments: { $in: variants },
+            ...activeLmsFilter(),
+        }).select('_id');
+        if (ownedQuizFile) return true;
+    }
+
     const assignments = await findAssignmentsForUpload(normalized);
     for (const assignment of assignments) {
         const courseId = String(assignment.course || '');
-        const slotTeacher = enrollmentTeachers.get(courseId);
-        if (slotTeacher && String(assignment.teacher) === slotTeacher) return true;
+        const matched = enrollmentSlots.some((slot) => studentSlotMatchesAssignment(slot, assignment));
+        if (matched) return true;
     }
 
     const resources = await findResourcesForUpload(normalized);
     for (const resource of resources) {
-        if (resourceVisibleToStudent(resource, enrollmentTeachers)) return true;
+        if (enrollmentSlots.some((slot) => studentSlotMatchesResource(slot, resource))) return true;
     }
 
     const submissions = await findSubmissionsForUpload(normalized);
     for (const submission of submissions) {
         const assignment = submission.assignment;
         if (!assignment) continue;
-        const courseId = String(assignment.course || '');
-        const slotTeacher = enrollmentTeachers.get(courseId);
-        if (slotTeacher && String(assignment.teacher) === slotTeacher) return true;
+        const matched = enrollmentSlots.some((slot) => studentSlotMatchesAssignment(slot, assignment));
+        if (matched) return true;
     }
 
     const quizzes = await findQuizzesForUpload(normalized);
     for (const quiz of quizzes) {
         const courseId = String(quiz.course || '');
-        if (enrollmentTeachers.has(courseId)) return true;
+        if (enrollmentSlots.some((slot) => slot.courseId === courseId)) return true;
     }
 
     return false;
@@ -197,6 +216,19 @@ async function teacherCanAccessUpload(userId, publicPath) {
     for (const quiz of quizzes) {
         const courseId = String(quiz.course || '');
         if (courseSet.has(courseId)) return true;
+    }
+
+    if (normalized.includes('/quizzes/student/')) {
+        const attempt = await QuizAttempt.findOne({
+            attachments: { $in: variants },
+            ...activeLmsFilter(),
+        })
+            .populate('quiz', 'course teacher')
+            .select('quiz');
+        const quiz = attempt?.quiz;
+        if (quiz && (String(quiz.teacher) === teacherId || courseSet.has(String(quiz.course || '')))) {
+            return true;
+        }
     }
 
     return false;

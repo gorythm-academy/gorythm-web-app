@@ -9,6 +9,10 @@ const courseSchema = new mongoose.Schema({
         required: true 
     },
     price: { type: Number, default: 0 },
+    /** Optional due date for every student on this course. */
+    feeDueDate: { type: Date, default: null },
+    /** How many monthly fees this course collects. Empty = old behaviour. */
+    totalFeeCount: { type: Number, default: null, min: 1 },
     duration: { 
         type: String, 
         default: '8 weeks'

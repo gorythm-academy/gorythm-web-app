@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { portalGet, portalPost } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import {
   TEACHER_MY_STATUS_OPTIONS,
   statusCalendarLabel,
@@ -528,7 +528,11 @@ const TeacherMyAttendance = () => {
   if (loading) {
     return (
       <div className="portal-page teacher-my-attendance">
-        <PortalLoading />
+        <PortalPageHeader
+          title="My Attendance"
+          subtitle="Mark each day, then review your records by day, week, or month."
+        />
+        <PortalDataSection loading loadingLabel="Loading attendance…" />
       </div>
     );
   }

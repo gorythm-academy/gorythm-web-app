@@ -347,7 +347,7 @@ const DashboardHome = () => {
         },
         { 
             title: 'Total Revenue', 
-            value: loading ? '...' : `$${stats.totalRevenue.toLocaleString()}`, 
+            value: loading ? '...' : `$${Number(stats.totalRevenue || 0).toFixed(2)}`, 
             icon: 'fas fa-dollar-sign', 
             color: '#f59e0b', 
             onClick: () => navigate('/admin/payments')

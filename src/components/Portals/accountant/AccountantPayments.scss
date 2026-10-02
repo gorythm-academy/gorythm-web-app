@@ -18,6 +18,32 @@
     flex: 1 1 auto;
   }
 
+  .accountant-payments-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 1 260px;
+    min-width: 200px;
+    padding: 0.45rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+
+    i {
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+
+    input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 0.85rem;
+      background: transparent;
+      min-width: 0;
+    }
+  }
+
   .accountant-payments-trash-entry {
     display: inline-flex;
     align-items: center;
@@ -362,6 +388,9 @@
   .accountant-payments-table-wrap {
     border: none;
     border-radius: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
   }
 
   .accountant-payments-checkbox-cell {
@@ -378,6 +407,8 @@
   }
 
   .accountant-payments-table {
+    min-width: 1100px;
+
     tbody tr.accountant-payments-row--selected td {
       background: #fff7ed;
     }
@@ -828,6 +859,6 @@
 
 @media (max-width: $bp-admin-table-max) {
   .accountant-payments-table {
-    min-width: 760px;
+    min-width: 1100px;
   }
 }

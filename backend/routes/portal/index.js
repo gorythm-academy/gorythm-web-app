@@ -21,6 +21,7 @@ router.use((req, res, next) => {
  * `helpers.js` holds the cross-realm utilities (enrollment/attendance/quiz helpers);
  * this file only wires the realm routers together.
  */
+router.use(require('./badges'));
 router.use(require('./student'));
 router.use(require('./teacher'));
 router.use(require('./parent'));

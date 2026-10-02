@@ -1,148 +1,169 @@
-import React, { useEffect, useState } from 'react';
-import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, FeeBadge } from '../shared/PortalUi';
-
-const paymentStatusLabel = (status) => {
-  if (status === 'paid' || status === 'completed') return 'Paid';
-  if (status === 'awaiting_review') return 'Awaiting review';
-  if (status === 'processing') return 'Processing';
-  if (status === 'rejected') return 'Rejected';
-  if (status === 'refunded') return 'Refunded';
-  if (status === 'failed') return 'Failed';
-  return status || '—';
-};
+import React, { useCallback, useEffect, useState } from 'react';
+import { portalGet, portalGetBlob, portalPost, portalPostForm } from '../shared/portalApi';
+import { PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import PortalBillingCheckout, { triggerBlobDownload } from '../shared/PortalBillingCheckout';
 
 const StudentFees = () => {
-  const [enrollments, setEnrollments] = useState(null);
-  const [payments, setPayments] = useState([]);
+  const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    portalGet('/student/fees')
+  const load = useCallback(() => {
+    setLoading(true);
+    return portalGet('/student/fees')
       .then((res) => {
         if (res.success) {
-          setEnrollments(res.enrollments || []);
-          setPayments(res.payments || []);
-        } else setError(res.error || 'Failed to load fees');
+          setData(res);
+          setError('');
+        } else setError(res.error || 'Could not load fees. Please try again.');
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message || 'Could not load fees. Please try again.'))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (enrollments === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const enrollmentRows = enrollments.filter((e) => e.course);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autopay') === 'saved') {
+      setNotice('Card saved. Auto-pay is on for the selected course(s).');
+      params.delete('autopay');
+      const nextSearch = params.toString();
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+      window.history.replaceState(null, '', nextUrl);
+    }
+  }, []);
+
+  const downloadPdf = async (payment) => {
+    const rawId = String(payment._id || payment.id || '');
+    const enrollmentId = payment.fromEnrollment || rawId.startsWith('enrollment:')
+      ? (payment.enrollmentId || rawId.replace(/^enrollment:/, ''))
+      : null;
+    const paymentId = enrollmentId ? null : rawId;
+    const query = new URLSearchParams({ kind: 'invoice' });
+    if (payment.invoiceQuery?.scope) query.set('scope', payment.invoiceQuery.scope);
+    if (payment.invoiceQuery?.courseId && !String(payment.invoiceQuery.courseId).includes('[object')) {
+      query.set('courseId', payment.invoiceQuery.courseId);
+    }
+    if (payment.invoiceQuery?.studentId && !String(payment.invoiceQuery.studentId).includes('[object')) {
+      query.set('studentId', payment.invoiceQuery.studentId);
+    }
+    if (payment.invoiceQuery?.courseName) query.set('courseName', payment.invoiceQuery.courseName);
+    if (payment.invoiceQuery?.scope === 'all-history') {
+      const blob = await portalGetBlob(`/student/billing/statement?${query.toString()}`);
+      triggerBlobDownload(blob, 'invoice_all.pdf');
+      return;
+    }
+    if (!enrollmentId && !paymentId) {
+      throw new Error('Payment not found');
+    }
+    const blob = enrollmentId
+      ? await portalGetBlob(`/student/enrollments/${enrollmentId}/invoice?${query.toString()}`)
+      : await portalGetBlob(`/student/payments/${paymentId}/invoice?${query.toString()}`);
+    const name = String(payment.invoiceNumber || payment.transactionId || enrollmentId || paymentId)
+      .replace(/[^a-zA-Z0-9-_]/g, '_');
+    const coursePart = String(payment.invoiceQuery?.courseName || '').replace(/[^a-zA-Z0-9-_]/g, '_');
+    triggerBlobDownload(blob, `invoice_${name}${coursePart ? `_${coursePart}` : ''}.pdf`);
+  };
 
   return (
     <div className="portal-page">
       <PortalPageHeader
         title="Fees"
-        subtitle="Status reflects actual payments (paid, pending, failed, refunded) — not enrollment alone."
+        subtitle="Your courses, unpaid fees, and invoices after payment is received."
       />
-
       <div className="portal-hero portal-hero--student">
         <div className="portal-hero__icon" aria-hidden="true">
           <i className="fa-solid fa-file-invoice-dollar" />
         </div>
         <div>
-          <h2>Fee Overview</h2>
-          <p>Enrollment fee status and your payment history in one place.</p>
+          <h2>Course fees</h2>
+          <p>Review your courses here, then pay unpaid fees by card or bank transfer.</p>
         </div>
       </div>
-
-      <div className="portal-panel">
-        <div className="portal-panel__head">
-          <div>
-            <h2>By Enrollment</h2>
-            <p>Course price and payment status per enrollment</p>
-          </div>
-        </div>
-        <div className="portal-panel__body">
-          {enrollmentRows.length === 0 ? (
-            <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-              No enrollments.
-            </p>
-          ) : (
-            <div className="portal-data-table-wrap">
-              <table className="portal-data-table">
-                <thead>
-                  <tr>
-                    <th>Course</th>
-                    <th>Course Price</th>
-                    <th>Fee Status</th>
-                    <th>Enrollment</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrollmentRows.map((r) => (
-                    <tr key={r._id}>
-                      <td>
-                        <strong>{r.course?.title || '—'}</strong>
-                      </td>
-                      <td>{r.course?.price != null ? `$${Number(r.course.price).toFixed(2)}` : '—'}</td>
-                      <td>
-                        <FeeBadge status={r.paymentStatus} />
-                      </td>
-                      <td>{r.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="portal-panel">
-        <div className="portal-panel__head">
-          <div>
-            <h2>Payment History</h2>
-            <p>Recorded payments for your enrollments</p>
-          </div>
-        </div>
-        <div className="portal-panel__body">
-          {payments.length === 0 ? (
-            <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-              No payments recorded.
-            </p>
-          ) : (
-            <div className="portal-data-table-wrap">
-              <table className="portal-data-table">
-                <thead>
-                  <tr>
-                    <th>Course</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((r) => (
-                    <tr key={r._id}>
-                      <td>{r.course?.title || r.courseName || '—'}</td>
-                      <td>${Number(r.amount || 0).toFixed(2)}</td>
-                      <td>{paymentStatusLabel(r.status)}</td>
-                      <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
+      <PortalBillingCheckout
+        enrollments={data?.enrollments || []}
+        payable={data?.payable || []}
+        payments={data?.payments || []}
+        bankDetails={data?.bankDetails}
+        savedCards={data?.savedCards || []}
+        loading={loading}
+        busy={busy}
+        notice={notice}
+        tone="student"
+        emptyEnrollmentsText="No courses are listed on your account yet. When the academy adds a course, it will appear here."
+        emptyHistoryText="Paid invoices will appear here after a fee is received."
+        onPayStripe={async ({ enrollmentIds, invoiceMode, months }) => {
+          setBusy(true);
+          setNotice('');
+          try {
+            const res = await portalPost('/student/fees/checkout', { enrollmentIds, invoiceMode, months });
+            if (!res.success || !res.url) throw new Error(res.error || 'Could not start card payment');
+            window.location.href = res.url;
+          } catch (err) {
+            setBusy(false);
+            throw err;
+          }
+        }}
+        onPayBank={async ({ enrollmentIds, invoiceMode, file, phone, months }) => {
+          setBusy(true);
+          setNotice('');
+          try {
+            const form = new FormData();
+            form.append('enrollmentIds', JSON.stringify(enrollmentIds));
+            form.append('invoiceMode', invoiceMode);
+            form.append('months', String(months || 1));
+            form.append('phone', phone || '');
+            form.append('file', file);
+            const res = await portalPostForm('/student/fees/bank', form);
+            if (!res.success) throw new Error(res.error || 'Could not submit bank payment proof');
+            setNotice(res.message || 'Payment proof received. The academy will contact you after checking it.');
+            await load();
+          } catch (err) {
+            throw err;
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onDownloadInvoice={downloadPdf}
+        onToggleAutoPay={async ({ enrollmentIds, enabled }) => {
+          setBusy(true);
+          setNotice('');
+          try {
+            const res = await portalPost('/student/fees/autopay', { enrollmentIds, enabled });
+            if (!res.success) throw new Error(res.error || 'Could not update auto-pay');
+            if (res.url) {
+              window.location.href = res.url;
+              return;
+            }
+            setNotice(enabled ? 'Auto-pay is on for this course.' : 'Auto-pay is off for this course.');
+            await load();
+          } catch (err) {
+            throw err;
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onDeleteCard={async ({ paymentMethodId }) => {
+          setBusy(true);
+          setNotice('');
+          try {
+            const res = await portalPost('/student/fees/cards/delete', { paymentMethodId });
+            if (!res.success) throw new Error(res.error || 'Could not remove this card');
+            setNotice('Card removed.');
+            await load();
+          } catch (err) {
+            throw err;
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
     </div>
   );
 };

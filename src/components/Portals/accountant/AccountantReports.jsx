@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { portalGet, payrollGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { drawPdfTable } from '../../../utils/pdfTable';
+
+const PAGE_SIZE = 15;
 
 const formatMonth = (monthKey) => {
   const [y, m] = String(monthKey || '').split('-');
@@ -13,11 +15,54 @@ const formatMonth = (monthKey) => {
   });
 };
 
+function ReportTableTools({ search, onSearch, searchPlaceholder, status, onStatus, statusOptions, page, pageCount, onPage, total }) {
+  return (
+    <div className="portal-report-block__tools">
+      <input
+        type="search"
+        className="portal-report-search"
+        placeholder={searchPlaceholder}
+        value={search}
+        onChange={(e) => onSearch(e.target.value)}
+      />
+      {statusOptions.length > 0 ? (
+        <select className="portal-report-status-select" value={status} onChange={(e) => onStatus(e.target.value)}>
+          <option value="all">All statuses</option>
+          {statusOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      {pageCount > 1 ? (
+        <div className="portal-report-pagination">
+          <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+            <i className="fas fa-chevron-left" />
+          </button>
+          <span>
+            Page {page} of {pageCount} · {total} row{total === 1 ? '' : 's'}
+          </span>
+          <button type="button" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
+            <i className="fas fa-chevron-right" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const AccountantReports = () => {
   const [payments, setPayments] = useState([]);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('all');
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [payrollSearch, setPayrollSearch] = useState('');
+  const [payrollStatus, setPayrollStatus] = useState('all');
+  const [payrollPage, setPayrollPage] = useState(1);
 
   useEffect(() => {
     Promise.all([portalGet('/accountant/payments'), payrollGet('/runs')])
@@ -30,6 +75,53 @@ const AccountantReports = () => {
       .catch((err) => setLoadError(err.message || 'Failed to load reports'))
       .finally(() => setLoading(false));
   }, []);
+
+  const paymentStatusOptions = useMemo(
+    () => Array.from(new Set(payments.map((p) => p.status).filter(Boolean))).sort(),
+    [payments]
+  );
+  const payrollStatusOptions = useMemo(
+    () => Array.from(new Set(runs.map((r) => r.status).filter(Boolean))).sort(),
+    [runs]
+  );
+
+  const filteredPayments = useMemo(() => {
+    const term = paymentSearch.trim().toLowerCase();
+    return payments.filter((p) => {
+      if (paymentStatus !== 'all' && p.status !== paymentStatus) return false;
+      if (!term) return true;
+      const haystack = `${p.studentName || p.user?.name || ''} ${p.courseName || p.course?.title || ''}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [payments, paymentSearch, paymentStatus]);
+
+  const filteredRuns = useMemo(() => {
+    const term = payrollSearch.trim().toLowerCase();
+    return runs.filter((r) => {
+      if (payrollStatus !== 'all' && r.status !== payrollStatus) return false;
+      if (!term) return true;
+      const haystack = `${r.teacher?.name || r.teacherName || ''}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [runs, payrollSearch, payrollStatus]);
+
+  const paymentPageCount = Math.max(1, Math.ceil(filteredPayments.length / PAGE_SIZE));
+  const payrollPageCount = Math.max(1, Math.ceil(filteredRuns.length / PAGE_SIZE));
+  const safePaymentPage = Math.min(paymentPage, paymentPageCount);
+  const safePayrollPage = Math.min(payrollPage, payrollPageCount);
+  const pagedPayments = filteredPayments.slice(
+    (safePaymentPage - 1) * PAGE_SIZE,
+    safePaymentPage * PAGE_SIZE
+  );
+  const pagedRuns = filteredRuns.slice((safePayrollPage - 1) * PAGE_SIZE, safePayrollPage * PAGE_SIZE);
+
+  useEffect(() => {
+    setPaymentPage(1);
+  }, [paymentSearch, paymentStatus]);
+
+  useEffect(() => {
+    setPayrollPage(1);
+  }, [payrollSearch, payrollStatus]);
 
   const exportPaymentRowPdf = (p) => {
     const studentName = p.studentName || p.user?.name || 'Student';
@@ -78,7 +170,7 @@ const AccountantReports = () => {
       subtitle:
         'Each row is one student course payment. Amount is in USD. Status may be paid, pending, failed, or refunded.',
       headers: ['Student', 'Course', 'Amount (USD)', 'Status', 'Payment method', 'Record date'],
-      rows: payments.map((p) => [
+      rows: filteredPayments.map((p) => [
         p.studentName || p.user?.name || '—',
         p.courseName || p.course?.title || '—',
         `$${Number(p.amount || 0).toFixed(2)}`,
@@ -97,7 +189,7 @@ const AccountantReports = () => {
       subtitle:
         'Monthly payroll runs per teacher. Monthly salary is before deductions. Final salary is the amount to pay.',
       headers: ['Teacher', 'Payroll month', 'Monthly salary', 'Deduction', 'Final salary', 'Status'],
-      rows: runs.map((r) => [
+      rows: filteredRuns.map((r) => [
         r.teacher?.name || '—',
         formatMonth(r.monthKey),
         `$${Number(r.monthlySalary || 0).toFixed(2)}`,
@@ -109,19 +201,9 @@ const AccountantReports = () => {
     doc.save('payroll-report.pdf');
   };
 
-  if (loading) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
-
   return (
     <div className="portal-page">
       <PortalPageHeader title="Reports" subtitle="Structured financial summaries with export to PDF" />
-
-      {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
 
       <div className="portal-hero portal-hero--accountant">
         <div className="portal-hero__icon" aria-hidden="true">
@@ -133,6 +215,7 @@ const AccountantReports = () => {
         </div>
       </div>
 
+      <PortalDataSection loading={loading} error={loadError} loadingLabel="Loading reports…">
       <section className="portal-report-block">
         <div className="portal-report-block__intro">
           <h2>Student Payments Report</h2>
@@ -150,12 +233,24 @@ const AccountantReports = () => {
         </div>
         <div className="portal-panel">
           <div className="portal-panel__head">
-            <h3>Payments Data — {payments.length} row{payments.length === 1 ? '' : 's'}</h3>
+            <h3>Payments Data — {filteredPayments.length} row{filteredPayments.length === 1 ? '' : 's'}</h3>
           </div>
+          <ReportTableTools
+            search={paymentSearch}
+            onSearch={setPaymentSearch}
+            searchPlaceholder="Search by student or course…"
+            status={paymentStatus}
+            onStatus={setPaymentStatus}
+            statusOptions={paymentStatusOptions}
+            page={safePaymentPage}
+            pageCount={paymentPageCount}
+            onPage={setPaymentPage}
+            total={filteredPayments.length}
+          />
           <div className="portal-panel__body">
-            {payments.length === 0 ? (
+            {filteredPayments.length === 0 ? (
               <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-                No payment records to report.
+                No payment records match this filter.
               </p>
             ) : (
               <div className="portal-data-table-wrap">
@@ -172,7 +267,7 @@ const AccountantReports = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.map((p) => (
+                    {pagedPayments.map((p) => (
                       <tr key={p._id}>
                         <td>
                           <strong>{p.studentName || p.user?.name || '—'}</strong>
@@ -214,12 +309,24 @@ const AccountantReports = () => {
         </div>
         <div className="portal-panel">
           <div className="portal-panel__head">
-            <h3>Payroll Data — {runs.length} row{runs.length === 1 ? '' : 's'}</h3>
+            <h3>Payroll Data — {filteredRuns.length} row{filteredRuns.length === 1 ? '' : 's'}</h3>
           </div>
+          <ReportTableTools
+            search={payrollSearch}
+            onSearch={setPayrollSearch}
+            searchPlaceholder="Search by teacher…"
+            status={payrollStatus}
+            onStatus={setPayrollStatus}
+            statusOptions={payrollStatusOptions}
+            page={safePayrollPage}
+            pageCount={payrollPageCount}
+            onPage={setPayrollPage}
+            total={filteredRuns.length}
+          />
           <div className="portal-panel__body">
-            {runs.length === 0 ? (
+            {filteredRuns.length === 0 ? (
               <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-                No payroll runs to report.
+                No payroll runs match this filter.
               </p>
             ) : (
               <div className="portal-data-table-wrap">
@@ -236,7 +343,7 @@ const AccountantReports = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {runs.map((r) => (
+                    {pagedRuns.map((r) => (
                       <tr key={r._id}>
                         <td>
                           <strong>{r.teacher?.name || '—'}</strong>
@@ -264,6 +371,7 @@ const AccountantReports = () => {
       <PortalAlert type="info">
         PDF exports use the same column layout as the tables above, with titled headers and grid rows.
       </PortalAlert>
+      </PortalDataSection>
     </div>
   );
 };

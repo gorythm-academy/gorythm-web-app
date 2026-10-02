@@ -363,7 +363,10 @@
 }
 
 @media (min-width: $bp-section-xxl) {
-  .video-section { max-height: 860px; }
+  .video-section {
+    height: 52vw;
+    max-height: 960px;
+  }
   .video-play-btn { width: 96px; height: 96px; }
   .video-play-text { font-size: 0.8rem; }
 }

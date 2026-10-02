@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { portalGet, payrollGet } from '../components/Portals/shared/portalApi';
+import { portalGet } from '../components/Portals/shared/portalApi';
 
 export const ACCOUNTANT_PAYMENTS_UPDATED_EVENT = 'accountant-payments-updated';
 export const ACCOUNTANT_PAYROLL_UPDATED_EVENT = 'accountant-payroll-updated';
@@ -19,18 +18,16 @@ export function countPendingBankReviews(payments = []) {
 }
 
 export function useAccountantPortalBadges(enabled) {
-  const location = useLocation();
   const [badges, setBadges] = useState({ payments: 0, payroll: 0 });
 
   const refresh = useCallback(() => {
     if (!enabled) return;
-    Promise.all([portalGet('/accountant/payments'), payrollGet('/runs?status=pending_review')])
-      .then(([payRes, payrollRes]) => {
-        const payments = payRes.success ? payRes.payments || [] : [];
-        const payrollRuns = payrollRes.runs || [];
+    portalGet('/accountant/badges')
+      .then((res) => {
+        if (!res?.success) throw new Error(res?.error || 'Failed to load badges');
         setBadges({
-          payments: countPendingBankReviews(payments),
-          payroll: payrollRuns.length,
+          payments: Number(res.payments) || 0,
+          payroll: Number(res.payroll) || 0,
         });
       })
       .catch((err) => {
@@ -41,7 +38,7 @@ export function useAccountantPortalBadges(enabled) {
 
   useEffect(() => {
     refresh();
-  }, [refresh, location.pathname]);
+  }, [refresh]);
 
   useEffect(() => {
     if (!enabled) return undefined;

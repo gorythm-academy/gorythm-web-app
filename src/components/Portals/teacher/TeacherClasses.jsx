@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalPageHeader } from '../shared/PortalUi';
 import { formatTime12h } from '../../../utils/formatTime12h';
 import ScheduleRoomOrLink from '../shared/ScheduleRoomOrLink';
+import { portalDocId } from '../../../utils/portalDocId';
 import './TeacherClasses.scss';
 
 const TeacherClasses = () => {
@@ -21,20 +23,8 @@ const TeacherClasses = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (schedules === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = schedules === null;
+  const rows = schedules || [];
 
   return (
     <div className="portal-page teacher-classes">
@@ -50,8 +40,8 @@ const TeacherClasses = () => {
         <div>
           <h2>Weekly Class Schedule</h2>
           <p>
-            Admin sets your course timings here. Use Attendance to mark students, Assignments and Resources for
-            homework, and Quizzes for assessments.
+            Admin sets your course timings here. Use "Take attendance" on a class to jump straight to that
+            course in Attendance, or use Assignments, Resources, and Quizzes for coursework.
           </p>
         </div>
       </div>
@@ -61,49 +51,69 @@ const TeacherClasses = () => {
           <div>
             <h2>Class Schedule</h2>
             <p>
-              {schedules.length
-                ? `${schedules.length} class${schedules.length === 1 ? '' : 'es'} this week`
-                : 'No timings set yet'}
+              {loading
+                ? 'Loading your weekly classes…'
+                : rows.length
+                  ? `${rows.length} class${rows.length === 1 ? '' : 'es'} this week`
+                  : 'No timings set yet'}
             </p>
           </div>
         </div>
         <div className="portal-panel__body">
-          {schedules.length === 0 ? (
-            <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-              No class timings set yet. Ask admin to add schedules in LMS.
-            </p>
-          ) : (
-            <div className="portal-data-table-wrap">
-              <table className="portal-data-table teacher-classes__table">
-                <thead>
-                  <tr>
-                    <th>Day</th>
-                    <th>Time</th>
-                    <th>Course</th>
-                    <th>Room / Link</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {schedules.map((r) => (
-                    <tr key={r._id}>
-                      <td>
-                        <span className="teacher-classes__day-badge">
-                          {dayLabels[r.dayOfWeek] || r.dayOfWeek}
-                        </span>
-                      </td>
-                      <td className="teacher-classes__time">
-                        {formatTime12h(r.startTime)} – {formatTime12h(r.endTime)}
-                      </td>
-                      <td className="teacher-classes__course">{r.course?.title || '—'}</td>
-                      <td>
-                        <ScheduleRoomOrLink value={r.roomOrLink} className="teacher-classes__join" />
-                      </td>
+          <PortalDataSection loading={loading} error={error} loadingLabel="Loading class schedule…">
+            {rows.length === 0 ? (
+              <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
+                No class timings are listed yet. Please contact the academy to add your class times.
+              </p>
+            ) : (
+              <div className="portal-data-table-wrap">
+                <table className="portal-data-table teacher-classes__table">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Time</th>
+                      <th>Course</th>
+                      <th>Room / Link</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const courseId = portalDocId(r.course);
+                      return (
+                        <tr key={r._id}>
+                          <td>
+                            <span className="teacher-classes__day-badge">
+                              {dayLabels[r.dayOfWeek] || r.dayOfWeek}
+                            </span>
+                          </td>
+                          <td className="teacher-classes__time">
+                            {formatTime12h(r.startTime)} – {formatTime12h(r.endTime)}
+                          </td>
+                          <td className="teacher-classes__course">{r.course?.title || '—'}</td>
+                          <td>
+                            <ScheduleRoomOrLink value={r.roomOrLink} className="teacher-classes__join" />
+                          </td>
+                          <td>
+                            {courseId ? (
+                              <Link
+                                to={`/teacher/attendance?course=${courseId}`}
+                                className="teacher-classes__attendance-link"
+                              >
+                                <i className="fas fa-user-check" aria-hidden="true" /> Take attendance
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </PortalDataSection>
         </div>
       </div>
     </div>

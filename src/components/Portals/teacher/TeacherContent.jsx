@@ -5,13 +5,14 @@ import { resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
 import PortalModal from '../shared/PortalModal';
 import SubmissionFiles from '../shared/SubmissionFiles';
-import { PortalLoading, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
 import { toLocalDateStr } from '../../../utils/academyWeek';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
 import { collectAdminAssignmentEditNotices } from '../../../utils/adminEditNotices';
 import {
   collectAssignmentUpdateNotices,
-  collectSubmissionRevisionNotices,
+  collectSubmissionActivityNotices,
   collectTeacherSubmissionRemovalNotices,
   dismissActivityNotices,
   dismissSubmissionRemoval,
@@ -40,7 +41,10 @@ const isAdminLockedAssignment = (a) => !!(a?.lockedForTeacher || a?.createdByRol
 const EMPTY_ASSIGN = {
   title: '',
   courseId: '',
+  scheduleIds: [],
+  scheduleId: '',
   dueDate: '',
+  originalDueDate: '',
   description: '',
   attachments: [],
 };
@@ -48,6 +52,7 @@ const EMPTY_ASSIGN = {
 const TeacherContent = () => {
   const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
+  const [teacherSchedules, setTeacherSchedules] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [submissionRemovals, setSubmissionRemovals] = useState([]);
@@ -71,6 +76,7 @@ const TeacherContent = () => {
   const [submissionCourseFilter, setSubmissionCourseFilter] = useState('all');
   const [activityDismissTick, setActivityDismissTick] = useState(0);
   const [removalDismissTick, setRemovalDismissTick] = useState(0);
+  const [assignmentsSectionExpanded, setAssignmentsSectionExpanded] = useState(true);
 
   const resetAssignForm = () => {
     setEditingAssignId(null);
@@ -82,11 +88,13 @@ const TeacherContent = () => {
   const reload = () =>
     Promise.all([
       portalGet('/teacher/courses'),
+      portalGet('/teacher/schedule'),
       portalGet('/teacher/assignments'),
       portalGet('/teacher/submissions'),
     ])
-      .then(([c, a, s]) => {
+      .then(([c, sch, a, s]) => {
         if (c.success) setCourses(c.courses || []);
+        if (sch.success) setTeacherSchedules(sch.schedules || []);
         if (a.success) setAssignments(a.assignments || []);
         if (s.success) {
           setSubmissions(s.submissions || []);
@@ -101,11 +109,6 @@ const TeacherContent = () => {
   }, []);
 
   useEffect(() => {
-    markPortalPageVisited(SEEN_SUBMISSIONS_KEY);
-    markPortalPageVisited(TEACHER_SEEN_ADMIN_ASSIGNMENTS);
-  }, []);
-
-  useEffect(() => {
     if (!msg) return undefined;
     const t = setTimeout(() => setMsg(''), 4000);
     return () => clearTimeout(t);
@@ -117,6 +120,13 @@ const TeacherContent = () => {
     pendingFormScrollRef.current = false;
   }, [showForm, editingAssignId]);
 
+  const courseScheduleOptions = useMemo(() => {
+    if (!assignForm.courseId) return [];
+    return teacherSchedules.filter(
+      (slot) => String(slot.course?._id || slot.course) === String(assignForm.courseId)
+    );
+  }, [teacherSchedules, assignForm.courseId]);
+
   const saveAssignment = async (e) => {
     e.preventDefault();
     if (savingRef.current) return;
@@ -125,10 +135,6 @@ const TeacherContent = () => {
     setMsg('');
     try {
       const attachmentList = await resolveLmsUploadList(assignForm.attachments, 'assignments');
-      const payload = {
-        ...assignForm,
-        attachments: attachmentList,
-      };
       if (editingAssignId) {
         const id = portalDocId(editingAssignId);
         if (!id) {
@@ -137,15 +143,37 @@ const TeacherContent = () => {
         }
         const patchPayload = editingLockedAssign
           ? { dueDate: assignForm.dueDate, extendDueDate: true }
-          : payload;
+          : {
+              title: assignForm.title,
+              courseId: assignForm.courseId,
+              description: assignForm.description,
+              dueDate: assignForm.dueDate,
+              attachments: attachmentList,
+              scheduleId: assignForm.scheduleId,
+            };
         await portalPatch(`/teacher/assignments/${id}`, patchPayload);
         await showAlert({
           type: 'success',
           message: editingLockedAssign ? 'Due date extended.' : 'Assignment updated.',
         });
       } else {
-        await portalPost('/teacher/assignments', payload);
-        await showAlert({ type: 'success', message: 'Assignment published.' });
+        if (!assignForm.scheduleIds.length) {
+          await showAlert({ type: 'error', message: 'Select at least one class slot.' });
+          return;
+        }
+        await portalPost('/teacher/assignments', {
+          courseId: assignForm.courseId,
+          scheduleIds: assignForm.scheduleIds,
+          title: assignForm.title,
+          description: assignForm.description,
+          dueDate: assignForm.dueDate,
+          attachments: attachmentList,
+        });
+        const count = assignForm.scheduleIds.length;
+        await showAlert({
+          type: 'success',
+          message: `${count} assignment${count === 1 ? '' : 's'} published for the selected class slot${count === 1 ? '' : 's'}.`,
+        });
       }
       resetAssignForm();
       await reload();
@@ -169,7 +197,14 @@ const TeacherContent = () => {
     setAssignForm({
       title: a.title || '',
       courseId: String(a.course?._id || a.course || ''),
+      scheduleId: a.assignedSchedule?._id
+        ? String(a.assignedSchedule._id)
+        : a.assignedSchedule
+          ? String(a.assignedSchedule)
+          : '',
+      scheduleIds: [],
       dueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
+      originalDueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
       description: a.description || '',
       attachments: a.attachments?.length ? [...a.attachments] : [],
     });
@@ -325,7 +360,7 @@ const TeacherContent = () => {
   );
 
   const submissionRevisionNotices = useMemo(
-    () => collectSubmissionRevisionNotices(filteredSubmissions, SEEN_SUBMISSIONS_KEY),
+    () => collectSubmissionActivityNotices(filteredSubmissions, SEEN_SUBMISSIONS_KEY),
     [filteredSubmissions]
   );
 
@@ -365,6 +400,8 @@ const TeacherContent = () => {
       SEEN_ACTIVITY_KEY,
       visibleActivityNotices.map((row) => `${row.id}-${row.message}`)
     );
+    markPortalPageVisited(TEACHER_SEEN_ADMIN_ASSIGNMENTS);
+    markPortalPageVisited(SEEN_SUBMISSIONS_KEY);
     setActivityDismissTick((n) => n + 1);
   };
 
@@ -442,6 +479,7 @@ const TeacherContent = () => {
             ) : null}
           </td>
           <td>{a.course?.title}</td>
+          <td>{a.assignedSchedule ? formatScheduleTimeLabel(a.assignedSchedule) : '—'}</td>
           <td>
             {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
             {a.dueDateNotice ? <div className="lms-due-date-notice">{a.dueDateNotice}</div> : null}
@@ -514,8 +552,12 @@ const TeacherContent = () => {
 
   if (loading) {
     return (
-      <div className="portal-page">
-        <PortalLoading />
+      <div className="portal-page teacher-assignments">
+        <PortalPageHeader
+          title="Assignments"
+          subtitle="Publish homework, review student submissions, or remove invalid entries."
+        />
+        <PortalDataSection loading loadingLabel="Loading assignments…" />
       </div>
     );
   }
@@ -528,7 +570,7 @@ const TeacherContent = () => {
           title="Assignments"
           subtitle={loadError
             ? 'Could not load your courses. Refresh the page or try again later.'
-            : 'No courses assigned yet. Ask admin to set your account as instructor on a course.'}
+            : 'No courses are assigned to your account yet. Please contact the academy.'}
         />
       </div>
     );
@@ -597,7 +639,14 @@ const TeacherContent = () => {
                   <span>Course <RequiredMark /></span>
                   <select
                     value={assignForm.courseId}
-                    onChange={(e) => setAssignForm({ ...assignForm, courseId: e.target.value })}
+                    onChange={(e) =>
+                      setAssignForm({
+                        ...assignForm,
+                        courseId: e.target.value,
+                        scheduleIds: [],
+                        scheduleId: '',
+                      })
+                    }
                     required
                     disabled={!!editingAssignId}
                   >
@@ -609,6 +658,83 @@ const TeacherContent = () => {
                     ))}
                   </select>
                 </label>
+                {editingAssignId ? (
+                  <label className="portal-field-label">
+                    <span>Class slot <RequiredMark /></span>
+                    <select
+                      value={assignForm.scheduleId}
+                      onChange={(e) => setAssignForm({ ...assignForm, scheduleId: e.target.value })}
+                      required
+                    >
+                      <option value="">Select class slot</option>
+                      {courseScheduleOptions.map((slot) => (
+                        <option key={slot._id} value={slot._id}>
+                          {formatScheduleLabel(slot)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="teacher-assignments__slot-select">
+                    <div className="teacher-assignments__slot-head">
+                      <span>Class slots <RequiredMark /></span>
+                      {courseScheduleOptions.length ? (
+                        <label className="teacher-assignments__slot-all">
+                          <input
+                            type="checkbox"
+                            checked={
+                              courseScheduleOptions.length > 0 &&
+                              courseScheduleOptions.every((slot) =>
+                                assignForm.scheduleIds.includes(String(slot._id))
+                              )
+                            }
+                            onChange={() => {
+                              const allIds = courseScheduleOptions.map((slot) => String(slot._id));
+                              const allSelected =
+                                allIds.length > 0 &&
+                                allIds.every((id) => assignForm.scheduleIds.includes(id));
+                              setAssignForm({
+                                ...assignForm,
+                                scheduleIds: allSelected ? [] : allIds,
+                              });
+                            }}
+                          />
+                          <span>Select all</span>
+                        </label>
+                      ) : null}
+                    </div>
+                    {assignForm.courseId && courseScheduleOptions.length ? (
+                      <div className="teacher-assignments__slot-grid">
+                        {courseScheduleOptions.map((slot) => {
+                          const id = String(slot._id);
+                          return (
+                            <label key={id} className="teacher-assignments__slot-item">
+                              <input
+                                type="checkbox"
+                                checked={assignForm.scheduleIds.includes(id)}
+                                onChange={() =>
+                                  setAssignForm({
+                                    ...assignForm,
+                                    scheduleIds: assignForm.scheduleIds.includes(id)
+                                      ? assignForm.scheduleIds.filter((rowId) => rowId !== id)
+                                      : [...assignForm.scheduleIds, id],
+                                  })
+                                }
+                              />
+                              <span>{formatScheduleLabel(slot)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="teacher-assignments__slot-hint">
+                        {assignForm.courseId
+                          ? 'No class times are listed for this course yet. Please contact the academy.'
+                          : 'Select a course to choose class times.'}
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -625,7 +751,11 @@ const TeacherContent = () => {
               <input
                 type="date"
                 value={assignForm.dueDate}
-                min={minDueDateValue()}
+                min={
+                  editingAssignId && assignForm.originalDueDate
+                    ? assignForm.originalDueDate
+                    : minDueDateValue()
+                }
                 onChange={(e) => setAssignForm({ ...assignForm, dueDate: e.target.value })}
                 required
               />
@@ -666,23 +796,45 @@ const TeacherContent = () => {
         ) : null}
 
         <div className="teacher-assignments__main">
-          <section className="teacher-assignments__panel">
+          <section
+            className={`teacher-assignments__panel ${assignmentsSectionExpanded ? 'is-expanded' : 'is-collapsed'}`}
+          >
             <div className="teacher-assignments__panel-head">
-              <h2>Published Assignments</h2>
-              <div className="teacher-assignments__panel-actions">
-                {renderCourseFilter(assignmentCourseFilter, setAssignmentCourseFilter, filteredAssignments.length)}
-                {!showForm ? (
-                  <button
-                    type="button"
-                    className="teacher-assignments__make-btn"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <i className="fas fa-plus" aria-hidden="true" /> Create Assignment
-                  </button>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                className="teacher-assignments__panel-toggle"
+                onClick={() => setAssignmentsSectionExpanded((v) => !v)}
+                aria-expanded={assignmentsSectionExpanded}
+              >
+                <span className="teacher-assignments__panel-toggle-text">
+                  <h2>Published Assignments</h2>
+                  <p className="teacher-assignments__panel-lead">
+                    {filteredAssignments.length} assignment{filteredAssignments.length === 1 ? '' : 's'}
+                    {!assignmentsSectionExpanded ? ' · click to expand' : ''}
+                  </p>
+                </span>
+                <span className="teacher-assignments__panel-chevron" aria-hidden>
+                  <i className={`fas fa-chevron-${assignmentsSectionExpanded ? 'up' : 'down'}`} />
+                </span>
+              </button>
+              {assignmentsSectionExpanded ? (
+                <div className="teacher-assignments__panel-actions">
+                  {renderCourseFilter(assignmentCourseFilter, setAssignmentCourseFilter, filteredAssignments.length)}
+                  {!showForm ? (
+                    <button
+                      type="button"
+                      className="teacher-assignments__make-btn"
+                      onClick={() => setShowForm(true)}
+                    >
+                      <i className="fas fa-plus" aria-hidden="true" /> Create Assignment
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
+            {assignmentsSectionExpanded ? (
+              <>
             {selectedAssignmentIds.size > 0 ? (
               <div className="teacher-assignments__bulk-bar">
                 <span>{selectedAssignmentIds.size} selected</span>
@@ -720,6 +872,7 @@ const TeacherContent = () => {
                     </th>
                     <th>Title</th>
                     <th>Course</th>
+                    <th>Class slot</th>
                     <th>Due</th>
                     <th>Actions</th>
                   </tr>
@@ -728,7 +881,7 @@ const TeacherContent = () => {
                   {assignmentGroups
                     ? assignmentGroups.flatMap((group) => [
                         <tr key={`assign-head-${group.courseId}`} className="teacher-assignments__course-row">
-                          <td colSpan={5}>
+                          <td colSpan={6}>
                             <span className="portal-course-group__title">{group.title}</span>
                           </td>
                         </tr>,
@@ -743,6 +896,8 @@ const TeacherContent = () => {
                 </p>
               ) : null}
             </div>
+              </>
+            ) : null}
           </section>
 
           <section className="teacher-assignments__panel">
@@ -807,7 +962,7 @@ const TeacherContent = () => {
       </div>
 
       {viewAssignment ? (
-        <PortalModal title={viewAssignment.title} onClose={() => setViewAssignment(null)}>
+        <PortalModal title={viewAssignment.title} onClose={() => setViewAssignment(null)} tone="teacher" kicker="Assignment">
           <p><strong>Course:</strong> {viewAssignment.course?.title}</p>
           <p><strong>Due:</strong> {new Date(viewAssignment.dueDate).toLocaleDateString()}</p>
           <p><strong>Description:</strong> {viewAssignment.description || '—'}</p>
@@ -825,6 +980,8 @@ const TeacherContent = () => {
           title={`Submission — ${submissionModal.student?.name}`}
           onClose={() => setSubmissionModal(null)}
           wide
+          tone="teacher"
+          kicker="Student submission"
         >
           <p><strong>Roll No.:</strong> {submissionModal.student?.studentId || '—'}</p>
           <p><strong>Assignment:</strong> {submissionModal.assignment?.title}</p>

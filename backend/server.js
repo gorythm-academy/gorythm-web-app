@@ -306,6 +306,8 @@ if (require.main === module) {
             healthUrl: `http://localhost:${PORT}/health`,
             trustProxy: app.get('trust proxy'),
         });
+        const { startAutoPayScheduler } = require('./services/billingAutoPay');
+        startAutoPayScheduler();
     });
 }
 

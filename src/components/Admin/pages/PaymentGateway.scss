@@ -85,13 +85,14 @@
   flex-direction: column;
   gap: 8px;
 
-  label {
+  > label {
     color: rgba(255, 255, 255, 0.84);
     font-size: 0.82rem;
     font-weight: 600;
   }
 
-  input {
+  input:not([type='checkbox']):not([type='radio']),
+  select {
     width: 100%;
     min-height: 50px;
     padding: 12px 14px;
@@ -115,6 +116,103 @@
 
 .form-group-wide {
   grid-column: 1 / -1;
+}
+
+.extra-courses-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.payment-course-hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.extra-course-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: #101010;
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+
+  input {
+    width: 1.15rem;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    min-height: 1.15rem;
+    padding: 0;
+    margin: 0;
+    accent-color: #c5a45c;
+  }
+
+  &.is-selected,
+  &:has(input:checked) {
+    border-color: rgba(197, 164, 92, 0.55);
+    background: rgba(197, 164, 92, 0.1);
+    box-shadow: 0 0 0 3px rgba(197, 164, 92, 0.08);
+  }
+}
+
+.extra-course-item__copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  strong {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  em {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.78rem;
+    font-style: normal;
+  }
+}
+
+.extra-course-item__price {
+  color: #c5a45c;
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.invoice-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.82);
+
+  label {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  input {
+    width: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    margin: 0;
+    accent-color: #c5a45c;
+  }
 }
 
 .payment-url-course-error {

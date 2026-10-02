@@ -256,70 +256,10 @@
     }
   }
 
+  /* Stats card layout from _admin-stats-cards.scss */
   .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-
     .stat-card {
-      background: white;
-      border-radius: 12px;
-      padding: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-      transition: all 0.3s ease;
       cursor: pointer;
-      border: 2px solid transparent;
-      position: relative;
-      overflow: hidden;
-
-      &:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        border-color: #e2e8f0;
-        
-        &::after {
-          content: '→';
-          position: absolute;
-          bottom: 1rem;
-          right: 1.5rem;
-          color: var(--color-accent);
-          font-weight: bold;
-          font-size: 1.2rem;
-        }      }
-
-      .stat-icon {
-        width: clamp(30px, 4.4vw, 50px);
-        height: clamp(30px, 4.4vw, 50px);
-        border-radius: clamp(8px, 1.2vw, 12px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: clamp(0.85rem, 2vw, 1.5rem);
-        line-height: 1;
-      }
-
-      .stat-info {
-        flex: 1;
-
-        h3 {
-          font-size: clamp(0.95rem, 2.2vw, 1.8rem);
-          color: #1e293b;
-          margin: 0;
-          font-weight: 700;
-        }
-
-        p {
-          color: #64748b;
-          margin: 0.2rem 0 0;
-          font-size: clamp(0.72rem, 1.45vw, 0.9rem);
-          overflow-wrap: anywhere;
-        }
-      }
     }
   }
 
@@ -780,11 +720,6 @@
       }
     }
 
-    .stats-grid {
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-    }
-
     .dashboard-card {
       .card-header {
         padding: 1.2rem;
@@ -804,12 +739,8 @@
     }
   }
 
-  // ≤ 480px (small phone): single-column stats, centered welcome banner
+  // ≤ 480px (small phone): centered welcome banner
   @media (max-width: $bp-legacy-480) {
-    .stats-grid {
-      grid-template-columns: 1fr;
-    }
-    
     .welcome-banner {
       text-align: center;
       

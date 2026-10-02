@@ -1,10 +1,53 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { billingStatusLabel } from '../../../utils/billingLabels';
 import './PortalUi.scss';
 import './PortalPages.scss';
 
 export function PortalLoading({ label = 'Loading…' }) {
   return <p className="portal-ui-loading">{label}</p>;
+}
+
+/** Static page chrome (title, hero, toolbars) stays visible; only the data area waits on the API. */
+export function PortalDataSection({
+  loading = false,
+  error = '',
+  loadingLabel = 'Loading…',
+  className = '',
+  children,
+}) {
+  if (error) {
+    return (
+      <div className={`portal-data-section ${className}`.trim()}>
+        <PortalAlert type="error">{error}</PortalAlert>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className={`portal-data-section portal-data-section--loading ${className}`.trim()}>
+        <PortalLoading label={loadingLabel} />
+      </div>
+    );
+  }
+  return <div className={`portal-data-section ${className}`.trim()}>{children}</div>;
+}
+
+export function PortalSummaryGridSkeleton({ items = 4 }) {
+  return (
+    <div
+      className="portal-grid portal-summary-grid portal-summary-grid--skeleton"
+      aria-busy="true"
+      aria-label="Loading summary"
+    >
+      {Array.from({ length: items }, (_, index) => (
+        <div key={index} className="portal-card portal-summary-card portal-summary-card--skeleton">
+          <span className="portal-skeleton-line portal-skeleton-line--label" />
+          <strong className="portal-skeleton-line portal-skeleton-line--value" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function PortalAlert({ type = 'info', children }) {
@@ -52,8 +95,8 @@ export function SummaryGrid({ items }) {
 }
 
 export function FeeBadge({ status }) {
-  const s = status || 'pending';
-  return <span className={`portal-fee-badge portal-fee-badge--${s}`}>{s}</span>;
+  const s = status === 'completed' ? 'paid' : status === 'pending' ? 'unpaid' : status || 'unpaid';
+  return <span className={`portal-fee-badge portal-fee-badge--${s}`}>{billingStatusLabel(s)}</span>;
 }
 
 export function PortalCourseToolbar({ value, onChange, courses, label = 'Course', count }) {
@@ -141,7 +184,7 @@ export function PortalActivityBanner({
 export function SimpleTable({
   columns,
   rows,
-  emptyLabel = 'No records yet.',
+  emptyLabel = 'Nothing to show here yet.',
   onRowClick,
   rowClassName,
 }) {

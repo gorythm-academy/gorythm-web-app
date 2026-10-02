@@ -46,4 +46,23 @@
       text-decoration: none;
     }
   }
+
+  .teacher-classes__attendance-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 8px;
+    border: 1.5px solid #0284c7;
+    color: #0369a1 !important;
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      background: #e0f2fe;
+      text-decoration: none;
+    }
+  }
 }

@@ -24,23 +24,30 @@ export function assignmentUpdatedSince(assignment, sinceMs) {
 }
 
 /** Human-readable update lines for banners (no "admin" wording for students). */
-export function getAssignmentUpdateMessages(assignment, { viewerRole = 'student' } = {}) {
+export function getAssignmentUpdateMessages(assignment, { viewerRole = 'student', sinceMs = null } = {}) {
   if (!assignment) return [];
   const messages = [];
-  if (assignment.dueDateNotice) {
-    messages.push(assignment.dueDateNotice);
-    return [...new Set(messages)];
-  }
+  const since = typeof sinceMs === 'number' ? sinceMs : 0;
   const extensions = Array.isArray(assignment.dueDateExtensions) ? assignment.dueDateExtensions : [];
-  if (extensions.length) {
-    const latest = extensions[extensions.length - 1];
-    const newDate = formatDate(latest.newDueDate);
-    messages.push(`Due date extended to ${newDate}.`);
-    return messages;
+  const latestExt = extensions.length ? extensions[extensions.length - 1] : null;
+  const extensionSince = Boolean(
+    latestExt?.extendedAt && new Date(latestExt.extendedAt).getTime() > since
+  );
+
+  if (extensionSince) {
+    if (assignment.dueDateNotice) {
+      messages.push(assignment.dueDateNotice);
+    } else {
+      messages.push(`Due date extended to ${formatDate(latestExt.newDueDate)}.`);
+    }
   }
+
   const created = assignment.createdAt ? new Date(assignment.createdAt).getTime() : 0;
   const updated = assignment.updatedAt ? new Date(assignment.updatedAt).getTime() : 0;
-  if (updated > created + 60_000) {
+  const contentEdited =
+    updated > created + 60_000 &&
+    (!extensionSince || updated > new Date(latestExt?.extendedAt || 0).getTime() + 60_000);
+  if (contentEdited) {
     if (viewerRole === 'student') {
       messages.push(`"${assignment.title || 'Assignment'}" was updated.`);
     } else {
@@ -57,7 +64,7 @@ export function collectAssignmentUpdateNotices(assignments, storageKey, options 
     const created = assignment.createdAt ? new Date(assignment.createdAt).getTime() : 0;
     if (created > since) continue;
     if (!assignmentUpdatedSince(assignment, since)) continue;
-    for (const message of getAssignmentUpdateMessages(assignment, options)) {
+    for (const message of getAssignmentUpdateMessages(assignment, { ...options, sinceMs: since })) {
       rows.push({ id: assignment._id, title: assignment.title, message });
     }
   }
@@ -97,26 +104,70 @@ export function submissionRevisedSince(submission, sinceMs) {
   return Math.max(updated, submitted) > sinceMs;
 }
 
-export function collectSubmissionRevisionNotices(submissions, storageKey) {
+/** First submit or resubmit since the viewer last visited. */
+export function submissionActivitySince(submission, sinceMs) {
+  if (!submission) return false;
+  const submitted = submission.submittedAt ? new Date(submission.submittedAt).getTime() : 0;
+  const updated = submission.updatedAt ? new Date(submission.updatedAt).getTime() : 0;
+  const created = submission.createdAt ? new Date(submission.createdAt).getTime() : 0;
+  return Math.max(submitted, updated, created) > sinceMs;
+}
+
+export function getSubmissionActivityLabel(submission) {
+  if (isSubmissionRevisedClient(submission)) {
+    return getSubmissionRevisionLabel(submission) || 'Edited';
+  }
+  return 'Submitted';
+}
+
+export function collectSubmissionActivityNotices(submissions, storageKey) {
   const since = cutoffMs(storageKey);
   const rows = [];
   for (const submission of submissions || []) {
-    if (!submissionRevisedSince(submission, since)) continue;
-    const label = getSubmissionRevisionLabel(submission) || 'Re-submitted';
+    if (!submissionActivitySince(submission, since)) continue;
+    const label = getSubmissionActivityLabel(submission);
     const studentName = submission.student?.name || 'A student';
     const title = submission.assignment?.title || 'assignment';
     rows.push({
       id: submission._id,
       title: `${studentName} — ${title}`,
-      message: `${label} on ${formatDate(submission.submittedAt || submission.updatedAt)}.`,
+      message: `${label} on ${formatDate(submission.submittedAt || submission.updatedAt || submission.createdAt)}.`,
     });
   }
   return rows;
 }
 
+export function collectSubmissionRevisionNotices(submissions, storageKey) {
+  return collectSubmissionActivityNotices(submissions, storageKey);
+}
+
 export function countSubmissionsRevisedSince(submissions, storageKey) {
   const since = cutoffMs(storageKey);
-  return (submissions || []).filter((s) => submissionRevisedSince(s, since)).length;
+  return (submissions || []).filter((s) => submissionActivitySince(s, since)).length;
+}
+
+export function dueDateExtendedSince(assignment, sinceMs) {
+  if (!assignment) return false;
+  const extensions = Array.isArray(assignment.dueDateExtensions) ? assignment.dueDateExtensions : [];
+  const latestExt = extensions.length ? extensions[extensions.length - 1] : null;
+  return Boolean(latestExt?.extendedAt && new Date(latestExt.extendedAt).getTime() > sinceMs);
+}
+
+export function collectDueDateExtensionNotices(assignments, storageKey, options = {}) {
+  const since = cutoffMs(storageKey);
+  const rows = [];
+  for (const assignment of assignments || []) {
+    if (!dueDateExtendedSince(assignment, since)) continue;
+    const message =
+      assignment.dueDateNotice || getAssignmentUpdateMessages(assignment, options)[0];
+    if (!message) continue;
+    rows.push({
+      id: assignment._id,
+      title: assignment.title || 'Assignment',
+      message,
+    });
+  }
+  return rows;
 }
 
 /** True when existing assignments were edited (not newly created) since last visit. */

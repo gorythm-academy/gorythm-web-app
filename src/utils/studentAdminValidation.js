@@ -4,7 +4,7 @@ export const STUDENT_ID_REGEX = /^GRT-\d{4}-\d{3}$/;
 export const PERSONAL_EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 export const MIN_STUDENT_PASSWORD_LENGTH = 8;
 
-export const ENROLLMENT_STATUS_OPTIONS = ['active', 'inactive', 'completed'];
+export const ENROLLMENT_STATUS_OPTIONS = ['active', 'inactive', 'completed', 'paused'];
 
 export const ENROLLMENT_STATUS_BUTTONS = [
     { value: 'active', label: 'Active', color: '#10b981' },
@@ -13,10 +13,11 @@ export const ENROLLMENT_STATUS_BUTTONS = [
 ];
 
 export const FEE_STATUS_VALUES = [
-    { value: 'pending', label: 'Pending' },
+    { value: 'pending', label: 'Unpaid' },
     { value: 'paid', label: 'Paid' },
     { value: 'failed', label: 'Failed' },
     { value: 'refunded', label: 'Refunded' },
+    { value: 'cancelled', label: 'Cancelled' },
 ];
 
 export const sanitizePortalEmailLocal = (raw) => {

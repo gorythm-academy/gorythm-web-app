@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import RequiredMark from '../../shared/RequiredMark';
 import { useSearchParams } from 'react-router-dom';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
 import {
   STUDENT_MARK_ATTENDANCE_STATUS_OPTIONS,
@@ -35,12 +35,6 @@ const studentKey = (id) => {
 const formatNameRoll = (name, rollNumber) => {
   if (!name || name === '—') return '—';
   return rollNumber ? `${name} (${rollNumber})` : name;
-};
-
-const attendancePercent = (row) => {
-  if (!row?.total) return '—';
-  const attended = (row.present || 0) + (row.late || 0);
-  return `${Math.round((attended / row.total) * 100)}%`;
 };
 
 const isSunday = (dateStr) => {
@@ -451,7 +445,7 @@ const TeacherAttendance = () => {
     viewPeriod === 'daily' && !String(viewDate || '').trim()
       ? ''
       : formatPeriodLabel(viewPeriod, periodMeta.startDate, periodMeta.endDate);
-  const summaryTableCols = viewPeriod === 'daily' ? 5 : 8;
+  const summaryTableCols = viewPeriod === 'daily' ? 5 : 7;
   const showReportRecords = Boolean(
     viewCourseId && !(viewPeriod === 'daily' && !String(viewDate || '').trim())
   );
@@ -631,8 +625,12 @@ const TeacherAttendance = () => {
 
   if (loading) {
     return (
-      <div className="portal-page">
-        <PortalLoading />
+      <div className="portal-page portal-teacher-attendance">
+        <PortalPageHeader
+          title="Students Attendance"
+          subtitle="Mark daily attendance, then review records by day, week, or month."
+        />
+        <PortalDataSection loading loadingLabel="Loading courses…" />
       </div>
     );
   }
@@ -738,17 +736,31 @@ const TeacherAttendance = () => {
                     <span className="portal-attendance-student-name">
                       {formatNameRoll(s.name, s.studentId)}
                     </span>
-                    <select
+                    <fieldset
+                      className="portal-attendance-status-radio-group"
                       aria-label={`Status for ${s.name}`}
-                      value={marks[sid] || 'present'}
-                      onChange={(e) => setMarks({ ...marks, [sid]: e.target.value })}
                     >
-                      {STUDENT_MARK_ATTENDANCE_STATUS_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      {STUDENT_MARK_ATTENDANCE_STATUS_OPTIONS.map((o) => {
+                        const checked = (marks[sid] || 'present') === o.value;
+                        return (
+                          <label
+                            key={o.value}
+                            className={`portal-attendance-status-radio portal-attendance-status-radio--${o.value}${
+                              checked ? ' is-active' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`status-${sid}`}
+                              value={o.value}
+                              checked={checked}
+                              onChange={() => setMarks({ ...marks, [sid]: o.value })}
+                            />
+                            {o.label}
+                          </label>
+                        );
+                      })}
+                    </fieldset>
                     <input
                       type="text"
                       aria-label={`Notes for ${s.name}`}
@@ -895,7 +907,6 @@ const TeacherAttendance = () => {
                     <th>Late</th>
                     <th>Leave</th>
                     <th>Total</th>
-                    <th>Attendance %</th>
                     <th aria-label="Details" />
                   </>
                 )}
@@ -999,7 +1010,6 @@ const TeacherAttendance = () => {
                       <td>{row.late}</td>
                       <td>{row.leave}</td>
                       <td>{row.total}</td>
-                      <td>{attendancePercent(row)}</td>
                       <td>
                         <button
                           type="button"

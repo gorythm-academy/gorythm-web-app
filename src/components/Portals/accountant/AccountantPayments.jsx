@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPatch, portalDelete } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { paymentRegistrationEmail, displayPortalEmail } from '../../../utils/studentPortalEmail';
 import {
@@ -15,7 +15,7 @@ const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
 
 const formatStatus = (status) => {
   if (status === 'completed') return 'paid';
-  if (status === 'awaiting_review') return 'awaiting review';
+  if (status === 'awaiting_review') return 'Waiting for verification';
   return status || '—';
 };
 
@@ -88,6 +88,7 @@ const AccountantPayments = () => {
   const [actionLoading, setActionLoading] = useState('');
   const [toast, setToast] = useState(null);
   const [dialogNotice, setDialogNotice] = useState(null);
+  const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkModal, setBulkModal] = useState(null);
   const selectAllRef = useRef(null);
@@ -155,18 +156,29 @@ const AccountantPayments = () => {
     return payments;
   }, [payments, filter, bankScreenshotPayments]);
 
+  const searched = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return filtered;
+    return filtered.filter((p) => {
+      const haystack = `${p.studentName || p.user?.name || ''} ${
+        paymentRegistrationEmail(p) || ''
+      } ${p.courseName || p.course?.title || ''}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [filtered, search]);
+
   const paymentId = (row) => String(row._id);
 
   const selectedVisibleCount = useMemo(
-    () => filtered.filter((row) => selectedIds.includes(paymentId(row))).length,
-    [filtered, selectedIds]
+    () => searched.filter((row) => selectedIds.includes(paymentId(row))).length,
+    [searched, selectedIds]
   );
 
   useEffect(() => {
     if (!selectAllRef.current) return;
     selectAllRef.current.indeterminate =
-      filtered.length > 0 && selectedVisibleCount > 0 && selectedVisibleCount < filtered.length;
-  }, [filtered.length, selectedVisibleCount]);
+      searched.length > 0 && selectedVisibleCount > 0 && selectedVisibleCount < searched.length;
+  }, [searched.length, selectedVisibleCount]);
 
   const toggleRowSelection = (row) => {
     const id = paymentId(row);
@@ -174,7 +186,7 @@ const AccountantPayments = () => {
   };
 
   const toggleAllVisible = () => {
-    const visibleIds = filtered.map(paymentId);
+    const visibleIds = searched.map(paymentId);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
     setSelectedIds(allVisibleSelected ? [] : visibleIds);
   };
@@ -441,15 +453,9 @@ const AccountantPayments = () => {
       </div>
     );
   }
-  if (activePayments === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
 
-  const awaitingCount = countPendingBankReviews(activePayments);
+  const loadingPayments = activePayments === null;
+  const awaitingCount = loadingPayments ? 0 : countPendingBankReviews(activePayments);
   const bankSsCount = bankScreenshotPayments.length;
   const showRowNumbers = filter === 'review' || filter === 'bank-ss';
   const isTrashView = filter === 'trash';
@@ -498,6 +504,7 @@ const AccountantPayments = () => {
         </div>
       </div>
 
+      <PortalDataSection loading={loadingPayments} loadingLabel="Loading payments…">
       <div className="accountant-payments-toolbar">
         <div className="accountant-payments-filters">
           {[
@@ -518,6 +525,17 @@ const AccountantPayments = () => {
               {tab.label}
             </button>
           ))}
+        </div>
+
+        <div className="accountant-payments-search">
+          <i className="fas fa-search" aria-hidden />
+          <input
+            type="search"
+            placeholder="Search by student or course…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search payments by student or course"
+          />
         </div>
 
         <button
@@ -616,7 +634,7 @@ const AccountantPayments = () => {
               <div className="accountant-payments-panel__titles">
                 <h2>Payments Table</h2>
                 <p>
-                  {filterLabels[filter] || 'Payments'} · {filtered.length} record{filtered.length === 1 ? '' : 's'}
+                  {filterLabels[filter] || 'Payments'} · {searched.length} record{searched.length === 1 ? '' : 's'}
                   {!tableExpanded ? ' · click to expand' : ''}
                 </p>
               </div>
@@ -639,9 +657,9 @@ const AccountantPayments = () => {
 
         {tableExpanded ? (
           <div className="portal-panel__body" id="accountant-payments-table-body">
-            {filtered.length === 0 ? (
+            {searched.length === 0 ? (
               <p className="accountant-payments-empty">
-                {isTrashView ? `${QUARANTINE_LABEL} is empty.` : 'No payments in this filter.'}
+                {isTrashView ? `${QUARANTINE_LABEL} is empty.` : 'No payments match this filter.'}
               </p>
             ) : (
               <div className="portal-data-table-wrap accountant-payments-table-wrap">
@@ -653,7 +671,7 @@ const AccountantPayments = () => {
                           ref={selectAllRef}
                           type="checkbox"
                           aria-label="Select all visible payments"
-                          checked={filtered.length > 0 && selectedVisibleCount === filtered.length}
+                          checked={searched.length > 0 && selectedVisibleCount === searched.length}
                           onChange={toggleAllVisible}
                         />
                       </th>
@@ -670,7 +688,7 @@ const AccountantPayments = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((r, index) => (
+                    {searched.map((r, index) => (
                       <tr
                         key={r._id}
                         className={`${isTrashView ? 'accountant-payments-row--trash' : ''}${
@@ -816,6 +834,7 @@ const AccountantPayments = () => {
           </div>
         ) : null}
       </section>
+      </PortalDataSection>
 
       <PortalActionModal
         open={!!bulkModal}

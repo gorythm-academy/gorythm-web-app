@@ -12,6 +12,7 @@ import BrandLogo from '../BrandLogo/BrandLogo';
 import { PortalDialogProvider } from './shared/PortalDialogContext';
 import { useStudentPortalBadges } from '../../hooks/useStudentPortalBadges';
 import { useTeacherPortalBadges } from '../../hooks/useTeacherPortalBadges';
+import { useParentPortalBadges } from '../../hooks/useParentPortalBadges';
 import { useAccountantPortalBadges } from '../../hooks/useAccountantPortalBadges';
 import './PortalLayout.scss';
 import './accountant/AccountantPortalTheme.scss';
@@ -24,9 +25,9 @@ const NAV_BY_ROLE = {
   student: [
     { to: '/student', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/student/schedule', label: 'Class Schedules', icon: 'fas fa-clock' },
-    { to: '/student/fees', label: 'Fees', icon: 'fas fa-file-invoice-dollar' },
+    { to: '/student/fees', label: 'Courses and Fees', icon: 'fas fa-file-invoice-dollar' },
     { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments', editDotKey: 'assignmentsEdit' },
-    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes' },
+    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes', editDotKey: 'quizzesEdit' },
     { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open', badgeKey: 'content' },
     { to: '/student/attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { to: '/student/account', label: 'Account', icon: 'fas fa-user-cog' },
@@ -34,10 +35,10 @@ const NAV_BY_ROLE = {
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/teacher/classes', label: 'Classes', icon: 'fas fa-chalkboard' },
-    { to: '/teacher/attendance', label: 'Students Attendance', icon: 'fas fa-user-check' },
     { to: '/teacher/content', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'submissions', editDotKey: 'submissionsEdit' },
     { to: '/teacher/resources', label: 'Resources', icon: 'fas fa-folder-open', badgeKey: 'adminResources' },
     { to: '/teacher/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizAttempts' },
+    { to: '/teacher/attendance', label: 'Students Attendance', icon: 'fas fa-user-check' },
     { to: '/teacher/my-attendance', label: 'My Attendance', icon: 'fas fa-calendar-check' },
     { to: '/teacher/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
@@ -45,7 +46,8 @@ const NAV_BY_ROLE = {
     { to: '/parent', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/parent/children', label: 'Children', icon: 'fas fa-child' },
     { to: '/parent/schedule', label: 'Class Schedules', icon: 'fas fa-clock' },
-    { to: '/parent/progress', label: 'Progress', icon: 'fas fa-chart-line' },
+    { to: '/parent/progress', label: 'Progress', icon: 'fas fa-chart-line', badgeKey: 'progress' },
+    { to: '/parent/billing', label: 'Courses and Fees', icon: 'fas fa-file-invoice-dollar' },
     { to: '/parent/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],
   accountant: [
@@ -69,15 +71,18 @@ const PortalLayout = ({ role, title }) => {
   const location = useLocation();
   const studentBadges = useStudentPortalBadges(role === 'student');
   const teacherBadges = useTeacherPortalBadges(role === 'teacher');
+  const parentBadges = useParentPortalBadges(role === 'parent');
   const accountantBadges = useAccountantPortalBadges(role === 'accountant');
   const navBadges =
     role === 'student'
       ? studentBadges
       : role === 'teacher'
         ? teacherBadges
-        : role === 'accountant'
-          ? accountantBadges
-          : {};
+        : role === 'parent'
+          ? parentBadges
+          : role === 'accountant'
+            ? accountantBadges
+            : {};
 
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') return true;

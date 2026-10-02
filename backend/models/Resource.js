@@ -6,6 +6,12 @@ const resourceSchema = new mongoose.Schema(
         course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
         /** Slot teacher this resource targets (teacher scope). */
         teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        /** Class timeslot — only students on this schedule see teacher-scoped resources. */
+        assignedSchedule: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ClassSchedule',
+            default: null,
+        },
         /** teacher = slot students only; course = all enrolled students */
         scope: { type: String, enum: ['teacher', 'course'], default: 'teacher' },
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -21,5 +27,9 @@ const resourceSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+resourceSchema.index({ course: 1, scope: 1 });
+resourceSchema.index({ course: 1, teacher: 1, assignedSchedule: 1 });
+resourceSchema.index({ assignedSchedule: 1 });
 
 module.exports = mongoose.model('Resource', resourceSchema);

@@ -25,7 +25,10 @@ async function syncEnrollmentPaymentStatus({
     });
     if (enrollment) {
         enrollment.paymentStatus = paymentStatus;
-        if (enrollmentStatus) enrollment.status = enrollmentStatus;
+        const current = String(enrollment.status || '');
+        if (enrollmentStatus && current !== 'active' && current !== 'completed') {
+            enrollment.status = enrollmentStatus;
+        }
         enrollment.deletedAt = null;
         await enrollment.save();
         return enrollment;
@@ -81,32 +84,39 @@ async function syncEnrollmentPaymentStatus({
 
 /** Resolve user from payment metadata or contact email when userId missing. */
 async function syncEnrollmentFromPayment(payment) {
-    if (!payment?.course) return null;
+    if (!payment) return null;
 
-    const courseId = payment.course._id || payment.course;
-    let userId = payment.user?._id || payment.user;
+    const lines = Array.isArray(payment.lines) && payment.lines.length
+        ? payment.lines
+        : payment.course
+          ? [{ course: payment.course, student: payment.user, studentEmail: payment.email }]
+          : [];
+    if (!lines.length) return null;
 
-    if (!userId && payment.email) {
-        const user = await findStudentByContactEmail(payment.email);
-        if (user) userId = user._id;
+    let last = null;
+    for (const line of lines) {
+        const courseId = line.course?._id || line.course || payment.course?._id || payment.course;
+        let userId = line.student?._id || line.student || payment.user?._id || payment.user;
+        if (!userId && (line.studentEmail || payment.email)) {
+            const user = await findStudentByContactEmail(line.studentEmail || payment.email);
+            if (user) userId = user._id;
+        }
+        if (!userId || !courseId) continue;
+
+        let paymentStatus = 'pending';
+        if (payment.status === 'paid' || payment.status === 'completed') paymentStatus = 'paid';
+        else if (payment.status === 'refunded') paymentStatus = 'refunded';
+        else if (payment.status === 'failed') paymentStatus = 'failed';
+        else if (payment.status === 'cancelled' || payment.status === 'rejected') paymentStatus = 'cancelled';
+
+        last = await syncEnrollmentPaymentStatus({
+            userId,
+            courseId,
+            paymentStatus,
+            enrollmentStatus: paymentStatus === 'paid' ? PAID_PENDING_ADMIN_STATUS : undefined,
+        });
     }
-
-    if (!userId) return null;
-
-    let paymentStatus = 'pending';
-    if (payment.status === 'paid' || payment.status === 'completed') paymentStatus = 'paid';
-    else if (payment.status === 'refunded') paymentStatus = 'refunded';
-    else if (payment.status === 'failed') paymentStatus = 'failed';
-
-    const enrollmentStatus =
-        paymentStatus === 'paid' ? PAID_PENDING_ADMIN_STATUS : PAID_PENDING_ADMIN_STATUS;
-
-    return syncEnrollmentPaymentStatus({
-        userId,
-        courseId,
-        paymentStatus,
-        enrollmentStatus,
-    });
+    return last;
 }
 
 module.exports = {

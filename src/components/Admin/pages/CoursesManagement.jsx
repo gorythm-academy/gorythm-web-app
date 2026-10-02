@@ -45,6 +45,23 @@ const COLUMN_MAX_WIDTHS = [90, 360, 440, 300, 380, 180, 180, 220, 280, 220, 240,
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const toDateInputValue = (value) => {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatCourseDueDate = (value) => {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString();
+};
+
 const getCourseDisplayOrder = (course) => getDisplayOrder(course);
 
 /** Given name only (first whitespace-separated token). */
@@ -73,6 +90,8 @@ const buildCoursePayloadFromRecord = (course, overrides = {}) => {
         category: course.category || 'Quranic Arabic',
         price: Number(course.price) || 0,
         duration: course.duration || '8 weeks',
+        feeDueDate: toDateInputValue(course.feeDueDate),
+        totalFeeCount: course.totalFeeCount ? String(course.totalFeeCount) : '',
         status: course.status || 'draft',
         level: course.level || 'beginner',
         instructorIds,
@@ -93,6 +112,8 @@ const EMPTY_COURSE_FORM = {
     category: 'Quranic Arabic',
     price: '',
     duration: '8 weeks',
+    feeDueDate: '',
+    totalFeeCount: '',
     status: 'draft',
     level: 'beginner',
     instructorIds: [],
@@ -118,6 +139,7 @@ const CoursesManagement = () => {
     const [trashBusy, setTrashBusy] = useState(false);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
+    const [academyDueDate, setAcademyDueDate] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ ...EMPTY_COURSE_FORM });
     const [galleryImages, setGalleryImages] = useState([]);
@@ -534,6 +556,16 @@ const CoursesManagement = () => {
         fetchCourses({ includeCounts: true, tabChanged: true });
     }, [listTab, fetchCourses]);
 
+    useEffect(() => {
+        const token = getAuthToken();
+        if (!token) return;
+        axios.get(`${API_BASE_URL}/api/payments/admin/fee-due-settings`, {
+            headers: { Authorization: `Bearer ${token}` },
+        }).then((res) => {
+            if (res.data?.success) setAcademyDueDate(res.data.defaultFeeDueDate || '');
+        }).catch(() => {});
+    }, []);
+
     const reloadAfterMutation = useCallback(async () => {
         invalidateCoursesCache();
         await fetchCourses({ force: true, includeCounts: true });
@@ -586,6 +618,8 @@ const CoursesManagement = () => {
             category: course.category || 'Quranic Arabic',
             price: course.price != null ? String(course.price) : '0',
             duration: course.duration || '8 weeks',
+            feeDueDate: toDateInputValue(course.feeDueDate),
+            totalFeeCount: course.totalFeeCount ? String(course.totalFeeCount) : '',
             status: course.status || 'draft',
             level: course.level || 'beginner',
             instructorIds:
@@ -657,6 +691,8 @@ const CoursesManagement = () => {
             category: formData.category,
             price: Number(formData.price) || 0,
             duration: formData.duration.trim(),
+            feeDueDate: formData.feeDueDate || '',
+            totalFeeCount: formData.totalFeeCount === '' ? '' : Number(formData.totalFeeCount),
             status: formData.status,
             level: formData.level,
             instructorIds: published
@@ -688,9 +724,26 @@ const CoursesManagement = () => {
             showAlert('Please enter course duration (e.g., "8 weeks")', 'warning');
             return;
         }
+        if (formData.totalFeeCount !== '' && Number(formData.totalFeeCount) < 1) {
+            showAlert('Total number of fees must be 1 or more, or left empty', 'warning');
+            return;
+        }
         if (formData.displayOrder !== '' && (Number.isNaN(Number(formData.displayOrder)) || Number(formData.displayOrder) < 0)) {
             showAlert('Display order must be 0 or greater', 'warning');
             return;
+        }
+
+        const previousDue = editingCourse ? toDateInputValue(editingCourse.feeDueDate) : '';
+        const nextDue = formData.feeDueDate || '';
+        if (nextDue && nextDue !== previousDue) {
+            const confirmed = await showConfirm({
+                title: 'Apply this due date to students?',
+                message: editingCourse
+                    ? 'This due date will be saved on this course and applied to every student enrolled in it. It will show on Admin → Students, the student Fees page, and the parent Fees page.'
+                    : 'This due date will be saved on this course. Students enrolled in it later will receive this date on Admin → Students, the student Fees page, and the parent Fees page.',
+                confirmLabel: 'Save due date',
+            });
+            if (!confirmed) return;
         }
 
         setIsSubmitting(true);
@@ -1170,11 +1223,17 @@ const CoursesManagement = () => {
                         <i className="fas fa-dollar-sign"></i>
                     </div>
                     <div className="stat-info">
-                        <h3>${courses.reduce((sum, course) => sum + (course.price || 0), 0)}</h3>
+                        <h3>${courses.reduce((sum, course) => sum + (course.price || 0), 0).toFixed(2)}</h3>
                         <p>Catalog list price</p>
                     </div>
                 </div>
             </div>
+
+            {listTab === 'active' && academyDueDate ? (
+                <p className="form-hint" style={{ margin: '0 0 1rem' }}>
+                    Academy default due date: {formatCourseDueDate(academyDueDate)}. Shown to admin, students, and parents — not on the public website. Set a course date below if this course should differ.
+                </p>
+            ) : null}
 
             <div className="students-list-tabs courses-list-tabs">
                 <button
@@ -1252,32 +1311,41 @@ const CoursesManagement = () => {
             ) : null}
 
             {isFormOpen && (
-
-
-	  <div className="course-modal-overlay">
-    <div className="course-modal">
-                <div className="course-form-card">
-                    <div className="form-header">
-                        <h2>
-                            <i className={`fas ${editingCourse ? 'fa-edit' : 'fa-plus-circle'}`}></i>
-                            {editingCourse ? 'Edit Course' : 'Add New Course'}
-                        </h2>
-                        {editingCourse && (
-                            <div className="editing-indicator">
-                                <i className="fas fa-info-circle"></i>
-                                Editing: <strong>{editingCourse.title}</strong>
+                <div
+                    className="course-modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={editingCourse ? 'Edit course' : 'Add course'}
+                >
+                    <div className="course-modal">
+                        <header className="course-modal__header">
+                            <div className="course-modal__identity">
+                                <h2>
+                                    <i className={`fas ${editingCourse ? 'fa-edit' : 'fa-plus-circle'}`} aria-hidden />
+                                    {editingCourse ? 'Edit Course' : 'Add New Course'}
+                                </h2>
+                                {editingCourse ? (
+                                    <p>
+                                        <span className="course-modal__sid">{editingCourse.title}</span>
+                                    </p>
+                                ) : (
+                                    <p>Create a published or draft course for the academy catalog.</p>
+                                )}
                             </div>
-                        )}
-                        <button
-                            type="button"
-                            className="modal-close-btn"
-                            onClick={closeCourseForm}
-                            aria-label="Close"
-                        >
-                            <i className="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <form onSubmit={handleFormSubmit} className="course-form">
+                            <div className="course-modal__header-actions">
+                                <button
+                                    type="button"
+                                    className="btn-secondary course-modal__close-icon"
+                                    onClick={closeCourseForm}
+                                    aria-label="Close"
+                                    title="Close"
+                                >
+                                    <i className="fas fa-times" aria-hidden />
+                                </button>
+                            </div>
+                        </header>
+                        <form onSubmit={handleFormSubmit} className="course-form course-modal__form">
+                        <div className="course-modal__body course-form-card">
                         <div className="form-row">
                             <div className="form-group">
                                 <label>Title <RequiredMark /></label>
@@ -1413,6 +1481,29 @@ const CoursesManagement = () => {
                                 />
                             </div>
                             <div className="form-group">
+                                <label>Fee due date</label>
+                                <input
+                                    type="date"
+                                    name="feeDueDate"
+                                    value={formData.feeDueDate || ''}
+                                    onChange={handleFormChange}
+                                />
+                                <small className="form-hint">Applies to every student on this course until Payments saves a new default.</small>
+                            </div>
+                            <div className="form-group">
+                                <label>Total number of fees</label>
+                                <input
+                                    type="number"
+                                    name="totalFeeCount"
+                                    min="1"
+                                    step="1"
+                                    value={formData.totalFeeCount || ''}
+                                    onChange={handleFormChange}
+                                    placeholder="e.g. 6"
+                                />
+                                    <small className="form-hint">Admin only. Saved on this course and copied to its students. Student and parent Fees pages show X of Y.</small>
+                            </div>
+                            <div className="form-group">
                                 <label>Level</label>
                                 <select
                                     name="level"
@@ -1528,6 +1619,7 @@ const CoursesManagement = () => {
                                 emptyMessage="No images yet. Upload one above — it will appear here for all courses."
                             />
                         </div>
+                        </div>
                         <div className="form-actions">
                             <button 
                                 type="submit" 
@@ -1554,9 +1646,8 @@ const CoursesManagement = () => {
                             </button>
                         </div>
                     </form>
+                    </div>
                 </div>
-    </div>
-  </div>
             )}
 
             {selectedCourses.length > 0 && (
@@ -1921,6 +2012,20 @@ const CoursesManagement = () => {
                                         <span className="duration-badge">
                                             {course.duration || '—'}
                                         </span>
+                                        {course.feeDueDate ? (
+                                            <small style={{ display: 'block', opacity: 0.8 }}>
+                                                Due {formatCourseDueDate(course.feeDueDate)}
+                                            </small>
+                                        ) : academyDueDate ? (
+                                            <small style={{ display: 'block', opacity: 0.8 }}>
+                                                Due {formatCourseDueDate(academyDueDate)}
+                                            </small>
+                                        ) : null}
+                                        {course.totalFeeCount ? (
+                                            <small style={{ display: 'block', opacity: 0.8 }}>
+                                                {course.totalFeeCount} fees
+                                            </small>
+                                        ) : null}
                                     </td>
                                     <td>
                                         <span className="level-badge">

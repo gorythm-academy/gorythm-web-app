@@ -7,6 +7,7 @@ import {
     QUARANTINE_COURSES_LABEL,
 } from '../../../utils/adminListLabels';
 import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import { billingStatusLabel, feeProgressLabel } from '../../../utils/billingLabels';
 
 const getAllottedTeacherName = (enrollment) =>
     enrollment?.assignedSchedule?.teacher?.name || '';
@@ -165,6 +166,7 @@ const StudentDetailOverlay = ({
     onClose,
     onAddCourse,
     onEditEnrollment,
+    onEditAccount,
     onQuarantineEnrollment,
     onQuarantineStudent,
     onRestoreStudent,
@@ -372,6 +374,21 @@ const StudentDetailOverlay = ({
                         </small>
                     </div>
                     <div className="student-detail-overlay__header-actions">
+                        {!studentQuarantined ? (
+                            <button
+                                type="button"
+                                className="student-detail-overlay__account-btn"
+                                onClick={() => onEditAccount?.({
+                                    ...(enrollments[0] || {}),
+                                    student: (enrollments[0]?.student && typeof enrollments[0].student === 'object'
+                                        && (enrollments[0].student.name || enrollments[0].student.email || enrollments[0].student._id)
+                                        ? enrollments[0].student
+                                        : student),
+                                })}
+                            >
+                                <i className="fas fa-user-cog" aria-hidden /> Account settings
+                            </button>
+                        ) : null}
                         {!studentQuarantined && detailTab === 'active' ? (
                             <button type="button" className="btn-primary btn-add" onClick={onAddCourse}>
                                 <i className="fas fa-plus" aria-hidden /> Add course to this student
@@ -487,7 +504,7 @@ const StudentDetailOverlay = ({
                                             disabled={trashBusy}
                                             onClick={() => onEditEnrollment(selectedEnrollments[0])}
                                         >
-                                            <i className="fas fa-edit" aria-hidden /> Edit
+                                            <i className="fas fa-edit" aria-hidden /> Edit course
                                         </button>
                                     ) : null}
                                     <button
@@ -705,10 +722,19 @@ const StudentDetailOverlay = ({
                                                         {lastLogin ? formatDateTime(lastLogin) : 'Never'}
                                                 </td>
                                                 <td>
-                                                    <span className={`status-badge payment-${enrollment.paymentStatus || 'pending'}`}>
-                                                        {(enrollment.paymentStatus || 'pending').charAt(0).toUpperCase()
-                                                            + (enrollment.paymentStatus || 'pending').slice(1)}
+                                                    <span className={`status-badge payment-${enrollment.displayFeeStatus || enrollment.paymentStatus || 'pending'}`}>
+                                                        {billingStatusLabel(enrollment.displayFeeStatus || enrollment.paymentStatus || 'pending')}
                                                     </span>
+                                                    {enrollment.feeDueDate ? (
+                                                        <div className="student-detail-overlay__timeslot">
+                                                            Due {formatDateOnly(enrollment.feeDueDate)}
+                                                        </div>
+                                                    ) : null}
+                                                    {feeProgressLabel(enrollment) ? (
+                                                        <div className="student-detail-overlay__timeslot">
+                                                            {feeProgressLabel(enrollment)}
+                                                        </div>
+                                                    ) : null}
                                                 </td>
                                                 <td>
                                                     <div className="status-cell">
@@ -717,6 +743,8 @@ const StudentDetailOverlay = ({
                                                                     className={`fas fa-${
                                                                         status === 'active'
                                                                             ? 'check-circle'
+                                                                            : status === 'paused'
+                                                                              ? 'pause-circle'
                                                                             : status === 'completed'
                                                                               ? 'flag-checkered'
                                                                               : 'times-circle'
@@ -733,6 +761,7 @@ const StudentDetailOverlay = ({
                                                                 title="Change enrollment status"
                                                             >
                                                                 <option value="active">Active</option>
+                                                                <option value="paused">Paused</option>
                                                                 <option value="inactive">Inactive</option>
                                                                 <option value="completed">Completed</option>
                                                             </select>
@@ -747,11 +776,11 @@ const StudentDetailOverlay = ({
                                                                 <button
                                                                     type="button"
                                                                     className="action-btn edit-btn"
-                                                                    title="Edit"
+                                                                    title="Edit course"
                                                                     disabled={trashBusy}
                                                                     onClick={() => onEditEnrollment(enrollment)}
                                                                 >
-                                                                    <i className="fas fa-edit" aria-hidden /> Edit
+                                                                    <i className="fas fa-edit" aria-hidden /> Edit course
                                                                 </button>
                                                                 <button
                                                                     type="button"

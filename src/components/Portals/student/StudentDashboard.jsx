@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, SummaryGrid } from '../shared/PortalUi';
+import {
+  PortalAlert,
+  PortalPageHeader,
+  PortalSummaryGridSkeleton,
+  SummaryGrid,
+} from '../shared/PortalUi';
 
 const StudentDashboard = () => {
   const [data, setData] = useState(null);
@@ -16,23 +21,9 @@ const StudentDashboard = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (!data) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
-
-  const s = data.summary || {};
-  const due = data.dueAssignments || [];
+  const loading = !data;
+  const s = data?.summary || {};
+  const due = data?.dueAssignments || [];
 
   return (
     <div className="portal-page">
@@ -48,16 +39,21 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      <SummaryGrid
-        items={[
-          { label: 'Enrolled Courses', value: s.enrolledCourses ?? 0, to: '/student/courses' },
-          { label: 'Attendance', value: `${s.attendanceRate ?? 0}%`, to: '/student/attendance' },
-          { label: 'Assignments Due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
-          { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/student/fees' },
-        ]}
-      />
+      {error ? <PortalAlert type="error">{error}</PortalAlert> : null}
+      {loading ? (
+        <PortalSummaryGridSkeleton items={4} />
+      ) : (
+        <SummaryGrid
+          items={[
+            { label: 'Enrolled Courses', value: s.enrolledCourses ?? 0, to: '/student/fees' },
+            { label: 'Attendance', value: 'View', to: '/student/attendance' },
+            { label: 'Assignments Due', value: s.assignmentsDue ?? 0, to: '/student/assignments' },
+            { label: 'Pending Fees', value: s.pendingFees ?? 0, to: '/student/fees' },
+          ]}
+        />
+      )}
 
-      {due.length ? (
+      {!loading && due.length ? (
         <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
           <div className="portal-panel__head">
             <h2>Assignments Due</h2>
@@ -90,9 +86,6 @@ const StudentDashboard = () => {
         </Link>
         <Link to="/student/fees" className="portal-card portal-link-card">
           Fees →
-        </Link>
-        <Link to="/student/schedule" className="portal-card portal-link-card">
-          Class schedule →
         </Link>
         <Link to="/student/content" className="portal-card portal-link-card">
           Course Content →

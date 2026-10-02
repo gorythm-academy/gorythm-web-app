@@ -11,37 +11,43 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
-/** Notices for admin-edited assignments since the teacher last opened Assignments. */
-export function getAdminAssignmentEditNotices(assignment) {
+/** Notices for admin-edited assignments since the teacher last dismissed updates. */
+export function getAdminAssignmentEditNotices(assignment, sinceMs) {
   if (!isAdminPublished(assignment)) return [];
-  const cutoff = seenCutoffMs(TEACHER_SEEN_ADMIN_ASSIGNMENTS);
+  const cutoff = typeof sinceMs === 'number' ? sinceMs : seenCutoffMs(TEACHER_SEEN_ADMIN_ASSIGNMENTS);
   const updatedAt = assignment.updatedAt ? new Date(assignment.updatedAt).getTime() : 0;
   const createdAt = assignment.createdAt ? new Date(assignment.createdAt).getTime() : 0;
   if (updatedAt <= cutoff) return [];
 
   const notices = [];
-  if (assignment.dueDateNotice) {
-    notices.push(assignment.dueDateNotice);
-  }
   const extensions = Array.isArray(assignment.dueDateExtensions) ? assignment.dueDateExtensions : [];
-  if (!assignment.dueDateNotice && extensions.length) {
-    const latest = extensions[extensions.length - 1];
-    notices.push(`Admin updated due date to ${formatDate(latest.newDueDate)}`);
+  const latestExt = extensions.length ? extensions[extensions.length - 1] : null;
+  const extensionSince = Boolean(
+    latestExt?.extendedAt && new Date(latestExt.extendedAt).getTime() > cutoff
+  );
+
+  if (extensionSince) {
+    if (assignment.dueDateNotice) {
+      notices.push(assignment.dueDateNotice);
+    } else {
+      notices.push(`Admin updated due date to ${formatDate(latestExt.newDueDate)}`);
+    }
   }
   if (updatedAt > createdAt + 60_000) {
-    if (!extensions.length) {
+    if (!extensionSince) {
       notices.push(`Admin updated "${assignment.title || 'assignment'}"`);
-    } else if (updatedAt > new Date(extensions[extensions.length - 1]?.extendedAt || 0).getTime() + 60_000) {
+    } else if (updatedAt > new Date(latestExt?.extendedAt || 0).getTime() + 60_000) {
       notices.push(`Admin changed title, files, or details for "${assignment.title || 'assignment'}"`);
     }
   }
   return [...new Set(notices)];
 }
 
-export function collectAdminAssignmentEditNotices(assignments) {
+export function collectAdminAssignmentEditNotices(assignments, storageKey = TEACHER_SEEN_ADMIN_ASSIGNMENTS) {
+  const sinceMs = seenCutoffMs(storageKey);
   const rows = [];
   for (const assignment of assignments || []) {
-    for (const message of getAdminAssignmentEditNotices(assignment)) {
+    for (const message of getAdminAssignmentEditNotices(assignment, sinceMs)) {
       rows.push({ id: assignment._id, title: assignment.title, message });
     }
   }
@@ -64,6 +70,29 @@ export function collectAdminResourceEditNotices(resources) {
     for (const message of getAdminResourceEditNotices(resource)) {
       rows.push({ id: resource._id, title: resource.title, message });
     }
+  }
+  return rows;
+}
+
+/** Notices when the other side edits a published quiz after this page was last dismissed. */
+export function collectQuizUpdateNotices(quizzes, { storageKey, audience }) {
+  const cutoff = seenCutoffMs(storageKey);
+  const rows = [];
+  for (const quiz of quizzes || []) {
+    const adminQuiz = isAdminPublished(quiz);
+    if (audience === 'teacher' && !adminQuiz) continue;
+    if (audience === 'admin' && adminQuiz) continue;
+    const updatedAt = quiz.updatedAt ? new Date(quiz.updatedAt).getTime() : 0;
+    const createdAt = quiz.createdAt ? new Date(quiz.createdAt).getTime() : 0;
+    if (!updatedAt || updatedAt <= cutoff || updatedAt <= createdAt + 60_000) continue;
+    const title = quiz.title || 'Quiz';
+    const message =
+      audience === 'student'
+        ? 'This quiz was updated. Open it to see the latest version.'
+        : adminQuiz
+          ? `Admin updated "${title}"`
+          : `Teacher updated "${title}"`;
+    rows.push({ id: quiz._id || quiz.id, title, message });
   }
   return rows;
 }

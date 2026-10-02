@@ -8,6 +8,11 @@ const { assertPersonalRegistrationEmail } = require('./registrationEmailGuard');
 const { activePaymentFilter } = require('../utils/paymentQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const logger = require('../utils/logger');
+const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
+const { fulfillBillingIntent } = require('./billingCheckout');
+const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
+const { presentmentFromStripeSession } = require('../utils/stripeMoney');
+const { nextInvoiceNumber, ensureInvoiceNumber } = require('../utils/invoiceNumber');
 
 function resolveEmail(session) {
     return (
@@ -86,12 +91,15 @@ async function upsertStripePayment({
         ...activePaymentFilter(),
     });
 
+    const presentment = presentmentFromStripeSession(session);
     const payload = {
         studentName,
         email,
         phone,
         amount: amountUsd,
-        currency: (session.currency || 'usd').toUpperCase(),
+        currency: 'USD',
+        presentmentCurrency: presentment.presentmentCurrency || '',
+        presentmentAmount: presentment.presentmentAmount,
         status: 'paid',
         paymentMethod: session.payment_method_types?.[0] || 'stripe',
         transactionId: session.id,
@@ -110,10 +118,12 @@ async function upsertStripePayment({
     if (linkedUserId) payload.user = linkedUserId;
 
     if (!payment) {
+        payload.invoiceNumber = await nextInvoiceNumber();
         payment = new Payment(payload);
     } else {
         Object.assign(payment, payload);
         if (phone) payment.phone = phone;
+        await ensureInvoiceNumber(payment);
     }
 
     await payment.save();
@@ -126,8 +136,69 @@ async function upsertStripePayment({
  * Returns { payment, enrolled, fulfillmentIssue }.
  */
 async function fulfillStripeCheckoutSession(session) {
-    if (!session || session.payment_status !== 'paid') {
+    if (!session) {
         return { payment: null, enrolled: false, fulfillmentIssue: null };
+    }
+
+    const { applyAutoPayAfterCheckout } = require('./billingAutoPay');
+    const isSetup = session.mode === 'setup' || String(session.metadata?.autoPaySetup || '') === '1';
+    if (isSetup) {
+        await applyAutoPayAfterCheckout({ session, intent: null });
+        return { payment: null, enrolled: true, fulfillmentIssue: null };
+    }
+
+    if (session.payment_status !== 'paid') {
+        return { payment: null, enrolled: false, fulfillmentIssue: null };
+    }
+
+    const groupId = session.metadata?.groupId;
+    if (groupId) {
+        const intent = await BillingCheckoutIntent.findOne({ groupId });
+        if (!intent) {
+            logger.error('Stripe fulfillment missing billing intent', { sessionId: session.id, groupId });
+            return { payment: null, enrolled: false, fulfillmentIssue: 'enrollment_failed' };
+        }
+        const piId =
+            typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id;
+        const presentment = presentmentFromStripeSession(session);
+        const result = await fulfillBillingIntent(intent, {
+            status: 'paid',
+            paymentMethod: session.payment_method_types?.[0] || 'stripe',
+            transactionId: session.id,
+            stripePaymentIntentId: piId,
+            currency: 'USD',
+            presentmentCurrency: presentment.presentmentCurrency,
+            presentmentAmount: presentment.presentmentAmount,
+            email: resolveEmail(session) || intent.payerEmail,
+            studentName: resolveStudentName(session) || intent.payerName,
+            phone: resolvePhone(session),
+            payerUser: intent.payerUser,
+            payerRole: intent.payerRole,
+        });
+        if (result.payment && !result.payment.receiptIssuedAt) {
+            result.payment.receiptIssuedAt = new Date();
+            await result.payment.save();
+        }
+        if (result.payments?.length) {
+            await Promise.all(result.payments.map(async (payment) => {
+                let dirty = false;
+                if (!payment.invoiceNumber) {
+                    await ensureInvoiceNumber(payment);
+                    dirty = false;
+                }
+                if (presentment.presentmentCurrency && !payment.presentmentCurrency) {
+                    payment.presentmentCurrency = presentment.presentmentCurrency;
+                    payment.presentmentAmount = presentment.presentmentAmount;
+                    dirty = true;
+                }
+                if (dirty) await payment.save();
+                return sendPaymentReceiptEmail(payment);
+            }));
+        }
+        await applyAutoPayAfterCheckout({ session, intent, payments: result.payments });
+        return result;
     }
 
     const courseId = session.metadata?.courseId;
@@ -160,6 +231,11 @@ async function fulfillStripeCheckoutSession(session) {
         }
         try {
             const enrollment = await onPaymentPaid(existingPayment);
+            await applyAutoPayAfterCheckout({
+                session,
+                payments: [existingPayment],
+                enrollments: enrollment ? [enrollment] : [],
+            });
             return {
                 payment: existingPayment,
                 enrolled: !!enrollment,
@@ -193,8 +269,8 @@ async function fulfillStripeCheckoutSession(session) {
         ...activeCourseFilter(),
     }).select('_id title price');
 
-    const amountUsd =
-        session.amount_total != null ? Number(session.amount_total) / 100 : Number(course?.price || 0);
+    const amountUsd = Number(course?.price || 0)
+        || (session.amount_total != null ? Number(session.amount_total) / 100 : 0);
 
     if (!course) {
         logger.error('Stripe fulfillment course not found', { courseId, sessionId: session.id });
@@ -287,6 +363,16 @@ async function fulfillStripeCheckoutSession(session) {
             await payment.save();
             return { payment, enrolled: false, fulfillmentIssue: 'enrollment_failed' };
         }
+        if (!payment.receiptIssuedAt) {
+            payment.receiptIssuedAt = new Date();
+            await payment.save();
+        }
+        sendPaymentReceiptEmail(payment).catch(() => {});
+        await applyAutoPayAfterCheckout({
+            session,
+            payments: [payment],
+            enrollments: enrollment ? [enrollment] : [],
+        });
         return { payment, enrolled: true, fulfillmentIssue: null };
     } catch (error) {
         logger.error('Stripe fulfillment enrollment failed', {

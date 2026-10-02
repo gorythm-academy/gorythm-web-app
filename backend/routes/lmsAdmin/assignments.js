@@ -5,10 +5,12 @@ const Course = require('../../models/Course');
 const User = require('../../models/User');
 const Assignment = require('../../models/Assignment');
 const AssignmentSubmission = require('../../models/AssignmentSubmission');
+const ClassSchedule = require('../../models/ClassSchedule');
 const { getTeachersByCourseIds } = require('../../services/courseTeachers');
 const {
     assertDueDateNotPast,
     resolveValidTargetPairs,
+    resolveValidScheduleTargets,
     newPublishGroupId,
     recordDueDateExtension,
     startOfDay,
@@ -30,6 +32,16 @@ async function assignmentScopeFilter(courseId) {
     return { course: courseId };
 }
 
+async function loadAssignmentSchedules(courseId) {
+    const filter = courseId ? { course: courseId } : {};
+    return ClassSchedule.find(filter)
+        .select('course teacher dayOfWeek startTime endTime roomOrLink')
+        .populate('course', 'title')
+        .populate('teacher', 'name email')
+        .sort({ dayOfWeek: 1, startTime: 1 })
+        .lean();
+}
+
 // ——— Assignments (admin view + create; includes teacher-created) ———
 router.get('/assignments', async (req, res) => {
     try {
@@ -47,29 +59,41 @@ router.get('/assignments', async (req, res) => {
             .sort({ name: 1 })
             .lean();
         const trashCountPromise = countTrashed(Assignment, scope);
+        const schedulesPromise = loadAssignmentSchedules(req.query.courseId);
 
         if (metaOnly) {
-            const [trashCount, courses, teachers] = await Promise.all([
+            const [trashCount, courses, teachers, schedules] = await Promise.all([
                 trashCountPromise,
                 coursesPromise,
                 teachersPromise,
+                schedulesPromise,
             ]);
             const courseTeachers = await getTeachersByCourseIds(courses.map((c) => c._id));
-            return res.json({ success: true, assignments: [], courses, teachers, courseTeachers, trashCount });
+            return res.json({
+                success: true,
+                assignments: [],
+                courses,
+                teachers,
+                courseTeachers,
+                schedules,
+                trashCount,
+            });
         }
 
-        const [assignments, trashCount, courses, teachers] = await Promise.all([
+        const [assignments, trashCount, courses, teachers, schedules] = await Promise.all([
             Assignment.find(listFilter)
                 .select(
-                    'title description dueDate status course teacher attachments createdByRole lockedForTeacher publishGroupId dueDateExtensions createdAt updatedAt deletedAt'
+                    'title description dueDate status course teacher assignedSchedule attachments createdByRole lockedForTeacher publishGroupId dueDateExtensions createdAt updatedAt deletedAt'
                 )
                 .populate('course', 'title instructorName')
                 .populate('teacher', 'name email')
+                .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
                 .sort({ dueDate: -1 })
                 .lean(),
             trashCountPromise,
             coursesPromise,
             teachersPromise,
+            schedulesPromise,
         ]);
         res.json({
             success: true,
@@ -79,6 +103,7 @@ router.get('/assignments', async (req, res) => {
             })),
             courses,
             teachers,
+            schedules,
             trashCount,
         });
     } catch (error) {
@@ -88,7 +113,11 @@ router.get('/assignments', async (req, res) => {
 
 router.post('/assignments/preview-targets', async (req, res) => {
     try {
-        const { courseIds, teacherIds, targets } = req.body || {};
+        const { courseIds, teacherIds, scheduleIds, targets } = req.body || {};
+        if (Array.isArray(scheduleIds) && scheduleIds.length) {
+            const scheduleTargets = await resolveValidScheduleTargets({ scheduleIds });
+            return res.json({ success: true, count: scheduleTargets.length, scheduleTargets });
+        }
         const pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
         res.json({ success: true, count: pairs.length, pairs });
     } catch (error) {
@@ -102,8 +131,10 @@ router.post('/assignments', async (req, res) => {
         const {
             courseId,
             teacherId,
+            scheduleId,
             courseIds,
             teacherIds,
+            scheduleIds,
             targets,
             title,
             description,
@@ -119,34 +150,35 @@ router.post('/assignments', async (req, res) => {
         const adminUserId = req.user?.userId || null;
         const publishStatus = status || 'published';
 
-        let pairs = [];
-        if (courseId) {
-            const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
-            if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
-            const resolvedTeacher = teacherId || course.instructor;
-            if (!resolvedTeacher) {
-                return res.status(400).json({ success: false, error: 'Teacher is required for this course' });
+        let scheduleTargets = [];
+        if (courseId && (scheduleId || teacherId)) {
+            if (!scheduleId) {
+                return res.status(400).json({ success: false, error: 'Class slot is required' });
             }
-            pairs = await resolveValidTargetPairs({
-                explicitTargets: [{ courseId, teacherId: resolvedTeacher }],
+            scheduleTargets = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                courseId,
+                ...(teacherId ? { teacherId } : {}),
             });
+        } else if (Array.isArray(scheduleIds) && scheduleIds.length) {
+            scheduleTargets = await resolveValidScheduleTargets({ scheduleIds });
+        } else if (Array.isArray(targets) && targets.some((row) => row?.scheduleId)) {
+            scheduleTargets = await resolveValidScheduleTargets({ explicitTargets: targets });
         } else {
-            pairs = await resolveValidTargetPairs({ courseIds, teacherIds, explicitTargets: targets });
-        }
-        if (!pairs.length) {
             return res.status(400).json({
                 success: false,
-                error: 'No valid course+teacher pairs. Each teacher must teach the selected course.',
+                error: 'Select at least one class slot to publish this assignment.',
             });
         }
 
-        const publishGroupId = pairs.length > 1 ? newPublishGroupId() : null;
+        const publishGroupId = scheduleTargets.length > 1 ? newPublishGroupId() : null;
         const created = await Assignment.insertMany(
-            pairs.map(({ courseId: cid, teacherId: tid }) => ({
+            scheduleTargets.map(({ courseId: cid, teacherId: tid, scheduleId: sid }) => ({
                 title: String(title).trim(),
                 description: description || '',
                 course: cid,
                 teacher: tid,
+                assignedSchedule: sid,
                 dueDate: parsedDueDate,
                 attachments: attachmentList,
                 status: publishStatus,
@@ -159,7 +191,8 @@ router.post('/assignments', async (req, res) => {
 
         const populated = await Assignment.find({ _id: { $in: created.map((a) => a._id) } })
             .populate('course', 'title')
-            .populate('teacher', 'name email');
+            .populate('teacher', 'name email')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
 
         res.status(201).json({
             success: true,
@@ -178,7 +211,7 @@ router.patch('/assignments/:id', async (req, res) => {
     try {
         const assignment = await Assignment.findOne({ _id: req.params.id, ...activeLmsFilter() });
         if (!assignment) return res.status(404).json({ success: false, error: 'Assignment not found' });
-        const { courseId, teacherId, title, description, dueDate, status, attachments, extendDueDate } = req.body;
+        const { courseId, teacherId, scheduleId, title, description, dueDate, status, attachments, extendDueDate } = req.body;
         if (courseId) {
             const course = await Course.findOne({ _id: courseId, ...publishedActiveCourseFilter() });
             if (!course) return res.status(404).json({ success: false, error: 'Course not found or not published' });
@@ -195,25 +228,39 @@ router.patch('/assignments/:id', async (req, res) => {
             }
             assignment.teacher = teacherId;
         }
+        if (scheduleId) {
+            const [target] = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                courseId: courseId || assignment.course,
+                ...(teacherId || assignment.teacher
+                    ? { teacherId: teacherId || assignment.teacher }
+                    : {}),
+            });
+            assignment.assignedSchedule = target.scheduleId;
+            assignment.course = target.courseId;
+            assignment.teacher = target.teacherId;
+        }
         if (title !== undefined) assignment.title = String(title).trim();
         if (description !== undefined) assignment.description = description || '';
         if (dueDate) {
-            if (extendDueDate) {
-                const extRole = req.user?.role || 'admin';
-                recordDueDateExtension(assignment, dueDate, req.user?.userId || null, extRole);
+            const parsed = assertDueDateNotPast(dueDate);
+            const prev = assignment.dueDate ? startOfDay(assignment.dueDate) : null;
+            const next = startOfDay(parsed);
+            if (!prev) {
+                assignment.dueDate = next;
+            } else if (next.getTime() === prev.getTime()) {
+                // Due date unchanged — allow other field updates.
+            } else if (extendDueDate || next.getTime() > prev.getTime()) {
+                recordDueDateExtension(
+                    assignment,
+                    dueDate,
+                    req.user?.userId || null,
+                    req.user?.role || 'admin'
+                );
             } else {
-                const parsed = assertDueDateNotPast(dueDate);
-                const prev = assignment.dueDate ? startOfDay(assignment.dueDate) : null;
-                if (prev && startOfDay(parsed).getTime() > prev.getTime()) {
-                    recordDueDateExtension(
-                        assignment,
-                        dueDate,
-                        req.user?.userId || null,
-                        req.user?.role || 'admin'
-                    );
-                } else {
-                    assignment.dueDate = parsed;
-                }
+                const err = new Error('Extended due date must be after the current due date');
+                err.status = 400;
+                throw err;
             }
         }
         if (status !== undefined) assignment.status = status;
@@ -221,7 +268,8 @@ router.patch('/assignments/:id', async (req, res) => {
         await assignment.save();
         const populated = await Assignment.findById(assignment._id)
             .populate('course', 'title')
-            .populate('teacher', 'name');
+            .populate('teacher', 'name')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher');
         const assignmentObj = populated.toObject ? populated.toObject() : populated;
         res.json({
             success: true,

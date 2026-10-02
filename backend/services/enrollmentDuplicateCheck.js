@@ -53,6 +53,11 @@ async function hasCompletedPaymentForCourse(email, { courseId, courseName } = {}
     return Boolean(payment);
 }
 
+function alreadyPaidCourseMessage(courseName) {
+    const title = String(courseName || '').trim() || 'this course';
+    return `You already paid for ${title}. Unselect that course and try again.`;
+}
+
 /**
  * Returns { blocked: true, error, code } when the payer should not register/pay again.
  */
@@ -62,7 +67,7 @@ async function getDuplicateCoursePaymentBlock(email, { courseId, courseName } = 
         return {
             blocked: true,
             code: 'ALREADY_ENROLLED_PAID',
-            error: 'You are already enrolled in this course with a paid fee. Contact the academy if you need help.',
+            error: alreadyPaidCourseMessage(courseName),
         };
     }
 
@@ -71,7 +76,7 @@ async function getDuplicateCoursePaymentBlock(email, { courseId, courseName } = 
         return {
             blocked: true,
             code: 'ALREADY_PAID',
-            error: 'A completed payment for this course already exists for this email.',
+            error: alreadyPaidCourseMessage(courseName),
         };
     }
 

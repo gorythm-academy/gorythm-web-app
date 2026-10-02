@@ -6,6 +6,11 @@ export const ADMIN_SEEN_TAB_RESOURCES = 'admin_tab_resources';
 export const ADMIN_SEEN_TAB_SUBMISSIONS = 'admin_tab_submissions';
 export const TEACHER_SEEN_ADMIN_ASSIGNMENTS = 'teacher_admin_assignments';
 export const TEACHER_SEEN_ADMIN_RESOURCES = 'teacher_admin_resources';
+export const TEACHER_SEEN_QUIZ_UPDATES = 'teacher_quiz_updates';
+export const ADMIN_SEEN_QUIZ_UPDATES = 'admin_quiz_updates';
+export const STUDENT_QUIZ_UPDATES = 'student_quiz_updates';
+export const STUDENT_ASSIGNMENTS_UPDATES = 'student_assignments_updates';
+export const ADMIN_SEEN_PAYMENTS = 'admin_payments';
 
 export function getPortalSeenCutoff(storageKey, fallbackDays = 7) {
   const raw = localStorage.getItem(`${PREFIX}${storageKey}`);

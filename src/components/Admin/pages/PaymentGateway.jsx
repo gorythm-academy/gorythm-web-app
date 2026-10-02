@@ -110,7 +110,8 @@ const PaymentGateway = () => {
     const [urlCourseError, setUrlCourseError] = useState('');
     const [notice, setNotice] = useState(null);
     const [validationModal, setValidationModal] = useState({ open: false, title: '', issues: [] });
-    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedCourseIds, setSelectedCourseIds] = useState([]);
+    const [invoiceMode, setInvoiceMode] = useState('combined');
 
     const showNotice = (title, message, type = 'info') => {
         setNotice({ title, message, type });
@@ -133,7 +134,7 @@ const PaymentGateway = () => {
 
     useEffect(() => {
         didInitFromUrl.current = false;
-        setSelectedCourseId('');
+        setSelectedCourseIds([]);
         if (paymentDetails.courseId) {
             setUrlCourseError('');
         } else if (paymentDetails.legacyCourseName) {
@@ -151,8 +152,8 @@ const PaymentGateway = () => {
     }, [paymentDetails.displayCurrency, currencyLoading, applyCurrencyCode]);
 
     useEffect(() => {
-        if (selectedCourseId) rememberPaymentCourseId(selectedCourseId);
-    }, [selectedCourseId]);
+        if (selectedCourseIds[0]) rememberPaymentCourseId(selectedCourseIds[0]);
+    }, [selectedCourseIds]);
 
     useEffect(() => {
         let cancelled = false;
@@ -228,7 +229,7 @@ const PaymentGateway = () => {
                 if (cancelled) return;
                 if (!response.ok || !data.success || !data.course) {
                     setUrlCourseError(data.error || 'This course is not open for enrollment.');
-                    setSelectedCourseId('');
+                    setSelectedCourseIds([]);
                     return;
                 }
                 setUrlCourseError('');
@@ -241,7 +242,7 @@ const PaymentGateway = () => {
             } catch {
                 if (!cancelled) {
                     setUrlCourseError('Could not load course from link.');
-                    setSelectedCourseId('');
+                    setSelectedCourseIds([]);
                 }
             }
         };
@@ -253,15 +254,22 @@ const PaymentGateway = () => {
     }, [paymentDetails.courseId, coursesLoaded, courseOptions]);
 
     useEffect(() => {
-        if (didInitFromUrl.current || !paymentDetails.courseId) return;
-        const match = courseOptions.find(
-            (course) => String(course._id) === String(paymentDetails.courseId)
-        );
-        if (match) {
-            setSelectedCourseId(String(match._id));
+        if (didInitFromUrl.current) return;
+        if (paymentDetails.courseId) {
+            const match = courseOptions.find(
+                (course) => String(course._id) === String(paymentDetails.courseId)
+            );
+            if (match) {
+                setSelectedCourseIds([String(match._id)]);
+                didInitFromUrl.current = true;
+            }
+            return;
+        }
+        if (coursesLoaded && courseOptions.length === 1) {
+            setSelectedCourseIds([String(courseOptions[0]._id)]);
             didInitFromUrl.current = true;
         }
-    }, [paymentDetails.courseId, courseOptions]);
+    }, [paymentDetails.courseId, courseOptions, coursesLoaded]);
 
     useEffect(() => {
         const handlePageShow = () => {
@@ -281,11 +289,19 @@ const PaymentGateway = () => {
         }
     }, [paymentMethod]);
 
-    const selectedCourse = useMemo(
-        () => courseOptions.find((course) => String(course._id) === String(selectedCourseId)) || null,
-        [courseOptions, selectedCourseId]
+    const selectedCourses = useMemo(
+        () =>
+            selectedCourseIds
+                .map((id) => courseOptions.find((course) => String(course._id) === id))
+                .filter(Boolean),
+        [courseOptions, selectedCourseIds]
     );
-    const resolvedAmount = Number(selectedCourse?.price ?? paymentDetails.amount) || 0;
+    const selectedCourse = selectedCourses[0] || null;
+    const extraCourses = selectedCourses.slice(1);
+    const resolvedAmount = selectedCourses.reduce(
+        (sum, course) => sum + (Number(course.price) || 0),
+        0
+    );
 
     const hasBankInfo = Boolean(
         bankDetails &&
@@ -402,6 +418,10 @@ const PaymentGateway = () => {
             form.append('email', formData.email.trim());
             form.append('phone', normalizedPhone);
             form.append('courseId', String(selectedCourse._id));
+            if (extraCourses.length) {
+                form.append('courseIds', JSON.stringify(extraCourses.map((course) => String(course._id))));
+                form.append('invoiceMode', invoiceMode);
+            }
             form.append('file', proofFile);
 
             const response = await fetch(`${API_BASE_URL}/api/payments/register-bank`, {
@@ -420,7 +440,7 @@ const PaymentGateway = () => {
             });
         } catch (error) {
             const msg = error.message || 'Failed to submit';
-            const isDuplicate = /already enrolled|completed payment|awaiting review/i.test(msg);
+            const isDuplicate = /already enrolled|already paid|completed payment|awaiting review/i.test(msg);
             showNotice(isDuplicate ? 'Already submitted' : 'Submission failed', msg, isDuplicate ? 'warning' : 'error');
         } finally {
             setBankSubmitting(false);
@@ -455,6 +475,12 @@ const PaymentGateway = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     courseId: String(selectedCourse._id),
+                    ...(extraCourses.length
+                        ? {
+                              courseIds: extraCourses.map((course) => String(course._id)),
+                              invoiceMode,
+                          }
+                        : {}),
                     ...(userId ? { userId: String(userId) } : {}),
                 }),
             });
@@ -470,7 +496,7 @@ const PaymentGateway = () => {
             window.location.href = data.url;
         } catch (error) {
             const msg = error.message || 'Checkout failed';
-            const isDuplicate = /already enrolled|completed payment for this course/i.test(msg);
+            const isDuplicate = /already enrolled|already paid|completed payment for this course/i.test(msg);
             showNotice(
                 isDuplicate ? 'Already enrolled' : 'Checkout failed',
                 msg,
@@ -506,7 +532,9 @@ const PaymentGateway = () => {
 
                     <div className="payment-summary-banner">
                         <span className="payment-summary-course">
-                            {selectedCourse?.title || 'Select a course'}
+                            {selectedCourses.length
+                                ? selectedCourses.map((course) => course.title).join(' · ')
+                                : 'Select a course'}
                         </span>
                         <strong>Total Amount: {localizedAmount}</strong>
                     </div>
@@ -532,25 +560,46 @@ const PaymentGateway = () => {
                         <form className="payment-form" onSubmit={handleSubmit}>
                             {bankStep === BANK_STEPS.FORM && (
                                 <div className="form-grid">
-                                    <div className="form-group form-group-wide">
-                                        <label>Select Course <RequiredMark /></label>
-                                        <select
-                                            value={selectedCourseId}
-                                            onChange={(e) => {
-                                                didInitFromUrl.current = true;
-                                                setSelectedCourseId(e.target.value);
-                                            }}
-                                            required
-                                        >
-                                            <option value="" disabled>
-                                                Choose a course
-                                            </option>
-                                            {courseOptions.map((course) => (
-                                                <option key={course._id} value={String(course._id)}>
-                                                    {course.title}
-                                                </option>
-                                            ))}
-                                        </select>
+                                    <div className="form-group form-group-wide extra-courses">
+                                        <label>Courses to enroll <RequiredMark /></label>
+                                        <p className="payment-course-hint">
+                                            Tick every course to include in this checkout. Selected courses are added to the total above.
+                                        </p>
+                                        <div className="extra-courses-list" role="group" aria-label="Courses to enroll">
+                                            {courseOptions.length === 0 && coursesLoaded ? (
+                                                <p className="payment-url-course-error" role="alert">
+                                                    No published courses are available for enrollment right now.
+                                                </p>
+                                            ) : (
+                                                courseOptions.map((course) => {
+                                                    const id = String(course._id);
+                                                    const checked = selectedCourseIds.includes(id);
+                                                    return (
+                                                        <label key={id} className={`extra-course-item${checked ? ' is-selected' : ''}`}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={(e) => {
+                                                                    didInitFromUrl.current = true;
+                                                                    setSelectedCourseIds((prev) =>
+                                                                        e.target.checked
+                                                                            ? [...prev, id]
+                                                                            : prev.filter((value) => value !== id)
+                                                                    );
+                                                                }}
+                                                            />
+                                                            <span className="extra-course-item__copy">
+                                                                <strong>{course.title}</strong>
+                                                                {course.category ? <em>{course.category}</em> : null}
+                                                            </span>
+                                                            <span className="extra-course-item__price">
+                                                                {formatFromUsd(Number(course.price || 0))}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
                                         {coursesFetchError ? (
                                             <p className="payment-url-course-error" role="alert">
                                                 {coursesFetchError}
@@ -560,6 +609,28 @@ const PaymentGateway = () => {
                                             <p className="payment-url-course-error" role="alert">
                                                 {urlCourseError}
                                             </p>
+                                        ) : null}
+                                        {selectedCourses.length > 1 ? (
+                                            <div className="invoice-mode-row">
+                                                <label>
+                                                    <input
+                                                        type="radio"
+                                                        name="invoiceMode"
+                                                        checked={invoiceMode === 'combined'}
+                                                        onChange={() => setInvoiceMode('combined')}
+                                                    />
+                                                    One combined invoice
+                                                </label>
+                                                <label>
+                                                    <input
+                                                        type="radio"
+                                                        name="invoiceMode"
+                                                        checked={invoiceMode === 'separate'}
+                                                        onChange={() => setInvoiceMode('separate')}
+                                                    />
+                                                    Separate invoice per course
+                                                </label>
+                                            </div>
                                         ) : null}
                                     </div>
 

@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activeUserFilter } = require('../utils/userQuery');
 
-const ROSTER_STATUSES = ['active', 'completed'];
+const ROSTER_STATUSES = ['active', 'completed', 'paused'];
 
 /**
  * All students registered on a course (enrollments + course.students), excluding inactive.
@@ -56,7 +56,7 @@ async function getCourseRosterStudents(courseId) {
 /** Students with an active enrollment on the course. */
 async function getActiveCourseRosterStudents(courseId) {
     const students = await getCourseRosterStudents(courseId);
-    return students.filter((s) => s.enrollmentStatus === 'active');
+    return students.filter((s) => s.enrollmentStatus === 'active' || s.enrollmentStatus === 'paused');
 }
 
 async function getActiveCourseRosterStudentIds(courseId) {

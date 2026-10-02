@@ -1,7 +1,9 @@
 const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
+const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { displayEnrollmentFeeStatus } = require('../utils/billingStatus');
 
-const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded'];
+const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cancelled'];
 
 function statusFromPaymentList(payments) {
     if (!payments?.length) return 'pending';
@@ -11,16 +13,24 @@ function statusFromPaymentList(payments) {
     const latest = sorted[0];
     if (latest.status === 'paid' || latest.status === 'completed') return 'paid';
     if (latest.status === 'refunded') return 'refunded';
+    if (latest.status === 'cancelled' || latest.status === 'rejected') return 'cancelled';
     if (latest.status === 'failed') return 'failed';
     return 'pending';
 }
 
 function paymentQueryForStudent(studentId, studentEmail, courseId) {
-    const or = [{ user: studentId }];
+    const or = [{ user: studentId }, { 'lines.student': studentId }];
     if (studentEmail) {
-        or.push({ email: String(studentEmail).toLowerCase() });
+        const email = String(studentEmail).toLowerCase();
+        or.push({ email });
+        or.push({ 'lines.studentEmail': email });
     }
-    return { course: courseId, $or: or };
+    return {
+        $and: [
+            { $or: [{ course: courseId }, { 'lines.course': courseId }] },
+            { $or: or },
+        ],
+    };
 }
 
 async function derivePaymentStatusForCourse(studentId, studentEmail, courseId) {
@@ -39,7 +49,8 @@ async function enrichEnrollmentsWithPaymentStatus(enrollments, studentId, studen
         const stored = e.paymentStatus;
         const status =
             stored && VALID_STATUSES.includes(stored) ? stored : 'pending';
-        return { ...e, paymentStatus: status };
+        const displayStatus = displayEnrollmentFeeStatus({ ...e, paymentStatus: status });
+        return { ...e, paymentStatus: status, displayFeeStatus: displayStatus };
     });
 }
 
@@ -48,10 +59,12 @@ async function countPendingFeesForStudents(studentIds, emailByStudentId = {}) {
     const enrollments = await Enrollment.find({
         student: { $in: studentIds },
         course: { $ne: null },
+        ...activeEnrollmentFilter(),
     });
     let pending = 0;
     for (const enr of enrollments) {
-        if ((enr.paymentStatus || 'pending') === 'pending') pending += 1;
+        const display = displayEnrollmentFeeStatus(enr);
+        if (['unpaid', 'overdue', 'failed'].includes(display)) pending += 1;
     }
     return pending;
 }

@@ -87,6 +87,14 @@ export function PaymentSuccess() {
             <h1>Thank you</h1>
             <p>Your payment was received successfully.</p>
             {state.courseTitle ? <p className="payment-result-course">{state.courseTitle}</p> : null}
+            {sessionId ? (
+              <a
+                className="payment-result-link"
+                href={`${API_BASE_URL}/api/payments/receipt-by-session?session_id=${encodeURIComponent(sessionId)}`}
+              >
+                Download invoice PDF
+              </a>
+            ) : null}
             {state.message ? (
               <p className="payment-result-note">{state.message}</p>
             ) : (
@@ -103,9 +111,17 @@ export function PaymentSuccess() {
             <h1>Payment received — action needed</h1>
             <p>
               {state.message ||
-                'We received your payment but could not complete enrollment automatically. Please contact us with your receipt.'}
+                'We received your payment. Please contact us with your invoice if you need help with the next step.'}
             </p>
             {state.courseTitle ? <p className="payment-result-course">{state.courseTitle}</p> : null}
+            {sessionId ? (
+              <a
+                className="payment-result-link"
+                href={`${API_BASE_URL}/api/payments/receipt-by-session?session_id=${encodeURIComponent(sessionId)}`}
+              >
+                Download invoice PDF
+              </a>
+            ) : null}
             <Link to="/contact" className="payment-result-link">
               Contact support
             </Link>
@@ -113,7 +129,7 @@ export function PaymentSuccess() {
         ) : (
           <>
             <h1>Payment pending</h1>
-            <p>We could not confirm a paid payment yet. If you were charged, contact support with your receipt.</p>
+            <p>We could not confirm a paid payment yet. If you were charged, contact us with your payment details.</p>
             <Link to="/contact" className="payment-result-link">
               Contact support
             </Link>

@@ -656,30 +656,30 @@ const Subscribers = () => {
       <div className="contact-stats-grid">
         <div className="contact-stat-card">
           <div className="stat-icon total"><i className="fas fa-users"></i></div>
-          <div className="stat-text">
-            <span>Total Subscribers</span>
-            <strong>{subscriberStats.totalCount}</strong>
+          <div className="stat-info">
+            <h3>{subscriberStats.totalCount}</h3>
+            <p>Total Subscribers</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon new"><i className="fas fa-calendar-day"></i></div>
-          <div className="stat-text">
-            <span>Today</span>
-            <strong>{subscriberStats.todayCount}</strong>
+          <div className="stat-info">
+            <h3>{subscriberStats.todayCount}</h3>
+            <p>Today</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon in-progress"><i className="fas fa-calendar-week"></i></div>
-          <div className="stat-text">
-            <span>Last 7 Days</span>
-            <strong>{subscriberStats.weekCount}</strong>
+          <div className="stat-info">
+            <h3>{subscriberStats.weekCount}</h3>
+            <p>Last 7 Days</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon resolved"><i className="fas fa-layer-group"></i></div>
-          <div className="stat-text">
-            <span>Sources</span>
-            <strong>{subscriberStats.sourceCount}</strong>
+          <div className="stat-info">
+            <h3>{subscriberStats.sourceCount}</h3>
+            <p>Sources</p>
           </div>
         </div>
       </div>

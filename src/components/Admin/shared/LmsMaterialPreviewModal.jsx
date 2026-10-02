@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
-import { absFileUrl } from '../../../utils/fileUrl';
+import { createPortal } from 'react-dom';
+import { absFileUrl, downloadProtectedUpload } from '../../../utils/fileUrl';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import ResearchSeriesView from '../../Pages/ResearchSeriesView';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
+import './LmsMaterialPreviewModal.scss';
 
 function listAttachments(record) {
   if (Array.isArray(record?.attachments) && record.attachments.length) {
@@ -24,7 +26,7 @@ function fileLinkLabel(url, index, total) {
   return total > 1 ? `${name} (${index + 1})` : name;
 }
 
-export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
+export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hideUploader = false, tone = 'admin' }) {
   useDialogKeyboard({ isOpen: open, onClose });
 
   const attachments = useMemo(() => (item && kind !== 'research' ? listAttachments(item) : []), [item, kind]);
@@ -35,10 +37,10 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
 
   const title = item.title || (kind === 'assignment' ? 'Assignment' : isResearch ? 'Article' : 'Resource');
 
-  return (
+  return createPortal(
     <div className="lms-material-preview-backdrop" onClick={onClose} role="presentation">
       <div
-        className={`lms-material-preview${isResearch ? ' lms-material-preview--research' : ''}`}
+        className={`lms-material-preview lms-material-preview--${tone}${isResearch ? ' lms-material-preview--research' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="lms-material-preview-title"
@@ -99,11 +101,15 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
             <>
               <dt>Type</dt>
               <dd>{item.type || 'file'}</dd>
-              <dt>Uploaded By</dt>
-              <dd>
-                {item.uploadedBy?.name || '—'}
-                {item.uploadedBy?.role ? ` (${item.uploadedBy.role})` : ''}
-              </dd>
+              {!hideUploader ? (
+                <>
+                  <dt>Uploaded By</dt>
+                  <dd>
+                    {item.uploadedBy?.name || '—'}
+                    {item.uploadedBy?.role ? ` (${item.uploadedBy.role})` : ''}
+                  </dd>
+                </>
+              ) : null}
             </>
           ) : null}
         </dl>
@@ -159,7 +165,16 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
                   url.startsWith('http://') || url.startsWith('https://') ? url : absFileUrl(url);
                 return (
                   <li key={`${url}-${index}`}>
-                    <a href={href} target="_blank" rel="noreferrer">
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => {
+                        if (url.startsWith('http://') || url.startsWith('https://')) return;
+                        event.preventDefault();
+                        downloadProtectedUpload(url);
+                      }}
+                    >
                       <i className="fas fa-external-link-alt" aria-hidden /> {fileLinkLabel(url, index, attachments.length)}
                     </a>
                   </li>
@@ -189,11 +204,12 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose }) {
               <i className="fas fa-external-link-alt" aria-hidden /> Open on website
             </a>
           ) : null}
-          <button type="button" className="lms-btn-secondary" onClick={onClose}>
+          <button type="button" className="lms-material-preview__dismiss" onClick={onClose}>
             Close
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

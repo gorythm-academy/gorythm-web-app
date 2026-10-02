@@ -5,10 +5,23 @@ const Payment = require('../models/Payment');
 const logger = require('../utils/logger');
 const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
 const { fulfillStripeCheckoutSession } = require('../services/stripeCheckoutFulfillment');
+const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
 const { activePaymentFilter } = require('../utils/paymentQuery');
 
 async function updateActivePayment(query, update, options = {}) {
     return Payment.findOneAndUpdate({ ...query, ...activePaymentFilter() }, update, options);
+}
+
+async function markPaymentsRefunded(query, refundId) {
+    const payments = await Payment.find({ ...query, ...activePaymentFilter() });
+    for (const payment of payments) {
+        payment.status = 'refunded';
+        if (refundId) payment.refundId = refundId;
+        await payment.save();
+        await payment.populate(['user', 'course']);
+        await syncEnrollmentFromPayment(payment);
+    }
+    return payments;
 }
 
 module.exports = async (req, res) => {
@@ -50,6 +63,18 @@ module.exports = async (req, res) => {
                                 : 'Checkout session expired',
                     }
                 );
+                if (session?.id) {
+                    await BillingCheckoutIntent.updateMany(
+                        { stripeSessionId: session.id, status: 'open' },
+                        { $set: { status: 'abandoned' } }
+                    );
+                }
+                if (session?.metadata?.groupId) {
+                    await BillingCheckoutIntent.updateMany(
+                        { groupId: session.metadata.groupId, status: 'open' },
+                        { $set: { status: 'abandoned' } }
+                    );
+                }
                 break;
             }
             case 'payment_intent.payment_failed': {
@@ -73,17 +98,10 @@ module.exports = async (req, res) => {
                         : undefined;
 
                 if (paymentIntentId) {
-                    const payment = await updateActivePayment(
+                    await markPaymentsRefunded(
                         { stripePaymentIntentId: paymentIntentId },
-                        {
-                            status: 'refunded',
-                            ...(latestRefundId ? { refundId: latestRefundId } : {}),
-                        },
-                        { new: true }
-                    )
-                        .populate('user')
-                        .populate('course');
-                    if (payment) await syncEnrollmentFromPayment(payment);
+                        latestRefundId
+                    );
                 }
                 break;
             }
@@ -95,17 +113,10 @@ module.exports = async (req, res) => {
                         : refund.payment_intent?.id;
 
                 if (paymentIntentId) {
-                    const payment = await updateActivePayment(
+                    await markPaymentsRefunded(
                         { stripePaymentIntentId: paymentIntentId },
-                        {
-                            status: 'refunded',
-                            ...(refund.id ? { refundId: refund.id } : {}),
-                        },
-                        { new: true }
-                    )
-                        .populate('user')
-                        .populate('course');
-                    if (payment) await syncEnrollmentFromPayment(payment);
+                        refund.id
+                    );
                 }
                 break;
             }

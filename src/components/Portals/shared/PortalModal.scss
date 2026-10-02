@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(15, 23, 42, 0.48);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,26 +11,28 @@
 
 .portal-modal {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 18px;
   max-width: 520px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
 
   &--wide {
-    max-width: 720px;
+    max-width: 840px;
   }
 }
 
 .portal-modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
+  gap: 1rem;
+  padding: 1.05rem 1.25rem;
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
 
   h2 {
     margin: 0;
@@ -38,19 +40,100 @@
   }
 }
 
+.portal-modal--teacher .portal-modal-header,
+.portal-modal--student .portal-modal-header {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+
+.portal-modal--parent .portal-modal-header {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+.portal-modal--accountant .portal-modal-header {
+  background: linear-gradient(135deg, #0f766e, #115e59);
+}
+
+.portal-modal-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
 .portal-modal-close {
-  border: none;
-  background: #f1f5f9;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 8px;
-  font-size: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.18);
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
-  color: #475569;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.28);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
 }
 
 .portal-modal-body {
   padding: 1.25rem;
   overflow-y: auto;
+}
+
+.portal-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 1.25rem 1.15rem;
+  border-top: 1px solid #eef2ff;
+  background: #fafbff;
+}
+
+.portal-modal-dismiss {
+  border: none;
+  border-radius: 999px;
+  padding: 0.55rem 1.2rem;
+  font-weight: 800;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(79, 70, 229, 0.32);
+  }
+}
+
+.portal-modal--teacher .portal-modal-dismiss,
+.portal-modal--student .portal-modal-dismiss {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+}
+
+.portal-modal--parent .portal-modal-dismiss {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.28);
+}
+
+.portal-modal--accountant .portal-modal-dismiss {
+  background: linear-gradient(135deg, #0f766e, #115e59);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.28);
 }

@@ -1,77 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader, PortalCourseToolbar } from '../shared/PortalUi';
-import SubmissionFiles from '../shared/SubmissionFiles';
-import { markPortalPageVisited } from '../../../utils/portalNewItems';
+import {
+  PortalDataSection,
+  PortalPageHeader,
+  PortalCourseToolbar,
+  PortalNewBanner,
+} from '../shared/PortalUi';
+import PortalContentResourcesTable from '../shared/PortalContentResourcesTable';
+import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal';
+import {
+  filterPortalItemsByCourse,
+  getItemsNewSinceLastVisit,
+  markPortalPageVisited,
+} from '../../../utils/portalNewItems';
+import '../../Admin/pages/LmsManagement.scss';
 import './StudentContent.scss';
 
 const SEEN_KEY = 'student_content';
-
-function resourceTypeLabel(type) {
-  if (type === 'link') return 'Link';
-  if (type === 'note') return 'Note';
-  return 'File';
-}
-
-function resourceAttachments(resource) {
-  if (Array.isArray(resource.attachments) && resource.attachments.length) {
-    return resource.attachments.filter(Boolean);
-  }
-  return resource.fileUrl ? [resource.fileUrl] : [];
-}
-
-function ResourceRow({ resource }) {
-  const { type, title, description } = resource;
-  const attachments = resourceAttachments(resource);
-
-  if (type === 'note') {
-    return (
-      <tr>
-        <td>
-          <strong>{title || 'Note'}</strong>
-          {description ? <p className="student-content__note">{description}</p> : null}
-        </td>
-        <td>{resourceTypeLabel(type)}</td>
-        <td>
-          {attachments.length ? <SubmissionFiles attachments={attachments} /> : '—'}
-        </td>
-      </tr>
-    );
-  }
-
-  if (type === 'link') {
-    const href = attachments[0] || null;
-    return (
-      <tr>
-        <td>
-          <strong>{title || 'Resource'}</strong>
-        </td>
-        <td>{resourceTypeLabel(type)}</td>
-        <td>
-          {href ? (
-            <a href={href} target="_blank" rel="noreferrer">
-              Open link
-            </a>
-          ) : (
-            '—'
-          )}
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr>
-      <td>
-        <strong>{title || 'Resource'}</strong>
-      </td>
-      <td>{resourceTypeLabel(type)}</td>
-      <td>
-        {attachments.length ? <SubmissionFiles attachments={attachments} /> : '—'}
-      </td>
-    </tr>
-  );
-}
 
 const StudentContent = () => {
   const [courses, setCourses] = useState([]);
@@ -79,13 +24,17 @@ const StudentContent = () => {
   const [courseFilter, setCourseFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [previewResource, setPreviewResource] = useState(null);
+  const [newItems, setNewItems] = useState([]);
 
   useEffect(() => {
     portalGet('/student/content')
       .then((res) => {
         if (res.success) {
+          const list = res.resources || [];
           setCourses(res.courses || []);
-          setResources(res.resources || []);
+          setResources(list);
+          setNewItems(getItemsNewSinceLastVisit(SEEN_KEY, list));
         } else setError(res.error || 'Failed to load');
       })
       .catch((err) => setError(err.message))
@@ -93,8 +42,13 @@ const StudentContent = () => {
   }, []);
 
   useEffect(() => {
-    markPortalPageVisited(SEEN_KEY);
+    return () => markPortalPageVisited(SEEN_KEY);
   }, []);
+
+  const dismissNew = () => {
+    markPortalPageVisited(SEEN_KEY);
+    setNewItems([]);
+  };
 
   const courseOptions = useMemo(
     () => courses.map((c) => ({ _id: c._id, title: c.title })),
@@ -109,39 +63,23 @@ const StudentContent = () => {
     });
   }, [resources, courseFilter]);
 
-  const resourcesByCourse = useMemo(() => {
-    const groups = new Map();
-    for (const r of filteredResources) {
-      const courseId = String(r.course?._id || r.course || 'unknown');
-      const courseTitle = r.course?.title || 'Course';
-      if (!groups.has(courseId)) {
-        groups.set(courseId, { courseId, courseTitle, items: [] });
-      }
-      groups.get(courseId).items.push(r);
-    }
-    return Array.from(groups.values()).sort((a, b) => a.courseTitle.localeCompare(b.courseTitle));
-  }, [filteredResources]);
-
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (loading) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const visibleNew = useMemo(
+    () => (courseFilter && courseFilter !== 'all' ? filterPortalItemsByCourse(newItems, courseFilter) : newItems),
+    [newItems, courseFilter]
+  );
 
   return (
     <div className="portal-page student-content">
       <PortalPageHeader
         title="Course Content"
         subtitle="Teacher-shared files, links, and notes for your active enrollments only."
+      />
+
+      <PortalNewBanner
+        title={`${visibleNew.length} new item${visibleNew.length === 1 ? '' : 's'} available`}
+        items={visibleNew}
+        itemLabel={(item) => item.title}
+        onDismiss={dismissNew}
       />
 
       <div className="portal-hero portal-hero--student">
@@ -162,44 +100,35 @@ const StudentContent = () => {
         onChange={setCourseFilter}
         courses={courseOptions}
         label="Filter by course"
-        count={filteredResources.length}
+        count={loading ? null : filteredResources.length}
       />
 
       <div className="portal-panel student-content__resources-panel">
         <div className="portal-panel__head">
           <div>
             <h2>Content & Resources</h2>
-            <p>Grouped by course — only materials for courses you are actively enrolled in</p>
+            <p>View-only — open Preview to read notes, files, and links</p>
           </div>
         </div>
         <div className="portal-panel__body portal-panel__body--padded">
-          {resourcesByCourse.length === 0 ? (
-            <p className="portal-empty">No teacher resources for this selection yet.</p>
-          ) : (
-            resourcesByCourse.map((group) => (
-              <section key={group.courseId} className="student-content__course-group">
-                <h3 className="student-content__course-heading">{group.courseTitle}</h3>
-                <div className="portal-data-table-wrap">
-                  <table className="portal-data-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Type</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.items.map((r) => (
-                        <ResourceRow key={r._id} resource={r} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ))
-          )}
+          <PortalDataSection loading={loading} error={error} loadingLabel="Loading resources…">
+            <PortalContentResourcesTable
+              resources={filteredResources}
+              onPreview={setPreviewResource}
+              emptyMessage="There is no learning material to show for this course yet."
+            />
+          </PortalDataSection>
         </div>
       </div>
+
+      <LmsMaterialPreviewModal
+        open={Boolean(previewResource)}
+        kind="resource"
+        item={previewResource}
+        onClose={() => setPreviewResource(null)}
+        hideUploader
+        tone="student"
+      />
     </div>
   );
 };

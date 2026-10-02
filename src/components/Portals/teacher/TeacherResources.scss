@@ -260,11 +260,15 @@
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
   }
 
   .teacher-resources__list {
     width: 100%;
+    min-width: 1100px;
     border-collapse: collapse;
     font-size: 0.9rem;
 

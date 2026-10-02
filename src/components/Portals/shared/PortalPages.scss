@@ -164,17 +164,21 @@
 
   button {
     flex-shrink: 0;
-    padding: 0.45rem 0.85rem;
-    border: 1px solid #d97706;
-    border-radius: 8px;
-    background: #fff;
-    color: #92400e;
-    font-weight: 700;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    font-weight: 800;
     cursor: pointer;
     font-size: 0.82rem;
+    box-shadow: 0 8px 16px rgba(217, 119, 6, 0.28);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 
     &:hover {
-      background: #fffbeb;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(217, 119, 6, 0.34);
     }
   }
 }
@@ -219,10 +223,143 @@
   &__body--padded {
     padding: 1rem 1.15rem;
   }
+
+  &__subsection {
+    padding: 0 1.15rem 1rem;
+
+    &:first-child {
+      padding-top: 1rem;
+    }
+
+    h3 {
+      margin: 0 0 0.65rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    & + & {
+      padding-top: 0.25rem;
+      border-top: 1px solid #f1f5f9;
+    }
+  }
+
+  &--collapsible {
+    &.is-collapsed .portal-panel__toggle {
+      border-bottom: none;
+    }
+
+    .portal-panel__toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1rem 1.15rem;
+      margin: 0;
+      border: none;
+      border-bottom: 1px solid #f1f5f9;
+      background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: linear-gradient(180deg, #f1f5f9 0%, #fff 100%);
+      }
+    }
+
+    .portal-panel__toggle-text {
+      min-width: 0;
+
+      h2,
+      h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      p {
+        margin: 0.2rem 0 0;
+        font-size: 0.82rem;
+        color: #64748b;
+      }
+    }
+
+    .portal-panel__chevron {
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: #64748b;
+      background: #f1f5f9;
+      font-size: 0.75rem;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    &.is-expanded .portal-panel__chevron {
+      color: #0f766e;
+      background: #ecfdf5;
+    }
+  }
 }
 
-.portal-data-table-wrap {
+.portal-data-table-wrap,
+.portal-table-wrap,
+.portal-attendance-records-table-wrap,
+.teacher-quizzes__list-wrap,
+.teacher-assignments__list-wrap,
+.teacher-resources__list-wrap,
+.accountant-payroll-table-wrap,
+.accountant-payments-table-wrap,
+.attendance-period-view__list-wrap,
+.student-attendance__list-wrap,
+.student-schedule__table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+
+    &:hover {
+      background: #94a3b8;
+    }
+  }
+}
+
+.portal-data-table,
+.portal-table,
+.portal-attendance-records-table,
+.teacher-quizzes__table,
+.teacher-assignments__table,
+.teacher-resources__list,
+.accountant-payroll-table,
+.accountant-payments-table,
+.attendance-period-view__table,
+.student-attendance__table,
+.student-schedule__table {
+  width: 100%;
+  min-width: 1100px;
 }
 
 .portal-data-table {
@@ -236,6 +373,7 @@
     text-align: left;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
+    white-space: nowrap;
   }
 
   th {
@@ -245,7 +383,6 @@
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    white-space: nowrap;
   }
 
   tbody tr {
@@ -285,6 +422,26 @@
       background: transparent;
       color: #c2410c;
     }
+  }
+}
+
+.portal-content-resources-table {
+  th,
+  td {
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  td:last-child,
+  th:last-child {
+    white-space: nowrap;
+  }
+
+  .portal-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
   }
 }
 
@@ -342,6 +499,28 @@
   &--purple {
     background: linear-gradient(135deg, #8b5cf6, #7c3aed);
   }
+
+  &--green {
+    background: linear-gradient(135deg, #059669, #047857);
+  }
+
+  &--ghost {
+    color: #5b21b6;
+    background: #f5f3ff;
+    border: 1px solid #ddd6fe;
+    box-shadow: none;
+
+    &:hover {
+      background: #ede9fe;
+      opacity: 1;
+    }
+  }
+}
+
+.portal-quiz-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .portal-report-block {
@@ -379,6 +558,72 @@
       cursor: pointer;
       color: #fff;
       background: linear-gradient(135deg, #f97316, #ea580c);
+    }
+  }
+
+  &__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+}
+
+.portal-report-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+
+  &:focus {
+    outline: none;
+    border-color: #f97316;
+  }
+}
+
+.portal-report-status-select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: #fff;
+  color: #334155;
+  text-transform: capitalize;
+}
+
+.portal-report-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #64748b;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+      background: #fff7ed;
+      border-color: #fdba74;
+      color: #c2410c;
     }
   }
 }
@@ -644,7 +889,30 @@
 
   &__dismiss {
     margin-top: 0.65rem;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 0.45rem 0.95rem !important;
+    font-weight: 800 !important;
+    color: #fff !important;
+    background: linear-gradient(135deg, #4f46e5, #4338ca) !important;
+    box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.32);
+    }
   }
+}
+
+.portal-admin-edit-banner--teacher .portal-admin-edit-banner__dismiss,
+.portal-admin-edit-banner--student .portal-admin-edit-banner__dismiss {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+}
+
+.portal-admin-edit-banner--parent .portal-admin-edit-banner__dismiss {
+  background: linear-gradient(135deg, #059669, #047857) !important;
 }
 
 .portal-table-btn {
@@ -667,3 +935,352 @@
     vertical-align: middle;
   }
 }
+
+.portal-billing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.portal-billing-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+
+  input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: #059669;
+  }
+}
+
+.portal-billing-group {
+  margin-bottom: 1.1rem;
+
+  h3 {
+    margin: 0 0 0.65rem;
+    font-size: 1rem;
+  }
+}
+
+.portal-billing-check-col {
+  width: 3.2rem;
+}
+
+.portal-billing-row {
+  input[type='checkbox'] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: #059669;
+    cursor: pointer;
+  }
+
+  &.is-selected td {
+    background: #f0fdf4;
+  }
+
+  &.is-locked td {
+    color: #64748b;
+  }
+}
+
+.portal-billing-sub {
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.portal-billing-decline-note {
+  margin-top: 0.35rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 16rem;
+}
+
+.student-assignments-table__status .lms-due-date-notice {
+  white-space: normal;
+}
+
+.portal-billing-options {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+
+  legend {
+    padding: 0 0.35rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    cursor: pointer;
+  }
+
+  input[type='radio'],
+  input[type='checkbox'] {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: #059669;
+  }
+}
+
+.portal-billing-bank {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+
+  ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #475569;
+  }
+
+  label {
+    display: grid;
+    gap: 0.3rem;
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+
+  input {
+    padding: 0.5rem 0.7rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+  }
+}
+
+.portal-billing-pay-col {
+  width: 8.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.portal-billing-pay-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.6rem;
+  padding: 0.45rem 1.05rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 14px -8px rgba(5, 150, 105, 0.9);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+}
+
+.portal-billing-verify {
+  display: inline-block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.portal-billing-overlay {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.portal-billing-overlay-lead {
+  margin: 0 0 1rem;
+  color: #475569;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.portal-billing-bank-steps {
+  margin: 0;
+  padding: 0.85rem 0.85rem 0.85rem 1.6rem;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #14532d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+
+  li + li {
+    margin-top: 0.35rem;
+  }
+}
+
+.portal-billing-overlay-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+
+  strong {
+    font-size: 1.1rem;
+    color: #0f172a;
+  }
+}
+
+.portal-billing-invoice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.portal-billing-invoice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.38rem 0.85rem;
+  border: 1.5px solid #059669;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.7;
+  }
+}
+
+.portal-billing-pay,
+.portal-billing-download-all {
+  padding: 0.7rem 1.1rem;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.portal-billing-lines {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.portal-data-table td button:not(.portal-billing-pay-row):not(.portal-billing-invoice-btn):not(.portal-action-btn) {
+  margin-right: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.portal-data-table td button[class*='--danger'],
+.portal-data-table td button.danger {
+  background: #dc2626;
+  border-color: transparent;
+  color: #fff;
+}
+
+.portal-data-table td button[class*='--danger'] span,
+.portal-data-table td button.danger span {
+  color: #fff;
+}
+
+.portal-data-table td button.portal-action-btn {
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.portal-data-table td button.portal-action-btn .portal-action-btn__label {
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.portal-data-table td button.portal-billing-pay-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0;
+  min-width: 4.6rem;
+  min-height: 2rem;
+  padding: 0.4rem 1.15rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.portal-data-table td button.portal-billing-pay-row .portal-billing-pay-row__label {
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.portal-data-table td .portal-billing-invoice-btn {
+  margin-right: 0;
+}
+

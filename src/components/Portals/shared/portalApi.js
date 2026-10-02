@@ -74,6 +74,53 @@ export async function portalDelete(path) {
   return request('delete', `${apiBase()}/api/portal${path}`);
 }
 
+export async function portalGetBlob(path) {
+  try {
+    const res = await axios({
+      method: 'get',
+      url: `${apiBase()}/api/portal${path}`,
+      headers: buildHeaders(),
+      responseType: 'blob',
+    });
+    return res.data;
+  } catch (err) {
+    handleUnauthorized(err.response?.status);
+    let message = getPortalErrorMessage(err, 'Could not download the file. Please try again.');
+    const data = err.response?.data;
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      try {
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        if (parsed?.error || parsed?.message) message = String(parsed.error || parsed.message);
+      } catch {
+        // Keep the generic message when the error body is not JSON.
+      }
+    }
+    const wrapped = new Error(message);
+    wrapped.cause = err;
+    wrapped.status = err.response?.status;
+    throw wrapped;
+  }
+}
+
+export async function portalPostForm(path, formData) {
+  try {
+    const res = await axios({
+      method: 'post',
+      url: `${apiBase()}/api/portal${path}`,
+      headers: { ...buildHeaders(), 'Content-Type': 'multipart/form-data' },
+      data: formData,
+    });
+    return res.data;
+  } catch (err) {
+    handleUnauthorized(err.response?.status);
+    const wrapped = new Error(getPortalErrorMessage(err));
+    wrapped.cause = err;
+    wrapped.status = err.response?.status;
+    throw wrapped;
+  }
+}
+
 export async function changePortalPassword(body) {
   return request('post', `${apiBase()}/api/auth/change-password`, body);
 }
@@ -96,9 +143,14 @@ export async function payrollDelete(path) {
 
 export const FEE_LABELS = {
   paid: 'Paid',
-  pending: 'Pending',
+  pending: 'Unpaid',
+  unpaid: 'Unpaid',
+  awaiting_review: 'Pending Verification',
+  processing: 'Pending Verification',
+  overdue: 'Overdue',
   failed: 'Failed',
   refunded: 'Refunded',
+  cancelled: 'Cancelled',
 };
 
 /** Current month as YYYY-MM for `<input type="month">` */

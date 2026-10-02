@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/constants';
 import { getAuthToken } from '../../../utils/authStorage';
@@ -13,14 +13,10 @@ import PayrollMonthAttendanceModal from '../../shared/PayrollMonthAttendanceModa
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import { filterByKeywordSearch } from '../../../utils/adminSearch';
 import SchedulesTab from './LmsManagement/SchedulesTab';
-import ParentLinksTab from './LmsManagement/ParentLinksTab';
 import TeacherAttendanceTab from './LmsManagement/TeacherAttendanceTab';
 import TeacherPayrollTab from './LmsManagement/TeacherPayrollTab';
-import { formatPayrollMonth, formatRelationLabel } from './LmsManagement/lmsHelpers';
+import { formatPayrollMonth } from './LmsManagement/lmsHelpers';
 import './LmsManagement.scss';
-
-const PARENT_LINKS_PAGE_SIZE = 20;
-const LINK_PICKER_LIMIT = 500;
 
 const browserTimezone = () => {
   try {
@@ -67,11 +63,10 @@ const scheduleTimeError = (startTime, endTime) => {
 const currentMonthKey = () => {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
-};
+  };
 
 const TABS = [
   { id: 'schedules', label: 'Class Schedules' },
-  { id: 'parent-links', label: 'Parent Links' },
   { id: 'teacher-attendance', label: 'Teacher Attendance Approvals' },
   { id: 'teacher-payroll', label: 'Teacher Payroll Records' },
 ];
@@ -88,19 +83,18 @@ const EMPTY_SCHEDULE_FORM = {
   roomOrLink: '',
 };
 
-const EMPTY_LINK_FORM = { parentId: '', studentId: '', relation: 'guardian' };
 const LmsManagement = () => {
   const { showAlert, showConfirm } = useAdminDialog();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState(() => {
+  const tab = useMemo(() => {
     const fromUrl = searchParams.get('tab');
     return LMS_TAB_IDS.includes(fromUrl) ? fromUrl : 'schedules';
-  });
+  }, [searchParams]);
 
   const selectTab = useCallback(
     (tabId) => {
       if (!LMS_TAB_IDS.includes(tabId)) return;
-      setTab(tabId);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -115,11 +109,10 @@ const LmsManagement = () => {
   );
 
   useEffect(() => {
-    const fromUrl = searchParams.get('tab');
-    if (fromUrl && LMS_TAB_IDS.includes(fromUrl) && fromUrl !== tab) {
-      setTab(fromUrl);
+    if (searchParams.get('tab') === 'parent-links') {
+      navigate('/admin/parents?tab=parent-links', { replace: true });
     }
-  }, [searchParams, tab]);
+  }, [searchParams, navigate]);
 
   const [schedules, setSchedules] = useState([]);
   const [academyTimezone, setAcademyTimezone] = useState(DEFAULT_ACADEMY_TIMEZONE);
@@ -133,24 +126,9 @@ const LmsManagement = () => {
   const [scheduleBulkBusy, setScheduleBulkBusy] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
 
-  const [links, setLinks] = useState([]);
-  const [parents, setParents] = useState([]);
-  const [students, setStudents] = useState([]);
-  const parentLinkListSearch = useAdminSearch();
   const scheduleListSearch = useAdminSearch();
   const attendanceListSearch = useAdminSearch();
   const payrollListSearch = useAdminSearch();
-  const [pickersLoading, setPickersLoading] = useState(false);
-  const [linkForm, setLinkForm] = useState(EMPTY_LINK_FORM);
-  const [parentLinksPage, setParentLinksPage] = useState(1);
-  const [editingLinkId, setEditingLinkId] = useState(null);
-  const [editLinkForm, setEditLinkForm] = useState({
-    parentId: '',
-    studentId: '',
-    relation: 'guardian',
-  });
-  const [editLinkSaving, setEditLinkSaving] = useState(false);
-  const [linksLoading, setLinksLoading] = useState(false);
   const [requests, setRequests] = useState([]);
   const [attendanceFilter, setAttendanceFilter] = useState('pending');
   const [dailyDays, setDailyDays] = useState([]);
@@ -223,62 +201,6 @@ const LmsManagement = () => {
       setSchedulesLoading(false);
     }
   }, [scheduleListCourseFilter, showAlert]);
-
-  const loadLinks = useCallback(async () => {
-    setLinksLoading(true);
-    try {
-      const res = await lmsAdminGet('/parent-links?linksOnly=1');
-      if (res.success) {
-        setLinks(res.links || []);
-      }
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      setLinksLoading(false);
-    }
-  }, [showAlert]);
-
-  const fetchLinkPickers = useCallback(async (parentSearch = '', studentSearch = '') => {
-    const token = getAuthToken();
-    if (!token) return;
-    setPickersLoading(true);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const [parentRes, studentRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/users`, {
-          headers,
-          params: {
-            segment: 'parents',
-            limit: LINK_PICKER_LIMIT,
-            search: parentSearch.trim() || undefined,
-            sortBy: 'name',
-            sortOrder: 'asc',
-          },
-        }),
-        axios.get(`${API_BASE_URL}/api/users`, {
-          headers,
-          params: {
-            segment: 'students',
-            limit: LINK_PICKER_LIMIT,
-            search: studentSearch.trim() || undefined,
-            sortBy: 'name',
-            sortOrder: 'asc',
-          },
-        }),
-      ]);
-      if (parentRes.data?.success) {
-        setParents((parentRes.data.users || []).filter((u) => u.role === 'parent'));
-      }
-      if (studentRes.data?.success) {
-        setStudents((studentRes.data.users || []).filter((u) => u.role === 'student'));
-      }
-    } catch {
-      setParents([]);
-      setStudents([]);
-    } finally {
-      setPickersLoading(false);
-    }
-  }, []);
 
   const loadRequests = useCallback(async () => {
     setRollupLoading(true);
@@ -467,7 +389,6 @@ const LmsManagement = () => {
 
   useEffect(() => {
     if (tab === 'schedules') loadSchedules();
-    if (tab === 'parent-links') loadLinks();
     if (tab === 'teacher-attendance') {
       loadLmsTabBadges();
       loadPendingAttendanceSummary();
@@ -476,15 +397,7 @@ const LmsManagement = () => {
       loadPayrollRuns();
       loadLmsTabBadges();
     }
-  }, [tab, loadSchedules, loadLinks, loadPayrollRuns, loadLmsTabBadges, loadPendingAttendanceSummary]);
-
-  useEffect(() => {
-    if (tab === 'parent-links') fetchLinkPickers('', '');
-  }, [tab, fetchLinkPickers]);
-
-  useEffect(() => {
-    setParentLinksPage(1);
-  }, [parentLinkListSearch.debouncedSearch]);
+  }, [tab, loadSchedules, loadPayrollRuns, loadLmsTabBadges, loadPendingAttendanceSummary]);
 
   useEffect(() => {
     if (tab === 'teacher-attendance') loadRequests();
@@ -698,105 +611,6 @@ const LmsManagement = () => {
     }
   };
 
-  const addLink = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await lmsAdminPost('/parent-links', linkForm);
-      if (res.success) {
-        showAlert(
-          res.created === false ? 'Parent link updated.' : 'Parent linked to student.',
-          'success'
-        );
-        setLinkForm(EMPTY_LINK_FORM);
-        if (res.link) {
-          setLinks((prev) => {
-            const without = prev.filter((l) => String(l._id) !== String(res.link._id));
-            return [res.link, ...without];
-          });
-        } else {
-          loadLinks();
-        }
-      } else showAlert(res.error || 'Failed', 'error');
-    } catch (err) {
-      showAlert(err.message, 'error');
-    }
-  };
-
-  const removeLink = async (id) => {
-    const ok = await showConfirm({
-      title: 'Remove link',
-      message: 'Remove this parent–student link?',
-      confirmLabel: 'Remove',
-      type: 'warning',
-    });
-    if (!ok) return;
-    try {
-      const res = await lmsAdminDelete(`/parent-links/${id}`);
-      if (res.success) {
-        showAlert('Link removed.', 'success');
-        setLinks((prev) => prev.filter((l) => String(l._id) !== String(id)));
-        if (String(editingLinkId) === String(id)) {
-          setEditingLinkId(null);
-        }
-      } else showAlert(res.error || 'Failed', 'error');
-    } catch (err) {
-      showAlert(err.message, 'error');
-    }
-  };
-
-  const startEditLink = (link) => {
-    const parentId = String(link.parent?._id || link.parent || '');
-    const studentId = String(link.student?._id || link.student || '');
-    setEditingLinkId(link._id);
-    setEditLinkForm({
-      parentId,
-      studentId,
-      relation: link.relation || 'guardian',
-    });
-    // Keep current people in picker lists while editing
-    if (link.parent && !parents.some((p) => String(p._id) === parentId)) {
-      setParents((prev) => [link.parent, ...prev]);
-    }
-    if (link.student && !students.some((s) => String(s._id) === studentId)) {
-      setStudents((prev) => [link.student, ...prev]);
-    }
-  };
-
-  const cancelEditLink = () => {
-    setEditingLinkId(null);
-    setEditLinkForm({ parentId: '', studentId: '', relation: 'guardian' });
-  };
-
-  const saveEditLink = async (linkId) => {
-    if (!linkId || editLinkSaving) return;
-    if (!editLinkForm.parentId || !editLinkForm.studentId) {
-      showAlert('Parent and student are required.', 'error');
-      return;
-    }
-    setEditLinkSaving(true);
-    try {
-      const res = await lmsAdminPatch(`/parent-links/${linkId}`, {
-        parentId: editLinkForm.parentId,
-        studentId: editLinkForm.studentId,
-        relation: editLinkForm.relation,
-      });
-      if (res.success && res.link) {
-        showAlert('Parent link updated.', 'success');
-        setLinks((prev) =>
-          prev.map((l) => (String(l._id) === String(linkId) ? res.link : l))
-        );
-        setEditingLinkId(null);
-        setEditLinkForm({ parentId: '', studentId: '', relation: 'guardian' });
-      } else {
-        showAlert(res.error || 'Failed to update link', 'error');
-      }
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      setEditLinkSaving(false);
-    }
-  };
-
   const reviewDailyDay = async (id, status) => {
     if (!id) return;
     try {
@@ -945,7 +759,7 @@ const LmsManagement = () => {
   const dayOptions = useMemo(
     () =>
       dayLabels.length
-        ? dayLabels
+    ? dayLabels
         : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     [dayLabels]
   );
@@ -997,37 +811,13 @@ const LmsManagement = () => {
     [dailyDays, attendanceListSearch.debouncedSearch]
   );
 
-  const filteredParentLinks = useMemo(
-    () =>
-      filterByKeywordSearch(links, parentLinkListSearch.debouncedSearch, (l) => [
-        l.parent?.name,
-        l.parent?.email,
-        l.student?.name,
-        l.student?.studentId,
-        l.student?.email,
-        l.relation,
-        formatRelationLabel(l.relation),
-      ]),
-    [links, parentLinkListSearch.debouncedSearch]
-  );
-
-  const parentLinksTotalPages = Math.max(
-    1,
-    Math.ceil(filteredParentLinks.length / PARENT_LINKS_PAGE_SIZE)
-  );
-
-  const pagedParentLinks = useMemo(() => {
-    const start = (parentLinksPage - 1) * PARENT_LINKS_PAGE_SIZE;
-    return filteredParentLinks.slice(start, start + PARENT_LINKS_PAGE_SIZE);
-  }, [filteredParentLinks, parentLinksPage]);
-
   const tabPanelId = (tabId) => `lms-tabpanel-${tabId}`;
 
   return (
     <div className="lms-management">
       <h1>LMS Management</h1>
       <p className="lms-management-lead">
-        Class timings, parent–child links, teacher attendance approvals, and paid payroll records.
+        Class timings, teacher attendance approvals, and paid payroll records.
       </p>
       <div className="lms-management-tabs" role="tablist" aria-label="LMS sections">
         {TABS.map((t) => {
@@ -1081,35 +871,6 @@ const LmsManagement = () => {
           toggleScheduleSelection={toggleScheduleSelection}
           startEditSchedule={startEditSchedule}
           removeSchedule={removeSchedule}
-        />
-      )}
-
-      {tab === 'parent-links' && (
-        <ParentLinksTab
-          panelId={tabPanelId('parent-links')}
-          addLink={addLink}
-          linkForm={linkForm}
-          setLinkForm={setLinkForm}
-          pickersLoading={pickersLoading}
-          parents={parents}
-          students={students}
-          parentLinkListSearch={parentLinkListSearch}
-          filteredParentLinks={filteredParentLinks}
-          linksLoading={linksLoading}
-          links={links}
-          pagedParentLinks={pagedParentLinks}
-          editingLinkId={editingLinkId}
-          editLinkForm={editLinkForm}
-          setEditLinkForm={setEditLinkForm}
-          editLinkSaving={editLinkSaving}
-          saveEditLink={saveEditLink}
-          cancelEditLink={cancelEditLink}
-          startEditLink={startEditLink}
-          removeLink={removeLink}
-          formatRelationLabel={formatRelationLabel}
-          parentLinksTotalPages={parentLinksTotalPages}
-          parentLinksPage={parentLinksPage}
-          setParentLinksPage={setParentLinksPage}
         />
       )}
 

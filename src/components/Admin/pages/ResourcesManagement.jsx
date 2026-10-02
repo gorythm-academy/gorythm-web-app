@@ -13,9 +13,16 @@ import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import { filterByKeywordSearch } from '../../../utils/adminSearch';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import AssignmentsTab from './ResourcesManagement/AssignmentsTab';
+import AdminQuizzesTab from './ResourcesManagement/AdminQuizzesTab';
 import ResourcesTab from './ResourcesManagement/ResourcesTab';
-import { computeTargetPairs } from './ResourcesManagement/lmsTargeting';
+import { computeTargetPairs, computeTargetSchedules } from './ResourcesManagement/lmsTargeting';
 import { markPortalPageVisited, ADMIN_SEEN_TAB_ASSIGNMENTS, ADMIN_SEEN_TAB_RESOURCES, ADMIN_SEEN_TAB_SUBMISSIONS } from '../../../utils/portalNewItems';
+import {
+  collectDueDateExtensionNotices,
+  dismissActivityNotices,
+  filterDismissedActivityNotices,
+} from '../../../utils/portalAssignmentNotices';
+import { PortalActivityBanner } from '../../Portals/shared/PortalUi';
 import { scheduleScrollToElement } from '../../../utils/portalScroll';
 import { useAdminPortalBadges } from '../../../hooks/useAdminPortalBadges';
 import { toLocalDateStr } from '../../../utils/academyWeek';
@@ -24,6 +31,7 @@ import './LmsManagement.scss';
 const TABS = [
   { id: 'assignments', label: 'Assignments' },
   { id: 'resources', label: 'Books & Resources' },
+  { id: 'quizzes', label: 'Quizzes' },
   { id: 'research', label: 'Research' },
   { id: 'submissions', label: 'Student Submissions' },
 ];
@@ -31,19 +39,24 @@ const TABS = [
 const EMPTY_ASSIGNMENT = {
   courseIds: [],
   teacherIds: [],
+  scheduleIds: [],
   courseId: '',
   teacherId: '',
+  scheduleId: '',
   title: '',
   description: '',
   dueDate: '',
+  originalDueDate: '',
   attachments: [],
 };
 
 const EMPTY_RESOURCE = {
   courseIds: [],
   teacherIds: [],
+  scheduleIds: [],
   courseId: '',
   teacherId: '',
+  scheduleId: '',
   title: '',
   description: '',
   fileUrl: '',
@@ -80,6 +93,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const [courses, setCourses] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [courseTeachers, setCourseTeachers] = useState({});
+  const [schedules, setSchedules] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [resources, setResources] = useState([]);
   const [assignForm, setAssignForm] = useState(EMPTY_ASSIGNMENT);
@@ -110,6 +124,9 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const pendingResourceScrollRef = useRef(false);
   const assignmentListSearch = useAdminSearch();
   const resourceListSearch = useAdminSearch();
+  const [assignmentActivityDismissTick, setAssignmentActivityDismissTick] = useState(0);
+
+  const ADMIN_ASSIGNMENTS_ACTIVITY_KEY = 'admin_assignments_activity';
 
   const filteredAssignments = useMemo(
     () =>
@@ -121,6 +138,33 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       ]),
     [assignments, assignmentListSearch.debouncedSearch]
   );
+
+  const assignmentDueDateNotices = useMemo(
+    () =>
+      collectDueDateExtensionNotices(filteredAssignments, ADMIN_SEEN_TAB_ASSIGNMENTS, {
+        viewerRole: 'admin',
+      }),
+    [filteredAssignments]
+  );
+
+  const visibleAssignmentDueDateNotices = useMemo(
+    () => {
+      void assignmentActivityDismissTick;
+      return filterDismissedActivityNotices(
+        ADMIN_ASSIGNMENTS_ACTIVITY_KEY,
+        assignmentDueDateNotices
+      );
+    },
+    [assignmentDueDateNotices, assignmentActivityDismissTick]
+  );
+
+  const dismissAssignmentDueDateBanner = () => {
+    dismissActivityNotices(
+      ADMIN_ASSIGNMENTS_ACTIVITY_KEY,
+      visibleAssignmentDueDateNotices.map((row) => `${row.id}-${row.message}`)
+    );
+    setAssignmentActivityDismissTick((n) => n + 1);
+  };
 
   const filteredResources = useMemo(
     () =>
@@ -148,10 +192,11 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   const ensureAssignMeta = useCallback(async () => {
     if (assignMetaLoadedRef.current && courses.length) return;
     const meta = await lmsAdminGet('/assignments?metaOnly=1');
-    if (meta.success) {
-      setCourses(meta.courses || []);
-      setTeachers(meta.teachers || []);
+      if (meta.success) {
+        setCourses(meta.courses || []);
+        setTeachers(meta.teachers || []);
       if (meta.courseTeachers) setCourseTeachers(meta.courseTeachers);
+      if (meta.schedules) setSchedules(meta.schedules);
       if (typeof meta.trashCount === 'number') setAssignTrashCount(meta.trashCount);
       assignMetaLoadedRef.current = true;
     }
@@ -164,6 +209,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       if (meta.courses?.length) setCourses(meta.courses);
       if (meta.teachers?.length) setTeachers(meta.teachers);
       if (meta.courseTeachers) setCourseTeachers(meta.courseTeachers);
+      if (meta.schedules) setSchedules(meta.schedules);
       if (typeof meta.trashCount === 'number') setResourceTrashCount(meta.trashCount);
       resourceMetaLoadedRef.current = true;
     }
@@ -186,6 +232,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         if (cached.courses?.length) setCourses(cached.courses);
         if (cached.teachers?.length) setTeachers(cached.teachers);
         if (cached.courseTeachers) setCourseTeachers(cached.courseTeachers);
+        if (cached.schedules) setSchedules(cached.schedules);
         if (typeof cached.trashCount === 'number') setAssignTrashCount(cached.trashCount);
         return;
       }
@@ -202,6 +249,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         if (res.courses?.length) setCourses(res.courses);
         if (res.teachers?.length) setTeachers(res.teachers);
         if (res.courseTeachers) setCourseTeachers(res.courseTeachers);
+        if (res.schedules) setSchedules(res.schedules);
         if (typeof res.trashCount === 'number') setAssignTrashCount(res.trashCount);
       }
     } catch (err) {
@@ -224,6 +272,9 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         const cached = resourceListCacheRef.current.get(cacheKey);
         setResources(cached.resources || []);
         if (cached.courses?.length) setCourses(cached.courses);
+        if (cached.teachers?.length) setTeachers(cached.teachers);
+        if (cached.courseTeachers) setCourseTeachers(cached.courseTeachers);
+        if (cached.schedules) setSchedules(cached.schedules);
         if (typeof cached.trashCount === 'number') setResourceTrashCount(cached.trashCount);
         return;
       }
@@ -241,6 +292,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         if (res.courses?.length) setCourses(res.courses);
         if (res.teachers?.length) setTeachers(res.teachers);
         if (res.courseTeachers) setCourseTeachers(res.courseTeachers);
+        if (res.schedules) setSchedules(res.schedules);
       }
     } catch (err) {
       showAlert(err.message, 'error');
@@ -271,9 +323,14 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (tab === 'assignments') markPortalPageVisited(ADMIN_SEEN_TAB_ASSIGNMENTS);
-    else if (tab === 'resources') markPortalPageVisited(ADMIN_SEEN_TAB_RESOURCES);
-    else if (tab === 'submissions') markPortalPageVisited(ADMIN_SEEN_TAB_SUBMISSIONS);
+    const seenKeyByTab = {
+      assignments: ADMIN_SEEN_TAB_ASSIGNMENTS,
+      resources: ADMIN_SEEN_TAB_RESOURCES,
+      submissions: ADMIN_SEEN_TAB_SUBMISSIONS,
+    };
+    const seenKey = seenKeyByTab[tab];
+    if (!seenKey) return undefined;
+    return () => markPortalPageVisited(seenKey);
   }, [tab]);
 
   useEffect(() => {
@@ -303,10 +360,37 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         : course?.instructor
           ? String(course.instructor)
           : '';
+    const courseScheduleIds = schedules
+      .filter((slot) => String(slot.course?._id || slot.course) === String(courseId))
+      .map((slot) => String(slot._id));
+    const defaultSchedule = courseScheduleIds.length === 1 ? courseScheduleIds[0] : '';
     setAssignForm((f) => ({
       ...f,
       courseId,
       teacherId: defaultTeacher,
+      scheduleId: defaultSchedule,
+    }));
+  };
+
+  const onCourseChangeResource = (courseId) => {
+    const courseTeacherList = courseTeachers[String(courseId)] || [];
+    const course = courses.find((c) => String(c._id) === String(courseId));
+    const defaultTeacher = courseTeacherList[0]?._id
+      ? String(courseTeacherList[0]._id)
+      : course?.instructor?._id
+        ? String(course.instructor._id)
+        : course?.instructor
+          ? String(course.instructor)
+          : '';
+    const courseScheduleIds = schedules
+      .filter((slot) => String(slot.course?._id || slot.course) === String(courseId))
+      .map((slot) => String(slot._id));
+    const defaultSchedule = courseScheduleIds.length === 1 ? courseScheduleIds[0] : '';
+    setResourceForm((f) => ({
+      ...f,
+      courseId,
+      teacherId: defaultTeacher,
+      scheduleId: defaultSchedule,
     }));
   };
 
@@ -328,11 +412,18 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     setAssignForm({
       courseIds: [],
       teacherIds: [],
+      scheduleIds: [],
       courseId,
       teacherId,
+      scheduleId: a.assignedSchedule?._id
+        ? String(a.assignedSchedule._id)
+        : a.assignedSchedule
+          ? String(a.assignedSchedule)
+          : '',
       title: a.title || '',
       description: a.description || '',
       dueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
+      originalDueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
       attachments: listAttachments(a),
     });
     requestAnimationFrame(() => {
@@ -349,8 +440,14 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     setResourceForm({
       courseIds: [],
       teacherIds: [],
+      scheduleIds: [],
       courseId,
       teacherId,
+      scheduleId: r.assignedSchedule?._id
+        ? String(r.assignedSchedule._id)
+        : r.assignedSchedule
+          ? String(r.assignedSchedule)
+          : '',
       title: r.title || '',
       description: r.description || '',
       fileUrl: type === 'link' ? r.fileUrl || '' : '',
@@ -370,13 +467,14 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
     setSavingAssignment(true);
     try {
       if (!editingAssignId) {
-        const pairCount = computeTargetPairs(
+        const targetSchedules = computeTargetSchedules(
           assignForm.courseIds,
           assignForm.teacherIds,
-          courseTeachers
-        ).length;
-        if (!pairCount) {
-          showAlert('Select at least one valid course + teacher pair.', 'error');
+          assignForm.scheduleIds,
+          schedules
+        );
+        if (!targetSchedules.length) {
+          showAlert('Select at least one class slot.', 'error');
           return;
         }
       }
@@ -386,9 +484,23 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         AUTH_REALM.ADMIN
       );
       if (editingAssignId) {
-        const payload = {
+        if (
+          assignForm.originalDueDate &&
+          assignForm.dueDate &&
+          assignForm.dueDate !== assignForm.originalDueDate &&
+          new Date(assignForm.dueDate) <= new Date(assignForm.originalDueDate)
+        ) {
+          showAlert('Extended due date must be after the current due date', 'error');
+          return;
+        }
+        if (!assignForm.scheduleId) {
+          showAlert('Select a class slot for this assignment.', 'error');
+          return;
+        }
+      const payload = {
           courseId: assignForm.courseId,
           teacherId: assignForm.teacherId,
+          scheduleId: assignForm.scheduleId,
           title: assignForm.title,
           description: assignForm.description,
           dueDate: assignForm.dueDate,
@@ -400,6 +512,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         const res = await lmsAdminPost('/assignments', {
           courseIds: assignForm.courseIds,
           teacherIds: assignForm.teacherIds,
+          scheduleIds: assignForm.scheduleIds,
           title: assignForm.title,
           description: assignForm.description,
           dueDate: assignForm.dueDate,
@@ -407,7 +520,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         });
         const n = res.createdCount ?? res.assignments?.length ?? 1;
         showAlert(
-          `${n} assignment${n === 1 ? '' : 's'} published. Visible to matching teacher slots and their students.`,
+          `${n} assignment${n === 1 ? '' : 's'} published. Visible only to students on the selected class slot${n === 1 ? '' : 's'}.`,
           'success'
         );
       }
@@ -454,7 +567,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       const payload = editingResourceId
         ? {
             courseId: resourceForm.courseId,
-            teacherId: resourceForm.teacherId || undefined,
+            teacherId: resourceForm.scope === 'teacher' ? resourceForm.teacherId || undefined : undefined,
+            scheduleId: resourceForm.scope === 'teacher' ? resourceForm.scheduleId || undefined : undefined,
             title: resourceForm.title,
             description: resourceForm.description,
             type: resourceForm.type,
@@ -462,33 +576,48 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
             attachments,
             scope: resourceForm.scope,
           }
-        : {
-            courseIds:
-              resourceForm.scope === 'course'
-                ? resourceForm.courseIds
-                : resourceForm.courseIds,
-            teacherIds: resourceForm.scope === 'course' ? [] : resourceForm.teacherIds,
-            title: resourceForm.title,
-            description: resourceForm.description,
-            type: resourceForm.type,
-            fileUrl,
-            attachments,
-            scope: resourceForm.scope,
-          };
+        : resourceForm.scope === 'course'
+          ? {
+              courseIds: resourceForm.courseIds,
+              title: resourceForm.title,
+              description: resourceForm.description,
+              type: resourceForm.type,
+              fileUrl,
+              attachments,
+              scope: 'course',
+            }
+          : {
+              scheduleIds: resourceForm.scheduleIds,
+              title: resourceForm.title,
+              description: resourceForm.description,
+              type: resourceForm.type,
+              fileUrl,
+              attachments,
+              scope: 'teacher',
+            };
       if (!editingResourceId) {
         const count =
           resourceForm.scope === 'course'
             ? resourceForm.courseIds.length
-            : computeTargetPairs(resourceForm.courseIds, resourceForm.teacherIds, courseTeachers).length;
+            : computeTargetSchedules(
+                resourceForm.courseIds,
+                resourceForm.teacherIds,
+                resourceForm.scheduleIds,
+                schedules
+              ).length;
         if (!count) {
           showAlert(
             resourceForm.scope === 'course'
               ? 'Select at least one course.'
-              : 'Select at least one valid course + teacher pair.',
+              : 'Select at least one class slot.',
             'error'
           );
           return;
         }
+      }
+      if (editingResourceId && resourceForm.scope === 'teacher' && !resourceForm.scheduleId) {
+        showAlert('Class slot is required for teacher-scoped resources.', 'error');
+        return;
       }
       if (editingResourceId) {
         await lmsAdminPatch(`/resources/${editingResourceId}`, payload);
@@ -496,7 +625,12 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       } else {
         const res = await lmsAdminPost('/resources', payload);
         const n = res.createdCount ?? res.resources?.length ?? 1;
-        showAlert(`${n} resource${n === 1 ? '' : 's'} added.`, 'success');
+        showAlert(
+          resourceForm.scope === 'course'
+            ? `${n} resource${n === 1 ? '' : 's'} added for the whole course.`
+            : `${n} resource${n === 1 ? '' : 's'} published. Visible only to students on the selected class slot${n === 1 ? '' : 's'}.`,
+          'success'
+        );
       }
       resetResourceForm();
       invalidateResourceCache();
@@ -739,6 +873,13 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
         })}
       </div>
       {tab === 'assignments' ? (
+        <>
+          <PortalActivityBanner
+            title="Due date updates"
+            rows={visibleAssignmentDueDateNotices}
+            onDismiss={dismissAssignmentDueDateBanner}
+            className="resources-management__activity-banner"
+          />
         <AssignmentsTab
           assignFormAnchorRef={assignFormAnchorRef}
           editingAssignId={editingAssignId}
@@ -750,6 +891,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           onCourseChangeAssign={onCourseChangeAssign}
           courses={courses}
           teachers={teachers}
+          schedules={schedules}
           courseTeachers={courseTeachers}
           savingAssignment={savingAssignment}
           resetAssignForm={resetAssignForm}
@@ -772,6 +914,9 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           startEditAssignment={startEditAssignment}
           removeAssignment={removeAssignment}
         />
+        </>
+      ) : tab === 'quizzes' ? (
+        <AdminQuizzesTab />
       ) : tab === 'research' ? (
         <div className="lms-research-section">
           <div className="lms-research-subtabs">
@@ -791,7 +936,9 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           setResourceForm={setResourceForm}
           courses={courses}
           teachers={teachers}
+          schedules={schedules}
           courseTeachers={courseTeachers}
+          onCourseChangeResource={onCourseChangeResource}
           savingResource={savingResource}
           resetResourceForm={resetResourceForm}
           resourceListSearch={resourceListSearch}

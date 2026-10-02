@@ -252,30 +252,30 @@ const ResearchComments = ({ embedded = false }) => {
       <div className="contact-stats-grid">
         <div className="contact-stat-card">
           <div className="stat-icon total"><i className="fas fa-comments"></i></div>
-          <div className="stat-text">
-            <span>Total</span>
-            <strong>{stats.total}</strong>
+          <div className="stat-info">
+            <h3>{stats.total}</h3>
+            <p>Total</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon new"><i className="fas fa-clock"></i></div>
-          <div className="stat-text">
-            <span>Pending</span>
-            <strong>{stats.pending}</strong>
+          <div className="stat-info">
+            <h3>{stats.pending}</h3>
+            <p>Pending</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon in-progress"><i className="fas fa-calendar-week"></i></div>
-          <div className="stat-text">
-            <span>Last 7 Days</span>
-            <strong>{stats.week}</strong>
+          <div className="stat-info">
+            <h3>{stats.week}</h3>
+            <p>Last 7 Days</p>
           </div>
         </div>
         <div className="contact-stat-card">
           <div className="stat-icon resolved"><i className="fas fa-file-alt"></i></div>
-          <div className="stat-text">
-            <span>Papers</span>
-            <strong>{stats.posts}</strong>
+          <div className="stat-info">
+            <h3>{stats.posts}</h3>
+            <p>Papers</p>
           </div>
         </div>
       </div>
@@ -434,7 +434,7 @@ const ResearchComments = ({ embedded = false }) => {
                                   title="Remove reply"
                                   aria-label="Remove reply"
                                 >
-                                  <i className="fas fa-eraser" aria-hidden />
+                                  <i className="fas fa-eraser" aria-hidden /> Remove reply
                                 </button>
                               ) : null}
                               <button
@@ -445,7 +445,7 @@ const ResearchComments = ({ embedded = false }) => {
                                 title="Delete forever"
                                 aria-label="Delete forever"
                               >
-                                <i className="fas fa-trash-alt" aria-hidden />
+                                <i className="fas fa-trash-alt" aria-hidden /> Delete forever
                               </button>
                             </td>
                           </tr>

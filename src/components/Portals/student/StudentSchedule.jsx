@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
-import { PortalLoading, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import ScheduleRoomOrLink from '../shared/ScheduleRoomOrLink';
-import { formatTime12h } from '../../../utils/formatTime12h';
+import { PortalDataSection, PortalPageHeader } from '../shared/PortalUi';
+import PortalScheduleTable from '../shared/PortalScheduleTable';
 import './StudentSchedule.scss';
 
 const StudentSchedule = () => {
@@ -21,28 +20,17 @@ const StudentSchedule = () => {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (timetable === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
-
-  const slottedCount = timetable.filter((row) => row.hasTimeslot).length;
+  const loading = timetable === null;
+  const rows = timetable || [];
+  const paidRows = rows.filter((row) => !row.feeLocked);
+  const slottedCount = paidRows.filter((row) => row.hasTimeslot).length;
+  const unpaidCount = rows.length - paidRows.length;
 
   return (
     <div className="portal-page student-schedule">
       <PortalPageHeader
         title="Class Schedules"
-        subtitle="Paid enrollments only — same courses as your Fees tab when marked Paid."
+        subtitle="Paid courses show class times. Unpaid courses stay listed until the fee is received."
       />
 
       <div className="student-schedule__hero">
@@ -52,64 +40,27 @@ const StudentSchedule = () => {
         <div>
           <h2>Weekly Timetable</h2>
           <p>
-            {timetable.length
-              ? `${timetable.length} paid course${timetable.length === 1 ? '' : 's'}. ${slottedCount} with a class timeslot assigned.`
-              : 'No paid enrollments yet. Courses appear here once fee status is Paid in Fees.'}
+            {loading
+              ? 'Loading class times…'
+              : rows.length
+                ? `${paidRows.length} paid course${paidRows.length === 1 ? '' : 's'}${
+                    slottedCount ? `, ${slottedCount} with a class time` : ''
+                  }${unpaidCount ? `. ${unpaidCount} waiting for the fee.` : '.'}`
+                : 'Your class timetable will appear here after a course is added.'}
           </p>
         </div>
       </div>
 
       <div className="student-schedule__table-panel">
-        {timetable.length === 0 ? (
-          <p className="student-schedule__empty">
-            No paid courses yet. After your fee is marked Paid, your class schedule will appear here.
-          </p>
-        ) : (
-          <table className="student-schedule__table">
-            <thead>
-              <tr>
-                <th>Course</th>
-                <th>Day</th>
-                <th>Time</th>
-                <th>Teacher</th>
-                <th>Room / Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timetable.map((row) => (
-                <tr key={row.enrollmentId || row.course?._id}>
-                  <td className="student-schedule__course">{row.course?.title || '—'}</td>
-                  <td>
-                    {row.hasTimeslot && row.schedule ? (
-                      <span className="student-schedule__day-badge">
-                        {dayLabels[row.schedule.dayOfWeek] || row.schedule.dayOfWeek}
-                      </span>
-                    ) : (
-                      <span className="student-schedule__no-slot">No slot assigned yet</span>
-                    )}
-                  </td>
-                  <td className="student-schedule__time">
-                    {row.hasTimeslot && row.schedule ? (
-                      <>
-                        {formatTime12h(row.schedule.startTime)} – {formatTime12h(row.schedule.endTime)}
-                      </>
-                    ) : (
-                      <span className="student-schedule__no-slot">—</span>
-                    )}
-                  </td>
-                  <td className="student-schedule__teacher">{row.schedule?.teacher?.name || '—'}</td>
-                  <td>
-                    {row.hasTimeslot && row.schedule?.roomOrLink ? (
-                      <ScheduleRoomOrLink value={row.schedule.roomOrLink} className="student-schedule__join" />
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <PortalDataSection loading={loading} error={error} loadingLabel="Loading schedule…">
+          {rows.length === 0 ? (
+            <p className="student-schedule__empty">
+              Your class timetable will appear here after a course is added.
+            </p>
+          ) : (
+            <PortalScheduleTable rows={rows} dayLabels={dayLabels} feesPath="/student/fees" />
+          )}
+        </PortalDataSection>
       </div>
     </div>
   );

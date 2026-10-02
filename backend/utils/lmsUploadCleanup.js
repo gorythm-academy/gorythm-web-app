@@ -3,6 +3,7 @@ const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
 const Resource = require('../models/Resource');
 const Quiz = require('../models/Quiz');
+const QuizAttempt = require('../models/QuizAttempt');
 const { categoryAbsolutePathFromPublic } = require('./uploadStorage');
 const { uploadUrlVariants, normalizeUploadPublicPath } = require('./uploadUrlMatch');
 
@@ -29,8 +30,13 @@ function collectSubmissionUrls(doc) {
 }
 
 function collectQuizUrls(doc) {
-    if (!doc?.resourceFileUrl) return [];
-    return [String(doc.resourceFileUrl).trim()];
+    const urls = [];
+    if (doc?.resourceFileUrl) urls.push(String(doc.resourceFileUrl).trim());
+    for (const url of doc?.attachments || []) {
+        const value = String(url || '').trim();
+        if (value && !urls.includes(value)) urls.push(value);
+    }
+    return urls.filter(Boolean);
 }
 
 function uniqueUrls(urlLists) {
@@ -61,7 +67,18 @@ async function countUploadReferences(publicPath) {
         ? { $or: [{ attachments: { $in: variants } }, { attachments: { $regex: suffixRegex } }] }
         : { attachments: { $in: variants } };
 
-    const [assignments, submissions, resources, quizzes] = await Promise.all([
+    const quizFileQuery = suffixRegex
+        ? {
+              $or: [
+                  { resourceFileUrl: { $in: variants } },
+                  { resourceFileUrl: { $regex: suffixRegex } },
+                  { attachments: { $in: variants } },
+                  { attachments: { $regex: suffixRegex } },
+              ],
+          }
+        : { $or: [{ resourceFileUrl: { $in: variants } }, { attachments: { $in: variants } }] };
+
+    const [assignments, submissions, resources, quizzes, quizAttempts] = await Promise.all([
         Assignment.countDocuments(attachmentQuery),
         AssignmentSubmission.countDocuments(attachmentQuery),
         Resource.countDocuments({
@@ -78,19 +95,11 @@ async function countUploadReferences(publicPath) {
                       $or: [{ fileUrl: { $in: variants } }, { attachments: { $in: variants } }],
                   }),
         }),
-        Quiz.countDocuments(
-            suffixRegex
-                ? {
-                      $or: [
-                          { resourceFileUrl: { $in: variants } },
-                          { resourceFileUrl: { $regex: suffixRegex } },
-                      ],
-                  }
-                : { resourceFileUrl: { $in: variants } }
-        ),
+        Quiz.countDocuments(quizFileQuery),
+        QuizAttempt.countDocuments(attachmentQuery),
     ]);
 
-    return assignments + submissions + resources + quizzes;
+    return assignments + submissions + resources + quizzes + quizAttempts;
 }
 
 function deleteFileFromDisk(publicPath) {

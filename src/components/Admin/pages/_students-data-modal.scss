@@ -241,6 +241,14 @@
                 }
             }
 
+            input[type='date'].form-input {
+                min-height: 42px;
+                cursor: pointer;
+                position: relative;
+                z-index: 2;
+                color-scheme: light;
+            }
+
             .form-hint-muted {
                 display: block;
                 margin-top: 6px;

@@ -31,6 +31,8 @@ const SECTION_CONFIG = {
             'bankIban',
             'bankSwift',
             'bankExtraNote',
+            'defaultFeeDueDate',
+            'defaultFeeDueDate',
         ],
     },
     marketing: {

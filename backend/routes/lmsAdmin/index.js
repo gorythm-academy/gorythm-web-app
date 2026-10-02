@@ -19,6 +19,7 @@ router.use(require('./teacherAttendance'));
 router.use(require('./badges'));
 router.use(require('./resources'));
 router.use(require('./assignments'));
+router.use(require('./quizzes'));
 router.use(require('./submissions'));
 router.use(require('./quizAttempts'));
 router.use(require('./payroll'));

@@ -14,6 +14,7 @@ import AdminTablePagination from '../shared/AdminTablePagination';
 import AdminSearchBox from '../shared/AdminSearchBox';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
+import { PARENT_RELATION_OPTIONS } from './LmsManagement/lmsHelpers';
 import './UsersManagement.scss';
 
 const USERS_PAGE_SIZE = 25;
@@ -128,7 +129,7 @@ const normalizeStaffStatus = (status) => (status === 'active' ? 'active' : 'inac
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const UsersManagement = ({ variant = 'staff' }) => {
+const UsersManagement = ({ variant = 'staff', embedded = false }) => {
     const { showAlert, showConfirm } = useAdminDialog();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -168,6 +169,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
     const [parentStudentSearch, setParentStudentSearch] = useState('');
     const [parentStudentsLoading, setParentStudentsLoading] = useState(false);
     const [linkStudentPick, setLinkStudentPick] = useState('');
+    const [linkRelation, setLinkRelation] = useState('guardian');
     const [parentLinksInModal, setParentLinksInModal] = useState([]);
     const [pendingParentLinks, setPendingParentLinks] = useState([]);
 
@@ -527,6 +529,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     search: search.trim() || undefined,
                     sortBy: 'student',
                     sortOrder: 'asc',
+                    unlinkedOnly: 1,
                 },
             });
             if (res.data.success) {
@@ -640,6 +643,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
             assignedCourseIds: [],
         });
         setLinkStudentPick('');
+        setLinkRelation('guardian');
         setParentLinksInModal([]);
         setShowPassword(false);
         setShowConfirmPassword(false);
@@ -712,6 +716,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
         });
         setParentLinksInModal(linksForModal);
         setLinkStudentPick('');
+        setLinkRelation('guardian');
         setShowPassword(false);
         setShowConfirmPassword(false);
         setShowUserModal(true);
@@ -833,57 +838,59 @@ const UsersManagement = ({ variant = 'staff' }) => {
         if (!linkStudentPick) return;
         const student = allStudentsForLink.find((s) => String(s._id) === String(linkStudentPick));
         if (!student) return;
+        const relation = linkRelation || 'guardian';
 
-        if (!editingUser) {
-            if (pendingParentLinks.some((l) => String(l.studentId) === String(linkStudentPick))) {
+        if (editingUser) {
+            if (parentLinksInModal.some((l) => String(l.student?._id || l.student || l.studentId) === String(linkStudentPick))) {
                 showAlert('Child already added', 'warning');
                 return;
             }
-            setPendingParentLinks((prev) => [
+            setParentLinksInModal((prev) => [
                 ...prev,
-                { studentId: linkStudentPick, student: { name: student.name, studentId: student.studentId } },
+                {
+                    studentId: linkStudentPick,
+                    student: { _id: student._id, name: student.name, studentId: student.studentId },
+                    relation,
+                },
             ]);
+            setAllStudentsForLink((prev) => prev.filter((s) => String(s._id) !== String(student._id)));
             setLinkStudentPick('');
             return;
         }
 
-        const parentId = editingUser._id;
-        const token = getAuthToken();
-        try {
-            const res = await axios.post(
-                `${API_BASE_URL}/api/users/${parentId}/child-links`,
-                { studentId: linkStudentPick },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            if (res.data.success) {
-                setParentLinksInModal((prev) => [...prev, res.data.link]);
-                setLinkStudentPick('');
-                patchParentChildrenMap(parentId, (prev) => [...prev, res.data.link]);
-                showAlert('Child linked', 'success');
-            }
-        } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to link child', 'error');
+        if (pendingParentLinks.some((l) => String(l.studentId) === String(linkStudentPick))) {
+            showAlert('Child already added', 'warning');
+            return;
         }
+        setPendingParentLinks((prev) => [
+            ...prev,
+            { studentId: linkStudentPick, student: { name: student.name, studentId: student.studentId }, relation },
+        ]);
+        setLinkStudentPick('');
     };
 
     const removePendingParentLink = (studentId) => {
         setPendingParentLinks((prev) => prev.filter((l) => String(l.studentId) !== String(studentId)));
     };
 
-    const removeParentChildLink = async (linkId) => {
-        const parentId = editingUser?._id;
-        if (!parentId) return;
-        const token = getAuthToken();
-        try {
-            await axios.delete(`${API_BASE_URL}/api/users/${parentId}/child-links/${linkId}`, {
-                headers: { Authorization: `Bearer ${token}` },
+    const removeParentChildLink = (linkIdOrStudentId) => {
+        setParentLinksInModal((prev) =>
+            prev.filter((l) => {
+                const id = String(l._id || l.studentId || l.student?._id || l.student);
+                return id !== String(linkIdOrStudentId);
+            })
+        );
+    };
+
+    const updateDraftLinkRelation = (key, relation) => {
+        const apply = (list) =>
+            list.map((link) => {
+                const id = String(link._id || link.studentId || link.student?._id || link.student);
+                if (id !== String(key)) return link;
+                return { ...link, relation };
             });
-            setParentLinksInModal((prev) => prev.filter((l) => String(l._id) !== String(linkId)));
-            patchParentChildrenMap(parentId, (prev) => prev.filter((l) => String(l._id) !== String(linkId)));
-            showAlert('Link removed', 'success');
-        } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to remove link', 'error');
-        }
+        if (editingUser) setParentLinksInModal(apply);
+        else setPendingParentLinks(apply);
     };
 
     const handleFormSubmit = async (e) => {
@@ -917,7 +924,13 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     {
                         ...payload,
                         ...(variant === 'parents' && pendingParentLinks.length
-                            ? { studentIds: pendingParentLinks.map((l) => l.studentId) }
+                            ? {
+                                studentIds: pendingParentLinks.map((l) => l.studentId),
+                                studentLinks: pendingParentLinks.map((l) => ({
+                                    studentId: l.studentId,
+                                    relation: l.relation || 'guardian',
+                                })),
+                            }
                             : {}),
                     },
                     { headers: { Authorization: `Bearer ${token}` } }
@@ -944,6 +957,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     updatePayload.password = formData.password;
                     updatePayload.mustChangePassword = formData.mustChangePassword;
                 }
+                if (variant === 'parents') {
+                    updatePayload.studentLinks = parentLinksInModal.map((l) => ({
+                        studentId: l.student?._id || l.student || l.studentId,
+                        relation: l.relation || 'guardian',
+                    }));
+                }
 
                 const response = await axios.put(
                     `${API_BASE_URL}/api/users/${userId}`,
@@ -962,6 +981,12 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     user._id === userId ? response.data.user : user
                 ));
 
+                if (variant === 'parents' && editingUser.role === 'parent') {
+                    const savedLinks = response.data.parentLinks;
+                    if (Array.isArray(savedLinks)) {
+                        patchParentChildrenMap(userId, savedLinks);
+                    }
+                }
                 if (variant === 'teachers' && editingUser.role === 'teacher') {
                     await saveTeacherAssignedCourses(userId, token);
                 }
@@ -1705,32 +1730,46 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                         <div className="form-section">
                                             <h3><i className="fas fa-child"></i> Linked Children</h3>
                                             <p className="form-hint">
-                                                Synced with the LMS Parent links tab. Each student can have only one
-                                                parent; a parent can have multiple children. Add children here when
-                                                creating or editing a parent.
+                                                Changes to children and relation are saved only when you click Save Changes.
+                                                Each student can have only one parent.
                                             </p>
                                             <ul className="parent-children-list">
                                                 {(editingUser ? parentLinksInModal : pendingParentLinks).length === 0 ? (
                                                     <li className="form-hint-muted">No children linked yet.</li>
                                                 ) : editingUser ? (
-                                                    parentLinksInModal.map((link) => (
-                                                        <li key={link._id}>
+                                                    parentLinksInModal.map((link) => {
+                                                        const key = String(link._id || link.studentId || link.student?._id || link.student);
+                                                        return (
+                                                        <li key={key}>
                                                             <span>
                                                                 {link.student?.name || 'Student'}{' '}
                                                                 {link.student?.studentId
                                                                     ? `(${link.student.studentId})`
                                                                     : ''}
                                                             </span>
+                                                            <select
+                                                                value={link.relation || 'guardian'}
+                                                                onChange={(e) => updateDraftLinkRelation(key, e.target.value)}
+                                                                disabled={isSubmitting}
+                                                                aria-label="Relation"
+                                                            >
+                                                                {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                                    <option key={opt.value} value={opt.value}>
+                                                                        {opt.label}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
                                                             <button
                                                                 type="button"
-                                                                className="btn-link-danger"
-                                                                onClick={() => removeParentChildLink(link._id)}
+                                                                className="btn-secondary parent-remove-btn"
+                                                                onClick={() => removeParentChildLink(key)}
                                                                 disabled={isSubmitting}
                                                             >
                                                                 Remove
                                                             </button>
                                                         </li>
-                                                    ))
+                                                        );
+                                                    })
                                                 ) : (
                                                     pendingParentLinks.map((link) => (
                                                         <li key={link.studentId}>
@@ -1740,9 +1779,21 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                                     ? `(${link.student.studentId})`
                                                                     : ''}
                                                             </span>
+                                                            <select
+                                                                value={link.relation || 'guardian'}
+                                                                onChange={(e) => updateDraftLinkRelation(link.studentId, e.target.value)}
+                                                                disabled={isSubmitting}
+                                                                aria-label="Relation"
+                                                            >
+                                                                {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                                    <option key={opt.value} value={opt.value}>
+                                                                        {opt.label}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
                                                             <button
                                                                 type="button"
-                                                                className="btn-link-danger"
+                                                                className="btn-secondary parent-remove-btn"
                                                                 onClick={() => removePendingParentLink(link.studentId)}
                                                                 disabled={isSubmitting}
                                                             >
@@ -1770,14 +1821,14 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                     disabled={isSubmitting || parentStudentsLoading}
                                                 >
                                                     <option value="">
-                                                        {parentStudentsLoading ? 'Loading students…' : 'Add child…'}
+                                                        {parentStudentsLoading ? 'Loading students…' : 'Add unlinked child…'}
                                                     </option>
                                                     {allStudentsForLink
                                                         .filter((s) => {
                                                             if (editingUser) {
                                                                 return !parentLinksInModal.some(
                                                                     (l) =>
-                                                                        String(l.student?._id || l.student) ===
+                                                                        String(l.student?._id || l.student || l.studentId) ===
                                                                         String(s._id)
                                                                 );
                                                             }
@@ -1791,6 +1842,21 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                             </option>
                                                         ))}
                                                 </select>
+                                                <label className="form-hint-muted" htmlFor="parent-link-relation">
+                                                    Relation
+                                                </label>
+                                                <select
+                                                    id="parent-link-relation"
+                                                    value={linkRelation}
+                                                    onChange={(e) => setLinkRelation(e.target.value)}
+                                                    disabled={isSubmitting}
+                                                >
+                                                    {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                                 {!parentStudentsLoading &&
                                                 allStudentsForLink.length === 0 &&
                                                 parentStudentSearch.trim() ? (
@@ -1801,11 +1867,11 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                                 ) : null}
                                                 <button
                                                     type="button"
-                                                    className="btn-secondary"
+                                                    className="btn-primary btn-add lms-link-btn"
                                                     onClick={addParentChildLink}
                                                     disabled={!linkStudentPick || isSubmitting}
                                                 >
-                                                    Link child
+                                                    <i className="fas fa-link" aria-hidden /> Link child
                                                 </button>
                                             </div>
                                         </div>
@@ -1848,6 +1914,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                 </div>
             )}
 
+            {!embedded && (
             <div className="page-header">
                 <div className="header-left">
                     <h1>
@@ -1858,7 +1925,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                         {variant === 'teachers' ? (
                             <>Teachers can be created without courses. Assign courses here or from the Courses tab — same list.</>
                         ) : variant === 'parents' ? (
-                            <>Parent/guardian accounts (link children in LMS tab).</>
+                            <>Parent/guardian accounts (link children in the Parent Links tab).</>
                         ) : (
                             <>Managers, super-admins, and accountants. Learners are under <strong>Students</strong>, <strong>Teachers</strong>, and <strong>Parents</strong>.</>
                         )}
@@ -1873,6 +1940,16 @@ const UsersManagement = ({ variant = 'staff' }) => {
                     )}
                 </div>
             </div>
+            )}
+
+            {embedded && showAddButton && listTab === 'active' && (
+                <div className="users-embedded-actions">
+                    <button className="btn-primary btn-add" onClick={openCreateModal}>
+                        <i className="fas fa-user-plus"></i>{' '}
+                        {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
+                    </button>
+                </div>
+            )}
 
             <div className="students-list-tabs users-list-tabs">
                 <button
@@ -2000,18 +2077,7 @@ const UsersManagement = ({ variant = 'staff' }) => {
                                 <button
                                     className="bulk-btn delete"
                                     disabled={trashBusy}
-                                    onClick={isStaffTab ? permanentDeleteSelectedUsers : async () => {
-                                        const confirmed = await showConfirm({
-                                            title: 'Delete permanently?',
-                                            message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
-                                            confirmLabel: 'Delete forever',
-                                        });
-                                        if (!confirmed) return;
-                                        for (const id of selectedUsers) {
-                                            await permanentDeleteUser(id);
-                                        }
-                                        setSelectedUsers([]);
-                                    }}
+                                    onClick={permanentDeleteSelectedUsers}
                                 >
                                     <i className="fas fa-trash-alt"></i> Delete permanently
                                 </button>

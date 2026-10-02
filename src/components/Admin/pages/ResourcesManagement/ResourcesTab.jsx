@@ -5,7 +5,8 @@ import LmsCollapsibleFormPanel from '../../shared/LmsCollapsibleFormPanel';
 import LmsTrashTabs from '../../shared/LmsTrashTabs';
 import AdminSearchBox from '../../shared/AdminSearchBox';
 import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE } from '../../../../utils/adminListLabels';
-import { LmsTargetSelect } from './lmsTargeting';
+import { LmsTargetSelect, filterSchedulesForTargeting } from './lmsTargeting';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
 
 const ResourcesTab = ({
   resourceFormAnchorRef,
@@ -17,7 +18,9 @@ const ResourcesTab = ({
   setResourceForm,
   courses,
   teachers,
+  schedules,
   courseTeachers,
+  onCourseChangeResource,
   savingResource,
   resetResourceForm,
   resourceListSearch,
@@ -61,6 +64,8 @@ const ResourcesTab = ({
                 scope: e.target.value,
                 teacherIds: [],
                 teacherId: '',
+                scheduleIds: [],
+                scheduleId: '',
               })
             }
           >
@@ -74,7 +79,7 @@ const ResourcesTab = ({
               <span>Course <RequiredMark /></span>
               <select
                 value={resourceForm.courseId}
-                onChange={(e) => setResourceForm({ ...resourceForm, courseId: e.target.value })}
+                onChange={(e) => onCourseChangeResource(e.target.value)}
                 required
               >
                 <option value="">Select course</option>
@@ -86,34 +91,65 @@ const ResourcesTab = ({
               </select>
             </label>
             {resourceForm.scope === 'teacher' ? (
-              <label className="lms-field-label">
-                <span>Teacher <RequiredMark /></span>
-                <select
-                  value={resourceForm.teacherId}
-                  onChange={(e) => setResourceForm({ ...resourceForm, teacherId: e.target.value })}
-                  required
-                >
-                  <option value="">Select teacher</option>
-                  {(courseTeachers[String(resourceForm.courseId)] || teachers).map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label className="lms-field-label">
+                  <span>Teacher <RequiredMark /></span>
+                  <select
+                    value={resourceForm.teacherId}
+                    onChange={(e) =>
+                      setResourceForm({ ...resourceForm, teacherId: e.target.value, scheduleId: '' })
+                    }
+                    required
+                  >
+                    <option value="">Select teacher</option>
+                    {(courseTeachers[String(resourceForm.courseId)] || teachers).map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="lms-field-label">
+                  <span>Class slot <RequiredMark /></span>
+                  <select
+                    value={resourceForm.scheduleId}
+                    onChange={(e) => setResourceForm({ ...resourceForm, scheduleId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select class slot</option>
+                    {filterSchedulesForTargeting(
+                      schedules,
+                      resourceForm.courseId ? [resourceForm.courseId] : [],
+                      resourceForm.teacherId ? [resourceForm.teacherId] : []
+                    ).map((slot) => (
+                      <option key={slot._id} value={slot._id}>
+                        {formatScheduleLabel(slot)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
             ) : null}
           </>
         ) : (
           <LmsTargetSelect
             courses={courses}
             teachers={teachers}
+            schedules={schedules}
             courseTeachers={courseTeachers}
             selectedCourseIds={resourceForm.courseIds}
             selectedTeacherIds={resourceForm.teacherIds}
-            onCoursesChange={(courseIds) => setResourceForm({ ...resourceForm, courseIds })}
-            onTeachersChange={(teacherIds) => setResourceForm({ ...resourceForm, teacherIds })}
+            selectedScheduleIds={resourceForm.scheduleIds}
+            onCoursesChange={(courseIds) =>
+              setResourceForm({ ...resourceForm, courseIds, scheduleIds: [] })
+            }
+            onTeachersChange={(teacherIds) =>
+              setResourceForm({ ...resourceForm, teacherIds, scheduleIds: [] })
+            }
+            onSchedulesChange={(scheduleIds) => setResourceForm({ ...resourceForm, scheduleIds })}
             previewNoun="resource"
             requireTeachers={resourceForm.scope === 'teacher'}
+            requireSchedules={resourceForm.scope === 'teacher'}
           />
         )}
         <label className="lms-field-label">
@@ -323,6 +359,8 @@ const ResourcesTab = ({
                 </th>
                 <th>Title</th>
                 <th>Course</th>
+                <th>Teacher</th>
+                <th>Class slot</th>
                 <th>Type</th>
                 <th>Uploaded By</th>
                 <th />
@@ -331,7 +369,7 @@ const ResourcesTab = ({
             <tbody>
               {filteredResources.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="lms-empty-cell">
+                  <td colSpan={8} className="lms-empty-cell">
                     {resources.length === 0
                       ? 'No resources for this selection.'
                       : 'No resources match your search.'}
@@ -353,6 +391,14 @@ const ResourcesTab = ({
                     </td>
                     <td>{r.title}</td>
                     <td>{r.course?.title}</td>
+                    <td>{r.scope === 'course' ? 'All students' : r.teacher?.name || '—'}</td>
+                    <td>
+                      {r.scope === 'course'
+                        ? '—'
+                        : r.assignedSchedule
+                          ? formatScheduleTimeLabel(r.assignedSchedule)
+                          : '—'}
+                    </td>
                     <td>
                       <span className="lms-resource-type-pill">{r.type}</span>
                     </td>

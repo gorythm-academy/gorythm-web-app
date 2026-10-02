@@ -10,19 +10,18 @@ const Quiz = require('../../models/Quiz');
 const QuizAttempt = require('../../models/QuizAttempt');
 const Resource = require('../../models/Resource');
 const Course = require('../../models/Course');
-const Payment = require('../../models/Payment');
 const { enrichEnrollmentsWithPaymentStatus } = require('../../services/enrollmentPaymentStatus');
 const { activeLmsFilter, trashedLmsFilter, mergeMongoFilters } = require('../../utils/lmsTrashQuery');
-const { studentPaymentsFilter } = require('../../utils/paymentQuery');
 const {
     studentAssignmentMongoFilter,
-    filterResourcesForStudent,
+    studentResourceMongoFilter,
     assignmentPastDue,
     getStudentSlotIssues,
     assertStudentCanAccessAssignment,
     mapSubmissionForPortal,
 } = require('../../utils/lmsContentRules');
 const { buildQuizReviewPayload } = require('../../utils/quizReview');
+const { quizUpdatedAfterAttempt } = require('../../utils/portalBadgeRules');
 const {
     DAY_LABELS,
     withActiveEnrollments,
@@ -79,7 +78,10 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
             ...activeLmsFilter(),
         }).limit(20);
 
-        const pendingFees = enrollments.filter((e) => e.paymentStatus === 'pending' && e.course).length;
+        const pendingFees = enrollments.filter((e) => {
+            const status = e.displayFeeStatus || e.paymentStatus;
+            return e.course && ['unpaid', 'overdue', 'failed', 'pending'].includes(status);
+        }).length;
 
         res.json({
             success: true,
@@ -121,25 +123,204 @@ router.get('/student/courses', allowPortalRoles('student'), async (req, res) => 
     }
 });
 
+const {
+    loadStudentBilling,
+    startPortalStripeCheckout,
+    submitPortalBankPayment,
+    setPortalAutoPay,
+    deleteSavedCard,
+    findAccessiblePayment,
+    findAccessibleEnrollment,
+    sendPortalInvoicePdf,
+    sendEnrollmentPdf,
+    sendPortalStatementPdf,
+    isPaidStatus,
+} = require('./billingHandlers');
+const { createProofUpload, proofPublicPath } = require('../../utils/paymentProofStorage');
+const { deleteProofFile } = require('../../services/trashCleanup');
+const studentProofUpload = createProofUpload();
+
 router.get('/student/fees', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return unauthorized(res);
-        const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
-            .populate('course', 'title price deletedAt')
-            .sort({ updatedAt: -1 });
-        const enrollments = dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(
-            enrollmentsRaw,
-            studentId,
-            req.user.email
-        ));
-        const payments = await Payment.find(studentPaymentsFilter(studentId, req.user.email))
-            .populate('course', 'title')
-            .sort({ createdAt: -1 })
-            .limit(50);
-        res.json({ success: true, enrollments, payments });
+        const billing = await loadStudentBilling(studentId, req.user.email);
+        res.json({
+            success: true,
+            ...billing,
+        });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load fees' });
+    }
+});
+
+router.get('/student/billing/statement', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        return await sendPortalStatementPdf(res, {
+            userId: studentId,
+            role: 'student',
+            email: req.user?.email,
+            name: req.user?.name,
+        });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to download invoice' });
+    }
+});
+
+router.post('/student/fees/checkout', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const result = await startPortalStripeCheckout({
+            actor: {
+                userId: studentId,
+                role: 'student',
+                email: req.user?.email,
+                name: req.user?.name,
+            },
+            enrollmentIds: req.body?.enrollmentIds || req.body?.items,
+            invoiceMode: req.body?.invoiceMode,
+            months: req.body?.months,
+            autoPay: Boolean(req.body?.autoPay),
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to start checkout' });
+    }
+});
+
+router.post('/student/fees/autopay', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const result = await setPortalAutoPay({
+            actor: {
+                userId: studentId,
+                role: 'student',
+                email: req.user?.email,
+                name: req.user?.name,
+            },
+            enrollmentIds: req.body?.enrollmentIds || req.body?.items,
+            enabled: req.body?.enabled !== false && req.body?.enabled !== 'false',
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to update auto-pay' });
+    }
+});
+
+router.post('/student/fees/cards/delete', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const result = await deleteSavedCard({
+            actor: { userId: studentId, role: 'student' },
+            studentId,
+            paymentMethodId: req.body?.paymentMethodId || req.body?.cardId,
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to remove card' });
+    }
+});
+
+router.post('/student/fees/bank', allowPortalRoles('student'), (req, res) => {
+    if (!studentProofUpload) {
+        return res.status(503).json({ success: false, error: 'File upload is not available on the server.' });
+    }
+    studentProofUpload.single('file')(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({
+                success: false,
+                error: err.code === 'LIMIT_FILE_SIZE'
+                    ? 'Payment proof must be 1 MB or smaller.'
+                    : err.message || 'Upload failed',
+            });
+        }
+        let savedProofPath = null;
+        try {
+            const studentId = getPortalActorId(req);
+            if (!studentId) return unauthorized(res);
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: 'Payment proof screenshot or PDF is required' });
+            }
+            savedProofPath = proofPublicPath(req.file.filename);
+            let enrollmentIds = req.body?.enrollmentIds;
+            if (typeof enrollmentIds === 'string') {
+                try {
+                    enrollmentIds = JSON.parse(enrollmentIds);
+                } catch {
+                    enrollmentIds = String(enrollmentIds).split(',').map((id) => id.trim()).filter(Boolean);
+                }
+            }
+            const payments = await submitPortalBankPayment({
+                actor: {
+                    userId: studentId,
+                    role: 'student',
+                    email: req.user?.email,
+                    name: req.user?.name,
+                },
+                enrollmentIds,
+                invoiceMode: req.body?.invoiceMode,
+                months: req.body?.months,
+                proofUrl: savedProofPath,
+                phone: String(req.body?.phone || '').replace(/\D/g, ''),
+                payerName: req.body?.payerName || req.user?.name,
+            });
+            savedProofPath = null;
+            res.status(201).json({
+                success: true,
+                message: 'Payment proof received. Our accountant will verify your transfer.',
+                createdCount: payments.length,
+                payment: payments[0],
+            });
+        } catch (error) {
+            if (savedProofPath) deleteProofFile(savedProofPath);
+            const code = error.status || 500;
+            res.status(code).json({ success: false, error: error.message || 'Failed to submit bank payment' });
+        }
+    });
+});
+
+router.get('/student/payments/:id/invoice', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const payment = await findAccessiblePayment({
+            paymentId: req.params.id,
+            actor: { userId: studentId, role: 'student', email: req.user?.email },
+        });
+        if (!isPaidStatus(payment.status)) {
+            return res.status(400).json({ success: false, error: 'Invoice is available after the fee is received' });
+        }
+        return await sendPortalInvoicePdf(res, payment, req.query);
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to download invoice' });
+    }
+});
+
+router.get('/student/enrollments/:id/invoice', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const enrollment = await findAccessibleEnrollment({
+            enrollmentId: req.params.id,
+            actor: { userId: studentId, role: 'student', email: req.user?.email },
+        });
+        if (enrollment.paymentStatus !== 'paid') {
+            return res.status(400).json({ success: false, error: 'Invoice is available after the fee is received' });
+        }
+        return await sendEnrollmentPdf(res, enrollment, 'invoice');
+    } catch (error) {
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to download invoice' });
     }
 });
 
@@ -166,9 +347,24 @@ router.get('/student/assignments', allowPortalRoles('student'), async (req, res)
         const studentId = getPortalActorId(req);
         if (!studentId) return unauthorized(res);
         const visibility = await studentAssignmentMongoFilter(studentId);
+        const submissionAssignmentIds = await AssignmentSubmission.find({
+            student: studentId,
+            ...activeLmsFilter(),
+        }).distinct('assignment');
+        let visibilityFilter = visibility;
+        if (submissionAssignmentIds.length) {
+            const submissionClause = { _id: { $in: submissionAssignmentIds } };
+            if (visibility.$or) {
+                visibilityFilter = { $or: [...visibility.$or, submissionClause] };
+            } else if (visibility._id?.$in?.length === 0) {
+                visibilityFilter = submissionClause;
+            } else {
+                visibilityFilter = { $or: [visibility, submissionClause] };
+            }
+        }
         const slotIssues = await getStudentSlotIssues(studentId);
         const assignments = await Assignment.find(
-            mergeMongoFilters(visibility, { status: 'published' }, activeLmsFilter())
+            mergeMongoFilters(visibilityFilter, { status: 'published' }, activeLmsFilter())
         )
             .populate('course', 'title')
             .populate('teacher', 'name')
@@ -223,16 +419,19 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
             return res.status(403).json({ success: false, error: 'Quiz is not available' });
         }
         const obj = quiz.toObject();
+        delete obj.createdByRole;
+        delete obj.lockedForTeacher;
         obj.questions = (obj.questions || []).map((q) => {
             const { correctAnswer, ...rest } = q;
             return rest;
         });
         let review = null;
+        const canRetake = quizUpdatedAfterAttempt(quiz, attempt);
         if (attempt) {
             const fullQuiz = await Quiz.findById(quiz._id).select('questions totalMarks title');
             review = buildQuizReviewPayload(fullQuiz, attempt.answers || []);
         }
-        res.json({ success: true, quiz: obj, attempt, review });
+        res.json({ success: true, quiz: obj, attempt, review, canRetake });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load quiz' });
     }
@@ -259,10 +458,17 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
         const byQuiz = Object.fromEntries(attempts.map((a) => [String(a.quiz), a]));
         res.json({
             success: true,
-            quizzes: quizzes.map((q) => ({
-                ...q.toObject(),
-                attempt: byQuiz[String(q._id)] || null,
-            })),
+            quizzes: quizzes.map((q) => {
+                const row = q.toObject();
+                delete row.createdByRole;
+                delete row.lockedForTeacher;
+                const attempt = byQuiz[String(q._id)] || null;
+                return {
+                    ...row,
+                    attempt,
+                    canRetake: quizUpdatedAfterAttempt(q, attempt),
+                };
+            }),
         });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load quizzes' });
@@ -275,12 +481,12 @@ router.get('/student/content', allowPortalRoles('student'), async (req, res) => 
         if (!studentId) return unauthorized(res);
         const courseIds = await getStudentCourseIds(studentId);
         const courses = await Course.find({ _id: { $in: courseIds } }).select('title');
-        const allResources = await Resource.find({ course: { $in: courseIds }, ...activeLmsFilter() })
+        const visibility = await studentResourceMongoFilter(studentId);
+        const resources = await Resource.find(mergeMongoFilters(visibility, activeLmsFilter()))
             .populate('course', 'title')
             .populate('teacher', 'name')
             .sort({ createdAt: -1 })
             .lean();
-        const resources = await filterResourcesForStudent(allResources, studentId);
         res.json({
             success: true,
             courses,
@@ -420,7 +626,7 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const { quizId, answers = [] } = req.body;
+        const { quizId, answers = [], attachments = [] } = req.body;
         const quiz = await Quiz.findOne({ _id: quizId, ...activeLmsFilter() });
         if (!quiz) return res.status(404).json({ success: false, error: 'Quiz not found' });
         if (quiz.status !== 'published') {
@@ -436,7 +642,25 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
             ...activeLmsFilter(),
         });
         if (priorActive) {
-            return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
+            if (!quizUpdatedAfterAttempt(quiz, priorActive)) {
+                return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
+            }
+            priorActive.deletedAt = new Date();
+            await priorActive.save();
+        }
+        let safeAttachments = [];
+        if (quiz.quizType === 'file' && Array.isArray(attachments) && attachments.length) {
+            const { normalizeUploadPublicPath } = require('../../utils/uploadUrlMatch');
+            if (attachments.length > 5) {
+                return res.status(400).json({ success: false, error: 'Too many files (max 5)' });
+            }
+            for (const raw of attachments) {
+                const path = normalizeUploadPublicPath(raw);
+                if (!path || path.includes('..') || !path.includes('/quizzes/student/')) {
+                    return res.status(400).json({ success: false, error: 'Upload the quiz file again, then submit.' });
+                }
+                safeAttachments.push(path);
+            }
         }
         const review = buildQuizReviewPayload(quiz, answers);
         const trashedAttempt = await QuizAttempt.findOne({
@@ -447,6 +671,7 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
         let attempt;
         if (trashedAttempt) {
             trashedAttempt.answers = answers;
+            trashedAttempt.attachments = safeAttachments;
             trashedAttempt.score = review.score;
             trashedAttempt.deletedAt = null;
             await trashedAttempt.save();
@@ -456,6 +681,7 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
                 quiz: quizId,
                 student: studentId,
                 answers,
+                attachments: safeAttachments,
                 score: review.score,
             });
         }

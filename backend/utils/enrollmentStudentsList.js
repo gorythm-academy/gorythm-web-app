@@ -32,7 +32,7 @@ function buildEnrollmentMatchForStudentIds(studentIds, { trash, statusFilter, fe
     if (statusFilter && statusFilter !== 'all') {
         if (statusFilter === 'inactive') {
             filter.status = { $in: ['inactive', 'pending', null] };
-        } else if (['active', 'completed'].includes(statusFilter)) {
+        } else if (['active', 'completed', 'paused'].includes(statusFilter)) {
             filter.status = statusFilter;
         }
     }
@@ -240,7 +240,7 @@ async function countEnrollmentStats(matchFilter) {
         inactiveRows: {
             $sum: {
                 $cond: [
-                    { $in: ['$status', ['active', 'completed']] },
+                    { $in: ['$status', ['active', 'completed', 'paused']] },
                     0,
                     1,
                 ],

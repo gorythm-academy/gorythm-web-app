@@ -3,9 +3,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { portalGet, portalPost, portalPatch } from '../shared/portalApi';
 import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import FileUploadField from '../shared/FileUploadField';
-import { PortalLoading, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
-import SubmissionFiles from '../shared/SubmissionFiles';
+import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
+import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal';
 import { markPortalPageVisited, TEACHER_SEEN_ADMIN_RESOURCES } from '../../../utils/portalNewItems';
 import {
   dismissActivityNotices,
@@ -13,6 +13,7 @@ import {
 } from '../../../utils/portalAssignmentNotices';
 import { collectAdminResourceEditNotices } from '../../../utils/adminEditNotices';
 import { usePortalDialog } from '../shared/PortalDialogContext';
+import '../../Admin/pages/LmsManagement.scss';
 import './TeacherResources.scss';
 
 const EMPTY_RESOURCE = {
@@ -24,10 +25,10 @@ const EMPTY_RESOURCE = {
   description: '',
 };
 
-function typeIcon(type) {
-  if (type === 'link') return 'fa-link';
-  if (type === 'note') return 'fa-sticky-note';
-  return 'fa-file-pdf';
+function resourceTypeLabel(type) {
+  if (type === 'link') return 'Link';
+  if (type === 'note') return 'Note';
+  return 'File';
 }
 
 const isAdminLockedResource = (r) => !!(r?.lockedForTeacher || r?.createdByRole === 'admin');
@@ -47,6 +48,7 @@ const TeacherResources = () => {
   const [courseFilter, setCourseFilter] = useState('');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [previewResource, setPreviewResource] = useState(null);
   const savingRef = useRef(false);
 
   const [loadError, setLoadError] = useState('');
@@ -64,7 +66,10 @@ const TeacherResources = () => {
 
   useEffect(() => {
     reload().finally(() => setLoading(false));
-    markPortalPageVisited(TEACHER_SEEN_ADMIN_RESOURCES);
+  }, []);
+
+  useEffect(() => {
+    return () => markPortalPageVisited(TEACHER_SEEN_ADMIN_RESOURCES);
   }, []);
 
   useEffect(() => {
@@ -247,8 +252,12 @@ const TeacherResources = () => {
 
   if (loading) {
     return (
-      <div className="portal-page">
-        <PortalLoading />
+      <div className="portal-page teacher-resources">
+        <PortalPageHeader
+          title="Course Resources"
+          subtitle="Upload files, add links, or post notes. Select multiple items to delete at once."
+        />
+        <PortalDataSection loading loadingLabel="Loading resources…" />
       </div>
     );
   }
@@ -261,7 +270,7 @@ const TeacherResources = () => {
           title="Course Resources"
           subtitle={loadError
             ? 'Could not load your courses. Refresh the page or try again later.'
-            : 'No courses assigned yet. Ask admin to set your account as instructor on a course.'}
+            : 'No courses are assigned to your account yet. Please contact the academy.'}
         />
       </div>
     );
@@ -505,7 +514,7 @@ const TeacherResources = () => {
             </div>
           ) : (
             <div className="teacher-resources__list-wrap">
-              <table className="teacher-resources__list portal-table">
+              <table className="teacher-resources__list portal-data-table portal-content-resources-table">
                 <thead>
                   <tr>
                     <th className="teacher-resources__list-check">
@@ -519,15 +528,13 @@ const TeacherResources = () => {
                     <th>Title</th>
                     <th>Course</th>
                     <th>Type</th>
-                    <th>File</th>
-                    <th>Actions</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredResources.map((r) => {
                     const id = portalDocId(r);
                     const selected = id && selectedIds.has(id);
-                    const fileList = r.attachments?.length ? r.attachments : r.fileUrl ? [r.fileUrl] : [];
                     const locked = isAdminLockedResource(r);
                     return (
                       <tr
@@ -544,9 +551,6 @@ const TeacherResources = () => {
                           />
                         </td>
                         <td className="teacher-resources__list-title">
-                          <span className={`teacher-resources__type-icon teacher-resources__type-icon--${r.type || 'file'}`}>
-                            <i className={`fas ${typeIcon(r.type)}`} aria-hidden="true" />
-                          </span>
                           {r.title}
                           {locked ? (
                             <span className="teacher-resources__admin-tag" title="Published by admin">
@@ -555,28 +559,16 @@ const TeacherResources = () => {
                           ) : null}
                         </td>
                         <td>{r.course?.title || '—'}</td>
-                        <td>
-                          <span className="teacher-resources__tag teacher-resources__tag--type">
-                            {r.type || 'file'}
-                          </span>
-                        </td>
-                        <td>
-                          {fileList.length ? (
-                            <SubmissionFiles attachments={fileList} />
-                          ) : r.type === 'link' && r.fileUrl ? (
-                            <a href={r.fileUrl} target="_blank" rel="noreferrer">
-                              Open link
-                            </a>
-                          ) : r.type === 'note' && r.description ? (
-                            <span className="teacher-resources__note-preview" title={r.description}>
-                              {r.description.length > 48 ? `${r.description.slice(0, 48)}…` : r.description}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
+                        <td>{resourceTypeLabel(r.type)}</td>
                         <td>
                           <div className="portal-table-actions">
+                            <button
+                              type="button"
+                              className="lms-btn-secondary lms-btn-secondary--compact"
+                              onClick={() => setPreviewResource(r)}
+                            >
+                              <i className="fas fa-eye" aria-hidden /> Preview
+                            </button>
                             {locked ? (
                               <span className="teacher-resources__view-only">View only</span>
                             ) : (
@@ -615,6 +607,14 @@ const TeacherResources = () => {
           {msg}
         </div>
       ) : null}
+
+      <LmsMaterialPreviewModal
+        open={Boolean(previewResource)}
+        kind="resource"
+        item={previewResource}
+        onClose={() => setPreviewResource(null)}
+        tone="teacher"
+      />
     </div>
   );
 };

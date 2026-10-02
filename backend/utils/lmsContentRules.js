@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const Enrollment = require('../models/Enrollment');
+const ClassSchedule = require('../models/ClassSchedule');
 const { getTeachersForCourse } = require('../services/courseTeachers');
 
 function startOfDay(date = new Date()) {
@@ -92,38 +93,117 @@ function newPublishGroupId() {
     return crypto.randomUUID();
 }
 
-/** courseId -> assigned slot teacher id */
-async function getStudentEnrollmentTeachers(studentId) {
+function dedupeScheduleTargets(targets) {
+    const seen = new Set();
+    return targets.filter(({ scheduleId }) => {
+        const key = String(scheduleId || '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+/**
+ * Valid class-schedule targets (course + teacher implied by the slot).
+ */
+async function resolveValidScheduleTargets({ scheduleIds, explicitTargets, teacherId = null, courseId = null }) {
+    if (Array.isArray(explicitTargets) && explicitTargets.length) {
+        const ids = explicitTargets
+            .map((row) => String(row?.scheduleId || row?.assignedSchedule || '').trim())
+            .filter(Boolean);
+        scheduleIds = ids;
+    }
+    const ids = normalizeIdList(scheduleIds);
+    if (!ids.length) {
+        const err = new Error('Select at least one class slot');
+        err.status = 400;
+        throw err;
+    }
+
+    const filter = { _id: { $in: ids } };
+    if (teacherId) filter.teacher = teacherId;
+    if (courseId) filter.course = courseId;
+
+    const schedules = await ClassSchedule.find(filter).select('_id course teacher').lean();
+    const found = new Map(schedules.map((row) => [String(row._id), row]));
+    const targets = [];
+    for (const scheduleId of ids) {
+        const row = found.get(String(scheduleId));
+        if (!row) continue;
+        targets.push({
+            scheduleId: String(row._id),
+            courseId: String(row.course),
+            teacherId: String(row.teacher),
+        });
+    }
+    if (!targets.length) {
+        const err = new Error('No valid class slots selected');
+        err.status = 400;
+        throw err;
+    }
+    return dedupeScheduleTargets(targets);
+}
+
+/** Active enrollments mapped to course, slot teacher, and assigned schedule. */
+async function getStudentEnrollmentSlots(studentId) {
     const enrollments = await Enrollment.find({
         student: studentId,
         course: { $ne: null },
-        status: 'active',
+        status: { $in: ['active', 'paused'] },
         deletedAt: null,
     })
         .select('course assignedSchedule')
         .populate('assignedSchedule', 'teacher')
         .lean();
 
-    const byCourse = new Map();
+    const slots = [];
     for (const enr of enrollments) {
         const courseId = String(enr.course);
+        const scheduleId = enr.assignedSchedule?._id
+            ? String(enr.assignedSchedule._id)
+            : enr.assignedSchedule
+              ? String(enr.assignedSchedule)
+              : null;
         const scheduleTeacher = enr.assignedSchedule?.teacher;
         const teacherId = scheduleTeacher ? String(scheduleTeacher._id || scheduleTeacher) : null;
-        if (courseId && teacherId) {
-            byCourse.set(courseId, teacherId);
-        }
+        if (!courseId) continue;
+        slots.push({ courseId, teacherId, scheduleId });
+    }
+    return slots;
+}
+
+/** @deprecated Use getStudentEnrollmentSlots — kept for resource visibility. */
+async function getStudentEnrollmentTeachers(studentId) {
+    const slots = await getStudentEnrollmentSlots(studentId);
+    const byCourse = new Map();
+    for (const slot of slots) {
+        byCourse.set(slot.courseId, slot.teacherId);
     }
     return byCourse;
 }
 
 async function studentAssignmentMongoFilter(studentId) {
-    const enrollmentTeachers = await getStudentEnrollmentTeachers(studentId);
-    const pairs = [...enrollmentTeachers.entries()].map(([courseId, teacherId]) => ({
-        course: courseId,
-        teacher: teacherId,
-    }));
-    if (!pairs.length) return { _id: { $in: [] } };
-    return { $or: pairs };
+    const slots = await getStudentEnrollmentSlots(studentId);
+    if (!slots.length) return { _id: { $in: [] } };
+
+    const orClauses = [];
+    for (const { courseId, teacherId, scheduleId } of slots) {
+        if (scheduleId) {
+            orClauses.push({
+                course: courseId,
+                teacher: teacherId,
+                assignedSchedule: scheduleId,
+            });
+            continue;
+        }
+        // Student missing assigned schedule — legacy teacher-only assignments only.
+        orClauses.push({
+            course: courseId,
+            teacher: teacherId,
+            $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+        });
+    }
+    return { $or: orClauses };
 }
 
 function resourceScopeForDoc(resource) {
@@ -132,24 +212,90 @@ function resourceScopeForDoc(resource) {
     return 'course';
 }
 
-function resourceVisibleToStudent(resource, enrollmentTeachers) {
+function studentSlotMatchesResource(slot, resource) {
     const courseId = String(resource.course?._id || resource.course || '');
-    if (!courseId || !enrollmentTeachers.has(courseId)) return false;
+    if (!courseId || !slot || slot.courseId !== courseId) return false;
 
     const scope = resourceScopeForDoc(resource);
     if (scope === 'course') return true;
 
-    const slotTeacher = enrollmentTeachers.get(courseId);
-    if (!slotTeacher) return false;
     const ownerTeacher = String(
         resource.teacher?._id || resource.teacher || resource.uploadedBy?._id || resource.uploadedBy || ''
     );
-    return ownerTeacher && slotTeacher === ownerTeacher;
+    if (!ownerTeacher || !slot.teacherId || slot.teacherId !== ownerTeacher) return false;
+
+    const assignSchedule = resource.assignedSchedule
+        ? String(resource.assignedSchedule._id || resource.assignedSchedule)
+        : null;
+    if (assignSchedule) {
+        if (!slot.scheduleId) return false;
+        return slot.scheduleId === assignSchedule;
+    }
+    return true;
+}
+
+function resourceVisibleToStudent(resource, enrollmentSlots) {
+    const slots = Array.isArray(enrollmentSlots) ? enrollmentSlots : [];
+    if (!slots.length) return false;
+    return slots.some((slot) => studentSlotMatchesResource(slot, resource));
+}
+
+async function studentResourceMongoFilter(studentId) {
+    const slots = await getStudentEnrollmentSlots(studentId);
+    if (!slots.length) return { _id: { $in: [] } };
+
+    const orClauses = [];
+    const courseScopeAdded = new Set();
+
+    for (const { courseId, teacherId, scheduleId } of slots) {
+        if (!courseScopeAdded.has(courseId)) {
+            courseScopeAdded.add(courseId);
+            orClauses.push({
+                course: courseId,
+                $or: [
+                    { scope: 'course' },
+                    {
+                        $and: [
+                            { $or: [{ scope: { $exists: false } }, { scope: null }] },
+                            { $or: [{ teacher: null }, { teacher: { $exists: false } }] },
+                        ],
+                    },
+                ],
+            });
+        }
+
+        if (!teacherId) continue;
+
+        const legacyTeacherResource = {
+            course: courseId,
+            teacher: teacherId,
+            $or: [{ scope: 'teacher' }, { scope: { $exists: false } }],
+            $and: [
+                {
+                    $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+                },
+            ],
+        };
+
+        if (scheduleId) {
+            orClauses.push({
+                course: courseId,
+                teacher: teacherId,
+                assignedSchedule: scheduleId,
+                $or: [{ scope: 'teacher' }, { scope: { $exists: false } }],
+            });
+            orClauses.push(legacyTeacherResource);
+        } else {
+            orClauses.push(legacyTeacherResource);
+        }
+    }
+
+    return { $or: orClauses };
 }
 
 async function filterResourcesForStudent(resources, studentId) {
-    const enrollmentTeachers = await getStudentEnrollmentTeachers(studentId);
-    return resources.filter((r) => resourceVisibleToStudent(r, enrollmentTeachers));
+    const slots = await getStudentEnrollmentSlots(studentId);
+    return resources.filter((r) => resourceVisibleToStudent(r, slots));
 }
 
 function teacherAssignmentScopeFilter(teacherId) {
@@ -303,7 +449,7 @@ async function getStudentSlotIssues(studentId) {
     const enrollments = await Enrollment.find({
         student: studentId,
         course: { $ne: null },
-        status: 'active',
+        status: { $in: ['active', 'paused'] },
         deletedAt: null,
     })
         .populate('course', 'title')
@@ -325,18 +471,35 @@ async function getStudentSlotIssues(studentId) {
 }
 
 async function assertStudentCanAccessAssignment(studentId, assignment) {
-    const enrollmentTeachers = await getStudentEnrollmentTeachers(studentId);
+    const slots = await getStudentEnrollmentSlots(studentId);
     const courseId = String(assignment.course?._id || assignment.course || '');
-    const slotTeacher = enrollmentTeachers.get(courseId);
-    if (!slotTeacher) {
+    const assignTeacher = String(assignment.teacher?._id || assignment.teacher || '');
+    const assignSchedule = assignment.assignedSchedule
+        ? String(assignment.assignedSchedule._id || assignment.assignedSchedule)
+        : null;
+
+    const slot = slots.find((row) => row.courseId === courseId);
+    if (!slot) {
         const err = new Error('No class slot assigned for this course — contact admin');
         err.status = 403;
         throw err;
     }
-    if (String(assignment.teacher) !== slotTeacher) {
+    if (assignTeacher !== slot.teacherId) {
         const err = new Error('This assignment is not for your class slot');
         err.status = 403;
         throw err;
+    }
+    if (assignSchedule) {
+        if (!slot.scheduleId) {
+            const err = new Error('No class slot assigned for this course — contact admin');
+            err.status = 403;
+            throw err;
+        }
+        if (assignSchedule !== slot.scheduleId) {
+            const err = new Error('This assignment is not for your class timeslot');
+            err.status = 403;
+            throw err;
+        }
     }
 }
 
@@ -347,13 +510,18 @@ module.exports = {
     normalizeIdList,
     resolveValidTargetPairs,
     dedupePairs,
+    dedupeScheduleTargets,
+    resolveValidScheduleTargets,
     newPublishGroupId,
+    getStudentEnrollmentSlots,
     getStudentEnrollmentTeachers,
     getStudentSlotIssues,
     assertStudentCanAccessAssignment,
     studentAssignmentMongoFilter,
     resourceScopeForDoc,
+    studentSlotMatchesResource,
     resourceVisibleToStudent,
+    studentResourceMongoFilter,
     filterResourcesForStudent,
     teacherAssignmentScopeFilter,
     teacherResourceMongoFilter,

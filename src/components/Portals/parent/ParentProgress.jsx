@@ -1,24 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { portalGet } from '../shared/portalApi';
 import {
-  PortalLoading,
+  PortalDataSection,
   PortalAlert,
   PortalPageHeader,
-  FeeBadge,
 } from '../shared/PortalUi';
 import SubmissionFiles from '../shared/SubmissionFiles';
+import PortalContentResourcesTable from '../shared/PortalContentResourcesTable';
+import PortalCollapsiblePanel from '../shared/PortalCollapsiblePanel';
+import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal';
+import QuizPreviewModal from '../shared/QuizPreviewModal';
 import AttendancePeriodView from '../shared/AttendancePeriodView';
 import { formatScore } from '../../../utils/formatScore';
+import { markPortalPageVisited } from '../../../utils/portalNewItems';
+import '../../Admin/pages/LmsManagement.scss';
 
-const paymentStatusLabel = (status) => {
-  if (status === 'paid' || status === 'completed') return 'Paid';
-  if (status === 'awaiting_review') return 'Awaiting review';
-  if (status === 'processing') return 'Processing';
-  if (status === 'rejected') return 'Rejected';
-  if (status === 'refunded') return 'Refunded';
-  if (status === 'failed') return 'Failed';
-  return status || '—';
-};
+const SEEN_KEY = 'parent_progress';
+
+const defaultExpandedSections = () => ({
+  attendance: true,
+  content: true,
+  assignments: true,
+  quizzes: true,
+});
 
 const ParentProgress = () => {
   const [children, setChildren] = useState([]);
@@ -28,6 +32,14 @@ const ParentProgress = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [previewResource, setPreviewResource] = useState(null);
+  const [previewAssignment, setPreviewAssignment] = useState(null);
+  const [previewQuiz, setPreviewQuiz] = useState(null);
+  const [expandedSections, setExpandedSections] = useState(defaultExpandedSections);
+
+  const toggleSection = (sectionId) => {
+    setExpandedSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  };
 
   useEffect(() => {
     portalGet('/parent/children')
@@ -40,6 +52,10 @@ const ParentProgress = () => {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    return () => markPortalPageVisited(SEEN_KEY);
   }, []);
 
   useEffect(() => {
@@ -77,26 +93,12 @@ const ParentProgress = () => {
     [selectedId]
   );
 
-  if (loading) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-
+  const loadingChildren = loading;
   const selectedChild = children.find((c) => c.student?._id === selectedId);
 
   return (
     <div className="portal-page">
-      <PortalPageHeader title="Child Progress" subtitle="Same records your child sees in the student portal" />
+      <PortalPageHeader title="Child Progress" subtitle="Attendance, content, assignments, and quiz results for each linked child" />
 
       <div className="portal-hero portal-hero--parent">
         <div className="portal-hero__icon" aria-hidden="true">
@@ -112,6 +114,7 @@ const ParentProgress = () => {
         </div>
       </div>
 
+      <PortalDataSection loading={loadingChildren} error={error} loadingLabel="Loading children…">
       <div className="portal-child-tabs">
         {children.map((link) => {
           const id = link.student?._id;
@@ -130,174 +133,187 @@ const ParentProgress = () => {
       </div>
 
       {detailLoading ? (
-        <PortalLoading label="Loading child records…" />
+        <PortalDataSection loading loadingLabel="Loading child records…" />
       ) : !detail ? (
         <p className="portal-select-hint">
-          {detailError ? 'Could not load this child.' : 'Select a child or ask admin to link your account.'}
+          {detailError ? 'Could not load this child’s records. Please try again.' : 'No children are linked to this account yet. Please contact the academy to connect your child’s profile.'}
         </p>
       ) : (
         <>
-      {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
-          <div className="portal-panel">
-            <div className="portal-panel__head">
-              <h2>Enrollments & Fees</h2>
-            </div>
-            <div className="portal-panel__body">
-              <div className="portal-data-table-wrap">
-                <table className="portal-data-table portal-data-table--green">
-                  <thead>
+          {detailError ? <PortalAlert type="error">{detailError}</PortalAlert> : null}
+
+          <PortalCollapsiblePanel
+            title="Attendance"
+            subtitle="View by course — weekly or monthly summary."
+            expanded={expandedSections.attendance}
+            onToggle={() => toggleSection('attendance')}
+          >
+            <AttendancePeriodView
+              coursesUrl={attendanceCoursesUrl}
+              viewUrl={attendanceViewUrl}
+              emptyCoursesHint="There are no courses to show attendance for yet."
+              allowedPeriods={['weekly', 'monthly']}
+              summaryOnly
+            />
+          </PortalCollapsiblePanel>
+
+          <PortalCollapsiblePanel
+            title="Course Content"
+            subtitle="Teacher-shared files, links, and notes for your child's courses."
+            expanded={expandedSections.content}
+            onToggle={() => toggleSection('content')}
+            bodyClassName="portal-panel__body--padded"
+          >
+            <PortalContentResourcesTable
+              resources={detail.resources || []}
+              onPreview={setPreviewResource}
+              emptyMessage="There is no course material to show yet."
+            />
+          </PortalCollapsiblePanel>
+
+          <PortalCollapsiblePanel
+            title="Assignments"
+            subtitle="Assigned homework and every submitted assignment for this child."
+            expanded={expandedSections.assignments}
+            onToggle={() => toggleSection('assignments')}
+          >
+            <div className="portal-data-table-wrap">
+              <table className="portal-data-table portal-data-table--green">
+                <thead>
+                  <tr>
+                    <th>Assignment</th>
+                    <th>Course</th>
+                    <th>Due</th>
+                    <th>Files</th>
+                    <th>Submitted</th>
+                    <th>Submitted files</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detail.assignments || []).length === 0 ? (
                     <tr>
-                      <th>Course</th>
-                      <th>Price</th>
-                      <th>Fee Status</th>
-                      <th>Enrollment</th>
+                      <td colSpan={6}>There are no assignments to show yet.</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.enrollments || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={4}>No enrollments.</td>
-                      </tr>
-                    ) : (
-                      (detail.enrollments || []).map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.course?.title || '—'}</td>
-                          <td>{r.course?.price != null ? `$${Number(r.course.price).toFixed(2)}` : '—'}</td>
+                  ) : (
+                    (detail.assignments || []).map((row) => {
+                      const submittedAt = row.submission?.submittedAt;
+                      return (
+                        <tr key={row._id}>
+                          <td>{row.title || '—'}</td>
+                          <td>{row.course?.title || '—'}</td>
                           <td>
-                            <FeeBadge status={r.paymentStatus} />
+                            {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
                           </td>
-                          <td>{r.status}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div className="portal-panel">
-            <div className="portal-panel__head">
-              <h2>Attendance</h2>
-              <p>View by course — weekly or monthly summary.</p>
-            </div>
-            <div className="portal-panel__body">
-              <AttendancePeriodView
-                coursesUrl={attendanceCoursesUrl}
-                viewUrl={attendanceViewUrl}
-                emptyCoursesHint="No active course enrollments for this child."
-                allowedPeriods={['weekly', 'monthly']}
-                summaryOnly
-              />
-            </div>
-          </div>
-
-          <div className="portal-panel">
-            <div className="portal-panel__head">
-              <h2>Assignments</h2>
-            </div>
-            <div className="portal-panel__body">
-              <div className="portal-data-table-wrap">
-                <table className="portal-data-table portal-data-table--green">
-                  <thead>
-                    <tr>
-                      <th>Assignment</th>
-                      <th>Submitted</th>
-                      <th>Files</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.submissions || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={3}>No submissions.</td>
-                      </tr>
-                    ) : (
-                      (detail.submissions || []).map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.assignment?.title || '—'}</td>
-                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td>
                           <td>
-                            <SubmissionFiles attachments={r.attachments} />
+                            {row.attachments?.length ? (
+                              <div className="student-assignments-table__actions">
+                                <SubmissionFiles attachments={row.attachments} />
+                                <button
+                                  type="button"
+                                  className="lms-btn-secondary lms-btn-secondary--compact"
+                                  onClick={() => setPreviewAssignment(row)}
+                                >
+                                  <i className="fas fa-eye" aria-hidden /> Preview
+                                </button>
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>
+                            {submittedAt
+                              ? new Date(submittedAt).toLocaleString()
+                              : 'Not submitted yet'}
+                          </td>
+                          <td>
+                            <SubmissionFiles attachments={row.submission?.attachments} />
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </PortalCollapsiblePanel>
 
-          <div className="portal-panel">
-            <div className="portal-panel__head">
-              <h2>Quiz Results</h2>
-            </div>
-            <div className="portal-panel__body">
-              <div className="portal-data-table-wrap">
-                <table className="portal-data-table portal-data-table--green">
-                  <thead>
+          <PortalCollapsiblePanel
+            title="Quiz Results"
+            expanded={expandedSections.quizzes}
+            onToggle={() => toggleSection('quizzes')}
+          >
+            <div className="portal-data-table-wrap">
+              <table className="portal-data-table portal-data-table--green">
+                <thead>
+                  <tr>
+                    <th>Quiz</th>
+                    <th>Score</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detail.quizAttempts || []).length === 0 ? (
                     <tr>
-                      <th>Quiz</th>
-                      <th>Score</th>
+                      <td colSpan={3}>No quiz results to show yet.</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.quizAttempts || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={2}>No quiz attempts.</td>
+                  ) : (
+                    (detail.quizAttempts || []).map((r) => (
+                      <tr key={r._id}>
+                        <td>{r.quiz?.title || '—'}</td>
+                        <td>{r.scoreDisplay || formatScore(r.score, r.quiz?.totalMarks)}</td>
+                        <td>
+                          {r.quiz ? (
+                            <button
+                              type="button"
+                              className="portal-action-btn portal-action-btn--green"
+                              onClick={() =>
+                                setPreviewQuiz({
+                                  quiz: r.quiz,
+                                  review: r.review || null,
+                                  attempt: r,
+                                })
+                              }
+                            >
+                              <span className="portal-action-btn__label">View</span>
+                            </button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                       </tr>
-                    ) : (
-                      (detail.quizAttempts || []).map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.quiz?.title || '—'}</td>
-                          <td>{r.scoreDisplay || formatScore(r.score, r.quiz?.totalMarks)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          <div className="portal-panel">
-            <div className="portal-panel__head">
-              <h2>Payments</h2>
-              <p>Recorded payment transactions for this child.</p>
-            </div>
-            <div className="portal-panel__body">
-              <div className="portal-data-table-wrap">
-                <table className="portal-data-table portal-data-table--green">
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(detail.payments || []).length === 0 ? (
-                      <tr>
-                        <td colSpan={4}>No payments.</td>
-                      </tr>
-                    ) : (
-                      (detail.payments || []).map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.course?.title || r.courseName || '—'}</td>
-                          <td>${Number(r.amount || 0).toFixed(2)}</td>
-                          <td>{paymentStatusLabel(r.status)}</td>
-                          <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          </PortalCollapsiblePanel>
         </>
       )}
+      </PortalDataSection>
+
+      <QuizPreviewModal
+        quiz={previewQuiz?.quiz || null}
+        review={previewQuiz?.review || null}
+        attempt={previewQuiz?.attempt || null}
+        tone="parent"
+        chosenLabel="Student answer"
+        onClose={() => setPreviewQuiz(null)}
+      />
+      <LmsMaterialPreviewModal
+        open={Boolean(previewResource)}
+        kind="resource"
+        item={previewResource}
+        onClose={() => setPreviewResource(null)}
+        hideUploader
+        tone="parent"
+      />
+      <LmsMaterialPreviewModal
+        open={Boolean(previewAssignment)}
+        kind="assignment"
+        item={previewAssignment}
+        onClose={() => setPreviewAssignment(null)}
+        tone="parent"
+      />
     </div>
   );
 };

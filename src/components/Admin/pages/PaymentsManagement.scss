@@ -28,88 +28,30 @@
     /* Header: shared in _admin-page-chrome.scss */
 
     
+    /* Stats card layout from _admin-stats-cards.scss — keep icon colors + click filter */
     .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: clamp(0.65rem, 1.5vw, 1rem);
-        margin-bottom: 1.5rem;
-        
         .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: clamp(0.85rem, 2vw, 1.5rem);
-            display: flex;
-            align-items: center;
-            gap: clamp(0.5rem, 1.5vw, 1rem);
-            min-width: 0;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s;
             cursor: pointer;
-            
-            &:hover {
-                transform: translateY(-3px);
-            }
 
-            &:focus-visible {
-                outline: 2px solid var(--color-accent);
-                outline-offset: 2px;
-            }
-
-            &.filter-active {
-                box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.28), 0 8px 20px rgba(0, 0, 0, 0.08);
-            }
-            
             .stat-icon {
-                flex-shrink: 0;
-                width: clamp(36px, 5vw, 50px);
-                height: clamp(36px, 5vw, 50px);
-                border-radius: clamp(8px, 1.2vw, 12px);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: clamp(1rem, 2.4vw, 1.5rem);
-                line-height: 1;
-                
                 &.revenue {
                     background: linear-gradient(135deg, #10b981, #059669);
                 }
-                
+
                 &.success {
                     background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
                 }
-                
+
                 &.pending {
                     background: linear-gradient(135deg, #f59e0b, #d97706);
                 }
-                
+
                 &.failed {
                     background: linear-gradient(135deg, #ef4444, #dc2626);
                 }
 
                 &.refunded {
                     background: linear-gradient(135deg, #6366f1, #4f46e5);
-                }
-            }
-            
-            .stat-info {
-                min-width: 0;
-                flex: 1;
-
-                h3 {
-                    font-size: clamp(1rem, 2.1vw + 0.35rem, 1.8rem);
-                    color: #1e293b;
-                    margin: 0;
-                    font-weight: 700;
-                    line-height: 1.15;
-                    overflow-wrap: anywhere;
-                }
-                
-                p {
-                    color: #64748b;
-                    margin: 0.2rem 0 0;
-                    font-size: clamp(0.72rem, 1.1vw + 0.45rem, 0.9rem);
-                    line-height: 1.3;
                 }
             }
         }
@@ -276,40 +218,33 @@
             }
             
             .transaction-id-cell {
-                max-width: 0;
+                max-width: none;
             }
 
             .transaction-id {
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 gap: 6px;
                 min-width: 0;
 
                 > i {
                     flex-shrink: 0;
                     color: #64748b;
+                    margin-top: 6px;
                 }
 
+                code.transaction-id-full,
                 code.transaction-id-short {
                     flex: 1;
                     min-width: 0;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                    white-space: normal;
+                    overflow-wrap: anywhere;
+                    word-break: break-all;
                     background: #f1f5f9;
                     padding: 4px 8px;
                     border-radius: 4px;
                     font-family: 'Courier New', monospace;
                     font-size: 0.8rem;
-                    color: var(--color-accent);
-                }
-
-                code:not(.transaction-id-short) {
-                    background: #f1f5f9;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-family: 'Courier New', monospace;
-                    font-size: 0.85rem;
                     color: var(--color-accent);
                 }
 
@@ -532,13 +467,6 @@
         }
     }
     
-    // ≤ 1280px: main + sidebar leaves a narrow band — let stats wrap by min width instead of forcing 5 skinny columns
-    @media (max-width: $bp-lg) {
-        .stats-grid {
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
-        }
-    }
-
     // ≤ 768px ($bp-admin-table-max): stack header and controls bar
     @media (max-width: $bp-admin-table-max) {
         .page-header {
@@ -554,10 +482,6 @@
             .search-box {
                 min-width: 100%;
             }
-        }
-        
-        .stats-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
         
         .summary-footer {
@@ -576,12 +500,8 @@
         }
     }
     
-    // ≤ 480px (small phone): single-column stats, table scrolls horizontally
+    // ≤ 480px (small phone): table scrolls horizontally
     @media (max-width: $bp-legacy-480) {
-        .stats-grid {
-            grid-template-columns: 1fr;
-        }
-        
         .payments-table {
             display: block;
             overflow-x: auto; // allow horizontal scroll for wide payment tables on small phones
@@ -750,6 +670,7 @@
 
     &__image {
         width: 100%;
+        min-height: 320px;
         max-height: 65vh;
         object-fit: contain;
         border-radius: 12px;
@@ -768,6 +689,179 @@
         color: #b91c1c;
         text-decoration: none;
         font-weight: 600;
+    }
+}
+
+.payment-due-modal {
+    width: min(440px, 100%);
+
+    p {
+        margin: 0 0 16px;
+        color: #475569;
+    }
+
+    &__field {
+        display: grid;
+        gap: 8px;
+        font-weight: 600;
+        color: #0f172a;
+        font-size: 0.9rem;
+
+        input[type='date'],
+        textarea {
+            padding: 0.7rem 0.85rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 6rem;
+        }
+    }
+
+    &__actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 22px;
+
+        .btn-secondary,
+        .btn-primary {
+            border: none;
+            border-radius: 10px;
+            padding: 0.72rem 1.2rem;
+            font-weight: 600;
+            font-size: 0.92rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #334155;
+
+            &:hover:not(:disabled) {
+                background: #cfd8e3;
+            }
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+            color: #fff;
+
+            &:hover:not(:disabled) {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
+            }
+        }
+    }
+}
+
+.payment-invoice-picker {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+    }
+
+    &__panel {
+        position: relative;
+        z-index: 1;
+        width: min(520px, 100%);
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+    }
+
+    &__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+
+        h3 {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+    }
+
+    &__close {
+        border: none;
+        background: #f1f5f9;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 8px;
+        font-size: 1.35rem;
+        line-height: 1;
+        cursor: pointer;
+        color: #475569;
+    }
+
+    &__body {
+        padding: 1.25rem;
+        overflow-y: auto;
+
+        p {
+            margin: 0 0 1rem;
+            color: #475569;
+            font-size: 0.94rem;
+            line-height: 1.5;
+        }
+    }
+
+    &__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+        padding: 0.38rem 0.85rem;
+        border: 1.5px solid #059669;
+        border-radius: 999px;
+        background: #ecfdf5;
+        color: #047857;
+        font-weight: 700;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+
+        &:hover {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            transform: translateY(-1px);
+        }
     }
 }
 
@@ -804,4 +898,11 @@
     .refresh-btn.is-refreshing {
         opacity: 0.85;
     }
+}
+
+.payment-line-list {
+    margin: 0.35rem 0 0;
+    padding-left: 1.1rem;
+    color: #64748b;
+    font-size: 0.78rem;
 }

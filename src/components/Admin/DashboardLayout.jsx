@@ -10,13 +10,29 @@ import {
 } from '../../utils/adminDashboardTheme';
 import BrandLogo from '../BrandLogo/BrandLogo';
 import { AdminDialogProvider } from './AdminDialogContext';
-import { useAdminPortalBadges } from '../../hooks/useAdminPortalBadges';
+import { AdminPortalBadgesProvider, useAdminPortalBadges } from '../../hooks/useAdminPortalBadges';
 import './Admin.scss';
 
 const MOBILE_MAX_WIDTH = 1024;
 const isMobileViewport = () => window.innerWidth <= MOBILE_MAX_WIDTH;
 
-const DashboardLayout = () => {
+const menuItems = [
+    { path: '/admin', icon: 'fas fa-home', label: 'Dashboard' },
+    { path: '/admin/users', icon: 'fas fa-users', label: 'Users' },
+    { path: '/admin/students', icon: 'fas fa-user-graduate', label: 'Students' },
+    { path: '/admin/teachers', icon: 'fas fa-chalkboard-teacher', label: 'Teachers' },
+    { path: '/admin/parents', icon: 'fas fa-people-roof', label: 'Parents' },
+    { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
+    { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments', badgeKey: 'paymentsNew', badgeDot: true },
+    { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS', badgeKey: 'lmsAttendance', badgeDot: true },
+    { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources & Submissions', badgeKey: 'resourcesSubmissions', badgeDot: true },
+    { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
+    { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
+    { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
+    { path: '/admin/promo-videos', icon: 'fas fa-video', label: 'Video Controls' },
+];
+
+const DashboardLayoutInner = () => {
     const [sidebarOpen, setSidebarOpen] = useState(() => {
         if (typeof window === 'undefined') return true;
         return !isMobileViewport();
@@ -45,23 +61,7 @@ const DashboardLayout = () => {
     };
 
     const user = parseAuthUser(AUTH_REALM.ADMIN) || {};
-    const adminBadges = useAdminPortalBadges(true);
-
-    const menuItems = [
-        { path: '/admin', icon: 'fas fa-home', label: 'Dashboard' },
-        { path: '/admin/users', icon: 'fas fa-users', label: 'Users' },
-        { path: '/admin/students', icon: 'fas fa-user-graduate', label: 'Students' },
-        { path: '/admin/teachers', icon: 'fas fa-chalkboard-teacher', label: 'Teachers' },
-        { path: '/admin/parents', icon: 'fas fa-people-roof', label: 'Parents' },
-        { path: '/admin/courses', icon: 'fas fa-book', label: 'Courses' },
-        { path: '/admin/payments', icon: 'fas fa-credit-card', label: 'Payments' },
-        { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS', badgeKey: 'lmsAttendance', badgeDot: true },
-        { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources & Submissions', badgeKey: 'resourcesSubmissions', badgeDot: true },
-        { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
-        { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
-        { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
-        { path: '/admin/promo-videos', icon: 'fas fa-video', label: 'Video Controls' },
-    ];
+    const adminBadges = useAdminPortalBadges();
 
     const [dashboardAccent, setDashboardAccent] = useState(
         () => readAdminDashboardAccent() || DEFAULT_ADMIN_DASHBOARD_ACCENT
@@ -92,7 +92,6 @@ const DashboardLayout = () => {
 
     return (
         <div className="admin-dashboard" style={dashboardThemeStyle}>
-            {/* Sidebar */}
             <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
                 <div className="sidebar-header">
                     {sidebarOpen && (
@@ -102,7 +101,7 @@ const DashboardLayout = () => {
                             </Link>
                         </div>
                     )}
-                    <button 
+                    <button
                         className="sidebar-toggle"
                         onClick={() => setSidebarOpen(!sidebarOpen)}
                         title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -111,7 +110,7 @@ const DashboardLayout = () => {
                         <i className={`fas fa-chevron-${sidebarOpen ? 'left' : 'right'}`}></i>
                     </button>
                 </div>
-                
+
                 <nav className="sidebar-menu">
                     {menuItems.map((item) => {
                         const badgeCount = item.badgeKey ? adminBadges[item.badgeKey] || 0 : 0;
@@ -121,67 +120,67 @@ const DashboardLayout = () => {
                             item.path === '/admin/lms' && lmsBadgeStale
                                 ? `${item.label} (badge counts may be stale — refresh failed)`
                                 : item.path === '/admin/lms' && badgeCount > 0 && lmsBreakdown
-                                ? `${item.label} (${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll)`
-                                : !sidebarOpen && badgeCount > 0
-                                  ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
-                                  : undefined;
+                                  ? `${item.label} (${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll)`
+                                  : !sidebarOpen && badgeCount > 0
+                                    ? `${item.label}${item.badgeDot ? ' (pending)' : ` (${badgeCount})`}`
+                                    : undefined;
                         const isActive =
                             item.path === '/admin'
                                 ? location.pathname === '/admin'
                                 : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                         return (
-                        <Link
-                            key={item.path}
-                            to={item.path}
-                            className={`menu-item ${isActive ? 'active' : ''}`}
-                            title={lmsBadgeTitle}
-                        >
-                            <i className={item.icon}></i>
-                            {sidebarOpen ? (
-                                <span className="menu-item__label">
-                                    {item.label}
-                                    {badgeCount > 0 ? (
-                                        item.badgeDot ? (
-                                            <span
-                                                className="menu-item__badge menu-item__badge--dot"
-                                                aria-label={
-                                                    item.path === '/admin/lms' && lmsBreakdown
-                                                        ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
-                                                        : 'Pending items'
-                                                }
-                                            />
-                                        ) : (
-                                            <span className="menu-item__badge" aria-label={`${badgeCount} pending`}>
-                                                {badgeCount > 99 ? '99+' : badgeCount}
-                                            </span>
-                                        )
-                                    ) : null}
-                                </span>
-                            ) : null}
-                            {!sidebarOpen && badgeCount > 0 ? (
-                                item.badgeDot ? (
-                                    <span
-                                        className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
-                                        aria-label={
-                                            item.path === '/admin/lms' && lmsBreakdown
-                                                ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
-                                                : 'Pending items'
-                                        }
-                                    />
-                                ) : (
-                                    <span
-                                        className="menu-item__badge menu-item__badge--collapsed"
-                                        aria-label={`${badgeCount} pending`}
-                                    >
-                                        {badgeCount > 9 ? '9+' : badgeCount}
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                className={`menu-item ${isActive ? 'active' : ''}`}
+                                title={lmsBadgeTitle}
+                            >
+                                <i className={item.icon}></i>
+                                {sidebarOpen ? (
+                                    <span className="menu-item__label">
+                                        {item.label}
+                                        {badgeCount > 0 ? (
+                                            item.badgeDot ? (
+                                                <span
+                                                    className="menu-item__badge menu-item__badge--dot"
+                                                    aria-label={
+                                                        item.path === '/admin/lms' && lmsBreakdown
+                                                            ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
+                                                            : 'Pending items'
+                                                    }
+                                                />
+                                            ) : (
+                                                <span className="menu-item__badge" aria-label={`${badgeCount} pending`}>
+                                                    {badgeCount > 99 ? '99+' : badgeCount}
+                                                </span>
+                                            )
+                                        ) : null}
                                     </span>
-                                )
-                            ) : null}
-                        </Link>
-                    );
+                                ) : null}
+                                {!sidebarOpen && badgeCount > 0 ? (
+                                    item.badgeDot ? (
+                                        <span
+                                            className="menu-item__badge menu-item__badge--dot menu-item__badge--collapsed"
+                                            aria-label={
+                                                item.path === '/admin/lms' && lmsBreakdown
+                                                    ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
+                                                    : 'Pending items'
+                                            }
+                                        />
+                                    ) : (
+                                        <span
+                                            className="menu-item__badge menu-item__badge--collapsed"
+                                            aria-label={`${badgeCount} pending`}
+                                        >
+                                            {badgeCount > 9 ? '9+' : badgeCount}
+                                        </span>
+                                    )
+                                ) : null}
+                            </Link>
+                        );
                     })}
                 </nav>
-                
+
                 <div className="sidebar-footer">
                     <button className="logout-btn" onClick={handleLogout}>
                         <i className="fas fa-sign-out-alt"></i>
@@ -204,7 +203,6 @@ const DashboardLayout = () => {
                 </div>
             </aside>
 
-            {/* Main Content */}
             <main className="admin-main">
                 <div className="admin-content">
                     <AdminDialogProvider>
@@ -215,5 +213,11 @@ const DashboardLayout = () => {
         </div>
     );
 };
+
+const DashboardLayout = () => (
+    <AdminPortalBadgesProvider>
+        <DashboardLayoutInner />
+    </AdminPortalBadgesProvider>
+);
 
 export default DashboardLayout;

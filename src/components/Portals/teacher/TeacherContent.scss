@@ -106,6 +106,59 @@
     border-radius: 14px;
     padding: 1.15rem 1.25rem;
     box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+
+    &.is-collapsed {
+      padding-bottom: 1rem;
+    }
+  }
+
+  .teacher-assignments__panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+    flex: 1 1 auto;
+
+    &:hover .teacher-assignments__panel-chevron {
+      background: #e2e8f0;
+    }
+  }
+
+  .teacher-assignments__panel-toggle-text {
+    min-width: 0;
+
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .teacher-assignments__panel-chevron {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: #64748b;
+    background: #f1f5f9;
+    font-size: 0.75rem;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .teacher-assignments__panel.is-expanded .teacher-assignments__panel-chevron {
+    color: #2563eb;
+    background: #eff6ff;
   }
 
   .teacher-assignments__panel-head {
@@ -122,6 +175,10 @@
       font-weight: 700;
       color: #0f172a;
     }
+  }
+
+  .teacher-assignments__panel.is-collapsed .teacher-assignments__panel-head {
+    margin-bottom: 0;
   }
 
   .teacher-assignments__panel-lead {
@@ -238,10 +295,14 @@
 
   .teacher-assignments__list-wrap {
     overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
 
   .teacher-assignments__table {
     width: 100%;
+    min-width: 1100px;
     border-collapse: collapse;
     font-size: 0.88rem;
 
@@ -359,5 +420,55 @@
     font-weight: 500;
     color: #1d4ed8;
     line-height: 1.35;
+  }
+
+  .teacher-assignments__slot-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .teacher-assignments__slot-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .teacher-assignments__slot-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  .teacher-assignments__slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.45rem;
+  }
+
+  .teacher-assignments__slot-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 0.88rem;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  .teacher-assignments__slot-hint {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #64748b;
   }
 }

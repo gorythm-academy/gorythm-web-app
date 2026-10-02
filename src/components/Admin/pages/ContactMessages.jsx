@@ -591,30 +591,30 @@ const ContactMessages = () => {
         <div className="contact-stats-grid">
           <div className="contact-stat-card">
             <div className="stat-icon new"><i className="fas fa-exclamation-triangle"></i></div>
-            <div className="stat-text">
-              <span>New Messages</span>
-              <strong>{displayStats.newCount}</strong>
+            <div className="stat-info">
+              <h3>{displayStats.newCount}</h3>
+              <p>New Messages</p>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon in-progress"><i className="fas fa-clock"></i></div>
-            <div className="stat-text">
-              <span>In Progress</span>
-              <strong>{displayStats.inProgressCount}</strong>
+            <div className="stat-info">
+              <h3>{displayStats.inProgressCount}</h3>
+              <p>In Progress</p>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon resolved"><i className="fas fa-check-circle"></i></div>
-            <div className="stat-text">
-              <span>Resolved</span>
-              <strong>{displayStats.resolvedCount}</strong>
+            <div className="stat-info">
+              <h3>{displayStats.resolvedCount}</h3>
+              <p>Resolved</p>
             </div>
           </div>
           <div className="contact-stat-card">
             <div className="stat-icon total"><i className="fas fa-eye"></i></div>
-            <div className="stat-text">
-              <span>Total</span>
-              <strong>{displayStats.totalCount}</strong>
+            <div className="stat-info">
+              <h3>{displayStats.totalCount}</h3>
+              <p>Total</p>
             </div>
           </div>
         </div>

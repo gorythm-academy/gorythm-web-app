@@ -38,10 +38,48 @@ function proofAbsolutePathFromPublic(publicPath) {
     return null;
 }
 
+function createProofUpload() {
+    let multer;
+    try {
+        multer = require('multer');
+    } catch {
+        return null;
+    }
+    const { resolveStoredFilename } = require('./safeFilename');
+    ensureProofDir();
+    return multer({
+        storage: multer.diskStorage({
+            destination: (_req, _file, cb) => {
+                ensureProofDir();
+                cb(null, PROOF_DIR);
+            },
+            filename: (_req, file, cb) => {
+                try {
+                    const name = resolveStoredFilename({
+                        destDir: PROOF_DIR,
+                        originalName: file.originalname,
+                        publicPathFor: proofPublicPath,
+                    });
+                    cb(null, name);
+                } catch (err) {
+                    cb(err);
+                }
+            },
+        }),
+        limits: { fileSize: 1024 * 1024 },
+        fileFilter: (_req, file, cb) => {
+            const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+            if (allowed.has(file.mimetype)) return cb(null, true);
+            cb(new Error('Use JPG, PNG, WebP, or PDF for payment proof.'));
+        },
+    });
+}
+
 module.exports = {
     PROOF_SUBDIR,
     PROOF_DIR,
     ensureProofDir,
     proofPublicPath,
     proofAbsolutePathFromPublic,
+    createProofUpload,
 };

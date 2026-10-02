@@ -13,7 +13,7 @@ import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import AdminTablePagination from '../shared/AdminTablePagination';
 import { PortalActivityBanner } from '../../Portals/shared/PortalUi';
 import {
-  collectSubmissionRevisionNotices,
+  collectSubmissionActivityNotices,
   dismissActivityNotices,
   filterDismissedActivityNotices,
   getSubmissionRevisionLabel,
@@ -412,7 +412,7 @@ const AdminAssignmentSubmissions = () => {
       : 'No quiz attempts for this course.';
 
   const submissionRevisionNotices = useMemo(
-    () => collectSubmissionRevisionNotices(submissions, ADMIN_SEEN_TAB_SUBMISSIONS),
+    () => collectSubmissionActivityNotices(submissions, ADMIN_SEEN_TAB_SUBMISSIONS),
     [submissions]
   );
 

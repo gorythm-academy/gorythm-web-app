@@ -46,22 +46,39 @@ function mapAssignmentForPortal(assignment, { viewerRole = 'student', submission
 }
 
 /** Same enrollment rows as Fees tab (active enrollments + payment status). */
-async function loadStudentDisplayEnrollments(studentId, email) {
-    const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
-        .populate('course', 'title category price deletedAt')
-        .populate({
+async function loadStudentDisplayEnrollments(studentId, email, options = {}) {
+    const includeSchedule = options.includeSchedule !== false;
+    let query = Enrollment.find(withActiveEnrollments(studentId)).populate('course', 'title category price deletedAt totalFeeCount feeDueDate');
+    if (includeSchedule) {
+        query = query.populate({
             path: 'assignedSchedule',
             populate: { path: 'teacher', select: 'name deletedAt' },
-        })
-        .sort({ updatedAt: -1 })
-        .lean();
-    return dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(enrollmentsRaw, studentId, email)).filter(
+        });
+    }
+    const enrollmentsRaw = await query.sort({ updatedAt: -1 }).lean();
+    const rows = dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(enrollmentsRaw, studentId, email)).filter(
         (e) => e.course
     );
+    const { ensureEnrollmentDueDate, feeProgressLabel } = require('../../services/feeDuePolicy');
+    for (const row of rows) {
+        await ensureEnrollmentDueDate(row);
+        row.feeProgress = feeProgressLabel(row);
+        row.allFeesPaid = require('../../utils/feeDueDate').enrollmentAllFeesPaid(row);
+    }
+    return rows;
+}
+
+function enrollmentHasNoFee(enrollment) {
+    const amount = enrollment?.course?.price ?? enrollment?.feeAmount ?? enrollment?.amount;
+    if (amount == null || amount === '') return false;
+    const n = Number(amount);
+    return Number.isFinite(n) && n <= 0;
 }
 
 function isPaidEnrollment(enrollment) {
-    return enrollment.paymentStatus === 'paid';
+    if (enrollment.paymentStatus === 'paid') return true;
+    if (['cancelled', 'refunded', 'failed'].includes(String(enrollment.paymentStatus || ''))) return false;
+    return enrollmentHasNoFee(enrollment);
 }
 
 function normalizeStudentScheduleSlot(scheduleDoc) {
@@ -76,16 +93,18 @@ function normalizeStudentScheduleSlot(scheduleDoc) {
     };
 }
 
-/** Weekly timetable rows: paid enrollments only (matches fee-paid courses in Fees tab). */
+/** Weekly timetable: paid (and $0) courses show times; unpaid courses stay listed as locked rows. */
 function buildStudentWeeklyTimetable(enrollments) {
     return enrollments
-        .filter(isPaidEnrollment)
+        .filter((e) => e.course && e.paymentStatus !== 'cancelled')
         .map((e) => {
-            const schedule = normalizeStudentScheduleSlot(e.assignedSchedule);
+            const paid = isPaidEnrollment(e);
+            const schedule = paid ? normalizeStudentScheduleSlot(e.assignedSchedule) : null;
             return {
                 enrollmentId: e._id,
                 course: e.course,
                 paymentStatus: e.paymentStatus,
+                feeLocked: !paid,
                 schedule,
                 hasTimeslot: Boolean(schedule),
                 sortDay: schedule?.dayOfWeek ?? 99,
@@ -93,6 +112,7 @@ function buildStudentWeeklyTimetable(enrollments) {
             };
         })
         .sort((a, b) => {
+            if (Boolean(a.feeLocked) !== Boolean(b.feeLocked)) return a.feeLocked ? 1 : -1;
             if (a.hasTimeslot !== b.hasTimeslot) return a.hasTimeslot ? -1 : 1;
             if (a.hasTimeslot && b.hasTimeslot) {
                 return a.sortDay - b.sortDay || String(a.sortTime).localeCompare(String(b.sortTime));
@@ -107,7 +127,7 @@ async function getStudentCourseIds(studentId) {
     const enrollments = await Enrollment.find({
         ...withActiveEnrollments(studentId),
         course: { $ne: null },
-        status: 'active',
+        status: { $in: ['active', 'paused'] },
     }).select('course');
     const seen = new Set();
     const courseIds = [];
@@ -211,6 +231,23 @@ async function findQuizForTeacher(teacherId, quizId) {
         ...teacherQuizScopeFilter(teacherId, courseIds),
         ...activeLmsFilter(),
     });
+}
+
+function normalizeQuizFiles(body = {}) {
+    const fromList = Array.isArray(body.attachments)
+        ? body.attachments.map((url) => String(url || '').trim()).filter(Boolean)
+        : [];
+    const single = typeof body.resourceFileUrl === 'string' ? body.resourceFileUrl.trim() : '';
+    const attachments = fromList.length ? fromList : single ? [single] : [];
+    return {
+        attachments,
+        resourceFileUrl: attachments[0] || '',
+        resourceLink: typeof body.resourceLink === 'string' ? body.resourceLink.trim() : '',
+    };
+}
+
+function isAdminLockedQuiz(quiz) {
+    return !!(quiz?.lockedForTeacher || quiz?.createdByRole === 'admin');
 }
 
 /** Each question must have exactly 3 options (A/B/C). */
@@ -484,6 +521,8 @@ module.exports = {
     teacherQuizScopeFilter,
     assertTeacherOwnsAssignment,
     findQuizForTeacher,
+    normalizeQuizFiles,
+    isAdminLockedQuiz,
     normalizeQuizQuestions,
     dedupeAttendanceRecords,
     attendancePresentRate,

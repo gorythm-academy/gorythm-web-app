@@ -224,6 +224,79 @@
                 font-size: 0.78rem;
             }
 
+            .parent-link-add {
+                display: grid;
+                gap: 0.55rem;
+                margin-top: 0.75rem;
+
+                .btn-primary,
+                .lms-link-btn {
+                    justify-self: start;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.45rem;
+                    border: none;
+                    border-radius: 10px;
+                    padding: 0.62rem 1.1rem;
+                    font-weight: 700;
+                    color: #fff;
+                    cursor: pointer;
+                    background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark, var(--color-accent)));
+                    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+                    &:hover:not(:disabled) {
+                        transform: translateY(-1px);
+                        box-shadow: 0 8px 20px rgba(var(--color-accent-rgb), 0.3);
+                    }
+
+                    &:disabled {
+                        opacity: 0.55;
+                        cursor: not-allowed;
+                        transform: none;
+                        box-shadow: none;
+                    }
+                }
+            }
+
+            .parent-children-list {
+                li {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 0.5rem;
+
+                    select {
+                        min-width: 8.5rem;
+                        padding: 0.35rem 0.5rem;
+                        border: 1px solid #cbd5e1;
+                        border-radius: 8px;
+                        background: #fff;
+                    }
+
+                    .parent-remove-btn {
+                        border: none;
+                        border-radius: 10px;
+                        padding: 0.45rem 0.9rem;
+                        font-weight: 700;
+                        color: #fff;
+                        cursor: pointer;
+                        background: linear-gradient(135deg, #64748b, #475569);
+
+                        &:hover:not(:disabled) {
+                            transform: translateY(-1px);
+                            box-shadow: 0 8px 20px rgba(71, 85, 105, 0.28);
+                        }
+
+                        &:disabled {
+                            opacity: 0.55;
+                            cursor: not-allowed;
+                            transform: none;
+                            box-shadow: none;
+                        }
+                    }
+                }
+            }
+
             .teacher-slots-readonly {
                 margin: 0.5rem 0 0;
                 padding-left: 1.1rem;
@@ -1108,57 +1181,34 @@
     }
     
     .stats-summary {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        
         .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            
             .stat-icon {
-                width: 50px;
-                height: 50px;
-                border-radius: 12px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 1.5rem;
-                
+                &.total {
+                    background: linear-gradient(135deg, var(--color-accent), #1d4ed8);
+                }
+
+                &.admin {
+                    background: linear-gradient(135deg, #6366f1, #4f46e5);
+                }
+
+                &.teachers {
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                }
+
                 &.students {
-                    background: var(--color-accent);
+                    background: linear-gradient(135deg, var(--color-accent), #1d4ed8);
                 }
-                
+
                 &.instructors {
-                    background: #f59e0b;
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
                 }
-                
+
                 &.active {
-                    background: #10b981;
+                    background: linear-gradient(135deg, #10b981, #047857);
                 }
-                
+
                 &.courses {
-                    background: #8b5cf6;
-                }
-            }
-            
-            .stat-details {
-                h3 {
-                    font-size: 1.8rem;
-                    color: #1e293b;
-                    margin: 0;
-                }
-                
-                p {
-                    color: #64748b;
-                    margin: 0.2rem 0 0;
-                    font-size: 0.9rem;
+                    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
                 }
             }
         }
@@ -1187,10 +1237,6 @@
             .search-box {
                 min-width: 100%;
             }
-        }
-        
-        .stats-summary {
-            grid-template-columns: repeat(2, 1fr);
         }
     }
     
@@ -1240,10 +1286,6 @@
                 justify-content: center;
             }
         }
-        
-        .stats-summary {
-            grid-template-columns: 1fr;
-        }
     }
 }
 
@@ -1269,5 +1311,11 @@
             outline: none;
             border-color: var(--color-accent);
         }
+    }
+
+    .users-embedded-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin: 0 0 1rem;
     }
 }

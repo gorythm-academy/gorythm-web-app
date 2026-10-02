@@ -398,7 +398,7 @@ const Analytics = () => {
         {
             title: 'Period Revenue',
             subtitle: 'This period',
-            value: `$${(stats?.periodRevenue || 0).toLocaleString()}`,
+            value: `$${Number(stats?.periodRevenue || 0).toFixed(2)}`,
             icon: 'fas fa-dollar-sign',
             color: '#f59e0b',
             change: cardTrends.revenue.value,

@@ -6,6 +6,12 @@ const assignmentSchema = new mongoose.Schema(
         description: { type: String, default: '' },
         course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
         teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        /** Class timeslot — only students on this schedule see the assignment. */
+        assignedSchedule: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ClassSchedule',
+            default: null,
+        },
         dueDate: { type: Date, required: true },
         attachments: [{ type: String }],
         status: { type: String, enum: ['draft', 'published'], default: 'published' },
@@ -29,5 +35,8 @@ const assignmentSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+assignmentSchema.index({ assignedSchedule: 1 });
+assignmentSchema.index({ course: 1, teacher: 1, assignedSchedule: 1 });
 
 module.exports = mongoose.model('Assignment', assignmentSchema);

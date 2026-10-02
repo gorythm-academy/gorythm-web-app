@@ -4,7 +4,7 @@ import { portalGet, portalPost } from '../shared/portalApi';
 import FileUploadField from '../shared/FileUploadField';
 import { usePortalDialog } from '../shared/PortalDialogContext';
 import {
-  PortalLoading,
+  PortalDataSection,
   PortalAlert,
   PortalPageHeader,
   PortalCourseToolbar,
@@ -18,6 +18,7 @@ import {
   filterPortalItemsByCourse,
   getItemsNewSinceLastVisit,
   markPortalPageVisited,
+  STUDENT_ASSIGNMENTS_UPDATES,
 } from '../../../utils/portalNewItems';
 import {
   collectAssignmentUpdateNotices,
@@ -97,11 +98,6 @@ const StudentAssignments = () => {
     load();
   }, []);
 
-  useEffect(() => {
-    markPortalPageVisited(SEEN_KEY);
-    setNewItems([]);
-  }, []);
-
   const filtered = useMemo(
     () => filterPortalItemsByCourse(assignments || [], courseFilter),
     [assignments, courseFilter]
@@ -114,7 +110,7 @@ const StudentAssignments = () => {
   const missingSlots = slotIssues?.coursesWithoutSlot || [];
 
   const assignmentUpdateNotices = useMemo(
-    () => collectAssignmentUpdateNotices(assignments || [], SEEN_KEY, { viewerRole: 'student' }),
+    () => collectAssignmentUpdateNotices(assignments || [], STUDENT_ASSIGNMENTS_UPDATES, { viewerRole: 'student' }),
     [assignments]
   );
 
@@ -144,6 +140,7 @@ const StudentAssignments = () => {
       SEEN_ACTIVITY_KEY,
       visibleAssignmentUpdateNotices.map((row) => `${row.id}-${row.message}`)
     );
+    markPortalPageVisited(STUDENT_ASSIGNMENTS_UPDATES);
     setActivityDismissTick((n) => n + 1);
   };
 
@@ -213,20 +210,7 @@ const StudentAssignments = () => {
     setNewItems([]);
   };
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (assignments === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = assignments === null;
 
   return (
     <div className="portal-page">
@@ -242,10 +226,10 @@ const StudentAssignments = () => {
         </div>
       </div>
 
+      <PortalDataSection loading={loading} error={error} loadingLabel="Loading assignments…">
       {missingSlots.length ? (
         <PortalAlert type="warning">
-          No class slot assigned for: {missingSlots.map((c) => c.title).join(', ')}. Contact admin to assign your
-          teacher schedule before assignments appear for those courses.
+          Assignments for {missingSlots.map((c) => c.title).join(', ')} will appear after the academy sets the class time.
         </PortalAlert>
       ) : null}
 
@@ -289,8 +273,8 @@ const StudentAssignments = () => {
           {filtered.length === 0 ? (
             <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
               {missingSlots.length && !assignments.length
-                ? 'No assignments yet — your class slot may not be assigned.'
-                : 'No assignments for this selection.'}
+                ? 'Assignments will appear here after the academy sets your class time.'
+                : 'There are no assignments to show right now.'}
             </p>
           ) : (
             <div className="portal-data-table-wrap">
@@ -447,12 +431,14 @@ const StudentAssignments = () => {
           </button>
         </form>
       ) : null}
+      </PortalDataSection>
 
       <LmsMaterialPreviewModal
         open={Boolean(previewAssignment)}
         kind="assignment"
         item={previewAssignment}
         onClose={() => setPreviewAssignment(null)}
+        tone="student"
       />
     </div>
   );

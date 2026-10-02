@@ -29,28 +29,43 @@ const { serializePayments } = require('../../utils/serializePayment');
 
 router.get('/accountant/dashboard', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const payments = await Payment.find(activePaymentFilter()).sort({ createdAt: -1 }).limit(500);
-        const payrollRuns = await PayrollRun.find().select('status');
-        const payrollMissingAlerts = await TeacherAttendanceRequest.find({
-            status: 'approved',
-            payrollMissingReason: { $nin: [null, ''] },
-        })
-            .populate('teacher', 'name email')
-            .sort({ monthKey: -1 })
-            .limit(20);
+        const [paymentStatusRows, payrollStatusRows, payrollMissingAlerts] = await Promise.all([
+            Payment.aggregate([
+                { $match: activePaymentFilter() },
+                { $group: { _id: '$status', count: { $sum: 1 } } },
+            ]),
+            PayrollRun.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+            TeacherAttendanceRequest.find({
+                status: 'approved',
+                payrollMissingReason: { $nin: [null, ''] },
+            })
+                .populate('teacher', 'name email')
+                .sort({ monthKey: -1 })
+                .limit(20),
+        ]);
+
+        const paymentByStatus = Object.fromEntries(
+            paymentStatusRows.map((row) => [row._id, row.count])
+        );
+        const payrollByStatus = Object.fromEntries(
+            payrollStatusRows.map((row) => [row._id, row.count])
+        );
+        const paymentTotal = paymentStatusRows.reduce((sum, row) => sum + row.count, 0);
+
         res.json({
             success: true,
             summary: {
-                payments: payments.length,
-                paid: payments.filter((p) => p.status === 'paid' || p.status === 'completed').length,
-                pending: payments.filter((p) =>
-                    ['pending', 'awaiting_review', 'processing'].includes(p.status)
-                ).length,
-                refunded: payments.filter((p) => p.status === 'refunded').length,
-                failed: payments.filter((p) => p.status === 'failed').length,
-                payrollPendingReview: payrollRuns.filter((r) => r.status === 'pending_review').length,
-                payrollStale: payrollRuns.filter((r) => r.status === 'stale').length,
-                payrollPaid: payrollRuns.filter((r) => r.status === 'paid').length,
+                payments: paymentTotal,
+                paid: (paymentByStatus.paid || 0) + (paymentByStatus.completed || 0),
+                pending: ['pending', 'awaiting_review', 'processing'].reduce(
+                    (sum, status) => sum + (paymentByStatus[status] || 0),
+                    0
+                ),
+                refunded: paymentByStatus.refunded || 0,
+                failed: paymentByStatus.failed || 0,
+                payrollPendingReview: payrollByStatus.pending_review || 0,
+                payrollStale: payrollByStatus.stale || 0,
+                payrollPaid: payrollByStatus.paid || 0,
                 payrollMissing: payrollMissingAlerts.length,
             },
             payrollMissingAlerts: payrollMissingAlerts.map((a) => ({
@@ -92,8 +107,6 @@ router.patch('/accountant/payments/:id/approve', allowPortalRoles('accountant'),
     try {
         const { isPaidStatus } = require('../../services/onPaymentPaid');
         const verifiedBy = req.portalActorId || req.user?.userId;
-        const { fulfillPaymentEnrollment } = require('../../services/onPaymentPaid');
-        const { resolveAndLinkCourseOnPayment } = require('../../services/resolveCourseFromPayment');
 
         const claimed = await Payment.findOneAndUpdate(
             {
@@ -134,20 +147,30 @@ router.patch('/accountant/payments/:id/approve', allowPortalRoles('accountant'),
         }
 
         try {
-            await resolveAndLinkCourseOnPayment(claimed);
-            await claimed.populate(['user', 'course']);
-            await fulfillPaymentEnrollment(claimed, { verifiedBy });
-
-            claimed.status = 'paid';
-            claimed.rejectionReason = '';
-            await claimed.save();
-
-            res.json({ success: true, message: 'Payment approved', payment: claimed });
-        } catch (error) {
-            await Payment.findByIdAndUpdate(claimed._id, {
-                $set: { status: 'awaiting_review' },
-                $unset: { verifiedBy: 1, verifiedAt: 1 },
+            const { paymentsInGroup, markPaymentPaidAndFulfill } = require('../../services/billingAdmin');
+            const group = await paymentsInGroup(claimed);
+            const updated = [];
+            for (const row of group) {
+                if (isPaidStatus(row.status)) continue;
+                updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy, methodNote: 'bank' }));
+            }
+            res.json({
+                success: true,
+                message: updated.length > 1
+                    ? 'Payment approved for the full combined bank transfer'
+                    : 'Payment approved',
+                payment: updated[0] || claimed,
             });
+        } catch (error) {
+            const { paymentsInGroup } = require('../../services/billingAdmin');
+            const group = await paymentsInGroup(claimed);
+            await Payment.updateMany(
+                { _id: { $in: group.map((row) => row._id) } },
+                {
+                    $set: { status: 'awaiting_review' },
+                    $unset: { verifiedBy: 1, verifiedAt: 1 },
+                }
+            );
             throw error;
         }
     } catch (error) {
@@ -181,11 +204,21 @@ router.patch('/accountant/payments/:id/reject', allowPortalRoles('accountant'), 
             return res.status(400).json({ success: false, error: 'This payment cannot be rejected' });
         }
 
-        payment.status = 'rejected';
-        payment.rejectionReason = reason;
-        await payment.save();
+        const { paymentsInGroup } = require('../../services/billingAdmin');
+        const group = await paymentsInGroup(payment);
+        for (const row of group) {
+            if (isPaidStatus(row.status)) {
+                return res.status(400).json({ success: false, error: 'Paid payments cannot be rejected' });
+            }
+            if (!['awaiting_review', 'pending', 'processing'].includes(row.status)) {
+                return res.status(400).json({ success: false, error: 'This payment cannot be rejected' });
+            }
+            row.status = 'rejected';
+            row.rejectionReason = reason;
+            await row.save();
+        }
 
-        res.json({ success: true, message: 'Payment rejected', payment });
+        res.json({ success: true, message: group.length > 1 ? 'Bank transfer rejected for the full checkout' : 'Payment rejected', payment: group[0] });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message || 'Failed to reject payment' });
     }

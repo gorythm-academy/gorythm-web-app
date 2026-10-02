@@ -19,9 +19,27 @@ import {
 import './StudentsData.scss';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import { useAdminDialog } from '../AdminDialogContext';
+import { formatFeeSummaryMessage } from '../../../utils/billingLabels';
 
-const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
-    const { showAlert } = useAdminDialog();
+function studentAccountId(enrollment) {
+    const student = enrollment?.student;
+    if (!student) return '';
+    if (typeof student === 'string') return student;
+    return String(student._id || student.id || '');
+}
+
+const toDateInputValue = (value) => {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'course' }) => {
+    const { showAlert, showConfirm } = useAdminDialog();
     const [loading, setLoading] = useState(false);
     const [formError, setFormError] = useState('');
     const [availableCourses, setAvailableCourses] = useState([]);
@@ -42,9 +60,8 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
         assignedScheduleId: enrollment?.assignedSchedule?._id || enrollment?.assignedSchedule || '',
         status: normalizeEnrollmentStatus(enrollment?.status),
         paymentStatus: enrollment?.paymentStatus || 'pending',
-        enrollmentDate: enrollment?.enrollmentDate
-            ? new Date(enrollment.enrollmentDate).toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0],
+        enrollmentDate: toDateInputValue(enrollment?.enrollmentDate) || toDateInputValue(new Date()),
+        feeDueDate: toDateInputValue(enrollment?.feeDueDate),
     }));
 
     useEffect(() => {
@@ -71,9 +88,8 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
             assignedScheduleId: enrollment?.assignedSchedule?._id || enrollment?.assignedSchedule || '',
             status: normalizeEnrollmentStatus(enrollment?.status),
             paymentStatus: enrollment?.paymentStatus || 'pending',
-            enrollmentDate: enrollment?.enrollmentDate
-                ? new Date(enrollment.enrollmentDate).toISOString().split('T')[0]
-                : new Date().toISOString().split('T')[0],
+            enrollmentDate: toDateInputValue(enrollment?.enrollmentDate) || toDateInputValue(new Date()),
+            feeDueDate: toDateInputValue(enrollment?.feeDueDate),
         });
         setFormError('');
     }, [isOpen, enrollment]);
@@ -140,88 +156,66 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
             setLoading(true);
             setFormError('');
             const token = getAuthToken();
+            const isAccountMode = mode === 'account';
 
-            const studentIdErr = validateStudentId(formData.studentId);
-            if (studentIdErr) {
-                setFormError(studentIdErr);
-                return;
-            }
-
-            const personalTrim = (formData.personalEmail || '').trim();
-            const personalErr = validatePersonalEmail(personalTrim);
-            if (personalErr) {
-                setFormError(personalErr);
-                return;
-            }
-
-            const phoneTrim = (formData.phone || '').trim();
-            const portalLocal = sanitizePortalEmailLocal(formData.portalEmailLocal);
-            const portalEmail = portalLocal ? `${portalLocal}${GORYTHM_EMAIL_DOMAIN}`.toLowerCase() : '';
-            if (portalLocal && !GORYTHM_EMAIL_REGEX.test(portalEmail)) {
-                setFormError('Portal email must be a valid @gorythmacademy.com address.');
-                return;
-            }
-
-            if (!portalLocal && (formData.password || formData.status === 'active')) {
-                setFormError('Assign a portal email before activating the student or setting a password.');
-                return;
-            }
-
-            const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
-            if (passwordErr) {
-                setFormError(passwordErr);
-                return;
-            }
-
-            if (!schedulesLoading && courseSchedules.length > 0 && !formData.assignedScheduleId) {
-                setFormError('Please select a class timeslot for this course.');
-                return;
-            }
-
-            const studentIdTrim = (formData.studentId || '').trim();
-
-            if (enrollment.student?._id) {
-                const currentStudentId = String(enrollment.student?.studentId || '').trim();
+            if (isAccountMode) {
+                const studentIdErr = validateStudentId(formData.studentId);
+                if (studentIdErr) {
+                    setFormError(studentIdErr);
+                    return;
+                }
+                const personalTrim = (formData.personalEmail || '').trim();
+                const personalErr = validatePersonalEmail(personalTrim);
+                if (personalErr) {
+                    setFormError(personalErr);
+                    return;
+                }
+                const phoneTrim = (formData.phone || '').trim();
+                const portalLocal = sanitizePortalEmailLocal(formData.portalEmailLocal);
+                const portalEmail = portalLocal ? `${portalLocal}${GORYTHM_EMAIL_DOMAIN}`.toLowerCase() : '';
+                if (portalLocal && !GORYTHM_EMAIL_REGEX.test(portalEmail)) {
+                    setFormError('Portal email must be a valid @gorythmacademy.com address.');
+                    return;
+                }
+                if (!portalLocal && formData.password) {
+                    setFormError('Assign a portal email before setting a password.');
+                    return;
+                }
+                const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
+                if (passwordErr) {
+                    setFormError(passwordErr);
+                    return;
+                }
+                const studentIdTrim = (formData.studentId || '').trim();
+                const studentId = studentAccountId(enrollment);
+                if (!studentId) {
+                    setFormError('Student account was not found.');
+                    return;
+                }
                 const trimmedName = (formData.studentName || '').trim();
-                const currentName = (enrollment.student?.name || '').trim();
-                const currentEmail = (enrollment.student?.email || '').trim().toLowerCase();
-                const currentPersonal = String(enrollment.student?.personalEmail || '').trim();
-                const currentPhone = String(enrollment.student?.phone || '').trim();
-
-                const shouldUpdateStudentId = !!studentIdTrim && studentIdTrim !== currentStudentId;
-                const shouldUpdateName = !!trimmedName && trimmedName !== currentName;
-                const shouldUpdatePortalEmail = portalLocal && portalEmail !== currentEmail;
-                const shouldUpdatePersonalEmail = currentPersonal !== personalTrim;
-                const shouldUpdatePhone = currentPhone !== phoneTrim;
-
                 if (!trimmedName) {
                     setFormError('Student name is required.');
                     return;
                 }
-
-                if (
-                    shouldUpdateName ||
-                    shouldUpdatePortalEmail ||
-                    shouldUpdatePersonalEmail ||
-                    shouldUpdateStudentId ||
-                    shouldUpdatePhone
-                ) {
-                    const userUpdatePayload = {
+                const existingEmail = String(enrollment.student?.email || '').trim().toLowerCase();
+                if (!(portalEmail || existingEmail)) {
+                    setFormError('Student account was not found.');
+                    return;
+                }
+                await axios.put(
+                    `${API_BASE_URL}/api/users/${studentId}`,
+                    {
                         name: trimmedName,
+                        email: portalEmail || existingEmail,
                         personalEmail: personalTrim,
                         phone: phoneTrim,
-                    };
-                    if (shouldUpdatePortalEmail) userUpdatePayload.email = portalEmail;
-                    if (shouldUpdateStudentId) userUpdatePayload.studentId = studentIdTrim;
-
-                    await axios.put(`${API_BASE_URL}/api/users/${enrollment.student._id}`, userUpdatePayload, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                }
-
+                        ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
+                    },
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
                 if (formData.password) {
                     await axios.patch(
-                        `${API_BASE_URL}/api/users/${enrollment.student._id}/password`,
+                        `${API_BASE_URL}/api/users/${studentId}/password`,
                         {
                             password: formData.password,
                             mustChangePassword: formData.mustChangePassword,
@@ -229,28 +223,88 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
                 }
+                showAlert('Student account updated successfully.', 'success');
+                onSaved?.(enrollment);
+                onClose();
+                return;
             }
 
+            if (!schedulesLoading && courseSchedules.length > 0 && !formData.assignedScheduleId) {
+                setFormError('Please select a class timeslot for this course.');
+                return;
+            }
+            const payload = {
+                enrollmentDate: formData.enrollmentDate,
+                assignedScheduleId: formData.assignedScheduleId || null,
+                status: formData.status,
+                paymentStatus: formData.paymentStatus,
+            };
+            if (!['cancelled', 'refunded'].includes(formData.paymentStatus)) {
+                payload.feeDueDate = formData.feeDueDate || null;
+                const previousDue = toDateInputValue(enrollment?.feeDueDate);
+                const nextDue = formData.feeDueDate || '';
+                if (nextDue && nextDue !== previousDue) {
+                    const ok = await showConfirm({
+                        title: 'Change this student due date?',
+                        message:
+                            'This due date will be saved on this enrollment and will show on Admin → Students, the student Fees page, and the parent Fees page for this course. It does not change the academy default or other students.',
+                        confirmLabel: 'Save due date',
+                    });
+                    if (!ok) {
+                        setLoading(false);
+                        return;
+                    }
+                }
+            }
+            if (formData.status === 'completed' && normalizeEnrollmentStatus(enrollment?.status) !== 'completed') {
+                try {
+                    const preview = await axios.get(
+                        `${API_BASE_URL}/api/enrollments/${enrollment._id}/fee-summary`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    const summary = preview.data?.feeSummary;
+                    if (summary?.needsCompleteConfirm) {
+                        const ok = await showConfirm({
+                            title: 'Complete with unpaid fees?',
+                            message: formatFeeSummaryMessage(summary),
+                            confirmLabel: 'Complete anyway',
+                        });
+                        if (!ok) {
+                            setLoading(false);
+                            return;
+                        }
+                        payload.confirmComplete = true;
+                    }
+                } catch {
+                    payload.confirmComplete = true;
+                }
+            }
+            if (normalizeEnrollmentStatus(enrollment?.status) === 'completed' && formData.status !== 'completed') {
+                const ok = await showConfirm({
+                    title: 'Start billing again?',
+                    message: 'Un-completing this course will start fee due dates again if fees are still unpaid.',
+                    confirmLabel: 'Continue',
+                });
+                if (!ok) {
+                    setLoading(false);
+                    return;
+                }
+            }
             const response = await axios.put(
                 `${API_BASE_URL}/api/enrollments/${enrollment._id}`,
-                {
-                    enrollmentDate: formData.enrollmentDate,
-                    // Course is locked — never send a course change from Edit
-                    assignedScheduleId: formData.assignedScheduleId || null,
-                    status: formData.status,
-                    paymentStatus: formData.paymentStatus,
-                },
+                payload,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-
             if (response.data.success) {
-                showAlert('Enrollment updated successfully.', 'success');
+                showAlert('Course settings updated successfully.', 'success');
                 onSaved?.(response.data.enrollment);
                 onClose();
             }
         } catch (error) {
             const data = error.response?.data;
-            setFormError(data?.error || data?.message || error.message || 'Failed to update');
+            const msg = data?.error || data?.message || error.message || 'Failed to update';
+            setFormError(msg);
+            showAlert(msg, 'error');
         } finally {
             setLoading(false);
         }
@@ -263,7 +317,10 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
             <div className="modal-container fullscreen-modal">
                 <div className="modal-header edit-enrollment-modal-header">
                     <div className="edit-enrollment-modal-header__main">
-                        <h2><i className="fas fa-edit"></i> Edit This Enrollment</h2>
+                        <h2>
+                            <i className="fas fa-edit"></i>{' '}
+                            {mode === 'account' ? 'Student account settings' : 'Edit course settings'}
+                        </h2>
                         <div className="header-subtitle">
                             <span className={`status-badge ${formData.status}`}>{formData.status}</span>
                         </div>
@@ -287,6 +344,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
 
                 <div className="modal-body">
                     <div className="edit-form-grid">
+                        {mode === 'account' ? (
                         <div className="form-section">
                             <h3><i className="fas fa-user"></i> Student Information</h3>
                             <p className="form-hint-muted form-section-note">
@@ -415,7 +473,8 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                                 />
                             </div>
                         </div>
-
+                        ) : (
+                        <>
                         <div className="form-section">
                             <h3><i className="fas fa-book"></i> Course Information</h3>
                             <div className="form-group">
@@ -489,6 +548,21 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                                     />
                                 </div>
                                 <div className="form-group half">
+                                    <label>Fee due date</label>
+                                    <input
+                                        type="date"
+                                        value={formData.feeDueDate}
+                                        onChange={(e) => setFormData({ ...formData, feeDueDate: e.target.value })}
+                                        className="form-input"
+                                        disabled={['cancelled', 'refunded'].includes(formData.paymentStatus)}
+                                    />
+                                    <small className="form-hint">
+                                        Unpaid through this date. Overdue from the next day (Pakistan time). After a fee is paid, the next due date is the same day next month.
+                                    </small>
+                                </div>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group half">
                                     <label>Status</label>
                                     <select
                                         value={formData.status}
@@ -496,25 +570,29 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                                         className="form-select"
                                     >
                                         <option value="active">Active</option>
+                                        <option value="paused">Paused</option>
                                         <option value="inactive">Inactive</option>
                                         <option value="completed">Completed</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Fee Status</label>
-                                <select
-                                    value={formData.paymentStatus}
-                                    onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
-                                    className="form-select"
-                                >
-                                    <option value="pending">Pending</option>
-                                    <option value="paid">Paid</option>
-                                    <option value="failed">Failed</option>
-                                    <option value="refunded">Refunded</option>
-                                </select>
+                                <div className="form-group half">
+                                    <label>Fee Status</label>
+                                    <select
+                                        value={formData.paymentStatus}
+                                        onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+                                        className="form-select"
+                                    >
+                                        <option value="pending">Unpaid</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="failed">Failed</option>
+                                        <option value="refunded">Refunded</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
 
@@ -528,6 +606,41 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                     <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
                         Cancel
                     </button>
+                    {mode === 'course' ? (
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={loading}
+                            onClick={async () => {
+                                try {
+                                    setLoading(true);
+                                    const token = getAuthToken();
+                                    const res = await axios.post(
+                                        `${API_BASE_URL}/api/enrollments/${enrollment._id}/skip-fee-month`,
+                                        {},
+                                        { headers: { Authorization: `Bearer ${token}` } }
+                                    );
+                                    if (res.data.success) {
+                                        showAlert('This month was skipped. Next due date is next month.', 'success');
+                                        onSaved?.(res.data.enrollment);
+                                        if (res.data.enrollment?.feeDueDate) {
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                feeDueDate: toDateInputValue(res.data.enrollment.feeDueDate),
+                                            }));
+                                        }
+                                    }
+                                } catch (error) {
+                                    const msg = error.response?.data?.error || error.response?.data?.message || error.message;
+                                    showAlert(msg, 'error');
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                        >
+                            Skip this month
+                        </button>
+                    ) : null}
                     <button type="button" className="btn-primary btn-save" onClick={handleSave} disabled={loading}>
                         {loading ? (
                             <>
@@ -535,7 +648,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved }) => {
                             </>
                         ) : (
                             <>
-                                <i className="fas fa-save"></i> Save All Changes
+                                <i className="fas fa-save"></i> {mode === 'account' ? 'Save account' : 'Save course'}
                             </>
                         )}
                     </button>

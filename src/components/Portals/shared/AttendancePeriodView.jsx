@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { portalGet } from './portalApi';
-import { PortalLoading } from './PortalUi';
+import { PortalDataSection, PortalLoading } from './PortalUi';
 import { statusChipClass } from '../../../constants/attendanceStatuses';
 import {
   currentAcademyWeekMonday,
@@ -156,7 +156,6 @@ const AttendanceSummaryTable = ({ summary, weekendDays }) => (
           {SUMMARY_STATUS_ROWS.map(({ key, label }) => (
             <th key={key}>{label}</th>
           ))}
-          <th>Total Marked</th>
           {weekendDays != null ? <th>Weekend Days</th> : null}
         </tr>
       </thead>
@@ -167,9 +166,6 @@ const AttendanceSummaryTable = ({ summary, weekendDays }) => (
               <strong>{summary[key] ?? 0}</strong>
             </td>
           ))}
-          <td>
-            <strong>{summary.total ?? 0}</strong>
-          </td>
           {weekendDays != null ? <td>{weekendDays}</td> : null}
         </tr>
       </tbody>
@@ -230,7 +226,7 @@ const AttendanceAcademyCalendar = ({ calendarRows, period, startDate, endDate })
 const AttendancePeriodView = ({
   coursesUrl,
   viewUrl,
-  emptyCoursesHint = 'No active course enrollments.',
+  emptyCoursesHint = 'There are no courses to show attendance for yet.',
   allowedPeriods = ['daily', 'weekly', 'monthly'],
   summaryOnly = false,
 }) => {
@@ -317,17 +313,17 @@ const AttendancePeriodView = ({
   const selectedCourse = courses.find((c) => String(c._id) === String(courseId));
   const summary = data?.summary || {};
 
-  if (loadingCourses) {
-    return <PortalLoading label="Loading courses…" />;
-  }
-
   return (
     <div className="attendance-period-view">
       <div className="attendance-period-view__filters">
         <label className="attendance-period-view__field">
           <span>Course</span>
-          <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
-            <option value="">Select course</option>
+          <select
+            value={courseId}
+            onChange={(e) => setCourseId(e.target.value)}
+            disabled={loadingCourses}
+          >
+            <option value="">{loadingCourses ? 'Loading courses…' : 'Select course'}</option>
             {courses.map((c) => (
               <option key={c._id} value={c._id}>
                 {c.title}
@@ -336,7 +332,7 @@ const AttendancePeriodView = ({
           </select>
         </label>
 
-        {courseId ? (
+        {courseId && !loadingCourses ? (
           <>
             {period === 'weekly' ? (
               <div className="attendance-period-view__field">
@@ -359,8 +355,10 @@ const AttendancePeriodView = ({
         ) : null}
       </div>
 
-      {!courses.length ? (
+      {!loadingCourses && !courses.length ? (
         <p className="attendance-period-view__empty">{emptyCoursesHint}</p>
+      ) : loadingCourses ? (
+        <PortalDataSection loading loadingLabel="Loading courses…" />
       ) : !courseId ? (
         <p className="attendance-period-view__empty">Select a course to view attendance records.</p>
       ) : loadingView ? (
@@ -370,7 +368,7 @@ const AttendancePeriodView = ({
           {selectedCourse ? (
             <p className="attendance-period-view__rate">
               <i className="fas fa-chart-line" aria-hidden="true" />
-              {selectedCourse.title} — attendance rate: {summary.presentRate ?? 0}%
+              {selectedCourse.title}
               {data?.startDate && data?.endDate ? (
                 <span style={{ fontWeight: 500, opacity: 0.85 }}>
                   {' '}
@@ -460,7 +458,7 @@ const AttendancePeriodView = ({
                 </tbody>
               </table>
               {!data?.records?.length ? (
-                <p className="attendance-period-view__empty">No attendance records in this period.</p>
+                <p className="attendance-period-view__empty">No attendance has been recorded for this period yet.</p>
               ) : null}
             </div>
           )}

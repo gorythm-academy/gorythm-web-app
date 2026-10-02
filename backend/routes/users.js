@@ -194,7 +194,36 @@ function mapUserListRow(user) {
     };
 }
 
-async function bulkUpsertParentChildLinks(parentId, studentIds, relation = 'guardian') {
+async function replaceParentChildLinks(parentId, linksInput) {
+    const next = (Array.isArray(linksInput) ? linksInput : [])
+        .map((item) => {
+            if (!item) return null;
+            if (typeof item === 'string') return { studentId: item, relation: 'guardian' };
+            const studentId = item.studentId || item.student?._id || item.student;
+            if (!studentId) return null;
+            const relation = ['father', 'mother', 'guardian', 'other'].includes(item.relation)
+                ? item.relation
+                : 'guardian';
+            return { studentId: String(studentId), relation };
+        })
+        .filter(Boolean);
+
+    const existing = await ParentStudentLink.find({ parent: parentId }).select('_id student').lean();
+    const keep = new Set(next.map((row) => String(row.studentId)));
+    const removeIds = existing
+        .filter((row) => !keep.has(String(row.student)))
+        .map((row) => row._id);
+    if (removeIds.length) {
+        await ParentStudentLink.deleteMany({ _id: { $in: removeIds } });
+    }
+    if (!next.length) return [];
+
+    const grouped = new Map();
+    next.forEach((row) => grouped.set(row.studentId, row.relation));
+    return bulkUpsertParentChildLinks(parentId, [...grouped.keys()], 'guardian', grouped);
+}
+
+async function bulkUpsertParentChildLinks(parentId, studentIds, relation = 'guardian', relationByStudent = null) {
     const parsed = parseObjectIdList(studentIds);
     if (!parsed.ok) {
         const err = new Error(parsed.error || 'Invalid student ids');
@@ -223,7 +252,7 @@ async function bulkUpsertParentChildLinks(parentId, studentIds, relation = 'guar
         parsed.ids.map((studentId) =>
             ParentStudentLink.findOneAndUpdate(
                 { parent: parentId, student: studentId },
-                { relation },
+                { relation: relationByStudent?.get(String(studentId)) || relation },
                 { upsert: true, setDefaultsOnInsert: true }
             )
         )
@@ -306,6 +335,21 @@ router.get('/', async (req, res) => {
                 }
             }
             andClauses.push({ $or: searchOr });
+        }
+
+        const unlinkedOnly = req.query.unlinkedOnly === 'true' || req.query.unlinkedOnly === '1';
+        if (unlinkedOnly && (segment === 'students' || filter.role === 'student')) {
+            const linkedStudentIds = await ParentStudentLink.distinct('student');
+            const keepIds = [];
+            const includeStudent = String(req.query.includeStudent || '').trim();
+            if (mongoose.Types.ObjectId.isValid(includeStudent)) {
+                keepIds.push(includeStudent);
+            }
+            andClauses.push(
+                keepIds.length
+                    ? { $or: [{ _id: { $nin: linkedStudentIds } }, { _id: { $in: keepIds } }] }
+                    : { _id: { $nin: linkedStudentIds } }
+            );
         }
 
         filter.$and = andClauses;
@@ -545,8 +589,15 @@ router.post(
         }
 
         let parentLinks = [];
-        if (nextRole === 'parent' && Array.isArray(req.body.studentIds) && req.body.studentIds.length) {
-            parentLinks = await bulkUpsertParentChildLinks(user._id, req.body.studentIds);
+        if (nextRole === 'parent') {
+            const linksInput = Array.isArray(req.body.studentLinks)
+                ? req.body.studentLinks
+                : Array.isArray(req.body.studentIds)
+                    ? req.body.studentIds
+                    : [];
+            if (linksInput.length) {
+                parentLinks = await replaceParentChildLinks(user._id, linksInput);
+            }
         }
 
         await logAudit({
@@ -703,6 +754,11 @@ router.put(
         user.updatedAt = Date.now();
         await user.save();
 
+        let parentLinks = [];
+        if (user.role === 'parent' && Array.isArray(req.body.studentLinks)) {
+            parentLinks = await replaceParentChildLinks(user._id, req.body.studentLinks);
+        }
+
         if (!wasStudent && user.role === 'student') {
             await ensureStudentPlaceholderEnrollment(user._id, user.status);
         }
@@ -739,7 +795,8 @@ router.put(
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null
-            }
+            },
+            ...(parentLinks.length || user.role === 'parent' ? { parentLinks } : {}),
         });
     } catch (error) {
         req.log.error('Error updating user', { err: error });

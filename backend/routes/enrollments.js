@@ -9,6 +9,8 @@ const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { enrichEnrollmentsWithPaymentStatus } = require('../services/enrollmentPaymentStatus');
+const { displayEnrollmentFeeStatus } = require('../utils/billingStatus');
+const { setEnrollmentFeeDueDate } = require('../services/billingAdmin');
 const { attachTeachersToEnrollments } = require('../services/courseTeachers');
 const { syncStudentUserLoginFromAllEnrollments } = require('../services/syncStudentAccountLogin');
 const {
@@ -66,7 +68,7 @@ async function loadParentsByStudentIds(studentIds) {
 }
 const coursePopulate = () => ({
     path: 'course',
-    select: 'title category instructorName instructor students deletedAt',
+    select: 'title category instructorName instructor students deletedAt price totalFeeCount feeDueDate',
     populate: { path: 'instructor', select: 'name' },
 });
 
@@ -83,7 +85,7 @@ const enrollmentPopulate = () => [
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const ALLOWED_FEE_STATUSES = ['paid', 'pending', 'failed', 'refunded'];
+const ALLOWED_FEE_STATUSES = ['paid', 'pending', 'failed', 'refunded', 'cancelled'];
 
 async function requireTimeslotIfCourseHasSlots(courseId, assignedScheduleId) {
     if (!courseId) return null;
@@ -133,7 +135,7 @@ router.get('/', async (req, res) => {
         if (statusFilter && statusFilter !== 'all') {
             if (statusFilter === 'inactive') {
                 listFilter.status = { $in: ['inactive', 'pending', null] };
-            } else if (['active', 'completed'].includes(statusFilter)) {
+            } else if (['active', 'completed', 'paused'].includes(statusFilter)) {
                 listFilter.status = statusFilter;
             }
         }
@@ -254,8 +256,8 @@ router.get('/students', async (req, res) => {
             });
             // Card list: lean rows — full detail stays on GET /student/:id
             enrollments = await Enrollment.find(enrFilter)
-                .select('student course status paymentStatus enrollmentDate deletedAt')
-                .populate('course', 'title _id deletedAt')
+                .select('student course status paymentStatus enrollmentDate feeDueDate totalFeeCount paidInstallmentCount deletedAt')
+                .populate('course', 'title _id deletedAt price totalFeeCount feeDueDate')
                 .sort({ enrollmentDate: -1 })
                 .lean();
         }
@@ -263,7 +265,11 @@ router.get('/students', async (req, res) => {
         const normalizedEnrollments = enrollments.map((row) => {
             const stored = row.paymentStatus;
             const paymentStatus = stored && ALLOWED_FEE_STATUSES.includes(stored) ? stored : 'pending';
-            return { ...row, paymentStatus };
+            return {
+                ...row,
+                paymentStatus,
+                displayFeeStatus: displayEnrollmentFeeStatus({ ...row, paymentStatus }),
+            };
         });
 
         const parentsByStudent = await loadParentsByStudentIds(studentIds);
@@ -494,6 +500,8 @@ router.post('/', async (req, res) => {
         }
 
         const feeStatus = ALLOWED_FEE_STATUSES.includes(paymentStatus) ? paymentStatus : 'pending';
+        const courseDoc = await Course.findById(courseId).select('price totalFeeCount feeDueDate');
+        const { assignEnrollmentDueDate, copyTotalFeeCountFromCourse } = require('../services/feeDuePolicy');
 
         // Only fill a course:null placeholder when this student has NO course enrollments yet.
         // If they already have any course, always create a NEW row (never overwrite).
@@ -524,6 +532,11 @@ router.post('/', async (req, res) => {
             placeholder.lastAccessed = new Date();
             placeholder.paymentStatus = feeStatus;
             placeholder.assignedSchedule = assignedSchedule;
+            copyTotalFeeCountFromCourse(placeholder, courseDoc);
+            await assignEnrollmentDueDate(placeholder, {
+                course: courseDoc,
+                joinDate: placeholder.enrollmentDate,
+            });
             await placeholder.save();
             enrollment = placeholder;
         } else {
@@ -538,6 +551,12 @@ router.post('/', async (req, res) => {
                 paymentStatus: feeStatus,
                 assignedSchedule,
             });
+            copyTotalFeeCountFromCourse(enrollment, courseDoc);
+            await assignEnrollmentDueDate(enrollment, {
+                course: courseDoc,
+                joinDate: enrollment.enrollmentDate,
+            });
+            await enrollment.save();
         }
 
         await syncStudentRosterFromEnrollments(student._id);
@@ -562,9 +581,46 @@ router.post('/', async (req, res) => {
 });
 
 // Update enrollment (status, progress, grade, course change, enrollmentDate)
+router.get('/:id/fee-summary', async (req, res) => {
+    try {
+        const enrollment = await Enrollment.findOne({
+            _id: req.params.id,
+            ...activeEnrollmentFilter(),
+        })
+            .populate('student', 'name')
+            .populate('course', 'title price');
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: 'Enrollment not found' });
+        }
+        const { buildEnrollmentFeeSummary } = require('../services/feeDuePolicy');
+        const feeSummary = await buildEnrollmentFeeSummary(enrollment);
+        res.json({ success: true, feeSummary });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to load fee summary' });
+    }
+});
+
+router.post('/:id/skip-fee-month', async (req, res) => {
+    try {
+        const enrollment = await Enrollment.findOne({
+            _id: req.params.id,
+            ...activeEnrollmentFilter(),
+        });
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: 'Enrollment not found' });
+        }
+        const { skipEnrollmentMonth } = require('../services/feeDuePolicy');
+        await skipEnrollmentMonth(enrollment, req.user?.userId || req.user?.id || null);
+        const populated = await Enrollment.findById(enrollment._id).populate(enrollmentPopulate());
+        res.json({ success: true, message: 'This month was skipped', enrollment: populated });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message, message: error.message });
+    }
+});
+
 router.put('/:id', async (req, res) => {
     try {
-        const { status, progress, grade, lastAccessed, courseId, enrollmentDate, paymentStatus, assignedScheduleId } = req.body;
+        const { status, progress, grade, lastAccessed, courseId, enrollmentDate, paymentStatus, assignedScheduleId, feeDueDate } = req.body;
 
         const enrollment = await Enrollment.findOne({
             _id: req.params.id,
@@ -633,19 +689,68 @@ router.put('/:id', async (req, res) => {
             }
         }
 
+        const previousStatus = String(enrollment.status || '');
+        const {
+            buildEnrollmentFeeSummary,
+            parseTotalFeeCountInput,
+            assertTotalFeeCountNotBelowPaid,
+            prepareUncompleteDueDate,
+            recountPaidInstallments,
+        } = require('../services/feeDuePolicy');
+
+        if (status !== undefined && normalizeEnrollmentStatusInput(status) === 'completed' && previousStatus !== 'completed') {
+            const feeSummary = await buildEnrollmentFeeSummary(enrollment);
+            if (feeSummary.needsCompleteConfirm && req.body.confirmComplete !== true && req.body.confirmComplete !== 'true') {
+                return res.status(409).json({
+                    success: false,
+                    needsCompleteConfirm: true,
+                    feeSummary,
+                    error: 'This student still has unpaid fees. Confirm to complete anyway.',
+                    message: 'This student still has unpaid fees. Confirm to complete anyway.',
+                });
+            }
+        }
+
         if (status !== undefined) enrollment.status = normalizeEnrollmentStatusInput(status);
+        if (normalizeEnrollmentStatusInput(status) === 'paused') {
+            enrollment.autoPayEnabled = false;
+            enrollment.autoPayLastError = '';
+        }
+        if (previousStatus === 'completed' && status !== undefined && normalizeEnrollmentStatusInput(status) !== 'completed') {
+            await prepareUncompleteDueDate(enrollment);
+        }
+        if (req.body.totalFeeCount !== undefined) {
+            const nextTotal = parseTotalFeeCountInput(req.body.totalFeeCount);
+            await assertTotalFeeCountNotBelowPaid(enrollment, nextTotal);
+            enrollment.totalFeeCount = nextTotal;
+            await recountPaidInstallments(enrollment);
+        }
         if (paymentStatus !== undefined) {
-            if (ALLOWED_FEE_STATUSES.includes(paymentStatus)) enrollment.paymentStatus = paymentStatus;
+            if (ALLOWED_FEE_STATUSES.includes(paymentStatus)) {
+                const previousFee = enrollment.paymentStatus;
+                enrollment.paymentStatus = paymentStatus;
+                if (
+                    previousFee === 'paid'
+                    && paymentStatus !== 'paid'
+                    && enrollment.status === 'active'
+                    && status === undefined
+                ) {
+                    enrollment.status = 'inactive';
+                }
+            }
         }
         if (progress !== undefined) enrollment.progress = progress;
         if (grade !== undefined) enrollment.grade = grade;
         if (enrollmentDate) enrollment.enrollmentDate = new Date(enrollmentDate);
+        if (feeDueDate !== undefined) {
+            await setEnrollmentFeeDueDate(enrollment, feeDueDate, req.user?.userId || req.user?.id || null);
+        }
         enrollment.lastAccessed = lastAccessed ? new Date(lastAccessed) : new Date();
         if (status === 'completed') enrollment.completionDate = new Date();
 
         await enrollment.save();
 
-        if (status !== undefined && enrollment.student) {
+        if ((status !== undefined || paymentStatus !== undefined) && enrollment.student) {
             const studentId = enrollment.student._id || enrollment.student;
             await syncStudentUserLoginFromAllEnrollments(studentId);
         }
@@ -658,6 +763,13 @@ router.put('/:id', async (req, res) => {
             enrollment: populated
         });
     } catch (error) {
+        if (error.status) {
+            return res.status(error.status).json({
+                success: false,
+                error: error.message,
+                message: error.message,
+            });
+        }
         res.status(500).json({
             success: false,
             message: 'Error updating enrollment',
@@ -945,6 +1057,10 @@ router.post('/bulk-update', async (req, res) => {
         if (status === 'completed') {
             updateData.completionDate = new Date();
         }
+        if (normalizeEnrollmentStatusInput(status) === 'paused') {
+            updateData.autoPayEnabled = false;
+            updateData.autoPayLastError = '';
+        }
         
         await Enrollment.updateMany(
             { _id: { $in: enrollmentIds }, ...activeEnrollmentFilter() },
@@ -984,7 +1100,7 @@ router.get('/stats', async (req, res) => {
         if (statusFilter && statusFilter !== 'all') {
             if (statusFilter === 'inactive') {
                 listFilter.status = { $in: ['inactive', 'pending', null] };
-            } else if (['active', 'completed'].includes(statusFilter)) {
+            } else if (['active', 'completed', 'paused'].includes(statusFilter)) {
                 listFilter.status = statusFilter;
             }
         }

@@ -65,9 +65,9 @@ const ResearchPostPage = lazy(() => import('./components/Pages/ResearchPostPage'
 const NotFoundPage = lazy(() => import('./components/Pages/NotFoundPage'));
 const PortalLayout = lazy(() => import('./components/Portals/PortalLayout'));
 const LmsManagement = lazy(() => import('./components/Admin/pages/LmsManagement'));
+const ParentsManagement = lazy(() => import('./components/Admin/pages/ParentsManagement'));
 const ResourcesManagement = lazy(() => import('./components/Admin/pages/ResourcesManagement'));
 const StudentDashboard = lazy(() => import('./components/Portals/student/StudentDashboard'));
-const StudentCourses = lazy(() => import('./components/Portals/student/StudentCourses'));
 const StudentFees = lazy(() => import('./components/Portals/student/StudentFees'));
 const StudentAssignments = lazy(() => import('./components/Portals/student/StudentAssignments'));
 const StudentQuizzes = lazy(() => import('./components/Portals/student/StudentQuizzes'));
@@ -85,6 +85,7 @@ const ParentDashboard = lazy(() => import('./components/Portals/parent/ParentDas
 const ParentChildren = lazy(() => import('./components/Portals/parent/ParentChildren'));
 const ParentSchedule = lazy(() => import('./components/Portals/parent/ParentSchedule'));
 const ParentProgress = lazy(() => import('./components/Portals/parent/ParentProgress'));
+const ParentBilling = lazy(() => import('./components/Portals/parent/ParentBilling'));
 const AccountantDashboard = lazy(() => import('./components/Portals/accountant/AccountantDashboard'));
 const AccountantPayments = lazy(() => import('./components/Portals/accountant/AccountantPayments'));
 const AccountantPayroll = lazy(() => import('./components/Portals/accountant/AccountantPayroll'));
@@ -209,7 +210,7 @@ function AppLayout() {
                   <Route path="students" element={<StudentsData />} />
                   <Route path="students-data" element={<Navigate to="/admin/students" replace />} />
                   <Route path="teachers" element={<UsersManagement key="teachers-tab" variant="teachers" />} />
-                  <Route path="parents" element={<UsersManagement key="parents-tab" variant="parents" />} />
+                  <Route path="parents" element={<ParentsManagement />} />
                   <Route path="courses" element={<CoursesManagement />} />
                   <Route path="assignments" element={<ResourcesManagement defaultTab="assignments" />} />
                   <Route path="resources" element={<ResourcesManagement defaultTab="resources" />} />
@@ -237,7 +238,7 @@ function AppLayout() {
               >
                 <Route path="/student/*" element={<PortalLayout role="student" title="Student Portal" />}>
                   <Route index element={<StudentDashboard />} />
-                  <Route path="courses" element={<StudentCourses />} />
+                  <Route path="courses" element={<Navigate to="/student/fees" replace />} />
                   <Route path="fees" element={<StudentFees />} />
                   <Route path="assignments" element={<StudentAssignments />} />
                   <Route path="quizzes" element={<StudentQuizzes />} />
@@ -287,6 +288,7 @@ function AppLayout() {
                   <Route path="children" element={<ParentChildren />} />
                   <Route path="schedule" element={<ParentSchedule />} />
                   <Route path="progress" element={<ParentProgress />} />
+                  <Route path="billing" element={<ParentBilling />} />
                   <Route path="account" element={<PortalAccountSettings subtitle="Manage your parent portal password." />} />
                   <Route path="*" element={<Navigate to="/parent" replace />} />
                 </Route>

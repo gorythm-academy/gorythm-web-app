@@ -6,12 +6,14 @@ import { PARENT_RELATION_OPTIONS } from './lmsHelpers';
 
 const ParentLinksTab = ({
   panelId,
+  tabButtonId = 'parents-tab-parent-links',
   addLink,
   linkForm,
   setLinkForm,
   pickersLoading,
   parents,
   students,
+  editStudents,
   parentLinkListSearch,
   filteredParentLinks,
   linksLoading,
@@ -34,7 +36,7 @@ const ParentLinksTab = ({
     className="lms-panel"
     role="tabpanel"
     id={panelId}
-    aria-labelledby="lms-tab-parent-links"
+    aria-labelledby={tabButtonId}
   >
     <form className="lms-form" onSubmit={addLink}>
       <h2>Link Parent to Student</h2>
@@ -75,8 +77,8 @@ const ParentLinksTab = ({
           {pickersLoading
             ? 'Loading students…'
             : students.length
-              ? 'Select student…'
-              : 'No students found'}
+              ? 'Select unlinked student…'
+              : 'No unlinked students'}
         </option>
         {students.map((s) => (
           <option key={s._id} value={s._id}>
@@ -98,7 +100,9 @@ const ParentLinksTab = ({
         ))}
         </select>
       </label>
-      <button type="submit">Link</button>
+      <button type="submit" className="lms-schedule-btn-primary lms-link-btn">
+        <i className="fas fa-link" aria-hidden /> Link
+      </button>
     </form>
 
     <div className="controls-bar lms-parent-links-toolbar">
@@ -176,7 +180,7 @@ const ParentLinksTab = ({
                           disabled={editLinkSaving}
                         >
                           <option value="">Select student…</option>
-                          {students.map((s) => (
+                          {(editStudents || students).map((s) => (
                             <option key={s._id} value={s._id}>
                               {s.name}
                             </option>
@@ -245,7 +249,7 @@ const ParentLinksTab = ({
                               aria-label="Edit link"
                               onClick={() => startEditLink(l)}
                             >
-                              <i className="fas fa-pen" aria-hidden />
+                              <i className="fas fa-pen" aria-hidden /> Edit
                             </button>
                             <button
                               type="button"
@@ -254,7 +258,7 @@ const ParentLinksTab = ({
                               aria-label="Remove link"
                               onClick={() => removeLink(l._id)}
                             >
-                              <i className="fas fa-trash" aria-hidden />
+                              <i className="fas fa-trash" aria-hidden /> Remove
                             </button>
                           </>
                         )}

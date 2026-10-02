@@ -32,6 +32,20 @@ const userSchema = new mongoose.Schema({
     isSystemAccount: { type: Boolean, default: false },
     enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     lastLogin: { type: Date },
+    stripeCustomerId: { type: String, default: '' },
+    stripePaymentMethodId: { type: String, default: '' },
+    stripeSavedCards: {
+        type: [
+            {
+                id: { type: String, required: true },
+                brand: { type: String, default: 'card' },
+                last4: { type: String, default: '' },
+                expMonth: { type: Number, default: null },
+                expYear: { type: Number, default: null },
+            },
+        ],
+        default: [],
+    },
     /** Per-admin: hide dashboard activity feed items at or before this time. */
     adminActivitiesClearedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
@@ -41,6 +55,14 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
+    if (this.role === 'student' && this.isModified('name') && this.name) {
+        this.name = String(this.name)
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+    }
     if (!this.isModified('password')) return next();
     this.password = await bcrypt.hash(this.password, 10);
     this.updatedAt = Date.now();
@@ -56,6 +78,9 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.methods.toJSON = function() {
     const user = this.toObject();
     delete user.password;
+    delete user.stripeCustomerId;
+    delete user.stripePaymentMethodId;
+    delete user.stripeSavedCards;
     return user;
 };
 

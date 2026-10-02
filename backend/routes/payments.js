@@ -9,7 +9,7 @@ const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
-const { onPaymentPaid, isPaidStatus } = require('../services/onPaymentPaid');
+const { isPaidStatus } = require('../services/onPaymentPaid');
 const { getDuplicateCoursePaymentBlock } = require('../services/enrollmentDuplicateCheck');
 const { getOrCreateSettings } = require('../services/settingsService');
 const authMiddleware = require('../middleware/auth');
@@ -25,8 +25,30 @@ const {
 const { serializePayment, serializePayments } = require('../utils/serializePayment');
 const { ensureProofDir, proofPublicPath, PROOF_DIR } = require('../utils/paymentProofStorage');
 const { resolveStoredFilename } = require('../utils/safeFilename');
-const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter } = require('../utils/paymentQuery');
+const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter, overduePaymentFilter } = require('../utils/paymentQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
+const {
+    resolveCheckoutItems,
+    stripeLineItemsFromResolved,
+    stripeChargeableItems,
+    assertStripeMinimum,
+    createBillingIntent,
+    savePaymentsFromIntent,
+} = require('../services/billingCheckout');
+const {
+    markPaymentPaidAndFulfill,
+    extendPaymentDueDate,
+    cancelPaymentRecord,
+    extendEnrollmentDueDate,
+    markEnrollmentReceived,
+    cancelEnrollmentFee,
+    listOutstandingFees,
+    paymentsInGroup,
+} = require('../services/billingAdmin');
+const { parseInvoiceMode } = require('../utils/billingStatus');
+const { defaultFeeDueDate } = require('../utils/feeDueDate');
+const { createCheckoutSessionWithFallback: createStripeCheckoutSession } = require('../utils/stripeMoney');
+const { nextInvoiceNumber, ensureInvoiceNumber } = require('../utils/invoiceNumber');
 
 let multer;
 try {
@@ -79,7 +101,7 @@ const requireStripe = (res) => {
     if (stripe) return true;
     res.status(503).json({
         success: false,
-        error: 'Stripe is not configured on this deployment',
+        error: 'Card payment is not available yet. Please use bank transfer or contact the academy.',
     });
     return false;
 };
@@ -100,25 +122,8 @@ const checkoutPaymentMethodTypes = () => {
     return ['card'];
 };
 
-const createCheckoutSession = async (params) => {
-    return stripe.checkout.sessions.create(params);
-};
-
-/** If requested payment_method_types fail (e.g. Link not activated), retry with card only. */
 const createCheckoutSessionWithFallback = async (baseParams, types) => {
-    try {
-        return await createCheckoutSession({ ...baseParams, payment_method_types: types });
-    } catch (err) {
-        const isStripeInvalid =
-            err?.type === 'StripeInvalidRequestError' ||
-            err?.rawType === 'invalid_request_error';
-        const hasOtherTypes = types.length > 1 || (types.length === 1 && types[0] !== 'card');
-        if (isStripeInvalid && hasOtherTypes) {
-            logger.warn('Stripe checkout retry with card only', { errorMessage: err.message });
-            return createCheckoutSession({ ...baseParams, payment_method_types: ['card'] });
-        }
-        throw err;
-    }
+    return createStripeCheckoutSession(stripe, baseParams, types);
 };
 
 const bankDetailsFromPaymentSettings = (p = {}) => ({
@@ -271,6 +276,48 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                 });
             }
 
+            savedProofPath = proofPublicPath(req.file.filename);
+            const extraCourseIds = collectPublicCourseIds(req.body).filter((id) => String(id) !== String(course._id));
+            if (extraCourseIds.length) {
+                const resolvedItems = await resolveCheckoutItems({
+                    rawItems: [{ courseId: course._id }, ...extraCourseIds.map((courseId) => ({ courseId }))],
+                    actor: { name: studentName, email },
+                });
+                const intent = await createBillingIntent({
+                    items: resolvedItems,
+                    invoiceMode: parseInvoiceMode(req.body?.invoiceMode),
+                    payer: { role: 'guest', email, name: studentName },
+                });
+                const payments = await savePaymentsFromIntent(intent, {
+                    status: 'awaiting_review',
+                    paymentMethod: 'bank',
+                    transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+                    proofUrl: savedProofPath,
+                    proofSubmittedAt: new Date(),
+                    phone: bankDigits,
+                    email,
+                    studentName,
+                    currency: 'USD',
+                });
+                intent.status = 'consumed';
+                intent.consumedAt = new Date();
+                await intent.save();
+                savedProofPath = null;
+                return res.status(201).json({
+                    success: true,
+                    message:
+                        'Payment proof received. Our accountant will verify your transfer and confirm enrollment.',
+                    payment: {
+                        _id: payments[0]._id,
+                        transactionId: payments[0].transactionId,
+                        amount: payments.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+                        currency: payments[0].currency,
+                        status: payments[0].status,
+                    },
+                    createdCount: payments.length,
+                });
+            }
+
             const duplicateBlock = await getDuplicateCoursePaymentBlock(email, {
                 courseId: course._id,
                 courseName: course.title,
@@ -299,6 +346,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
             }
 
             savedProofPath = proofPublicPath(req.file.filename);
+            const dueDate = defaultFeeDueDate();
 
             const payment = new Payment({
                 studentName,
@@ -311,8 +359,22 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                 status: 'awaiting_review',
                 paymentMethod: 'bank',
                 transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+                invoiceNumber: await nextInvoiceNumber(),
                 proofUrl: savedProofPath,
                 proofSubmittedAt: new Date(),
+                dueDate,
+                invoiceMode: 'combined',
+                payerRole: 'guest',
+                lines: [
+                    {
+                        course: course._id,
+                        courseName: course.title,
+                        studentName,
+                        studentEmail: email,
+                        amount: coursePrice,
+                        dueDate,
+                    },
+                ],
             });
 
             await payment.save();
@@ -335,100 +397,207 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                 deleteProofFile(savedProofPath);
             }
             req.log?.error('Bank registration with proof failed', { err: error });
-            return res.status(500).json({ success: false, error: 'Failed to submit bank payment' });
+            const status = error.status || 500;
+            return res.status(status).json({
+                success: false,
+                code: error.code,
+                error:
+                    status === 400 && error.message
+                        ? error.message
+                        : 'Failed to submit bank payment',
+            });
         }
     });
 });
 
+function collectPublicCourseIds(body = {}) {
+    const ids = [];
+    const push = (value) => {
+        const id = String(value || '').trim();
+        if (id && mongoose.Types.ObjectId.isValid(id) && !ids.includes(id)) ids.push(id);
+    };
+    push(body.courseId);
+    const extra = Array.isArray(body.courseIds) ? body.courseIds : [];
+    extra.forEach(push);
+    if (typeof body.courseIds === 'string') {
+        try {
+            const parsed = JSON.parse(body.courseIds);
+            if (Array.isArray(parsed)) parsed.forEach(push);
+        } catch {
+            String(body.courseIds)
+                .split(',')
+                .forEach(push);
+        }
+    }
+    return ids;
+}
+
+async function sendPaymentPdf(res, payment, { kind = 'invoice', lineFilter = null } = {}) {
+    const { buildPaymentInvoicePdf } = require('../utils/paymentInvoicePdf');
+    const { loadPaidInvoiceHistory } = require('../utils/invoicePaymentHistory');
+    await ensureInvoiceNumber(payment);
+    const historyRows = await loadPaidInvoiceHistory(payment, { lineFilter });
+    const pdfBuffer = buildPaymentInvoicePdf(payment, { kind, lineFilter, historyRows });
+    const safeId = String(payment.invoiceNumber || payment.transactionId || payment._id).replace(/[^a-zA-Z0-9-_]/g, '_');
+    const prefix = kind === 'receipt' ? 'receipt' : 'invoice';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${prefix}_${safeId}.pdf"`);
+    return res.send(pdfBuffer);
+}
+
 // --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
 router.post(
     '/create-checkout',
-    validate([rules.objectId('courseId', 'Course ID')]),
     async (req, res) => {
     if (!requireStripe(res)) return;
     try {
-        const { courseId, userId } = req.body || {};
+        const { userId, items, invoiceMode } = req.body || {};
+        const courseIds = collectPublicCourseIds(req.body);
+        const rawItems = Array.isArray(items) && items.length
+            ? items
+            : courseIds.map((courseId) => ({ courseId }));
 
-        if (!courseId) {
+        if (!rawItems.length) {
             return res.status(400).json({
                 success: false,
                 error: 'courseId is required',
             });
         }
 
-        const course = await Course.findOne({
-            _id: String(courseId),
-            isPublished: true,
-            ...activeCourseFilter(),
-        });
-        if (!course) {
-            return res.status(404).json({ success: false, error: 'Course not found' });
-        }
-
-        const priceUsd = Number(course.price);
-        if (Number.isNaN(priceUsd) || priceUsd <= 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'This course has no payable amount. Contact us to enroll.',
-            });
-        }
-
-        const unitAmount = Math.round(priceUsd * 100);
-        if (unitAmount < 50) {
-            return res.status(400).json({
-                success: false,
-                error: 'Amount is below the minimum charge allowed by Stripe.',
-            });
-        }
-
         let linkedUserId;
+        let actor = null;
         if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            const user = await User.findById(userId).select('_id');
-            if (user) linkedUserId = user._id;
+            const user = await User.findById(userId).select('_id name email personalEmail role');
+            if (user) {
+                linkedUserId = user._id;
+                actor = {
+                    userId: user._id,
+                    studentId: user.role === 'student' ? user._id : null,
+                    name: user.name,
+                    email: user.personalEmail || user.email,
+                    role: user.role,
+                };
+            }
         }
+
+        const useBillingCart = rawItems.length > 1 || Boolean(rawItems[0]?.enrollmentId);
+        if (!useBillingCart) {
+            const courseId = courseIds[0] || rawItems[0]?.courseId;
+            const course = await Course.findOne({
+                _id: String(courseId),
+                isPublished: true,
+                ...activeCourseFilter(),
+            });
+            if (!course) {
+                return res.status(404).json({ success: false, error: 'Course not found' });
+            }
+
+            const priceUsd = Number(course.price);
+            if (Number.isNaN(priceUsd) || priceUsd <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'This course has no payable amount. Contact us to enroll.',
+                });
+            }
+
+            const unitAmount = Math.round(priceUsd * 100);
+            if (unitAmount < 50) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Amount is below the minimum charge allowed by Stripe.',
+                });
+            }
+
+            const base = frontendBase();
+            const paymentMethodTypes = checkoutPaymentMethodTypes();
+            const sessionParams = {
+                phone_number_collection: { enabled: true },
+                line_items: [
+                    {
+                        price_data: {
+                            currency: 'usd',
+                            product_data: {
+                                name: course.title,
+                                description: (course.description || '').slice(0, 500),
+                            },
+                            unit_amount: unitAmount,
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: 'payment',
+                success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${base}/payment-cancel`,
+                payment_intent_data: { setup_future_usage: 'off_session' },
+                metadata: {
+                    courseId: String(courseId),
+                    autoPay: '1',
+                    ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
+                },
+            };
+
+            const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
+            return res.json({
+                success: true,
+                sessionId: session.id,
+                url: session.url,
+            });
+        }
+
+        const resolvedItems = await resolveCheckoutItems({
+            rawItems,
+            actor,
+        });
+        const chargeable = stripeChargeableItems(resolvedItems);
+        assertStripeMinimum(chargeable);
+        const intent = await createBillingIntent({
+            items: chargeable,
+            invoiceMode: parseInvoiceMode(invoiceMode),
+            payer: {
+                userId: linkedUserId || null,
+                role: actor?.role === 'parent' ? 'parent' : actor?.role === 'student' ? 'student' : 'guest',
+                email: actor?.email || '',
+                name: actor?.name || '',
+            },
+            autoPayEnable: true,
+        });
 
         const base = frontendBase();
         const paymentMethodTypes = checkoutPaymentMethodTypes();
-
         const sessionParams = {
             phone_number_collection: { enabled: true },
-            line_items: [
-                {
-                    price_data: {
-                        currency: 'usd',
-                        product_data: {
-                            name: course.title,
-                            description: (course.description || '').slice(0, 500),
-                        },
-                        unit_amount: unitAmount,
-                    },
-                    quantity: 1,
-                },
-            ],
+            line_items: stripeLineItemsFromResolved(chargeable),
             mode: 'payment',
             success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${base}/payment-cancel`,
+            payment_intent_data: { setup_future_usage: 'off_session' },
             metadata: {
-                courseId: String(courseId),
+                groupId: intent.groupId,
+                courseId: String(chargeable[0].courseId),
+                autoPay: '1',
                 ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
             },
         };
-
         const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
+        intent.stripeSessionId = session.id;
+        await intent.save();
 
         res.json({
             success: true,
             sessionId: session.id,
             url: session.url,
+            groupId: intent.groupId,
         });
     } catch (error) {
         req.log.error('Stripe checkout error', { err: error });
         const msg =
-            (error?.type === 'StripeInvalidRequestError' || error?.rawType === 'invalid_request_error') &&
-            error?.message
+            error?.status && error?.message
                 ? error.message
-                : error?.message || 'Payment initialization failed';
-        res.status(500).json({ success: false, error: msg });
+                : (error?.type === 'StripeInvalidRequestError' || error?.rawType === 'invalid_request_error') &&
+                    error?.message
+                  ? error.message
+                  : error?.message || 'Payment initialization failed';
+        res.status(error.status || 500).json({ success: false, error: msg });
     }
 });
 
@@ -459,6 +628,8 @@ router.get('/verify-session', async (req, res) => {
                           ? null
                           : fulfillmentMessage(fulfillmentIssue),
                 courseTitle: payment?.course?.title || payment?.courseName || null,
+                paymentId: payment?._id || result?.payments?.[0]?._id || null,
+                paymentIds: (result?.payments || (payment ? [payment] : [])).map((row) => row._id),
             });
         }
 
@@ -486,6 +657,8 @@ router.get('/verify-session', async (req, res) => {
                 ? fulfillmentMessage('already_enrolled_duplicate')
                 : payment?.failureReason || null,
             courseTitle: payment?.course?.title || payment?.courseName || null,
+            paymentId: payment?._id || null,
+            paymentIds: payment?._id ? [payment._id] : [],
         });
     } catch (error) {
         req.log.error('verify-session failed', { err: error });
@@ -493,8 +666,64 @@ router.get('/verify-session', async (req, res) => {
     }
 });
 
+router.get('/receipt-by-session', async (req, res) => {
+    const sessionId = req.query.session_id;
+    if (!sessionId || typeof sessionId !== 'string') {
+        return res.status(400).json({ success: false, error: 'session_id is required' });
+    }
+    try {
+        const payments = await Payment.find({
+            transactionId: sessionId,
+            ...activePaymentFilter(),
+        })
+            .populate('user', 'name email')
+            .populate('course', 'title');
+        const paid = payments.filter((row) => isPaidStatus(row.status));
+        if (!paid.length) {
+            return res.status(404).json({ success: false, error: 'Receipt is not available yet' });
+        }
+        if (paid.length === 1) {
+            return await sendPaymentPdf(res, paid[0], { kind: 'receipt' });
+        }
+        const { paymentLines } = require('../utils/paymentInvoicePdf');
+        const combined = {
+            ...(paid[0].toObject ? paid[0].toObject() : paid[0]),
+            amount: paid.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+            courseName: paid.map((row) => row.courseName || row.course?.title).filter(Boolean).join(', '),
+            invoiceMode: 'separate',
+            lines: paid.flatMap((row) => paymentLines(row)),
+        };
+        return await sendPaymentPdf(res, combined, { kind: 'receipt' });
+    } catch (error) {
+        req.log?.error('Receipt by session failed', { err: error });
+        return res.status(500).json({ success: false, error: 'Failed to generate receipt' });
+    }
+});
+
 router.use(authMiddleware);
 router.use(validateSessionUser);
+
+router.get('/admin/unseen-count', allowPermission('payments.read'), async (req, res) => {
+    try {
+        const sinceRaw = String(req.query.since || '').trim();
+        const since = sinceRaw ? new Date(sinceRaw) : null;
+        const sinceOk = since && !Number.isNaN(since.getTime());
+        const or = [
+            { status: { $in: ['awaiting_review', 'processing'] } },
+        ];
+        if (sinceOk) {
+            or.push({ createdAt: { $gt: since } });
+        }
+        const count = await Payment.countDocuments({
+            ...activePaymentListFilter(),
+            $or: or,
+        });
+        res.json({ success: true, count });
+    } catch (error) {
+        req.log?.error('Error counting unseen payments', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to load payment badge', count: 0 });
+    }
+});
 
 router.get('/', allowPermission('payments.read'), async (req, res) => {
     try {
@@ -515,6 +744,14 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
         if (statusFilter && statusFilter !== 'all') {
             if (statusFilter === 'paid') {
                 filter.status = { $in: ['paid', 'completed'] };
+            } else if (statusFilter === 'unpaid') {
+                filter.status = 'pending';
+            } else if (statusFilter === 'overdue') {
+                Object.assign(filter, overduePaymentFilter());
+            } else if (statusFilter === 'cancelled') {
+                filter.status = { $in: ['cancelled', 'rejected'] };
+            } else if (statusFilter === 'awaiting_review') {
+                filter.status = { $in: ['awaiting_review', 'processing'] };
             } else {
                 filter.status = statusFilter;
             }
@@ -541,7 +778,12 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
                 { email: regex },
                 { courseName: regex },
                 { transactionId: regex },
+                { invoiceNumber: regex },
                 { phone: regex },
+                { groupId: regex },
+                { 'lines.studentName': regex },
+                { 'lines.courseName': regex },
+                { 'lines.studentEmail': regex },
             ];
         }
 
@@ -593,8 +835,9 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
                 if (status === 'paid' || status === 'completed') {
                     stats.successfulPayments += count;
                     stats.totalRevenue += row.revenue || 0;
-                } else if (status === 'pending') stats.pendingPayments += count;
-                else if (status === 'failed') stats.failedPayments += count;
+                } else if (status === 'pending' || status === 'awaiting_review' || status === 'processing') {
+                    stats.pendingPayments += count;
+                } else if (status === 'failed') stats.failedPayments += count;
                 else if (status === 'refunded') stats.refundedPayments += count;
             }
         }
@@ -615,6 +858,51 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
     }
 });
 
+router.get('/outstanding', allowPermission('payments.read'), async (req, res) => {
+    try {
+        const outstanding = await listOutstandingFees();
+        res.json({ success: true, outstanding });
+    } catch (error) {
+        req.log.error('Outstanding fees error', { err: error });
+        res.status(500).json({ success: false, error: 'Failed to load outstanding fees' });
+    }
+});
+
+router.patch('/outstanding/:enrollmentId/due-date', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const enrollment = await extendEnrollmentDueDate(
+            req.params.enrollmentId,
+            req.body?.dueDate,
+            req.user?.userId || req.user?.id
+        );
+        res.json({ success: true, enrollment });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to extend due date' });
+    }
+});
+
+router.post('/outstanding/:enrollmentId/mark-received', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const payment = await markEnrollmentReceived(req.params.enrollmentId, req.user?.userId || req.user?.id);
+        res.json({ success: true, message: 'Payment marked as received', payment: serializePayment(payment) });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to mark payment received' });
+    }
+});
+
+router.post('/outstanding/:enrollmentId/cancel', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const enrollment = await cancelEnrollmentFee(
+            req.params.enrollmentId,
+            req.user?.userId || req.user?.id,
+            req.body?.reason
+        );
+        res.json({ success: true, enrollment });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to cancel fee' });
+    }
+});
+
 router.get('/:id/invoice', allowPermission('payments.read'), async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -632,13 +920,37 @@ router.get('/:id/invoice', allowPermission('payments.read'), async (req, res) =>
             return res.status(404).json({ success: false, error: 'Payment not found' });
         }
 
-        const { buildPaymentInvoicePdf } = require('../utils/paymentInvoicePdf');
-        const pdfBuffer = buildPaymentInvoicePdf(payment);
-        const safeId = String(payment.transactionId || payment._id).replace(/[^a-zA-Z0-9-_]/g, '_');
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="invoice_${safeId}.pdf"`);
-        return res.send(pdfBuffer);
+        const kind = String(req.query.kind || 'invoice') === 'receipt' ? 'receipt' : 'invoice';
+        const lineFilter = {};
+        if (req.query.studentId) lineFilter.studentId = req.query.studentId;
+        if (req.query.courseId) lineFilter.courseId = req.query.courseId;
+        if (req.query.courseName) lineFilter.courseName = req.query.courseName;
+        let doc = payment;
+        if (String(req.query.scope || '') === 'combined') {
+            const group = await paymentsInGroup(payment);
+            const source = group.length ? group : [payment];
+            const lines = source.flatMap((row) => (
+                Array.isArray(row.lines) && row.lines.length
+                    ? row.lines
+                    : [{
+                        studentName: row.studentName || row.user?.name,
+                        courseName: row.courseName || row.course?.title,
+                        amount: row.amount,
+                        course: row.course,
+                        student: row.user,
+                    }]
+            ));
+            doc = {
+                ...(payment.toObject ? payment.toObject() : payment),
+                lines,
+                amount: source.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+                invoiceMode: 'combined',
+            };
+        }
+        return await sendPaymentPdf(res, doc, {
+            kind,
+            lineFilter: Object.keys(lineFilter).length ? lineFilter : null,
+        });
     } catch (error) {
         req.log.error('Payment invoice error', { err: error });
         return res.status(500).json({ success: false, error: 'Failed to generate invoice' });
@@ -673,11 +985,56 @@ router.put('/admin/bank-details', allowPermission('payments.write'), async (req,
     }
 });
 
+router.get('/admin/fee-due-settings', allowPermission('payments.read'), async (_req, res) => {
+    try {
+        const { getFeeDueSettings, toDateInputValue } = require('../services/feeDuePolicy');
+        const { defaultFeeDueDate, feeDueDay } = await getFeeDueSettings();
+        res.json({
+            success: true,
+            defaultFeeDueDate: defaultFeeDueDate ? toDateInputValue(defaultFeeDueDate) : '',
+            feeDueDay,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load due date settings' });
+    }
+});
+
+router.put('/admin/fee-due-settings', allowPermission('payments.write'), async (req, res) => {
+    if (!canManagePaymentConfig(req.user?.role)) {
+        return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
+    }
+    try {
+        const { applyPaymentsDefaultDueDate, toDateInputValue } = require('../services/feeDuePolicy');
+        const confirm = req.body?.confirm === true || req.body?.confirm === 'true';
+        if (!confirm) {
+            return res.status(400).json({
+                success: false,
+                error: 'This will replace all course and student due dates. Confirm to continue.',
+                needsConfirm: true,
+            });
+        }
+        if (!req.body?.defaultFeeDueDate) {
+            return res.status(400).json({ success: false, error: 'A due date is required' });
+        }
+        const result = await applyPaymentsDefaultDueDate(
+            req.body.defaultFeeDueDate,
+            req.user?.userId || req.user?.id || null
+        );
+        res.json({
+            success: true,
+            message: 'Default due date saved for all active courses',
+            defaultFeeDueDate: toDateInputValue(result.defaultFeeDueDate),
+            feeDueDay: result.feeDueDay,
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to save due date' });
+    }
+});
+
 router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) => {
     if (!['accountant', 'manager', 'super-admin'].includes(req.user?.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
     }
-    if (!requireStripe(res)) return;
     try {
         const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
 
@@ -689,37 +1046,93 @@ router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) 
             return res.status(400).json({ success: false, error: 'Only paid payments can be refunded' });
         }
 
+        const group = await paymentsInGroup(payment);
         const intentId =
             payment.stripePaymentIntentId ||
             (payment.transactionId?.startsWith('pi_') ? payment.transactionId : null);
 
-        if (!intentId) {
+        let refundId = payment.refundId || '';
+        if (intentId) {
+            if (!requireStripe(res)) return;
+            const refund = await stripe.refunds.create({
+                payment_intent: intentId,
+            });
+            refundId = refund.id;
+        } else if (payment.paymentMethod === 'stripe') {
             return res.status(400).json({
                 success: false,
                 error: 'No Stripe PaymentIntent on this record; refund is not available.',
             });
         }
 
-        const refund = await stripe.refunds.create({
-            payment_intent: intentId,
-        });
-
-        payment.status = 'refunded';
-        payment.refundId = refund.id;
-        await payment.save();
-
-        const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync');
-        await payment.populate(['user', 'course']);
-        await syncEnrollmentFromPayment(payment);
+        for (const row of group) {
+            row.status = 'refunded';
+            if (refundId) row.refundId = refundId;
+            await row.save();
+            await row.populate(['user', 'course']);
+            await syncEnrollmentFromPayment(row);
+            const { reverseInstallmentPayment } = require('../services/feeDuePolicy');
+            await reverseInstallmentPayment(row);
+        }
 
         res.json({
             success: true,
-            message: 'Refund processed successfully',
-            refundId: refund.id,
+            message: group.length > 1
+                ? 'Refund processed for the full combined checkout'
+                : 'Refund processed successfully',
+            refundId: refundId || null,
         });
     } catch (error) {
         req.log.error('Refund error', { err: error });
-        res.status(500).json({ success: false, error: 'Refund failed' });
+        res.status(500).json({ success: false, error: error.message || 'Refund failed' });
+    }
+});
+
+router.patch('/:id/due-date', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
+        if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+        const updated = await extendPaymentDueDate(
+            payment,
+            req.body?.dueDate,
+            req.user?.userId || req.user?.id,
+            req.body?.note
+        );
+        res.json({ success: true, payment: serializePayment(updated) });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to extend due date' });
+    }
+});
+
+router.post('/:id/mark-received', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
+        if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+        const group = await paymentsInGroup(payment);
+        const actorId = req.user?.userId || req.user?.id;
+        const updated = [];
+        for (const row of group) {
+            if (isPaidStatus(row.status)) continue;
+            updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy: actorId }));
+        }
+        res.json({
+            success: true,
+            message: 'Payment marked as received',
+            payment: serializePayment(updated[0] || payment),
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to mark payment received' });
+    }
+});
+
+router.post('/:id/cancel', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() });
+        if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+        const updated = await cancelPaymentRecord(payment, req.user?.userId || req.user?.id, req.body?.reason);
+        res.json({ success: true, payment: serializePayment(updated) });
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to cancel payment' });
     }
 });
 
@@ -792,6 +1205,11 @@ router.delete('/:id', allowPermission('payments.write'), async (req, res) => {
 
         if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+
+        if (isPaidStatus(payment.status)) {
+            const { reverseInstallmentPayment } = require('../services/feeDuePolicy');
+            await reverseInstallmentPayment(payment);
         }
 
         return res.json({

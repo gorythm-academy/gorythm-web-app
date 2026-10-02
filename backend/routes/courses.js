@@ -163,6 +163,8 @@ router.get('/', async (req, res) => {
             'category',
             'price',
             'duration',
+            'feeDueDate',
+            'totalFeeCount',
             'level',
             'instructor',
             'instructors',
@@ -220,6 +222,8 @@ router.get('/', async (req, res) => {
             category: course.category,
             price: course.price,
             duration: course.duration,
+            feeDueDate: course.feeDueDate || null,
+            totalFeeCount: course.totalFeeCount || null,
             level: course.level,
             students: byCourseStudentCount.get(String(course._id)) || 0,
             status: course.isPublished ? 'published' : 'draft',
@@ -362,6 +366,15 @@ router.post(
             category: req.body.category,
             price: req.body.price,
             duration: req.body.duration || '8 weeks',
+            totalFeeCount: (() => {
+                const { parseTotalFeeCountInput } = require('../services/feeDuePolicy');
+                return parseTotalFeeCountInput(req.body.totalFeeCount);
+            })(),
+            feeDueDate: (() => {
+                if (!req.body.feeDueDate) return null;
+                const { parseDueDateInput } = require('../utils/feeDueDate');
+                return parseDueDateInput(req.body.feeDueDate);
+            })(),
             level: req.body.level || 'beginner',
             instructor: null,
             instructorName: '',
@@ -394,7 +407,7 @@ router.post(
         });
     } catch (error) {
         req.log.error('Error creating course', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to create course: ' + error.message });
+        res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Failed to create course: ' + error.message });
     }
 });
 
@@ -436,6 +449,14 @@ router.put(
         course.category = req.body.category || course.category;
         course.price = req.body.price !== undefined ? req.body.price : course.price;
         course.duration = req.body.duration || course.duration;
+        if (req.body.totalFeeCount !== undefined) {
+            const { parseTotalFeeCountInput, applyCourseTotalFeeCount } = require('../services/feeDuePolicy');
+            await applyCourseTotalFeeCount(course, parseTotalFeeCountInput(req.body.totalFeeCount));
+        }
+        if (req.body.feeDueDate !== undefined) {
+            const { applyCourseDueDate } = require('../services/feeDuePolicy');
+            await applyCourseDueDate(course, req.body.feeDueDate, req.user?.userId || req.user?.id || null);
+        }
         course.level = req.body.level || course.level;
         const nextPublished = req.body.status === 'published';
         course.isPublished = nextPublished;
@@ -483,7 +504,7 @@ router.put(
         });
     } catch (error) {
         req.log.error('Error updating course', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to update course: ' + error.message });
+        res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Failed to update course: ' + error.message });
     }
 });
 

@@ -1,21 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import FileUploadField from '../shared/FileUploadField';
+import { resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost } from '../shared/portalApi';
 import {
-  PortalLoading,
+  PortalDataSection,
   PortalAlert,
   PortalPageHeader,
   PortalCourseToolbar,
   PortalNewBanner,
+  PortalActivityBanner,
 } from '../shared/PortalUi';
+import { QuizFileView } from '../shared/QuizPreviewModal';
+import { collectQuizUpdateNotices } from '../../../utils/adminEditNotices';
 import QuizReviewPanel from '../shared/QuizReviewPanel';
-import { absFileUrl } from '../../../utils/fileUrl';
 import { formatScore } from '../../../utils/formatScore';
 import { portalDocId } from '../../../utils/portalDocId';
 import {
   filterPortalItemsByCourse,
   getItemsNewSinceLastVisit,
   markPortalPageVisited,
+  STUDENT_QUIZ_UPDATES,
 } from '../../../utils/portalNewItems';
 
 const SEEN_KEY = 'student_quizzes';
@@ -27,6 +32,8 @@ const StudentQuizzes = () => {
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [review, setReview] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [submissionFiles, setSubmissionFiles] = useState([]);
+  const [updateTick, setUpdateTick] = useState(0);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -55,8 +62,7 @@ const StudentQuizzes = () => {
   }, []);
 
   useEffect(() => {
-    markPortalPageVisited(SEEN_KEY);
-    setNewItems([]);
+    return () => markPortalPageVisited(SEEN_KEY);
   }, []);
 
   const filtered = useMemo(
@@ -64,23 +70,34 @@ const StudentQuizzes = () => {
     [quizzes, courseFilter]
   );
 
-  const openQuiz = async (quizId) => {
+  const openQuiz = async (quizId, { mode = 'auto' } = {}) => {
     setMsg('');
     setReview(null);
     try {
       const res = await portalGet(`/student/quizzes/${quizId}`);
-      if (res.success) {
-        if (res.attempt && res.review) {
-          setActiveQuiz({ quiz: res.quiz, attempt: res.attempt });
-          setReview(res.review);
-          requestAnimationFrame(() => {
-            document.querySelector('.portal-quiz-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          });
-        } else {
-          setActiveQuiz(res);
-          setAnswers({});
-        }
-      } else setMsg(res.error || 'Failed to load quiz');
+      if (!res.success) {
+        setMsg(res.error || 'Failed to load quiz');
+        return;
+      }
+      const wantRetake = mode === 'retake' || (mode === 'auto' && res.canRetake);
+      if (wantRetake) {
+        setActiveQuiz({ quiz: res.quiz, attempt: null, canRetake: true });
+        setAnswers({});
+        setSubmissionFiles([]);
+        setReview(null);
+        return;
+      }
+      if (res.attempt && res.review) {
+        setActiveQuiz({ quiz: res.quiz, attempt: res.attempt, canRetake: res.canRetake });
+        setReview(res.review);
+        requestAnimationFrame(() => {
+          document.querySelector('.portal-quiz-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        return;
+      }
+      setActiveQuiz(res);
+      setAnswers({});
+      setSubmissionFiles([]);
     } catch (err) {
       setMsg(err.message);
     }
@@ -94,9 +111,14 @@ const StudentQuizzes = () => {
     );
     setSubmitting(true);
     try {
+      const attachments =
+        activeQuiz.quiz.quizType === 'file'
+          ? await resolveLmsUploadList(submissionFiles, 'quizzes')
+          : [];
       const res = await portalPost('/student/quiz-attempts', {
         quizId: portalDocId(activeQuiz.quiz),
         answers: ordered,
+        attachments,
       });
       if (res.success) {
         setReview(res.review);
@@ -119,24 +141,23 @@ const StudentQuizzes = () => {
     setNewItems([]);
   };
 
-  if (error) {
-    return (
-      <div className="portal-page">
-        <PortalAlert type="error">{error}</PortalAlert>
-      </div>
-    );
-  }
-  if (quizzes === null) {
-    return (
-      <div className="portal-page">
-        <PortalLoading />
-      </div>
-    );
-  }
+  const loading = quizzes === null;
 
   const q = activeQuiz?.quiz;
   const taking = q && !activeQuiz?.attempt && !review;
   const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
+  const quizUpdateNotices = useMemo(
+    () => collectQuizUpdateNotices(filtered, { storageKey: STUDENT_QUIZ_UPDATES, audience: 'student' }),
+    [filtered, updateTick]
+  );
+
+  useEffect(() => {
+    if (!taking) return undefined;
+    const frame = requestAnimationFrame(() => {
+      document.querySelector('.portal-quiz-take-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [taking, q?._id]);
 
   return (
     <div className="portal-page">
@@ -151,15 +172,24 @@ const StudentQuizzes = () => {
         </div>
         <div>
           <h2>Course Quizzes</h2>
-          <p>Filter by course, take quizzes once, and review your scores when results are ready.</p>
+          <p>Filter by course, take quizzes, and review your scores when results are ready. If a quiz is updated after you submit, you can retake it.</p>
         </div>
       </div>
 
+      <PortalDataSection loading={loading} error={error} loadingLabel="Loading quizzes…">
       <PortalNewBanner
         title={`${visibleNew.length} new quiz${visibleNew.length === 1 ? '' : 'zes'} available`}
         items={visibleNew}
         itemLabel={(quiz) => quiz.title}
         onDismiss={dismissNew}
+      />
+      <PortalActivityBanner
+        title="Quiz updates"
+        rows={quizUpdateNotices}
+        onDismiss={() => {
+          markPortalPageVisited(STUDENT_QUIZ_UPDATES);
+          setUpdateTick((n) => n + 1);
+        }}
       />
 
       <PortalCourseToolbar
@@ -180,7 +210,7 @@ const StudentQuizzes = () => {
           <div className="portal-panel__body">
             {filtered.length === 0 ? (
               <p className="portal-select-hint" style={{ border: 'none', background: 'transparent' }}>
-                No quizzes for this selection.
+                There are no quizzes to show right now.
               </p>
             ) : (
               <div className="portal-data-table-wrap">
@@ -202,15 +232,48 @@ const StudentQuizzes = () => {
                         </td>
                         <td>{r.course?.title || '—'}</td>
                         <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
-                        <td>{r.attempt ? formatScore(r.attempt.score, r.totalMarks) : 'Not attempted'}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="portal-action-btn portal-action-btn--purple"
-                            onClick={() => openQuiz(portalDocId(r))}
-                          >
-                            {r.attempt ? 'View result' : 'Take quiz'}
-                          </button>
+                          {r.quizType === 'file'
+                            ? r.attempt
+                              ? 'Completed'
+                              : 'Not opened yet'
+                            : r.attempt
+                              ? formatScore(r.attempt.score, r.totalMarks)
+                              : 'Not attempted'}
+                        </td>
+                        <td>
+                          <div className="portal-quiz-actions">
+                            <button
+                              type="button"
+                              className="portal-action-btn portal-action-btn--purple"
+                              onClick={() =>
+                                openQuiz(portalDocId(r), {
+                                  mode: r.canRetake ? 'retake' : 'auto',
+                                })
+                              }
+                            >
+                              <span className="portal-action-btn__label">
+                                {r.canRetake
+                                  ? 'Retake quiz'
+                                  : r.quizType === 'file'
+                                    ? r.attempt
+                                      ? 'View'
+                                      : 'Open'
+                                    : r.attempt
+                                      ? 'View result'
+                                      : 'Take quiz'}
+                              </span>
+                            </button>
+                            {r.canRetake && r.attempt ? (
+                              <button
+                                type="button"
+                                className="portal-action-btn portal-action-btn--ghost"
+                                onClick={() => openQuiz(portalDocId(r), { mode: 'result' })}
+                              >
+                                <span className="portal-action-btn__label">View last result</span>
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -224,7 +287,36 @@ const StudentQuizzes = () => {
       {review ? (
         <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
           <div className="portal-panel__body portal-panel__body--padded">
-            <QuizReviewPanel review={review} title={q?.title ? `Results — ${q.title}` : 'Your results'} />
+            {q?.quizType === 'file' ? (
+              <div className="portal-quiz-review">
+                <QuizFileView quiz={q} tone="student" />
+                <p className="quiz-file-view__done">
+                  <i className="fas fa-check-circle" aria-hidden /> Marked as completed.
+                </p>
+                {(activeQuiz?.attempt?.attachments || []).length ? (
+                  <>
+                  <p className="quiz-file-view__done">Your uploaded files</p>
+                  <QuizFileView
+                    quiz={{ title: 'Your files', attachments: activeQuiz.attempt.attachments, quizType: 'file' }}
+                    tone="student"
+                    compact
+                  />
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <QuizReviewPanel review={review} title={q?.title ? `Results — ${q.title}` : 'Your results'} />
+            )}
+            {review && activeQuiz?.canRetake ? (
+              <button
+                type="button"
+                className="portal-action-btn portal-action-btn--purple"
+                style={{ marginTop: '1rem', marginRight: '0.5rem' }}
+                onClick={() => openQuiz(portalDocId(q), { mode: 'retake' })}
+              >
+                <span className="portal-action-btn__label">Retake updated quiz</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="portal-btn-secondary"
@@ -240,24 +332,23 @@ const StudentQuizzes = () => {
         </div>
       ) : null}
 
-      {taking ? (
+      {taking && q.quizType === 'file' ? (
+        <form className="portal-quiz-take-panel" onSubmit={submit}>
+          <QuizFileView quiz={q} tone="student" />
+          <p className="portal-field-hint">Open the material, add your files if you need to, then mark this quiz as done.</p>
+          <FileUploadField
+            label="Your files (optional)"
+            multiple
+            value={submissionFiles}
+            onChange={setSubmissionFiles}
+            category="quizzes"
+          />
+          <button type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Mark as done'}</button>
+        </form>
+      ) : taking ? (
         <form className="portal-quiz-take-panel" onSubmit={submit}>
           <h3>{q.title}</h3>
           <p className="portal-field-hint">Answer all questions <RequiredMark /></p>
-          {q.resourceLink ? (
-            <p>
-              <a href={q.resourceLink} target="_blank" rel="noreferrer">
-                Open reading link
-              </a>
-            </p>
-          ) : null}
-          {q.resourceFileUrl ? (
-            <p>
-              <a href={absFileUrl(q.resourceFileUrl)} target="_blank" rel="noreferrer">
-                Open study file
-              </a>
-            </p>
-          ) : null}
           {(q.questions || []).map((question, idx) => (
             <fieldset key={idx} className="portal-quiz-fieldset">
               <legend className="portal-field-label">
@@ -285,6 +376,7 @@ const StudentQuizzes = () => {
       ) : null}
 
       {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
+      </PortalDataSection>
     </div>
   );
 };

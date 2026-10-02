@@ -17,6 +17,7 @@ import { portalEmailDisplayLabel, isUnsetPortalEmail } from '../../../utils/stud
 import {
     normalizeEnrollmentStatus,
 } from '../../../utils/studentAdminValidation';
+import { billingStatusLabel, formatFeeSummaryMessage } from '../../../utils/billingLabels';
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_COURSES_LABEL, QUARANTINE_STUDENTS_LABEL } from '../../../utils/adminListLabels';
 import './StudentsData.scss';
 
@@ -68,10 +69,9 @@ const buildStudentCardsFromApi = (studentsPayload = []) =>
         const rows = entry.enrollments || [];
         const key = student._id ? String(student._id) : `student:${student.email || student.name}`;
         const statuses = rows.map((e) => normalizeEnrollmentStatus(e.status));
-        const feeStatuses = rows.map((e) => {
-            const fee = (e.paymentStatus || 'pending').toLowerCase();
-            return fee.charAt(0).toUpperCase() + fee.slice(1);
-        });
+        const feeStatuses = rows.map((e) =>
+            billingStatusLabel(e.displayFeeStatus || e.paymentStatus || 'pending')
+        );
         return {
             key,
             student,
@@ -140,6 +140,7 @@ const StudentsData = () => {
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterFeeStatus, setFilterFeeStatus] = useState('all');
     const [editingEnrollment, setEditingEnrollment] = useState(null);
+    const [editMode, setEditMode] = useState('course');
     const [showEditModal, setShowEditModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEnrollModal, setShowEnrollModal] = useState(false);
@@ -578,9 +579,38 @@ const StudentsData = () => {
     const updateEnrollmentStatus = async (enrollment, newStatus) => {
         try {
             const token = getAuthToken();
+            const payload = { status: newStatus };
+            if (newStatus === 'completed' && normalizeEnrollmentStatus(enrollment.status) !== 'completed') {
+                try {
+                    const preview = await axios.get(
+                        `${API_BASE_URL}/api/enrollments/${enrollment._id}/fee-summary`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    const summary = preview.data?.feeSummary;
+                    if (summary?.needsCompleteConfirm) {
+                        const ok = await showConfirm({
+                            title: 'Complete with unpaid fees?',
+                            message: formatFeeSummaryMessage(summary),
+                            confirmLabel: 'Complete anyway',
+                        });
+                        if (!ok) return;
+                        payload.confirmComplete = true;
+                    }
+                } catch {
+                    payload.confirmComplete = true;
+                }
+            }
+            if (normalizeEnrollmentStatus(enrollment.status) === 'completed' && newStatus !== 'completed') {
+                const ok = await showConfirm({
+                    title: 'Start billing again?',
+                    message: 'Un-completing this course will start fee due dates again if fees are still unpaid.',
+                    confirmLabel: 'Continue',
+                });
+                if (!ok) return;
+            }
             await axios.put(
                 `${API_BASE_URL}/api/enrollments/${enrollment._id}`,
-                { status: newStatus },
+                payload,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -613,7 +643,34 @@ const StudentsData = () => {
     };
 
     const handleEditEnrollment = (enrollment) => {
+        setEditMode('course');
         setEditingEnrollment(enrollment);
+        setShowEditModal(true);
+    };
+
+    const handleEditAccount = (enrollment) => {
+        setEditMode('account');
+        const rowStudent = enrollment?.student && typeof enrollment.student === 'object'
+            ? enrollment.student
+            : null;
+        const studentId = rowStudent?._id
+            || rowStudent?.id
+            || (typeof enrollment?.student === 'string' ? enrollment.student : '')
+            || detailStudent?._id
+            || '';
+        setEditingEnrollment({
+            ...(enrollment || {}),
+            student: {
+                ...(rowStudent || {}),
+                ...(detailStudent || {}),
+                _id: studentId,
+                name: rowStudent?.name || detailStudent?.name || '',
+                studentId: rowStudent?.studentId || detailStudent?.studentId || '',
+                email: rowStudent?.email || detailStudent?.email || '',
+                personalEmail: rowStudent?.personalEmail || detailStudent?.personalEmail || '',
+                phone: rowStudent?.phone || detailStudent?.phone || '',
+            },
+        });
         setShowEditModal(true);
     };
 
@@ -854,8 +911,7 @@ const StudentsData = () => {
                         ? new Date(enrollment.enrollmentDate).toISOString().slice(0, 10)
                         : '',
                     addedAt: student.createdAt ? new Date(student.createdAt).toISOString() : '',
-                    feeStatus: (enrollment.paymentStatus || 'pending').charAt(0).toUpperCase()
-                        + (enrollment.paymentStatus || 'pending').slice(1),
+                    feeStatus: billingStatusLabel(enrollment.displayFeeStatus || enrollment.paymentStatus || 'pending'),
                     status: normalizeEnrollmentStatus(enrollment.status),
                 };
             });
@@ -944,6 +1000,7 @@ const StudentsData = () => {
 
             <EditEnrollmentModal
                 isOpen={showEditModal}
+                mode={editMode}
                 enrollment={editingEnrollment}
                 onClose={() => {
                     setShowEditModal(false);
@@ -965,6 +1022,7 @@ const StudentsData = () => {
                 onClose={closeStudentDetail}
                 onAddCourse={handleAddCourseToStudent}
                 onEditEnrollment={handleEditEnrollment}
+                onEditAccount={handleEditAccount}
                 onQuarantineEnrollment={handleQuarantineEnrollment}
                 onQuarantineStudent={() => handleQuarantineStudent(detailStudent)}
                 onRestoreStudent={() => handleRestoreStudent(detailStudent)}
@@ -1073,7 +1131,7 @@ const StudentsData = () => {
                 <div className="students-cards-loading" aria-live="polite">
                     <i className="fas fa-spinner fa-spin" aria-hidden /> Refreshing…
                 </div>
-            ) : null}
+                    ) : null}
 
             {studentCards.length > 0 ? (
                 <div className="students-cards-grid">
@@ -1084,13 +1142,13 @@ const StudentsData = () => {
                             onOpen={openStudentDetail}
                         />
                     ))}
-                </div>
+                                                </div>
             ) : loading ? (
                 <div className="students-cards-grid students-cards-grid--skeleton" aria-hidden>
                     {Array.from({ length: PAGE_SIZE }, (_, i) => (
                         <div key={i} className="student-card-skeleton" />
                     ))}
-                </div>
+                                            </div>
             ) : (
                 <div className="students-cards-empty">
                     <i className="fas fa-user-graduate" aria-hidden />
