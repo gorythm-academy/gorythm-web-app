@@ -18,6 +18,9 @@ backend/node_modules
 .env
 backend/.env
 backend/uploads/
+
+# Never commit database dumps (contain password hashes and personal data)
+/mongo-backup/
 .env.local
 .env.development.local
 .env.test.local
