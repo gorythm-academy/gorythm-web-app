@@ -485,4 +485,54 @@
   .teacher-quizzes__attempts-table {
     margin-top: 0.5rem;
   }
+
+  .teacher-quizzes__slot-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .teacher-quizzes__slot-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .teacher-quizzes__slot-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  .teacher-quizzes__slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.45rem;
+  }
+
+  .teacher-quizzes__slot-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(139, 92, 246, 0.22);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 0.88rem;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  .teacher-quizzes__slot-hint {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #64748b;
+  }
 }

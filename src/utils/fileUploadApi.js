@@ -152,27 +152,6 @@ export async function cleanupCourseImage(imagePath, realm = AUTH_REALM.ADMIN) {
   return cleanupAdminMedia(MEDIA_CATEGORY.COURSES, imagePath, realm);
 }
 
-/** Rename course image file on disk (updates all courses using that path). */
-export async function renameCourseImage(imagePath, filename, realm = AUTH_REALM.ADMIN) {
-  if (!imagePath || !filename) throw new Error('imagePath and filename are required');
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
-  const base = (API_BASE_URL || '').replace(/\/$/, '');
-  try {
-    const res = await axios.post(
-      `${base}/api/admin/course-images/rename`,
-      { imagePath, filename },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const newPath = res.data?.imagePath;
-    if (!newPath) throw new Error(res.data?.error || 'Rename failed');
-    return newPath;
-  } catch (err) {
-    const msg = err.response?.data?.error || err.message || 'Rename failed';
-    throw new Error(msg);
-  }
-}
-
 /** List course images on the server (admin gallery). */
 export async function fetchCourseGalleryImages(realm = AUTH_REALM.ADMIN) {
   return fetchAdminMediaGallery(MEDIA_CATEGORY.COURSES, realm);

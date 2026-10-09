@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { absFileUrl, downloadProtectedUpload } from '../../../utils/fileUrl';
+import { downloadProtectedUpload, normalizeStoredUploadPath, ProtectedFileLink } from '../../../utils/fileUrl';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import ResearchSeriesView from '../../Pages/ResearchSeriesView';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
@@ -161,22 +161,32 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
           {attachments.length ? (
             <ul className="lms-material-preview__files">
               {attachments.map((url, index) => {
-                const href =
-                  url.startsWith('http://') || url.startsWith('https://') ? url : absFileUrl(url);
+                const storedUpload = normalizeStoredUploadPath(url);
+                const external =
+                  (url.startsWith('http://') || url.startsWith('https://')) &&
+                  !storedUpload.startsWith('/api/uploads/');
+                const label = (
+                  <>
+                    <i className="fas fa-external-link-alt" aria-hidden /> {fileLinkLabel(url, index, attachments.length)}
+                  </>
+                );
                 return (
                   <li key={`${url}-${index}`}>
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => {
-                        if (url.startsWith('http://') || url.startsWith('https://')) return;
-                        event.preventDefault();
-                        downloadProtectedUpload(url);
-                      }}
-                    >
-                      <i className="fas fa-external-link-alt" aria-hidden /> {fileLinkLabel(url, index, attachments.length)}
-                    </a>
+                    {external ? (
+                      <a href={url} target="_blank" rel="noreferrer">{label}</a>
+                    ) : (
+                      <ProtectedFileLink
+                        path={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          downloadProtectedUpload(url);
+                        }}
+                      >
+                        {label}
+                      </ProtectedFileLink>
+                    )}
                   </li>
                 );
               })}

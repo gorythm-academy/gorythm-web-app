@@ -4,6 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const ClassSchedule = require('../models/ClassSchedule');
 const {
     studentAssignmentMongoFilter,
+    startOfDay,
     resourceVisibleToStudent,
     studentSlotMatchesResource,
     studentResourceMongoFilter,
@@ -47,10 +48,12 @@ test('builds assignment visibility from the student assigned class slots', async
             return Promise.resolve([
                 {
                     course: 'course-a',
+                    enrollmentDate: new Date('2026-03-01T15:00:00'),
                     assignedSchedule: { _id: 'slot-a', teacher: { _id: 'teacher-a' } },
                 },
                 {
                     course: 'course-b',
+                    enrollmentDate: new Date('2026-04-02T15:00:00'),
                     assignedSchedule: { _id: 'slot-b', teacher: 'teacher-b' },
                 },
             ]);
@@ -58,11 +61,28 @@ test('builds assignment visibility from the student assigned class slots', async
     });
 
     const filter = await studentAssignmentMongoFilter('student-a');
+    const openFor = (enrolledAt) => ({
+        $or: [
+            { dueDate: null },
+            { dueDate: { $exists: false } },
+            { dueDate: { $gte: startOfDay(enrolledAt) } },
+        ],
+    });
 
     assert.deepEqual(filter, {
         $or: [
-            { course: 'course-a', teacher: 'teacher-a', assignedSchedule: 'slot-a' },
-            { course: 'course-b', teacher: 'teacher-b', assignedSchedule: 'slot-b' },
+            {
+                course: 'course-a',
+                teacher: 'teacher-a',
+                assignedSchedule: 'slot-a',
+                ...openFor(new Date('2026-03-01T15:00:00')),
+            },
+            {
+                course: 'course-b',
+                teacher: 'teacher-b',
+                assignedSchedule: 'slot-b',
+                ...openFor(new Date('2026-04-02T15:00:00')),
+            },
         ],
     });
 });
@@ -74,6 +94,13 @@ test('teacher-scoped resources are visible only to the matching class slot', () 
         resourceVisibleToStudent(
             { course: 'course-a', teacher: 'teacher-a', scope: 'teacher' },
             slots
+        ),
+        false
+    );
+    assert.equal(
+        resourceVisibleToStudent(
+            { course: 'course-a', teacher: 'teacher-a', scope: 'teacher' },
+            [{ courseId: 'course-a', teacherId: 'teacher-a', scheduleId: null }]
         ),
         true
     );

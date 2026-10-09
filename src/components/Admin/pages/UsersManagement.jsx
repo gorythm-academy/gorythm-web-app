@@ -1134,7 +1134,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
         if (trashBusy || !selectedUsers.length || listTab !== 'trash') return;
 
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
             confirmLabel: 'Delete forever',
         });
@@ -1176,7 +1176,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
     const permanentDeleteUser = async (userId) => {
         if (listTab !== 'trash' || trashBusy) return;
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: 'This cannot be undone. The user account will be removed from the database.',
             confirmLabel: 'Delete forever',
         });
@@ -2079,7 +2079,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
                                     disabled={trashBusy}
                                     onClick={permanentDeleteSelectedUsers}
                                 >
-                                    <i className="fas fa-trash-alt"></i> Delete permanently
+                                    <i className="fas fa-trash-alt"></i> Delete Permanently
                                 </button>
                             </>
                         )}
@@ -2311,7 +2311,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
                                                             className="status-select-inline"
                                                             value={displayStatus}
                                                             onChange={(e) => updateUserStatus(user._id, displayStatus, e.target.value)}
-                                                            title="Change status"
+                                                            title="Change Status"
                                                         >
                                                             <option value="active">Active</option>
                                                             <option value="inactive">Inactive</option>
@@ -2467,7 +2467,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
                                                 </button>
                                                 <button
                                                     className="action-btn delete-btn"
-                                                    title="Delete permanently"
+                                                    title="Delete Permanently"
                                                     disabled={trashBusy}
                                                     onClick={() => permanentDeleteUser(user._id)}
                                                 >

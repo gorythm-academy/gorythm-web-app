@@ -234,9 +234,3 @@ export function clearAuthSession(realm) {
   sessionStorage.removeItem(tokenKey);
   sessionStorage.removeItem(userKey);
 }
-
-export function reconcileAuthStorage() {
-  migrateLegacyAuth();
-  reconcileRealmStorage(AUTH_REALM.ADMIN);
-  reconcileRealmStorage(AUTH_REALM.PORTAL);
-}

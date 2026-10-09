@@ -259,6 +259,7 @@
       padding: 0.75rem 1rem;
       text-align: left;
       font-size: 0.75rem;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.03em;
       color: #64748b;
@@ -277,8 +278,27 @@
       background: #fafafa;
     }
 
+    tbody tr.lms-table-row--selected,
+    tbody tr.lms-table-row--selected:hover {
+      background: #f0fdf4;
+    }
+
     tbody tr:last-child td {
       border-bottom: none;
+    }
+
+    .lms-table-check-col {
+      width: 42px;
+      text-align: center;
+      vertical-align: middle;
+
+      input[type='checkbox'] {
+        width: 1.05rem;
+        height: 1.05rem;
+        accent-color: #4f46e5;
+        cursor: pointer;
+        vertical-align: middle;
+      }
     }
   }
 

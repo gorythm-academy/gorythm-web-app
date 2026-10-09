@@ -16,6 +16,7 @@ import SubmissionFiles from '../shared/SubmissionFiles';
 import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal';
 import {
   filterPortalItemsByCourse,
+  sortNewestFirst,
   getItemsNewSinceLastVisit,
   markPortalPageVisited,
   STUDENT_ASSIGNMENTS_UPDATES,
@@ -99,7 +100,7 @@ const StudentAssignments = () => {
   }, []);
 
   const filtered = useMemo(
-    () => filterPortalItemsByCourse(assignments || [], courseFilter),
+    () => sortNewestFirst(filterPortalItemsByCourse(assignments || [], courseFilter)),
     [assignments, courseFilter]
   );
 

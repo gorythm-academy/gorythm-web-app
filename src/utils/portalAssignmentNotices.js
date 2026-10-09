@@ -71,15 +71,6 @@ export function collectAssignmentUpdateNotices(assignments, storageKey, options 
   return rows;
 }
 
-export function countAssignmentsUpdatedSince(assignments, storageKey) {
-  const since = cutoffMs(storageKey);
-  return (assignments || []).filter((a) => {
-    const created = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    if (created > since) return false;
-    return assignmentUpdatedSince(a, since);
-  }).length;
-}
-
 export function isSubmissionRevisedClient(submission) {
   if (!submission) return false;
   if (Number(submission.revisionCount) > 0) return true;
@@ -93,15 +84,6 @@ export function getSubmissionRevisionLabel(submission) {
   if (!isSubmissionRevisedClient(submission)) return null;
   const count = Number(submission.revisionCount) || 1;
   return count > 1 ? 'Re-submitted' : 'Edited';
-}
-
-export function submissionRevisedSince(submission, sinceMs) {
-  if (!isSubmissionRevisedClient(submission)) return false;
-  const created = submission.createdAt ? new Date(submission.createdAt).getTime() : 0;
-  if (created > sinceMs) return false;
-  const updated = submission.updatedAt ? new Date(submission.updatedAt).getTime() : 0;
-  const submitted = submission.submittedAt ? new Date(submission.submittedAt).getTime() : 0;
-  return Math.max(updated, submitted) > sinceMs;
 }
 
 /** First submit or resubmit since the viewer last visited. */
@@ -137,15 +119,6 @@ export function collectSubmissionActivityNotices(submissions, storageKey) {
   return rows;
 }
 
-export function collectSubmissionRevisionNotices(submissions, storageKey) {
-  return collectSubmissionActivityNotices(submissions, storageKey);
-}
-
-export function countSubmissionsRevisedSince(submissions, storageKey) {
-  const since = cutoffMs(storageKey);
-  return (submissions || []).filter((s) => submissionActivitySince(s, since)).length;
-}
-
 export function dueDateExtendedSince(assignment, sinceMs) {
   if (!assignment) return false;
   const extensions = Array.isArray(assignment.dueDateExtensions) ? assignment.dueDateExtensions : [];
@@ -168,16 +141,6 @@ export function collectDueDateExtensionNotices(assignments, storageKey, options 
     });
   }
   return rows;
-}
-
-/** True when existing assignments were edited (not newly created) since last visit. */
-export function hasAssignmentEditsSince(assignments, storageKey) {
-  return countAssignmentsUpdatedSince(assignments, storageKey) > 0;
-}
-
-/** True when existing submissions were revised since last visit. */
-export function hasSubmissionEditsSince(submissions, storageKey) {
-  return countSubmissionsRevisedSince(submissions, storageKey) > 0;
 }
 
 const DISMISSED_REMOVALS_PREFIX = 'gorythm_portal_dismissed_submission_removals_';

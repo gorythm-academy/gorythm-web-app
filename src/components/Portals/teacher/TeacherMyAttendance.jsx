@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost } from '../shared/portalApi';
+import { portalDocId } from '../../../utils/portalDocId';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import {
   TEACHER_MY_STATUS_OPTIONS,
@@ -19,6 +21,7 @@ import {
   getAcademyWeeksInMonth,
 } from '../../../utils/academyWeek';
 import './TeacherMyAttendance.scss';
+import '../student/StudentAttendance.scss';
 
 const PERIOD_OPTIONS = [
   { value: 'daily', label: 'Daily' },
@@ -169,7 +172,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
 
   return (
     <div className="portal-week-picker-fields">
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Year</span>
         <select value={selectedYear} onChange={(e) => handleYearChange(e.target.value)}>
           {yearOptions.map((opt) => (
@@ -179,7 +182,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
           ))}
         </select>
       </label>
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Month</span>
         <select
           value={selectedMonth}
@@ -193,7 +196,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
           ))}
         </select>
       </label>
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Week</span>
         <select
           value={monday}
@@ -271,7 +274,30 @@ const SubmissionsTable = ({ rows, loading, emptyMessage }) => (
   </div>
 );
 
+const rowMatchesCourse = (row, courseId) => {
+  if (!courseId) return true;
+  if (!row?.course) return true;
+  return String(row.course) === String(courseId);
+};
+
+const CourseSelect = ({ id, value, onChange, courses, required = false }) => (
+  <label className="portal-field-label portal-field-label--course" htmlFor={id}>
+    <span>Course {required ? <RequiredMark /> : null}</span>
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} required={required}>
+      <option value="">Select course</option>
+      {courses.map((c) => (
+        <option key={portalDocId(c)} value={portalDocId(c)}>
+          {c.title}
+        </option>
+      ))}
+    </select>
+  </label>
+);
+
 const TeacherMyAttendance = () => {
+  const [courses, setCourses] = useState([]);
+  const [markCourseId, setMarkCourseId] = useState('');
+  const [reportCourseId, setReportCourseId] = useState('');
   const [monthlyRecords, setMonthlyRecords] = useState([]);
   const [dailySubmissions, setDailySubmissions] = useState([]);
   const [viewMonth, setViewMonth] = useState(currentMonthKey());
@@ -366,8 +392,10 @@ const TeacherMyAttendance = () => {
         if (requestId !== dayRequestRef.current) return;
         if (res.success) {
           const rec = res.selectedDayRecord;
-          setExistingForDay(rec || null);
-          if (rec) {
+          const recCourse = rec?.course?._id || rec?.course || '';
+          const sameCourse = !markCourseId || !recCourse || String(recCourse) === String(markCourseId);
+          setExistingForDay(rec && sameCourse ? rec : null);
+          if (rec && sameCourse) {
             setStatus(rec.status || 'present');
             setNotes(rec.notes || '');
           } else {
@@ -385,11 +413,19 @@ const TeacherMyAttendance = () => {
       .finally(() => {
         if (requestId === dayRequestRef.current) setLoadingDay(false);
       });
-  }, []);
+  }, [markCourseId]);
 
   useEffect(() => {
     loadMonthly(viewMonth);
   }, [loadMonthly, viewMonth]);
+
+  useEffect(() => {
+    portalGet('/teacher/courses')
+      .then((res) => {
+        if (res.success) setCourses(res.courses || []);
+      })
+      .catch(() => setCourses([]));
+  }, []);
 
   useEffect(() => {
     const monthForQuery = selectedDate ? selectedDate.slice(0, 7) : viewMonth;
@@ -417,18 +453,28 @@ const TeacherMyAttendance = () => {
 
   const viewMonthLabel = useMemo(() => formatMonthLabel(viewMonth), [viewMonth]);
 
+  const markSubmissions = useMemo(
+    () => dailySubmissions.filter((row) => rowMatchesCourse(row, markCourseId)),
+    [dailySubmissions, markCourseId]
+  );
+
+  const reportSubmissions = useMemo(
+    () => dailySubmissions.filter((row) => rowMatchesCourse(row, reportCourseId)),
+    [dailySubmissions, reportCourseId]
+  );
+
   const marksByDate = useMemo(() => {
     const map = {};
-    dailySubmissions.forEach((row) => {
+    markSubmissions.forEach((row) => {
       map[row.date] = row;
     });
     return map;
-  }, [dailySubmissions]);
+  }, [markSubmissions]);
 
   const reportDailyRows = useMemo(() => {
     if (!reportDate) return [];
-    return dailySubmissions.filter((r) => r.date === reportDate);
-  }, [dailySubmissions, reportDate]);
+    return reportSubmissions.filter((r) => r.date === reportDate);
+  }, [reportSubmissions, reportDate]);
 
   const reportWeekBounds = useMemo(
     () => getAcademyWeekBounds(reportWeekStart),
@@ -437,10 +483,10 @@ const TeacherMyAttendance = () => {
 
   const reportWeekRows = useMemo(
     () =>
-      dailySubmissions.filter(
+      reportSubmissions.filter(
         (r) => r.date >= reportWeekBounds.monday && r.date <= reportWeekBounds.saturday
       ),
-    [dailySubmissions, reportWeekBounds]
+    [reportSubmissions, reportWeekBounds]
   );
 
   const reportWeekKpis = useMemo(() => countStatusTotals(reportWeekRows), [reportWeekRows]);
@@ -486,6 +532,10 @@ const TeacherMyAttendance = () => {
     setSaveNotice('');
     if (saveNoticeTimerRef.current) clearTimeout(saveNoticeTimerRef.current);
 
+    if (!markCourseId) {
+      setInfoMsg('Select a course first.');
+      return;
+    }
     if (!selectedDate) {
       setInfoMsg('Please select a date first.');
       return;
@@ -502,6 +552,7 @@ const TeacherMyAttendance = () => {
     setSubmitting(true);
     try {
       const res = await portalPost('/teacher/my-attendance', {
+        courseId: markCourseId,
         date: selectedDate,
         status,
         notes,
@@ -523,40 +574,69 @@ const TeacherMyAttendance = () => {
   };
 
   const showMarkingPanel = Boolean(selectedDate) && !selectedDateIsFuture && !selectedDateIsSunday;
-  const canSubmit = showMarkingPanel && !loadingDay && !submitting;
+  const canSubmit = Boolean(markCourseId) && showMarkingPanel && !loadingDay && !submitting;
 
   if (loading) {
     return (
-      <div className="portal-page teacher-my-attendance">
+      <div className="portal-page teacher-my-attendance student-attendance">
         <PortalPageHeader
           title="My Attendance"
-          subtitle="Mark each day, then review your records by day, week, or month."
+          subtitle="View attendance by course — daily, weekly, or monthly."
         />
-        <PortalDataSection loading loadingLabel="Loading attendance…" />
+        <div className="student-attendance__hero">
+          <div className="student-attendance__hero-icon" aria-hidden="true">
+            <i className="fas fa-user-check" />
+          </div>
+          <div>
+            <h2>Course Attendance</h2>
+            <p>
+              Select a course below. If you teach more than one course, switch the dropdown to see each one
+              separately.
+            </p>
+          </div>
+        </div>
+        <section className="student-attendance__panel">
+          <PortalDataSection loading loadingLabel="Loading attendance…" />
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="portal-page teacher-my-attendance">
+    <div className="portal-page teacher-my-attendance student-attendance">
       <PortalPageHeader
         title="My Attendance"
-        subtitle="Mark each day, then review your records by day, week, or month."
+        subtitle="View attendance by course — daily, weekly, or monthly."
       />
+
+      <div className="student-attendance__hero">
+        <div className="student-attendance__hero-icon" aria-hidden="true">
+          <i className="fas fa-user-check" />
+        </div>
+        <div>
+          <h2>Course Attendance</h2>
+          <p>
+            Select a course below. If you teach more than one course, switch the dropdown to see each one
+            separately.
+          </p>
+        </div>
+      </div>
 
       {loadError ? <PortalAlert type="error">{loadError}</PortalAlert> : null}
       {errorMsg ? <PortalAlert type="error">{errorMsg}</PortalAlert> : null}
       {infoMsg ? <PortalAlert type="info">{infoMsg}</PortalAlert> : null}
 
+      <section className="student-attendance__panel">
       <form className="my-attendance-daily-card" onSubmit={submit} autoComplete="off">
-        <div className="my-attendance-daily-card__head">
-          <div className="my-attendance-daily-card__icon" aria-hidden="true">
-            <i className="fas fa-calendar-check" />
-          </div>
-          <div>
-            <h3>Daily Attendance</h3>
-            <p>Choose a date, set your status, and submit for admin approval.</p>
-          </div>
+
+        <div className="portal-attendance-filter-bar">
+          <CourseSelect
+            id="my-attendance-course"
+            value={markCourseId}
+            onChange={setMarkCourseId}
+            courses={courses}
+            required
+          />
         </div>
 
         <div className="my-attendance-date-picker">
@@ -785,10 +865,16 @@ const TeacherMyAttendance = () => {
         </p>
 
         <div className="portal-attendance-filter-bar">
+          <CourseSelect
+            id="my-attendance-report-course"
+            value={reportCourseId}
+            onChange={setReportCourseId}
+            courses={courses}
+          />
           {reportPeriod === 'weekly' ? (
             <WeekPicker weekStart={reportWeekStart} onWeekStartChange={setReportWeekStart} />
           ) : (
-            <label className="portal-field-label">
+            <label className="portal-field-label portal-field-label--calendar">
               <span>{reportPeriod === 'monthly' ? 'Month' : 'Date'}</span>
               <input
                 type={reportPeriod === 'monthly' ? 'month' : 'date'}
@@ -903,7 +989,7 @@ const TeacherMyAttendance = () => {
         {reportPeriod === 'monthly' ? (
           <>
             <SubmissionsTable
-              rows={dailySubmissions}
+              rows={reportSubmissions}
               loading={loadingMonth}
               emptyMessage={`No daily submissions for ${viewMonthLabel} yet.`}
             />
@@ -971,6 +1057,7 @@ const TeacherMyAttendance = () => {
             </div>
           </>
         ) : null}
+      </section>
       </section>
     </div>
   );

@@ -37,6 +37,14 @@ const rules = {
         if (!Array.isArray(value) || value.length === 0) return `${label} is required`;
         return null;
     },
+    objectIdList: (field, label = field) => (body) => {
+        const value = body?.[field];
+        if (!Array.isArray(value) || value.length === 0) return `${label} is required`;
+        if (value.some((id) => !mongoose.Types.ObjectId.isValid(String(id || '')))) {
+            return `${label} is invalid`;
+        }
+        return null;
+    },
 };
 
 const validate = (checks = []) => (req, res, next) => {

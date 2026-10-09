@@ -189,6 +189,17 @@ router.post(
     }
 );
 
+router.post('/file-link', authMiddleware, validateSessionUser, async (req, res) => {
+    try {
+        const { issueFileLink } = require('../middleware/protectedUploads');
+        const link = await issueFileLink(req, req.body?.path);
+        return res.json({ success: true, ...link });
+    } catch (error) {
+        const code = error.status || 500;
+        return res.status(code).json({ success: false, error: error.message || 'Failed to open file' });
+    }
+});
+
 router.post('/change-initial-password', authMiddleware, validateSessionUser, async (req, res) => {
     try {
         const { newPassword } = req.body;

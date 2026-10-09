@@ -11,6 +11,7 @@ const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
 const { logAudit } = require('../utils/audit');
 const { validate, rules } = require('../middleware/validate');
+const { childLink } = require('../middleware/portalBodyRules');
 const { activeUserFilter, trashedUserFilter } = require('../utils/userQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const {
@@ -845,7 +846,7 @@ router.patch(
 });
 
 // Update user status
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', validate([rules.enum('status', 'Status', USER_STATUS_OPTIONS)]), async (req, res) => {
     try {
         const { status } = req.body;
         const actorRole = req.user?.role;
@@ -1146,7 +1147,7 @@ router.post('/:id/child-links/bulk', async (req, res) => {
     }
 });
 
-router.post('/:id/child-links', async (req, res) => {
+router.post('/:id/child-links', validate([childLink]), async (req, res) => {
     try {
         const ParentStudentLink = require('../models/ParentStudentLink');
         const { studentId, relation = 'guardian' } = req.body;
@@ -1202,7 +1203,7 @@ router.delete('/:id/child-links/:linkId', async (req, res) => {
 });
 
 // Bulk delete users
-router.post('/bulk-delete', async (req, res) => {
+router.post('/bulk-delete', validate([rules.objectIdList('ids', 'Users')]), async (req, res) => {
     try {
         const { ids } = req.body;
 
@@ -1237,7 +1238,10 @@ router.post('/bulk-delete', async (req, res) => {
 });
 
 // Bulk update status
-router.patch('/bulk-status', async (req, res) => {
+router.patch(
+    '/bulk-status',
+    validate([rules.objectIdList('ids', 'Users'), rules.enum('status', 'Status', USER_STATUS_OPTIONS)]),
+    async (req, res) => {
     try {
         const { ids, status } = req.body;
 

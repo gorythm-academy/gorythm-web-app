@@ -584,8 +584,8 @@ const StudentsData = () => {
                 try {
                     const preview = await axios.get(
                         `${API_BASE_URL}/api/enrollments/${enrollment._id}/fee-summary`,
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    );
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
                     const summary = preview.data?.feeSummary;
                     if (summary?.needsCompleteConfirm) {
                         const ok = await showConfirm({

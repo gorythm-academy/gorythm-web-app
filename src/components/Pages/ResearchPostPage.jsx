@@ -155,7 +155,7 @@ const ResearchCommentSection = ({ postSlug }) => {
               <p className="research-comment-text">{c.text}</p>
               {c.adminReply ? (
                 <div className="research-comment-reply">
-                  <p className="research-comment-reply-label">Response from Gorythm</p>
+                  <p className="research-comment-reply-label">Response from Gorythm Academy</p>
                   <p className="research-comment-text">{c.adminReply}</p>
                   {c.repliedAt ? (
                     <p className="research-comment-date">{formatDate(c.repliedAt)}</p>

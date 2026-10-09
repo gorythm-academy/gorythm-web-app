@@ -43,11 +43,19 @@ export function formatMoney(amount, currency = 'USD') {
   return `${code} ${value.toFixed(2)}`;
 }
 
+function formatDayMonthYear(date) {
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 export function formatDueDate(value) {
   if (!value) return '—';
-  const date = new Date(value);
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString();
+  return formatDayMonthYear(date);
 }
 
 export function resolveFeeDueDate(item) {
@@ -92,7 +100,7 @@ export function formatPaymentDate(payment) {
   if (!raw) return '—';
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString();
+  return formatDayMonthYear(date);
 }
 
 export function savedCardLabel(card) {
@@ -101,26 +109,6 @@ export function savedCardLabel(card) {
   const name = brand.charAt(0).toUpperCase() + brand.slice(1);
   const last4 = String(card.last4 || card.cardLast4 || '');
   return last4 ? `${name} •••• ${last4}` : name;
-}
-
-export function paymentMethodLabel(method) {
-  const value = String(method || '').toLowerCase();
-  if (value === 'stripe' || value === 'card' || value === 'link') return 'card';
-  if (value === 'bank') return 'bank';
-  return value || '—';
-}
-
-export function invoiceNumberOf(payment) {
-  return String(payment?.invoiceNumber || payment?.transactionId || payment?.invoiceNo || '').trim();
-}
-
-export function formatChargedAmount(payment) {
-  if (!payment) return '—';
-  const presentmentCurrency = String(payment.presentmentCurrency || '').toUpperCase();
-  if (presentmentCurrency && presentmentCurrency !== 'USD' && payment.presentmentAmount != null) {
-    return formatMoney(payment.presentmentAmount, presentmentCurrency);
-  }
-  return formatMoney(payment.amount, payment.currency);
 }
 
 export function maxPayableMonths(item) {

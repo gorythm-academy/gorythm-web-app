@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 
 const { allowPortalRoles, getPortalActorId } = require('../../middleware/portalAccess');
+const { validate } = require('../../middleware/validate');
+const {
+    teacherAttendance,
+    teacherAssignment,
+    teacherQuiz,
+    teacherResource,
+} = require('../../middleware/portalBodyRules');
 const AttendanceRecord = require('../../models/AttendanceRecord');
 const Assignment = require('../../models/Assignment');
 const AssignmentSubmission = require('../../models/AssignmentSubmission');
@@ -242,6 +249,7 @@ router.get('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) => 
             ...activeLmsFilter(),
         })
             .populate('course', 'title')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime')
             .sort({ createdAt: -1 });
         const attemptCounts = await QuizAttempt.aggregate([
             { $match: { quiz: { $in: quizzes.map((q) => q._id) }, ...activeLmsFilter() } },
@@ -304,6 +312,7 @@ router.get('/teacher/resources', allowPortalRoles('teacher'), async (req, res) =
             .populate('course', 'title')
             .populate('teacher', 'name')
             .populate('uploadedBy', 'name role')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime')
             .sort({ createdAt: -1 });
         res.json({ success: true, resources });
     } catch (error) {
@@ -365,7 +374,7 @@ router.get('/teacher/attendance', allowPortalRoles('teacher'), async (req, res) 
     }
 });
 
-router.post('/teacher/attendance', allowPortalRoles('teacher'), async (req, res) => {
+router.post('/teacher/attendance', allowPortalRoles('teacher'), validate([teacherAttendance]), async (req, res) => {
     try {
         const { courseId, studentId, status, notes, date, records } = req.body;
         let list = Array.isArray(records) ? records : [];
@@ -577,7 +586,7 @@ router.get('/teacher/attendance/report', allowPortalRoles('teacher'), async (req
     }
 });
 
-router.post('/teacher/assignments', allowPortalRoles('teacher'), async (req, res) => {
+router.post('/teacher/assignments', allowPortalRoles('teacher'), validate([teacherAssignment]), async (req, res) => {
     try {
         const { courseId, scheduleId, scheduleIds, title, description, dueDate, status, attachments } = req.body;
         if (!courseId || !title || !dueDate) {
@@ -628,9 +637,9 @@ router.post('/teacher/assignments', allowPortalRoles('teacher'), async (req, res
     }
 });
 
-router.post('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) => {
+router.post('/teacher/quizzes', allowPortalRoles('teacher'), validate([teacherQuiz]), async (req, res) => {
     try {
-        const { courseId, title, questions, totalMarks, dueDate, status } = req.body;
+        const { courseId, scheduleId, scheduleIds, title, questions, totalMarks, dueDate, status } = req.body;
         const quizType = req.body.quizType === 'file' ? 'file' : 'mcq';
         if (!courseId || !title) {
             return res.status(400).json({ success: false, error: 'courseId and title are required' });
@@ -651,10 +660,21 @@ router.post('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) =>
             }
         }
         await assertTeacherOwnsCourse(req.portalActorId, courseId);
-        const quiz = await Quiz.create({
+        const ids = Array.isArray(scheduleIds) && scheduleIds.length
+            ? scheduleIds
+            : scheduleId
+              ? [scheduleId]
+              : [];
+        if (!ids.length) {
+            return res.status(400).json({ success: false, error: 'Select at least one class slot' });
+        }
+        const targets = await resolveValidScheduleTargets({
+            scheduleIds: ids,
+            teacherId: req.portalActorId,
+            courseId,
+        });
+        const shared = {
             title: String(title).trim(),
-            course: courseId,
-            teacher: req.portalActorId,
             quizType,
             questions: normalized,
             totalMarks: quizType === 'file' ? null : (totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null),
@@ -665,43 +685,85 @@ router.post('/teacher/quizzes', allowPortalRoles('teacher'), async (req, res) =>
             createdByRole: 'teacher',
             lockedForTeacher: false,
             status: status || 'published',
+        };
+        const created = await Quiz.insertMany(
+            targets.map(({ courseId: cid, teacherId: tid, scheduleId: sid }) => ({
+                ...shared,
+                course: cid,
+                teacher: tid,
+                assignedSchedule: sid,
+            }))
+        );
+        const populated = await Quiz.find({ _id: { $in: created.map((quiz) => quiz._id) } })
+            .populate('course', 'title')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
+        res.status(201).json({
+            success: true,
+            createdCount: populated.length,
+            quizzes: populated,
+            quiz: populated[0] || null,
         });
-        res.status(201).json({ success: true, quiz });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to create quiz' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.message || 'Failed to create quiz' });
     }
 });
 
-router.post('/teacher/resources', allowPortalRoles('teacher'), async (req, res) => {
+router.post('/teacher/resources', allowPortalRoles('teacher'), validate([teacherResource]), async (req, res) => {
     try {
-        const { courseId, title, description, fileUrl, attachments, type, scope = 'teacher' } = req.body;
+        const { courseId, scheduleId, scheduleIds, title, description, fileUrl, attachments, type } = req.body;
         if (!courseId || !title) {
             return res.status(400).json({ success: false, error: 'courseId and title are required' });
         }
         await assertTeacherOwnsCourse(req.portalActorId, courseId);
+        const ids = Array.isArray(scheduleIds) && scheduleIds.length
+            ? scheduleIds
+            : scheduleId
+              ? [scheduleId]
+              : [];
+        if (!ids.length) {
+            return res.status(400).json({ success: false, error: 'Select at least one class slot' });
+        }
+        const targets = await resolveValidScheduleTargets({
+            scheduleIds: ids,
+            teacherId: req.portalActorId,
+            courseId,
+        });
         const attachmentList = Array.isArray(attachments)
             ? attachments.map((u) => String(u || '').trim()).filter(Boolean)
             : fileUrl
               ? [String(fileUrl).trim()].filter(Boolean)
               : [];
-        const resource = await Resource.create({
+        const shared = {
             title: String(title).trim(),
             description: description || '',
             fileUrl: attachmentList[0] || '',
             attachments: attachmentList,
             type: type || 'file',
-            course: courseId,
-            teacher: req.portalActorId,
-            scope: scope === 'course' ? 'course' : 'teacher',
+            scope: 'teacher',
             uploadedBy: req.portalActorId,
             createdByRole: 'teacher',
             createdByUser: req.portalActorId,
             lockedForTeacher: false,
-        });
-        const populated = await Resource.findById(resource._id)
+        };
+        const created = await Resource.insertMany(
+            targets.map(({ courseId: cid, teacherId: tid, scheduleId: sid }) => ({
+                ...shared,
+                course: cid,
+                teacher: tid,
+                assignedSchedule: sid,
+            }))
+        );
+        const populated = await Resource.find({ _id: { $in: created.map((resource) => resource._id) } })
             .populate('course', 'title')
-            .populate('uploadedBy', 'name');
-        res.status(201).json({ success: true, resource: populated });
+            .populate('uploadedBy', 'name')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
+        res.status(201).json({
+            success: true,
+            createdCount: populated.length,
+            resources: populated,
+            resource: populated[0] || null,
+        });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to create resource' });
@@ -844,9 +906,21 @@ router.patch('/teacher/resources/:id', allowPortalRoles('teacher'), async (req, 
         if (!resource) return res.status(404).json({ success: false, error: 'Resource not found' });
         await assertTeacherOwnsCourse(req.portalActorId, resource.course);
         assertTeacherCanMutateResource(resource);
-        const { courseId, title, description, fileUrl, attachments, type } = req.body;
-        if (courseId) await assertTeacherOwnsCourse(req.portalActorId, courseId);
-        if (courseId) resource.course = courseId;
+        const { courseId, scheduleId, title, description, fileUrl, attachments, type } = req.body;
+        if (scheduleId) {
+            const [target] = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                teacherId: req.portalActorId,
+                courseId: courseId || resource.course,
+            });
+            resource.course = target.courseId;
+            resource.teacher = target.teacherId;
+            resource.assignedSchedule = target.scheduleId;
+            resource.scope = 'teacher';
+        } else if (courseId) {
+            await assertTeacherOwnsCourse(req.portalActorId, courseId);
+            resource.course = courseId;
+        }
         if (title !== undefined) resource.title = String(title).trim();
         if (description !== undefined) resource.description = description || '';
         if (attachments !== undefined || fileUrl !== undefined) {
@@ -862,7 +936,8 @@ router.patch('/teacher/resources/:id', allowPortalRoles('teacher'), async (req, 
         await resource.save();
         const populated = await Resource.findById(resource._id)
             .populate('course', 'title')
-            .populate('uploadedBy', 'name role');
+            .populate('uploadedBy', 'name role')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
         res.json({ success: true, resource: populated });
     } catch (error) {
         const code = error.status || 500;
@@ -896,8 +971,16 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
             return res.status(403).json({ success: false, error: 'This quiz was published by admin and cannot be edited here.' });
         }
         const attemptCount = await QuizAttempt.countDocuments({ quiz: quiz._id, ...activeLmsFilter() });
-        const { courseId, title, questions, totalMarks, dueDate, status } = req.body;
-        if (courseId) {
+        const { courseId, scheduleId, title, questions, totalMarks, dueDate, status } = req.body;
+        if (scheduleId) {
+            const [target] = await resolveValidScheduleTargets({
+                scheduleIds: [scheduleId],
+                teacherId: req.portalActorId,
+                courseId: courseId || quiz.course,
+            });
+            quiz.course = target.courseId;
+            quiz.assignedSchedule = target.scheduleId;
+        } else if (courseId) {
             await assertTeacherOwnsCourse(req.portalActorId, courseId);
             quiz.course = courseId;
         }
@@ -940,7 +1023,10 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
         if (dueDate !== undefined) quiz.dueDate = dueDate ? new Date(dueDate) : null;
         if (status !== undefined) quiz.status = status;
         await quiz.save();
-        res.json({ success: true, quiz });
+        const populated = await Quiz.findById(quiz._id)
+            .populate('course', 'title')
+            .populate('assignedSchedule', 'dayOfWeek startTime endTime');
+        res.json({ success: true, quiz: populated });
     } catch (error) {
         const code = error.status || 500;
         res.status(code).json({ success: false, error: error.message || 'Failed to update quiz' });
@@ -1082,6 +1168,7 @@ router.get('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, re
                 status: d.status,
                 notes: d.notes || '',
                 approvalStatus: d.approvalStatus || 'pending',
+                course: d.course ? String(d.course) : '',
             };
         });
         const calendarDays = monthCalendar.days.map((d) => ({
@@ -1097,6 +1184,7 @@ router.get('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, re
                 status: d.status,
                 notes: d.notes || '',
                 approvalStatus: d.approvalStatus || 'pending',
+                course: d.course ? String(d.course) : '',
                 submittedAt: d.submittedAt,
                 reviewedAt: d.reviewedAt,
             }));
@@ -1136,7 +1224,11 @@ router.post('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, r
         if (!req.portalActorId) {
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
-        const { date, status, notes } = req.body;
+        const { date, status, notes, courseId } = req.body;
+        if (!courseId) {
+            return res.status(400).json({ success: false, error: 'Select a course' });
+        }
+        await assertTeacherOwnsCourse(req.portalActorId, courseId);
         if (!isValidAttendanceStatus(status)) {
             return res.status(400).json({ success: false, error: 'Invalid status' });
         }
@@ -1165,6 +1257,7 @@ router.post('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, r
         const record = await TeacherSelfAttendanceDay.findOneAndUpdate(
             { teacher: req.portalActorId, date: dayStart },
             {
+                course: courseId,
                 status,
                 notes: String(notes || ''),
                 approvalStatus: 'pending',
@@ -1187,7 +1280,10 @@ router.post('/teacher/my-attendance', allowPortalRoles('teacher'), async (req, r
         });
     } catch (error) {
         req.log?.error?.('Teacher my-attendance submit failed', { err: error });
-        res.status(500).json({ success: false, error: 'Failed to submit attendance' });
+        res.status(error.status || 500).json({
+            success: false,
+            error: error.status ? error.message : 'Failed to submit attendance',
+        });
     }
 });
 

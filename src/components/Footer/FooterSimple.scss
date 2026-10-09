@@ -163,6 +163,29 @@
   margin-top: 0;
   padding-top: clamp(10px, 1.1vw, 18px);
   border-top: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+
+.footer-milky-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+
+  a {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover,
+    &.active {
+      color: #fff;
+    }
+  }
 }
 
 .footer-milky-copyright {

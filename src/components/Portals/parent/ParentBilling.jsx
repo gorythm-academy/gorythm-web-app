@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { portalGet, portalGetBlob, portalPost, portalPostForm } from '../shared/portalApi';
+import { invalidatePortalCache, portalGet, portalGetBlob, portalPost, portalPostForm, readPortalCache } from '../shared/portalApi';
 import { PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import PortalBillingCheckout, { triggerBlobDownload } from '../shared/PortalBillingCheckout';
 
 const ParentBilling = () => {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readPortalCache('/parent/billing'));
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPortalCache('/parent/billing'));
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((fresh = false) => {
+    if (fresh) {
+      invalidatePortalCache('/parent/billing');
+      invalidatePortalCache('/parent/dashboard');
+    }
+    if (!readPortalCache('/parent/billing')) setLoading(true);
     return portalGet('/parent/billing')
       .then((billing) => {
         if (!billing.success && !(billing.enrollments || []).length) {
@@ -81,7 +85,7 @@ const ParentBilling = () => {
   return (
     <div className="portal-page">
       <PortalPageHeader
-        title="Family fees"
+        title="Family Fees"
         subtitle="See each child’s courses, pay unpaid fees, and download invoices after payment is received."
       />
       <div className="portal-hero portal-hero--parent">
@@ -89,7 +93,7 @@ const ParentBilling = () => {
           <i className="fa-solid fa-file-invoice-dollar" />
         </div>
         <div>
-          <h2>Pay fees for your children</h2>
+          <h2>Pay Fees for Your Children</h2>
           <p>Review courses, pay unpaid fees together, and save invoices from payment history.</p>
         </div>
       </div>
@@ -107,11 +111,11 @@ const ParentBilling = () => {
         tone="parent"
         emptyEnrollmentsText="No courses are listed for your children yet. When the academy adds a course, it will appear here."
         emptyHistoryText="Paid invoices will appear here after a fee is received."
-        onPayStripe={async ({ enrollmentIds, invoiceMode, months }) => {
+        onPayStripe={async ({ enrollmentIds, invoiceMode, months, autoPay }) => {
           setBusy(true);
           setNotice('');
           try {
-            const res = await portalPost('/parent/billing/checkout', { enrollmentIds, invoiceMode, months });
+            const res = await portalPost('/parent/billing/checkout', { enrollmentIds, invoiceMode, months, autoPay: Boolean(autoPay) });
             if (!res.success || !res.url) throw new Error(res.error || 'Could not start card payment');
             window.location.href = res.url;
           } catch (err) {
@@ -132,7 +136,7 @@ const ParentBilling = () => {
             const res = await portalPostForm('/parent/billing/bank', form);
             if (!res.success) throw new Error(res.error || 'Could not submit bank payment proof');
             setNotice(res.message || 'Payment proof received. The academy will contact you after checking it.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {
@@ -151,7 +155,7 @@ const ParentBilling = () => {
               return;
             }
             setNotice(enabled ? 'Auto-pay is on for this course.' : 'Auto-pay is off for this course.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {
@@ -165,7 +169,7 @@ const ParentBilling = () => {
             const res = await portalPost('/parent/billing/cards/delete', { paymentMethodId, studentId });
             if (!res.success) throw new Error(res.error || 'Could not remove this card');
             setNotice('Card removed.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {
@@ -178,3 +182,4 @@ const ParentBilling = () => {
 };
 
 export default ParentBilling;
+

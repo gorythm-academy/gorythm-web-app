@@ -27,11 +27,24 @@ function isProtectedPath(rel) {
     return PROTECTED_PREFIXES.some((p) => rel.startsWith(p));
 }
 
-function extractBearerOrQueryToken(req) {
+function extractBearer(req) {
     const auth = req.header('Authorization');
     if (auth?.startsWith('Bearer ')) return auth.slice(7).trim();
-    const q = req.query.access_token;
-    return typeof q === 'string' && q.trim() ? q.trim() : null;
+    return null;
+}
+
+function uploadPublicPath(rel) {
+    return `/api/uploads/${String(rel || '').replace(/^\//, '')}`;
+}
+
+async function liveUserForUpload(req, rel) {
+    const fileToken = typeof req.query.ft === 'string' ? req.query.ft.trim() : '';
+    if (fileToken) {
+        const decoded = verifyJwt(fileToken);
+        if (!decoded || decoded.purpose !== 'file' || decoded.path !== uploadPublicPath(rel)) return null;
+        return resolveLiveUser(decoded);
+    }
+    return resolveLiveUser(verifyJwt(extractBearer(req)));
 }
 
 function verifyJwt(token) {
@@ -79,7 +92,7 @@ async function canAccessPaymentProof(req, relPath) {
         if (byToken && (!byToken.proofUrl || byToken.proofUrl === publicPath)) return true;
     }
 
-    const live = await resolveLiveUser(verifyJwt(extractBearerOrQueryToken(req)));
+    const live = await liveUserForUpload(req, relPath);
     if (!live) return false;
 
     if (['manager', 'super-admin', 'accountant'].includes(live.role)) return true;
@@ -113,7 +126,7 @@ async function protectedUploadsGate(req, res, next) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const live = await resolveLiveUser(verifyJwt(extractBearerOrQueryToken(req)));
+    const live = await liveUserForUpload(req, rel);
     if (!live) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
@@ -126,4 +139,48 @@ async function protectedUploadsGate(req, res, next) {
     return res.status(403).json({ success: false, error: 'Forbidden' });
 }
 
-module.exports = { protectedUploadsGate, PUBLIC_PREFIXES, PROTECTED_PREFIXES };
+async function issueFileLink(req, rawPath) {
+    const raw = String(rawPath || '').split('?')[0];
+    const idx = raw.indexOf('/api/uploads/');
+    const publicPath = idx >= 0 ? raw.slice(idx) : '';
+    if (!publicPath.startsWith('/api/uploads/') || publicPath.includes('..')) {
+        const err = new Error('File path is invalid');
+        err.status = 400;
+        throw err;
+    }
+    const rel = publicPath.slice('/api/uploads/'.length);
+    if (!isProtectedPath(rel)) {
+        const err = new Error('File path is invalid');
+        err.status = 400;
+        throw err;
+    }
+    const live = await resolveLiveUser(verifyJwt(extractBearer(req)));
+    if (!live) {
+        const err = new Error('Unauthorized');
+        err.status = 401;
+        throw err;
+    }
+    if (rel.startsWith('payment-proofs/') || rel.startsWith('payments/')) {
+        const allowed = await canAccessPaymentProof(
+            { header: (name) => req.header(name), query: {} },
+            rel
+        );
+        if (!allowed) {
+            const err = new Error('Unauthorized');
+            err.status = 401;
+            throw err;
+        }
+    } else if (!(await canAccessLmsUpload(live.userId, live.role, publicPath))) {
+        const err = new Error('Forbidden');
+        err.status = 403;
+        throw err;
+    }
+    const token = jwt.sign(
+        { purpose: 'file', userId: live.userId, role: live.role, path: publicPath },
+        process.env.JWT_SECRET,
+        { expiresIn: '3m' }
+    );
+    return { url: `${publicPath}?ft=${encodeURIComponent(token)}`, expiresIn: 180 };
+}
+
+module.exports = { protectedUploadsGate, issueFileLink, PUBLIC_PREFIXES, PROTECTED_PREFIXES };

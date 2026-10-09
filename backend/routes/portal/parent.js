@@ -31,6 +31,8 @@ const {
     assertParentChild,
     loadStudentAttendancePeriodView,
     loadStudentDisplayEnrollments,
+    isPaidEnrollment,
+    publicEnrollmentSummary,
     mapAssignmentForPortal,
     buildStudentWeeklyTimetable,
 } = require('./helpers');
@@ -53,7 +55,9 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
             await Enrollment.find({
                 student: { $in: studentIds },
                 ...activeEnrollmentFilter(),
-            }).populate('course', 'title deletedAt')
+            })
+                .populate('course', 'title deletedAt price')
+                .populate('assignedSchedule', 'dayOfWeek startTime endTime')
         );
         const enrolledCourseIds = [
             ...new Set(
@@ -78,10 +82,34 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
             }
         }
         const pendingFees = await countPendingFeesForStudents(studentIds, emailByStudentId);
+        const coursesByStudent = new Map();
+        for (const row of enrollments) {
+            const sid = String(row.student?._id || row.student || '');
+            if (!sid || !row.course) continue;
+            const paid = isPaidEnrollment(row);
+            const slot = paid ? row.assignedSchedule : null;
+            const list = coursesByStudent.get(sid) || [];
+            list.push({
+                courseName: row.course.title || '—',
+                scheduleLocked: !paid,
+                dayOfWeek: slot && slot.dayOfWeek != null ? slot.dayOfWeek : null,
+                startTime: slot?.startTime || '',
+                endTime: slot?.endTime || '',
+            });
+            coursesByStudent.set(sid, list);
+        }
 
         res.json({
             success: true,
-            children: activeLinks,
+            children: activeLinks.map((link) => ({
+                _id: link._id,
+                student: {
+                    _id: link.student._id,
+                    name: link.student.name,
+                    studentId: link.student.studentId || '',
+                },
+                courses: coursesByStudent.get(String(link.student._id)) || [],
+            })),
             summary: {
                 childrenCount: activeLinks.length,
                 enrollmentsCount: enrollments.length,
@@ -151,7 +179,7 @@ router.post('/parent/billing/checkout', allowPortalRoles('parent'), async (req, 
             enrollmentIds: req.body?.enrollmentIds || req.body?.items,
             invoiceMode: req.body?.invoiceMode,
             months: req.body?.months,
-            autoPay: Boolean(req.body?.autoPay),
+            autoPay: req.body?.autoPay,
         });
         res.json({ success: true, ...result });
     } catch (error) {
@@ -292,9 +320,28 @@ router.get('/parent/children', allowPortalRoles('parent'), async (req, res) => {
         if (!req.portalActorId) return unauthorized(res);
         const links = await ParentStudentLink.find({ parent: req.portalActorId }).populate(
             'student',
-            'name email studentId status deletedAt'
+            'name email personalEmail studentId status deletedAt'
         );
-        const children = links.filter((l) => l.student && !isUserTrashed(l.student));
+        const activeLinks = links.filter((l) => l.student && !isUserTrashed(l.student));
+        const children = await Promise.all(activeLinks.map(async (link) => {
+            const student = link.student;
+            const rows = await loadStudentDisplayEnrollments(
+                student._id,
+                student.personalEmail || student.email
+            );
+            return {
+                _id: link._id,
+                relation: link.relation,
+                student: {
+                    _id: student._id,
+                    name: student.name,
+                    email: student.email,
+                    studentId: student.studentId || '',
+                    status: student.status || 'active',
+                },
+                enrollments: rows.map(publicEnrollmentSummary),
+            };
+        }));
         res.json({ success: true, children });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to load children' });

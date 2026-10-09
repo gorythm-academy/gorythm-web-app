@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { FiMapPin, FiMail, FiUser, FiEdit3, FiSend } from 'react-icons/fi';
-import { FaWhatsapp } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 import {
   API_BASE_URL,
   INFO_EMAIL,
@@ -176,7 +175,7 @@ const ContactPage = () => {
             <ul className="contact-page__details">
               <li>
                 <span className="contact-page__icon-wrap" aria-hidden="true">
-                  <FiMapPin className="contact-page__icon" />
+                  <i className="fa-solid fa-location-dot contact-page__icon" />
                 </span>
                 <span>{contactInfo.address}</span>
               </li>
@@ -189,7 +188,7 @@ const ContactPage = () => {
                   aria-label={`WhatsApp ${contactInfo.phone}`}
                 >
                   <span className="contact-page__icon-wrap" aria-hidden="true">
-                    <FaWhatsapp className="contact-page__icon" />
+                    <i className="fa-brands fa-whatsapp contact-page__icon" />
                   </span>
                   <span>{contactInfo.phone}</span>
                 </a>
@@ -201,7 +200,7 @@ const ContactPage = () => {
                   onClick={(e) => navigateToMailto(contactInfo.email, e)}
                 >
                   <span className="contact-page__icon-wrap" aria-hidden="true">
-                    <FiMail className="contact-page__icon" />
+                    <i className="fa-solid fa-envelope contact-page__icon" />
                   </span>
                   <span>{contactInfo.email}</span>
                 </a>
@@ -218,7 +217,7 @@ const ContactPage = () => {
               )}
               <div className="contact-page__form-row">
                 <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><FiUser /></span>
+                  <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-user" /></span>
                   <input
                     type="text"
                     name="name"
@@ -229,7 +228,7 @@ const ContactPage = () => {
                   />
                 </label>
                 <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><FaWhatsapp /></span>
+                  <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-brands fa-whatsapp" /></span>
                   <input
                     type="tel"
                     name="phone"
@@ -243,7 +242,7 @@ const ContactPage = () => {
               </div>
               <div className="contact-page__form-row">
                 <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><FiMail /></span>
+                  <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-envelope" /></span>
                   <input
                     type="email"
                     name="email"
@@ -257,7 +256,7 @@ const ContactPage = () => {
                 </label>
               </div>
               <label className="contact-page__field contact-page__field--full">
-                <span className="contact-page__field-icon" aria-hidden="true"><FiEdit3 /></span>
+                <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
                 <textarea
                   name="message"
                   placeholder="How can we help you? Feel free to get in touch!"
@@ -269,7 +268,7 @@ const ContactPage = () => {
               </label>
               <div className="contact-page__form-actions">
                 <button type="submit" className="contact-page__submit" disabled={isSubmitting}>
-                  <FiSend className="contact-page__submit-icon" aria-hidden="true" />
+                  <i className="fa-solid fa-paper-plane contact-page__submit-icon" aria-hidden="true" />
                   {isSubmitting ? 'Sending…' : 'Get in Touch'}
                 </button>
                 <label className="contact-page__consent">
@@ -280,7 +279,10 @@ const ContactPage = () => {
                     onChange={handleChange}
                     required
                   />
-                  <span>I agree that my data is collected.</span>
+                  <span>
+                    I agree that my data is collected as described in the{' '}
+                    <Link to="/privacy">Privacy Policy</Link>.
+                  </span>
                 </label>
               </div>
             </form>

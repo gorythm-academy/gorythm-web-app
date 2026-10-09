@@ -58,6 +58,7 @@ const enrollmentSchema = new mongoose.Schema({
     autoPayPayer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     autoPayLastError: { type: String, default: '' },
     autoPayLastAttemptAt: { type: Date, default: null },
+    autoPayFailCount: { type: Number, default: 0, min: 0 },
     feeReminderDueSentFor: { type: String, default: '' },
     feeReminderOverdueSentFor: { type: String, default: '' },
     dueDateExtensions: {

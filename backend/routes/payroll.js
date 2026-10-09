@@ -3,6 +3,8 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowRoles } = require('../middleware/authorize');
+const { validate } = require('../middleware/validate');
+const { salaryProfile, payrollAttendance, payrollRun } = require('../middleware/portalBodyRules');
 const User = require('../models/User');
 const TeacherSalaryProfile = require('../models/TeacherSalaryProfile');
 const TeacherAttendance = require('../models/TeacherAttendance');
@@ -56,7 +58,7 @@ router.get('/preview', async (req, res) => {
     }
 });
 
-router.post('/salary-profile', async (req, res) => {
+router.post('/salary-profile', validate([salaryProfile]), async (req, res) => {
     try {
         const { teacherId, monthlySalary, workingDays, currency } = req.body;
         const profile = await TeacherSalaryProfile.findOneAndUpdate(
@@ -77,7 +79,7 @@ router.post('/salary-profile', async (req, res) => {
     }
 });
 
-router.post('/attendance', async (req, res) => {
+router.post('/attendance', validate([payrollAttendance]), async (req, res) => {
     try {
         const { teacherId, monthKey, presentDays, leaveDays, absentDays, notes } = req.body;
         const key = normalizeMonthKey(monthKey);
@@ -104,7 +106,7 @@ router.post('/attendance', async (req, res) => {
     }
 });
 
-router.post('/run', async (req, res) => {
+router.post('/run', validate([payrollRun]), async (req, res) => {
     try {
         const { teacherId, monthKey } = req.body;
         const result = await persistPayrollRun(teacherId, monthKey, actorId(req), {

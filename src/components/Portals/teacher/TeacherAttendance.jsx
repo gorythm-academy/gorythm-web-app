@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { portalGet, portalPost, portalPatch, portalDelete } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
+import '../student/StudentAttendance.scss';
 import {
   STUDENT_MARK_ATTENDANCE_STATUS_OPTIONS,
   statusChipClass,
@@ -136,7 +137,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
 
   return (
     <div className="portal-week-picker-fields">
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Year</span>
         <select
           value={selectedYear}
@@ -150,7 +151,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
           ))}
         </select>
       </label>
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Month</span>
         <select
           value={selectedMonth}
@@ -165,7 +166,7 @@ const WeekPicker = ({ weekStart, onWeekStartChange }) => {
           ))}
         </select>
       </label>
-      <label className="portal-field-label">
+      <label className="portal-field-label portal-field-label--calendar">
         <span>Week</span>
         <select
           value={monday}
@@ -625,51 +626,75 @@ const TeacherAttendance = () => {
 
   if (loading) {
     return (
-      <div className="portal-page portal-teacher-attendance">
+      <div className="portal-page portal-teacher-attendance student-attendance">
         <PortalPageHeader
           title="Students Attendance"
           subtitle="Mark daily attendance, then review records by day, week, or month."
         />
-        <PortalDataSection loading loadingLabel="Loading courses…" />
+        <div className="student-attendance__hero">
+          <div className="student-attendance__hero-icon" aria-hidden="true">
+            <i className="fas fa-user-check" />
+          </div>
+          <div>
+            <h2>Course Attendance</h2>
+            <p>Select a course and a date, then mark the class. Review daily, weekly, or monthly records below.</p>
+          </div>
+        </div>
+        <section className="student-attendance__panel">
+          <PortalDataSection loading loadingLabel="Loading courses…" />
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="portal-page portal-teacher-attendance">
+    <div className="portal-page portal-teacher-attendance student-attendance">
       <PortalPageHeader
         title="Students Attendance"
         subtitle="Mark daily attendance, then review records by day, week, or month."
       />
 
+      <div className="student-attendance__hero">
+        <div className="student-attendance__hero-icon" aria-hidden="true">
+          <i className="fas fa-user-check" />
+        </div>
+        <div>
+          <h2>Course Attendance</h2>
+          <p>Select a course and a date, then mark the class. Review daily, weekly, or monthly records below.</p>
+        </div>
+      </div>
+
       {coursesLoadError ? <PortalAlert type="error">{coursesLoadError}</PortalAlert> : null}
       {msg ? <PortalAlert type="info">{msg}</PortalAlert> : null}
 
-      <form className="portal-card portal-form-card" onSubmit={submitAttendance} autoComplete="off">
+      <section className="student-attendance__panel">
+      <form className="portal-form-card portal-attendance-mark-form" onSubmit={submitAttendance} autoComplete="off">
         <h3>Mark Attendance</h3>
 
-        <label className="portal-field-label">
-          <span>Course <RequiredMark /></span>
-          <select value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
-            <option value="">Select course</option>
-            {courses.map((c) => (
-              <option key={portalDocId(c)} value={portalDocId(c)}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="portal-attendance-filter-bar">
+          <label className="portal-field-label portal-field-label--course">
+            <span>Course <RequiredMark /></span>
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
+              <option value="">Select course</option>
+              {courses.map((c) => (
+                <option key={portalDocId(c)} value={portalDocId(c)}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="portal-field-label">
-          <span>Attendance date <RequiredMark /></span>
-          <input
-            type="date"
-            value={date}
-            max={todayLocalDateStr()}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </label>
+          <label className="portal-field-label portal-field-label--calendar">
+            <span>Attendance date <RequiredMark /></span>
+            <input
+              type="date"
+              value={date}
+              max={todayLocalDateStr()}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </label>
+        </div>
 
         {markDateIsFuture ? (
           <PortalAlert type="info">
@@ -806,7 +831,7 @@ const TeacherAttendance = () => {
         {viewError ? <PortalAlert type="error">{viewError}</PortalAlert> : null}
 
         <div className="portal-attendance-filter-bar">
-          <label className="portal-field-label">
+          <label className="portal-field-label portal-field-label--course">
             <span>Course</span>
             <select value={viewCourseId} onChange={(e) => setViewCourseId(e.target.value)}>
               <option value="">Select course</option>
@@ -820,7 +845,7 @@ const TeacherAttendance = () => {
           {viewPeriod === 'weekly' ? (
             <WeekPicker weekStart={viewDate} onWeekStartChange={handleWeekStartChange} />
           ) : (
-            <label className="portal-field-label">
+            <label className="portal-field-label portal-field-label--calendar">
               <span>{viewPeriod === 'monthly' ? 'Month' : 'Date'}</span>
               <input
                 type={viewPeriod === 'monthly' ? 'month' : 'date'}
@@ -1109,6 +1134,7 @@ const TeacherAttendance = () => {
             </tbody>
           </table>
         </div>
+      </section>
       </section>
 
       {editRecord ? (

@@ -43,12 +43,6 @@ export function getAcademyWeekBounds(anchorDate) {
   return { monday: toLocalDateStr(monday), saturday: toLocalDateStr(saturday) };
 }
 
-export function shiftAcademyWeek(anchorDate, deltaWeeks) {
-  const anchor = parseLocalDate(anchorDate) || new Date();
-  anchor.setDate(anchor.getDate() + deltaWeeks * 7);
-  return getAcademyWeekBounds(anchor).monday;
-}
-
 export function formatAcademyWeekLabel(monday, saturday) {
   const mon = parseLocalDate(monday);
   const sat = parseLocalDate(saturday);

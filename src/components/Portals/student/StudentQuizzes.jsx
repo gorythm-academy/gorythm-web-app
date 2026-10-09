@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import FileUploadField from '../shared/FileUploadField';
-import { resolveLmsUploadList } from '../../../utils/fileUploadApi';
+import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUploadApi';
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPost } from '../shared/portalApi';
 import {
@@ -19,6 +19,7 @@ import { portalDocId } from '../../../utils/portalDocId';
 import {
   filterPortalItemsByCourse,
   getItemsNewSinceLastVisit,
+  sortNewestFirst,
   markPortalPageVisited,
   STUDENT_QUIZ_UPDATES,
 } from '../../../utils/portalNewItems';
@@ -61,12 +62,8 @@ const StudentQuizzes = () => {
     load();
   }, []);
 
-  useEffect(() => {
-    return () => markPortalPageVisited(SEEN_KEY);
-  }, []);
-
   const filtered = useMemo(
-    () => filterPortalItemsByCourse(quizzes || [], courseFilter),
+    () => sortNewestFirst(filterPortalItemsByCourse(quizzes || [], courseFilter)),
     [quizzes, courseFilter]
   );
 
@@ -109,12 +106,20 @@ const StudentQuizzes = () => {
     const ordered = (activeQuiz.quiz.questions || []).map((_, idx) =>
       answers[idx] != null ? Number(answers[idx]) : -1
     );
+    if (activeQuiz.quiz.quizType === 'file' && !hasLmsUploadValue(submissionFiles)) {
+      setMsg('Attach at least one file before submitting this quiz.');
+      return;
+    }
     setSubmitting(true);
     try {
       const attachments =
         activeQuiz.quiz.quizType === 'file'
           ? await resolveLmsUploadList(submissionFiles, 'quizzes')
           : [];
+      if (activeQuiz.quiz.quizType === 'file' && !attachments.length) {
+        setMsg('Attach at least one file before submitting this quiz.');
+        return;
+      }
       const res = await portalPost('/student/quiz-attempts', {
         quizId: portalDocId(activeQuiz.quiz),
         answers: ordered,
@@ -146,10 +151,10 @@ const StudentQuizzes = () => {
   const q = activeQuiz?.quiz;
   const taking = q && !activeQuiz?.attempt && !review;
   const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
-  const quizUpdateNotices = useMemo(
-    () => collectQuizUpdateNotices(filtered, { storageKey: STUDENT_QUIZ_UPDATES, audience: 'student' }),
-    [filtered, updateTick]
-  );
+  const quizUpdateNotices = useMemo(() => {
+    void updateTick;
+    return collectQuizUpdateNotices(filtered, { storageKey: STUDENT_QUIZ_UPDATES, audience: 'student' });
+  }, [filtered, updateTick]);
 
   useEffect(() => {
     if (!taking) return undefined;
@@ -335,9 +340,9 @@ const StudentQuizzes = () => {
       {taking && q.quizType === 'file' ? (
         <form className="portal-quiz-take-panel" onSubmit={submit}>
           <QuizFileView quiz={q} tone="student" />
-          <p className="portal-field-hint">Open the material, add your files if you need to, then mark this quiz as done.</p>
+          <p className="portal-field-hint">Open the material, attach your file, then mark this quiz as done.</p>
           <FileUploadField
-            label="Your files (optional)"
+            label={<>Your files <RequiredMark /></>}
             multiple
             value={submissionFiles}
             onChange={setSubmissionFiles}

@@ -838,6 +838,200 @@
   border-radius: 12px;
 }
 
+.portal-student-id-line {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.portal-hero .portal-student-id-line {
+  margin: 0.2rem 0 0.35rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.portal-identity-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+  max-width: 640px;
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 55%, #f0f9ff 100%);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+
+    &.is-email {
+      color: #0066ff;
+    }
+  }
+}
+
+.portal-data-table.portal-enrollment-table {
+  min-width: 920px;
+
+  .portal-enrollment-table__time {
+    white-space: normal;
+    min-width: 11rem;
+    max-width: 16rem;
+    line-height: 1.35;
+  }
+}
+
+.portal-relation-pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #d1fae5;
+  color: #047857;
+  white-space: nowrap;
+}
+
+.portal-student-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1rem 1.1rem 1.1rem;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+
+  & + & {
+    margin-top: 1rem;
+  }
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+
+  h3 {
+    margin: 0 0 0.15rem;
+    font-size: 1.05rem;
+    color: #0f172a;
+  }
+
+  &__empty {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+}
+
+.portal-linked-students {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(150px, 240px) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.45rem 1.5rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid #f1f5f9;
+
+    &:first-child {
+      padding-top: 0;
+    }
+
+    &:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+  }
+
+  &__who {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  strong {
+    color: #0f172a;
+  }
+
+  &__id {
+    color: #475569;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+
+  &__courses {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  &__course {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+
+    strong {
+      color: #0f172a;
+    }
+
+    span {
+      color: #047857;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+  }
+
+  &__empty {
+    color: #64748b;
+    font-size: 0.88rem;
+  }
+
+  @media (max-width: 640px) {
+    li {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
 .portal-child-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1005,7 +1199,6 @@
   line-height: 1.45;
   white-space: normal;
   overflow-wrap: anywhere;
-  word-break: break-word;
   max-width: 16rem;
 }
 
@@ -1213,6 +1406,35 @@
   font-size: 0.82rem;
 }
 
+.portal-billing-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.portal-billing-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 600;
+
+  .portal-billing-sub {
+    display: block;
+    margin-top: 0.15rem;
+    font-weight: 500;
+  }
+}
+
 .portal-data-table td button:not(.portal-billing-pay-row):not(.portal-billing-invoice-btn):not(.portal-action-btn) {
   margin-right: 0.35rem;
   padding: 0.3rem 0.55rem;
@@ -1282,5 +1504,18 @@
 
 .portal-data-table td .portal-billing-invoice-btn {
   margin-right: 0;
+}
+
+.portal-dashboard--student,
+.portal-dashboard--parent {
+  .portal-data-table,
+  .portal-table,
+  .portal-content-resources-table,
+  .student-schedule .student-schedule__table,
+  .student-attendance .student-attendance__table,
+  .attendance-period-view .attendance-period-view__table {
+    width: max-content;
+    min-width: 0;
+  }
 }
 

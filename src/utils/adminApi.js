@@ -50,26 +50,6 @@ export async function adminRequest(method, url, body, config = {}) {
   }
 }
 
-export async function adminGet(url, config) {
-  return adminRequest('get', url, undefined, config);
-}
-
-export async function adminPost(url, body, config) {
-  return adminRequest('post', url, body, config);
-}
-
-export async function adminPut(url, body, config) {
-  return adminRequest('put', url, body, config);
-}
-
-export async function adminPatch(url, body, config) {
-  return adminRequest('patch', url, body, config);
-}
-
-export async function adminDelete(url, config) {
-  return adminRequest('delete', url, undefined, config);
-}
-
 function adminApiUrl(path) {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${apiBase()}/api/admin${normalized}`;

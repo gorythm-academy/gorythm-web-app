@@ -14,6 +14,7 @@ const { activeLmsFilter, mergeMongoFilters } = require('../../utils/lmsTrashQuer
 const { activePaymentListFilter } = require('../../utils/paymentQuery');
 const {
     studentAssignmentMongoFilter,
+    studentPublishedQuizMongoFilter,
     studentResourceMongoFilter,
     teacherAssignmentScopeFilter,
     teacherResourceMongoFilter,
@@ -32,14 +33,15 @@ const { getStudentCourseIds, teacherQuizScopeFilter } = require('./helpers');
 
 async function studentQuizMongoFilter(studentId) {
     const courseIds = await getStudentCourseIds(studentId);
-    if (!courseIds.length) return { _id: { $in: [] } };
+    const published = await studentPublishedQuizMongoFilter(studentId);
+    if (!courseIds.length) return published;
     const attemptQuizIds = await QuizAttempt.find({
         student: studentId,
         ...activeLmsFilter(),
     }).distinct('quiz');
     return {
         $or: [
-            { course: { $in: courseIds }, status: 'published' },
+            published,
             ...(attemptQuizIds.length
                 ? [{ _id: { $in: attemptQuizIds }, course: { $in: courseIds } }]
                 : []),

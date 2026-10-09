@@ -314,25 +314,30 @@ const ResearchComments = ({ embedded = false }) => {
             </div>
 
             {selectedIds.length > 0 && (
-              <div className="contact-bulk-bar">
+              <div className="lms-resources-bulk-bar admin-submissions__bulk-bar">
                 <span>{selectedIds.length} selected</span>
-                <button
-                  type="button"
-                  className="lms-btn-delete-forever"
-                  onClick={handleBulkDelete}
-                  disabled={busy}
-                >
-                  <i className="fas fa-trash-alt"></i>
-                  {deleting ? 'Deleting...' : 'Delete forever'}
-                </button>
+                <div className="lms-form-actions">
+                  <button type="button" className="lms-btn-secondary" onClick={() => setSelectedIds([])}>
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="lms-btn-delete-forever"
+                    onClick={handleBulkDelete}
+                    disabled={busy}
+                  >
+                    <i className="fas fa-trash-alt" aria-hidden />
+                    {deleting ? 'Working…' : `Delete forever (${selectedIds.length})`}
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className="contact-messages-table-wrap">
-              <table className="contact-messages-table">
+            <div className="admin-submissions__table-wrap">
+              <table className="admin-submissions__table">
                 <thead>
                   <tr>
-                    <th>
+                    <th className="lms-table-check-col">
                       <input
                         type="checkbox"
                         aria-label="Select all on page"
@@ -365,8 +370,8 @@ const ResearchComments = ({ embedded = false }) => {
                       const isReplying = replyEditId === comment.id;
                       return (
                         <React.Fragment key={comment.id}>
-                          <tr>
-                            <td>
+                          <tr className={selectedIds.includes(idKey(comment.id)) ? 'lms-table-row--selected' : ''}>
+                            <td className="lms-table-check-col">
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(idKey(comment.id))}
@@ -375,7 +380,7 @@ const ResearchComments = ({ embedded = false }) => {
                               />
                             </td>
                             <td>
-                              <div className="contact-message-subject">{comment.postTitle}</div>
+                              <div className="admin-submissions__name">{comment.postTitle}</div>
                               <div className="contact-message-meta">{comment.postSlug}</div>
                             </td>
                             <td>
@@ -390,60 +395,50 @@ const ResearchComments = ({ embedded = false }) => {
                               {comment.adminReply ? comment.adminReply : '—'}
                             </td>
                             <td>{formatDateTime(comment.date)}</td>
-                            <td className="lms-table-actions">
+                            <td className="admin-submissions__actions">
                               {status === 'pending' ? (
                                 <>
                                   <button
                                     type="button"
-                                    className="lms-schedule-action lms-schedule-action--approve"
+                                    className="lms-btn-restore"
                                     onClick={() => handleApprove(comment)}
                                     disabled={busy}
-                                    title="Approve"
-                                    aria-label="Approve"
                                   >
-                                    <i className="fas fa-check" aria-hidden />
+                                    <i className="fas fa-check" aria-hidden /> Approve
                                   </button>
                                   <button
                                     type="button"
-                                    className="lms-schedule-action lms-schedule-action--delete"
+                                    className="lms-btn-trash"
                                     onClick={() => handleReject(comment)}
                                     disabled={busy}
-                                    title="Reject"
-                                    aria-label="Reject"
                                   >
-                                    <i className="fas fa-times" aria-hidden />
+                                    <i className="fas fa-times" aria-hidden /> Reject
                                   </button>
                                 </>
                               ) : null}
                               <button
                                 type="button"
-                                className="lms-schedule-action lms-schedule-action--edit"
+                                className="admin-submissions__view-btn"
                                 onClick={() => (isReplying ? cancelReply() : startReply(comment))}
                                 disabled={busy}
-                                title={comment.adminReply ? 'Edit reply' : 'Add reply'}
-                                aria-label={comment.adminReply ? 'Edit reply' : 'Add reply'}
                               >
-                                <i className="fas fa-reply" aria-hidden />
+                                {comment.adminReply ? 'Edit reply' : 'Reply'}
                               </button>
                               {comment.adminReply ? (
                                 <button
                                   type="button"
-                                  className="lms-schedule-action lms-schedule-action--delete"
+                                  className="lms-btn-trash"
                                   onClick={() => handleClearReply(comment)}
                                   disabled={busy}
-                                  title="Remove reply"
-                                  aria-label="Remove reply"
                                 >
                                   <i className="fas fa-eraser" aria-hidden /> Remove reply
                                 </button>
                               ) : null}
                               <button
                                 type="button"
-                                className="lms-schedule-action lms-schedule-action--delete"
+                                className="lms-btn-delete-forever"
                                 onClick={() => handleDeleteOne(comment)}
                                 disabled={busy}
-                                title="Delete forever"
-                                aria-label="Delete forever"
                               >
                                 <i className="fas fa-trash-alt" aria-hidden /> Delete forever
                               </button>

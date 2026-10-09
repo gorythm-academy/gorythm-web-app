@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { parseAuthUser, clearAuthSession, AUTH_REALM } from '../../utils/authStorage';
+import { invalidatePortalCache, portalGet } from './shared/portalApi';
 import {
   readAdminDashboardAccent,
   DEFAULT_ADMIN_DASHBOARD_ACCENT,
@@ -26,8 +27,8 @@ const NAV_BY_ROLE = {
     { to: '/student', label: 'Dashboard', icon: 'fas fa-home', end: true },
     { to: '/student/schedule', label: 'Class Schedules', icon: 'fas fa-clock' },
     { to: '/student/fees', label: 'Courses and Fees', icon: 'fas fa-file-invoice-dollar' },
-    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments', editDotKey: 'assignmentsEdit' },
-    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes', editDotKey: 'quizzesEdit' },
+    { to: '/student/assignments', label: 'Assignments', icon: 'fas fa-tasks', badgeKey: 'assignments', badgeDot: true, editDotKey: 'assignmentsEdit' },
+    { to: '/student/quizzes', label: 'Quizzes', icon: 'fas fa-question-circle', badgeKey: 'quizzes', badgeDot: true, editDotKey: 'quizzesEdit' },
     { to: '/student/content', label: 'Content', icon: 'fas fa-folder-open', badgeKey: 'content' },
     { to: '/student/attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { to: '/student/account', label: 'Account', icon: 'fas fa-user-cog' },
@@ -88,6 +89,20 @@ const PortalLayout = ({ role, title }) => {
     if (typeof window === 'undefined') return true;
     return !isMobileViewport();
   });
+  const [studentCode, setStudentCode] = useState('');
+
+  useEffect(() => {
+    if (role !== 'student') return undefined;
+    let cancelled = false;
+    portalGet('/student/profile')
+      .then((res) => {
+        if (!cancelled && res.success) setStudentCode(String(res.profile?.studentId || '').trim());
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   useEffect(() => {
     const handleViewportChange = () => {
@@ -132,6 +147,7 @@ const PortalLayout = ({ role, title }) => {
   );
 
   const handleLogout = () => {
+    invalidatePortalCache();
     clearAuthSession(AUTH_REALM.PORTAL);
     navigate('/login');
   };
@@ -251,6 +267,9 @@ const PortalLayout = ({ role, title }) => {
               <div className="profile-info">
                 <h4>{user.name || 'Portal User'}</h4>
                 {user.email ? <p>{user.email}</p> : null}
+                {role === 'student' && studentCode ? (
+                  <p className="profile-student-id">Student ID {studentCode}</p>
+                ) : null}
                 <span className="role-badge">{user.role || role}</span>
               </div>
             )}

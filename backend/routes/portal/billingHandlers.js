@@ -43,6 +43,7 @@ function serializeDisplayEnrollment(row, student) {
     return {
         enrollmentId: row._id,
         studentId: student?._id || row.student,
+        studentCode: student?.studentId || '',
         studentName: student?.name || '',
         studentEmail: student?.personalEmail || student?.email || '',
         courseId: row.course?._id || row.course,
@@ -277,8 +278,12 @@ async function loadStudentBilling(studentId, email) {
     const payable = enrollmentsWithHold.filter((row) => OPEN_PAYABLE_STATUSES.includes(row.displayStatus));
     const User = require('../../models/User');
     const { serializeSavedCards } = require('../../services/billingAutoPay');
-    const student = await User.findById(studentId).select('stripeCustomerId stripePaymentMethodId stripeSavedCards');
+    const student = await User.findById(studentId).select('name studentId stripeCustomerId stripePaymentMethodId stripeSavedCards');
     return {
+        student: {
+            name: student?.name || '',
+            studentId: student?.studentId || '',
+        },
         enrollments: enrollmentsWithHold,
         payable,
         payments: serializedPayments,
@@ -328,7 +333,8 @@ async function startPortalStripeCheckout({ actor, enrollmentIds, invoiceMode, mo
     const chargeable = stripeChargeableItems(resolvedItems);
     assertStripeMinimum(chargeable);
     const User = require('../../models/User');
-    const { ensureStripeCustomer } = require('../../services/billingAutoPay');
+    const { ensureStripeCustomer, checkoutWantsAutoPay } = require('../../services/billingAutoPay');
+    const enableAutoPay = checkoutWantsAutoPay(autoPay);
     const studentIds = [...new Set(resolvedItems.map((item) => String(item.studentId || '')).filter(Boolean))];
     let customerId = '';
     if (studentIds.length === 1) {
@@ -339,7 +345,7 @@ async function startPortalStripeCheckout({ actor, enrollmentIds, invoiceMode, mo
         items: chargeable,
         invoiceMode: parseInvoiceMode(invoiceMode),
         payer: actor,
-        autoPayEnable: true,
+        autoPayEnable: enableAutoPay,
     });
     const types = checkoutPaymentMethodTypes();
     const base = frontendBase();
@@ -351,13 +357,13 @@ async function startPortalStripeCheckout({ actor, enrollmentIds, invoiceMode, mo
             mode: 'payment',
             success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${base}/payment-cancel`,
-            payment_intent_data: { setup_future_usage: 'off_session' },
+            ...(enableAutoPay ? { payment_intent_data: { setup_future_usage: 'off_session' } } : {}),
             metadata: {
                 groupId: intent.groupId,
                 courseId: String(chargeable[0].courseId),
                 userId: String(chargeable[0].studentId || actor.userId || ''),
                 payerUserId: String(actor.userId || ''),
-                autoPay: '1',
+                autoPay: enableAutoPay ? '1' : '0',
                 enrollmentIds: ids.map((id) => String(id)).join(','),
             },
         },

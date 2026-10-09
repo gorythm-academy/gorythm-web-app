@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { SITE_URL } from '../config/constants';
 
 const DEFAULT_DESCRIPTION =
-  'Built with Signs. Discover Yourself. Gorythm develops IQ, EQ, and PhQ through structured courses and research rooted in timeless principles for whole-person growth.';
+  'Built with Signs. Discover Yourself. Gorythm Academy develops IQ, EQ, and PhQ through structured courses and research rooted in timeless principles for whole-person growth.';
 
 const DEFAULT_IMAGE = `${SITE_URL.replace(/\/$/, '')}/logo.png`;
 
@@ -21,6 +21,26 @@ const STATIC_PAGE_META = {
     title: 'Contact | Gorythm Academy',
     description: 'Get in touch with Gorythm Academy for course enquiries, enrollment support, and general questions.',
   },
+  '/privacy': {
+    title: 'Privacy Policy | Gorythm Academy',
+    description: 'How Gorythm Academy collects, uses, and protects personal data for courses, portals, and payments.',
+  },
+  '/terms': {
+    title: 'Terms of Service | Gorythm Academy',
+    description: 'Terms for using Gorythm Academy courses, accounts, and paid enrollments.',
+  },
+  '/refunds': {
+    title: 'Refund Policy | Gorythm Academy',
+    description: 'When and how Gorythm Academy refunds course payments.',
+  },
+  '/cookies': {
+    title: 'Cookie Policy | Gorythm Academy',
+    description: 'Cookies and browser storage used by Gorythm Academy, including login and payment providers.',
+  },
+  '/unsubscribe': {
+    title: 'Unsubscribe | Gorythm Academy',
+    description: 'Unsubscribe from Gorythm Academy course update emails.',
+  },
   '/courses': {
     title: 'Courses | Gorythm Academy',
     description: 'Browse Gorythm Academy courses designed for intellectual, emotional, and physical growth.',
@@ -35,15 +55,15 @@ const STATIC_PAGE_META = {
   },
   '/mission/iq': {
     title: 'IQ Mission | Gorythm Academy',
-    description: 'Intellectual growth at Gorythm — structured learning grounded in timeless principles.',
+    description: 'Intellectual growth at Gorythm Academy — structured learning grounded in timeless principles.',
   },
   '/mission/eq': {
     title: 'EQ Mission | Gorythm Academy',
-    description: 'Emotional intelligence at Gorythm — clarity, resilience, and character under pressure.',
+    description: 'Emotional intelligence at Gorythm Academy — clarity, resilience, and character under pressure.',
   },
   '/mission/phq': {
     title: 'PhQ Mission | Gorythm Academy',
-    description: 'Physical health and discipline at Gorythm — vitality as the foundation of growth.',
+    description: 'Physical health and discipline at Gorythm Academy — vitality as the foundation of growth.',
   },
 };
 
@@ -122,8 +142,19 @@ export function usePageMeta(meta, { enabled = true } = {}) {
   }, [enabled, title, description, image, type, url, jsonLdKey, jsonLd]);
 }
 
+const NOINDEX_PATHS = new Set(['/payment', '/payment-success', '/payment-cancel', '/admin/login']);
+
+function syncRobots(noindex) {
+  upsertMeta('name', 'robots', noindex ? 'noindex' : '');
+}
+
 export function RoutePageMeta() {
   const { pathname } = useLocation();
+  useEffect(() => {
+    if (!NOINDEX_PATHS.has(pathname)) return undefined;
+    syncRobots(true);
+    return () => syncRobots(false);
+  }, [pathname]);
   const isDynamic =
     /^\/(courses|research|payment|admin|student|teacher|parent|accountant)\/[^/]+/.test(pathname);
   const staticMeta = STATIC_PAGE_META[pathname];

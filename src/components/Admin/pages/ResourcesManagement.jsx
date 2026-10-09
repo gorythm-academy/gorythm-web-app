@@ -15,7 +15,7 @@ import { buildListCacheKey, createListCache } from '../../../utils/adminListCach
 import AssignmentsTab from './ResourcesManagement/AssignmentsTab';
 import AdminQuizzesTab from './ResourcesManagement/AdminQuizzesTab';
 import ResourcesTab from './ResourcesManagement/ResourcesTab';
-import { computeTargetPairs, computeTargetSchedules } from './ResourcesManagement/lmsTargeting';
+import { computeTargetSchedules } from './ResourcesManagement/lmsTargeting';
 import { markPortalPageVisited, ADMIN_SEEN_TAB_ASSIGNMENTS, ADMIN_SEEN_TAB_RESOURCES, ADMIN_SEEN_TAB_SUBMISSIONS } from '../../../utils/portalNewItems';
 import {
   collectDueDateExtensionNotices,

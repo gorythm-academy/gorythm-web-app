@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPatch, portalDelete } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
+import { ProtectedFileImage, ProtectedFileLink } from '../../../utils/fileUrl';
 import { paymentRegistrationEmail, displayPortalEmail } from '../../../utils/studentPortalEmail';
 import {
   ACCOUNTANT_PAYMENTS_UPDATED_EVENT,
@@ -565,7 +565,7 @@ const AccountantPayments = () => {
         <p className="accountant-payments-hint accountant-payments-hint--trash">
           <i className="fas fa-trash-alt" aria-hidden />
           Records in {QUARANTINE_LABEL} stay in the database but are hidden from active lists. Select rows with checkboxes, then use{' '}
-          <strong>Restore</strong> or <strong>Delete permanently</strong> to bring them back or remove them from the database.
+          <strong>Restore</strong> or <strong>Delete Permanently</strong> to bring them back or remove them from the database.
         </p>
       )}
 
@@ -601,7 +601,7 @@ const AccountantPayments = () => {
                   disabled={!!actionLoading}
                   onClick={() => setBulkModal({ type: 'permanent', ids: [...selectedIds] })}
                 >
-                  <i className="fas fa-trash-alt" /> Delete permanently
+                  <i className="fas fa-trash-alt" /> Delete Permanently
                 </button>
               </>
             ) : (
@@ -611,7 +611,7 @@ const AccountantPayments = () => {
                 disabled={!!actionLoading}
                 onClick={() => setBulkModal({ type: 'trash', ids: [...selectedIds] })}
               >
-                <i className="fas fa-trash" /> Move to trash
+                <i className="fas fa-trash" /> Move to Trash
               </button>
             )}
           </div>
@@ -712,7 +712,7 @@ const AccountantPayments = () => {
                             type="button"
                             className="accountant-payments-ss-thumb"
                             onClick={() => setReceiptModal(r)}
-                            title="View full screenshot"
+                            title="View Full Screenshot"
                           >
                             {isPdfProof(r.proofUrl) ? (
                               <span className="accountant-payments-ss-pdf">
@@ -720,8 +720,8 @@ const AccountantPayments = () => {
                                 PDF
                               </span>
                             ) : (
-                              <img
-                                src={resolveMediaUrl(r.proofUrl)}
+                              <ProtectedFileImage
+                                path={r.proofUrl}
                                 alt={`Payment proof for ${r.studentName || 'student'}`}
                                 loading="lazy"
                               />
@@ -782,7 +782,7 @@ const AccountantPayments = () => {
                                 disabled={actionLoading === r._id}
                                 onClick={() => setPermanentDeleteModal(r)}
                               >
-                                <i className="fas fa-trash-alt" /> Delete permanently
+                                <i className="fas fa-trash-alt" /> Delete Permanently
                               </button>
                             </>
                           ) : (
@@ -816,10 +816,10 @@ const AccountantPayments = () => {
                                 className="accountant-pay-btn accountant-pay-btn--trash"
                                 disabled={actionLoading === r._id}
                                 onClick={() => setTrashModal(r)}
-                                title="Move to trash"
+                                title="Move to Trash"
                               >
                                 <i className="fas fa-trash-alt" aria-hidden />
-                                Move to trash
+                                Move to Trash
                               </button>
                             </>
                           )}
@@ -844,7 +844,7 @@ const AccountantPayments = () => {
             ? 'Move selected to quarantine?'
             : bulkModal?.type === 'restore'
               ? 'Restore selected payments?'
-              : 'Delete permanently?'
+              : 'Delete Permanently?'
         }
         message={
           bulkModal?.ids?.length
@@ -857,10 +857,10 @@ const AccountantPayments = () => {
         }
         confirmLabel={
           bulkModal?.type === 'trash'
-            ? 'Move to trash'
+            ? 'Move to Trash'
             : bulkModal?.type === 'restore'
               ? 'Restore selected'
-              : 'Delete permanently'
+              : 'Delete Permanently'
         }
         cancelLabel="Cancel"
         loading={actionLoading === 'bulk'}
@@ -877,7 +877,7 @@ const AccountantPayments = () => {
       <PortalActionModal
         open={!!approveModal}
         type="info"
-        title="Approve payment?"
+        title="Approve Payment?"
         message={
           approveModal
             ? `Confirm bank transfer for ${approveModal.studentName || 'student'} — ${approveModal.course?.title || approveModal.courseName || 'course'}. This marks the payment paid and creates the student record.`
@@ -909,7 +909,7 @@ const AccountantPayments = () => {
       <PortalActionModal
         open={!!restoreModal}
         type="info"
-        title="Restore payment?"
+        title="Restore Payment?"
         message={
           restoreModal
             ? `Restore payment for ${restoreModal.studentName || 'student'}? It will appear in your active lists again.`
@@ -925,9 +925,9 @@ const AccountantPayments = () => {
       <PortalActionModal
         open={!!permanentDeleteModal}
         type="warning"
-        title="Delete permanently?"
+        title="Delete Permanently?"
         message="Are you sure? This payment cannot be restored later."
-        confirmLabel="Delete permanently"
+        confirmLabel="Delete Permanently"
         cancelLabel="Cancel"
         loading={!!actionLoading}
         onConfirm={handlePermanentDelete}
@@ -958,11 +958,11 @@ const AccountantPayments = () => {
               {receiptModal.studentName || 'Student'} — {receiptModal.course?.title || receiptModal.courseName}
             </p>
             {String(receiptModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
-              <a href={resolveMediaUrl(receiptModal.proofUrl)} target="_blank" rel="noopener noreferrer">
-                Open PDF proof
-              </a>
+              <ProtectedFileLink path={receiptModal.proofUrl} target="_blank" rel="noopener noreferrer">
+                Open PDF Proof
+              </ProtectedFileLink>
             ) : (
-              <img src={resolveMediaUrl(receiptModal.proofUrl)} alt="Payment proof screenshot" />
+              <ProtectedFileImage path={receiptModal.proofUrl} alt="Payment proof screenshot" />
             )}
           </div>
         </div>

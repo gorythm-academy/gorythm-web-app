@@ -115,14 +115,11 @@ const AssignmentsTab = ({
             selectedCourseIds={assignForm.courseIds}
             selectedTeacherIds={assignForm.teacherIds}
             selectedScheduleIds={assignForm.scheduleIds}
-            onCoursesChange={(courseIds) =>
-              setAssignForm({ ...assignForm, courseIds, scheduleIds: [] })
-            }
-            onTeachersChange={(teacherIds) =>
-              setAssignForm({ ...assignForm, teacherIds, scheduleIds: [] })
-            }
-            onSchedulesChange={(scheduleIds) => setAssignForm({ ...assignForm, scheduleIds })}
+            onCoursesChange={(courseIds) => setAssignForm((current) => ({ ...current, courseIds }))}
+            onTeachersChange={(teacherIds) => setAssignForm((current) => ({ ...current, teacherIds }))}
+            onSchedulesChange={(scheduleIds) => setAssignForm((current) => ({ ...current, scheduleIds }))}
             previewNoun="assignment"
+            linkSelections
           />
         )}
         <label className="lms-field-label">
@@ -231,41 +228,51 @@ const AssignmentsTab = ({
       ) : (
         <>
           {selectedAssignmentIds.size > 0 ? (
-            <div className="lms-resources-bulk-bar">
+            <div className="lms-resources-bulk-bar admin-submissions__bulk-bar">
               <span>{selectedAssignmentIds.size} selected</span>
               <div className="lms-form-actions">
                 <button type="button" className="lms-btn-secondary" onClick={() => setSelectedAssignmentIds(new Set())}>
                   Clear
                 </button>
-                <button
-                  type="button"
-                  className={assignListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
-                  onClick={bulkAssignmentAction}
-                  disabled={deletingAssignments}
-                >
-                  <i className={`fas ${assignListMode === 'trash' ? 'fa-trash-alt' : 'fa-archive'}`} aria-hidden />
-                  {deletingAssignments
-                    ? 'Working…'
-                    : assignListMode === 'trash'
-                      ? `Delete forever (${selectedAssignmentIds.size})`
-                      : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedAssignmentIds.size})`}
-                </button>
                 {assignListMode === 'trash' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="lms-btn-restore"
+                      onClick={bulkRestoreAssignments}
+                      disabled={deletingAssignments}
+                    >
+                      <i className="fas fa-undo" aria-hidden />
+                      {deletingAssignments ? 'Working…' : `Restore (${selectedAssignmentIds.size})`}
+                    </button>
+                    <button
+                      type="button"
+                      className="lms-btn-delete-forever"
+                      onClick={bulkAssignmentAction}
+                      disabled={deletingAssignments}
+                    >
+                      <i className="fas fa-trash-alt" aria-hidden />
+                      {deletingAssignments ? 'Working…' : `Delete forever (${selectedAssignmentIds.size})`}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    className="lms-btn-restore"
-                    onClick={bulkRestoreAssignments}
+                    className="lms-btn-trash"
+                    onClick={bulkAssignmentAction}
                     disabled={deletingAssignments}
                   >
-                    <i className="fas fa-undo" aria-hidden />
-                    Restore selected
+                    <i className="fas fa-archive" aria-hidden />
+                    {deletingAssignments
+                      ? 'Working…'
+                      : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedAssignmentIds.size})`}
                   </button>
-                ) : null}
+                )}
               </div>
             </div>
           ) : null}
-          <div className="lms-table-wrap">
-            <table className="lms-table lms-table--resources">
+          <div className="admin-submissions__table-wrap">
+            <table className="admin-submissions__table">
               <thead>
                 <tr>
                   <th className="lms-table-check-col">
@@ -321,7 +328,7 @@ const AssignmentsTab = ({
                           aria-label={`Select ${a.title}`}
                         />
                       </td>
-                      <td>
+                      <td className="admin-submissions__name">
                         {a.title}
                         {a.lockedForTeacher || a.createdByRole === 'admin' ? (
                           <span className="lms-target-badge" title="Admin-published; teacher can view and extend due date only">
@@ -342,7 +349,7 @@ const AssignmentsTab = ({
                           <div className="lms-due-date-notice">{a.dueDateNotice}</div>
                         ) : null}
                       </td>
-                      <td className="lms-table-actions">
+                      <td className="admin-submissions__actions">
                         {assignListMode === 'trash' ? (
                           <>
                             <button
@@ -366,12 +373,12 @@ const AssignmentsTab = ({
                           <>
                             <button
                               type="button"
-                              className="lms-btn-secondary"
+                              className="admin-submissions__view-btn"
                               onClick={() => setMaterialPreview({ kind: 'assignment', item: a })}
                             >
-                              <i className="fas fa-eye" aria-hidden /> Preview
+                              View
                             </button>
-                            <button type="button" className="lms-btn-secondary" onClick={() => startEditAssignment(a)}>
+                            <button type="button" className="admin-submissions__view-btn" onClick={() => startEditAssignment(a)}>
                               Edit
                             </button>
                             <button

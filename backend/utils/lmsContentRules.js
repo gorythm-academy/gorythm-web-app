@@ -1,7 +1,9 @@
 const crypto = require('crypto');
 const Enrollment = require('../models/Enrollment');
 const ClassSchedule = require('../models/ClassSchedule');
+const Course = require('../models/Course');
 const { getTeachersForCourse } = require('../services/courseTeachers');
+const { activeCourseFilter } = require('./courseQuery');
 
 function startOfDay(date = new Date()) {
     const d = new Date(date);
@@ -152,7 +154,7 @@ async function getStudentEnrollmentSlots(studentId) {
         status: { $in: ['active', 'paused'] },
         deletedAt: null,
     })
-        .select('course assignedSchedule')
+        .select('course assignedSchedule enrollmentDate createdAt')
         .populate('assignedSchedule', 'teacher')
         .lean();
 
@@ -167,9 +169,31 @@ async function getStudentEnrollmentSlots(studentId) {
         const scheduleTeacher = enr.assignedSchedule?.teacher;
         const teacherId = scheduleTeacher ? String(scheduleTeacher._id || scheduleTeacher) : null;
         if (!courseId) continue;
-        slots.push({ courseId, teacherId, scheduleId });
+        slots.push({
+            courseId,
+            teacherId,
+            scheduleId,
+            enrolledAt: enr.enrollmentDate || enr.createdAt || null,
+        });
     }
     return slots;
+}
+
+/** Hide work whose due date already passed before this enrollment started. */
+function dueDateOpenForEnrollmentClause(enrolledAt) {
+    const enrolledOn = startOfDay(enrolledAt || new Date());
+    return {
+        $or: [
+            { dueDate: null },
+            { dueDate: { $exists: false } },
+            { dueDate: { $gte: enrolledOn } },
+        ],
+    };
+}
+
+function dueDateMissedBeforeEnrollment(dueDate, enrolledAt) {
+    if (!dueDate) return false;
+    return startOfDay(dueDate).getTime() < startOfDay(enrolledAt || new Date()).getTime();
 }
 
 /** @deprecated Use getStudentEnrollmentSlots — kept for resource visibility. */
@@ -187,20 +211,27 @@ async function studentAssignmentMongoFilter(studentId) {
     if (!slots.length) return { _id: { $in: [] } };
 
     const orClauses = [];
-    for (const { courseId, teacherId, scheduleId } of slots) {
+    for (const { courseId, teacherId, scheduleId, enrolledAt } of slots) {
+        const dueClause = dueDateOpenForEnrollmentClause(enrolledAt);
         if (scheduleId) {
             orClauses.push({
                 course: courseId,
                 teacher: teacherId,
                 assignedSchedule: scheduleId,
+                ...dueClause,
             });
             continue;
         }
         // Student missing assigned schedule — legacy teacher-only assignments only.
         orClauses.push({
-            course: courseId,
-            teacher: teacherId,
-            $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+            $and: [
+                {
+                    course: courseId,
+                    teacher: teacherId,
+                    $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+                },
+                dueClause,
+            ],
         });
     }
     return { $or: orClauses };
@@ -231,7 +262,7 @@ function studentSlotMatchesResource(slot, resource) {
         if (!slot.scheduleId) return false;
         return slot.scheduleId === assignSchedule;
     }
-    return true;
+    return !slot.scheduleId;
 }
 
 function resourceVisibleToStudent(resource, enrollmentSlots) {
@@ -284,10 +315,9 @@ async function studentResourceMongoFilter(studentId) {
                 assignedSchedule: scheduleId,
                 $or: [{ scope: 'teacher' }, { scope: { $exists: false } }],
             });
-            orClauses.push(legacyTeacherResource);
-        } else {
-            orClauses.push(legacyTeacherResource);
+            continue;
         }
+        orClauses.push(legacyTeacherResource);
     }
 
     return { $or: orClauses };
@@ -501,6 +531,93 @@ async function assertStudentCanAccessAssignment(studentId, assignment) {
             throw err;
         }
     }
+    if (dueDateMissedBeforeEnrollment(assignment.dueDate, slot.enrolledAt)) {
+        const err = new Error('This assignment is not available');
+        err.status = 403;
+        throw err;
+    }
+}
+
+/** Published quizzes whose due date had not already passed when the student enrolled. */
+async function studentPublishedQuizMongoFilter(studentId) {
+    const slots = await getStudentEnrollmentSlots(studentId);
+    if (!slots.length) return { _id: { $in: [] } };
+
+    const activeCourses = await Course.find({
+        _id: { $in: slots.map((slot) => slot.courseId) },
+        ...activeCourseFilter(),
+    }).select('_id').lean();
+    const activeIds = new Set(activeCourses.map((course) => String(course._id)));
+    const orClauses = [];
+    for (const { courseId, teacherId, scheduleId, enrolledAt } of slots) {
+        if (!activeIds.has(String(courseId))) continue;
+        const dueClause = dueDateOpenForEnrollmentClause(enrolledAt);
+        const legacy = {
+            course: courseId,
+            status: 'published',
+            $or: [{ assignedSchedule: null }, { assignedSchedule: { $exists: false } }],
+        };
+        if (teacherId) legacy.teacher = teacherId;
+        if (scheduleId && teacherId) {
+            orClauses.push({
+                $and: [
+                    {
+                        course: courseId,
+                        teacher: teacherId,
+                        assignedSchedule: scheduleId,
+                        status: 'published',
+                    },
+                    dueClause,
+                ],
+            });
+            continue;
+        }
+        if (scheduleId) continue;
+        orClauses.push({ $and: [legacy, dueClause] });
+    }
+    if (!orClauses.length) return { _id: { $in: [] } };
+    return { $or: orClauses };
+}
+
+async function assertStudentCanAccessQuiz(studentId, quiz) {
+    const slots = await getStudentEnrollmentSlots(studentId);
+    const courseId = String(quiz.course?._id || quiz.course || '');
+    const matching = slots.filter((slot) => slot.courseId === courseId);
+    const quizTeacher = String(quiz.teacher?._id || quiz.teacher || '');
+    const assignSchedule = quiz.assignedSchedule
+        ? String(quiz.assignedSchedule._id || quiz.assignedSchedule)
+        : null;
+    let enrolledAt = null;
+    if (assignSchedule) {
+        const slot = matching.find(
+            (row) => row.scheduleId === assignSchedule && (!quizTeacher || row.teacherId === quizTeacher)
+        );
+        if (!slot) {
+            const err = new Error('This quiz is not for your class timeslot');
+            err.status = 403;
+            throw err;
+        }
+        enrolledAt = slot.enrolledAt;
+    } else {
+        const openSlot = matching.find((row) => {
+            if (row.scheduleId) return false;
+            if (!quizTeacher || !row.teacherId) return true;
+            return row.teacherId === quizTeacher;
+        });
+        if (!openSlot) {
+            const err = new Error('This quiz is not for your class timeslot');
+            err.status = 403;
+            throw err;
+        }
+        enrolledAt = openSlot.enrolledAt;
+    }
+    if (!quiz?.dueDate || enrolledAt == null) return;
+    const enrolledOn = typeof enrolledAt === 'number' ? enrolledAt : startOfDay(enrolledAt).getTime();
+    if (startOfDay(quiz.dueDate).getTime() < enrolledOn) {
+        const err = new Error('This quiz is not available');
+        err.status = 403;
+        throw err;
+    }
 }
 
 module.exports = {
@@ -517,7 +634,10 @@ module.exports = {
     getStudentEnrollmentTeachers,
     getStudentSlotIssues,
     assertStudentCanAccessAssignment,
+    assertStudentCanAccessQuiz,
+    dueDateMissedBeforeEnrollment,
     studentAssignmentMongoFilter,
+    studentPublishedQuizMongoFilter,
     resourceScopeForDoc,
     studentSlotMatchesResource,
     resourceVisibleToStudent,

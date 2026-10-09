@@ -1,6 +1,5 @@
 const PREFIX = 'gorythm_portal_seen_';
 
-export const ADMIN_SEEN_RESOURCES_SUBMISSIONS = 'admin_resources_submissions';
 export const ADMIN_SEEN_TAB_ASSIGNMENTS = 'admin_tab_assignments';
 export const ADMIN_SEEN_TAB_RESOURCES = 'admin_tab_resources';
 export const ADMIN_SEEN_TAB_SUBMISSIONS = 'admin_tab_submissions';
@@ -71,4 +70,13 @@ export function groupPortalItemsByCourse(items, getCourseId, getCourseTitle) {
     groups.get(courseId).items.push(item);
   }
   return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Newest published rows first. */
+export function sortNewestFirst(items) {
+  return [...(items || [])].sort((a, b) => {
+    const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
 }

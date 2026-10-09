@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/constants';
+
 const FX_CACHE_KEY = 'gorythm.fx.usd.v1';
 const CURRENCY_CACHE_KEY = 'gorythm.currency.v1';
 const CURRENCY_GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -292,34 +294,17 @@ export const fetchUsdRates = async () => {
   const cached = readCache(FX_CACHE_KEY, FX_CACHE_TTL_MS);
   if (cached?.rates) return cached;
 
-  const endpoints = [
-    'https://open.er-api.com/v6/latest/USD',
-    'https://api.exchangerate-api.com/v4/latest/USD',
-  ];
-
-  let data = null;
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint);
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (isObject(json?.rates)) {
-        data = json;
-        break;
-      }
-    } catch {
-      // Try next endpoint.
-    }
-  }
-
-  if (!isObject(data?.rates)) {
-    throw new Error('Failed to fetch exchange rates from all providers');
+  const base = (API_BASE_URL || '').replace(/\/$/, '');
+  const res = await fetch(`${base}/api/site/usd-rates`);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !isObject(json?.rates)) {
+    throw new Error('Failed to fetch exchange rates');
   }
 
   const payload = {
-    base: data.base_code || USD,
-    rates: data.rates,
-    date: data.time_last_update_utc || data.date || '',
+    base: json.base || USD,
+    rates: json.rates,
+    date: json.date || '',
   };
   writeCache(FX_CACHE_KEY, payload);
   return payload;

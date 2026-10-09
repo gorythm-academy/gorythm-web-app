@@ -140,16 +140,13 @@ const ResourcesTab = ({
             selectedCourseIds={resourceForm.courseIds}
             selectedTeacherIds={resourceForm.teacherIds}
             selectedScheduleIds={resourceForm.scheduleIds}
-            onCoursesChange={(courseIds) =>
-              setResourceForm({ ...resourceForm, courseIds, scheduleIds: [] })
-            }
-            onTeachersChange={(teacherIds) =>
-              setResourceForm({ ...resourceForm, teacherIds, scheduleIds: [] })
-            }
-            onSchedulesChange={(scheduleIds) => setResourceForm({ ...resourceForm, scheduleIds })}
+            onCoursesChange={(courseIds) => setResourceForm((current) => ({ ...current, courseIds }))}
+            onTeachersChange={(teacherIds) => setResourceForm((current) => ({ ...current, teacherIds }))}
+            onSchedulesChange={(scheduleIds) => setResourceForm((current) => ({ ...current, scheduleIds }))}
             previewNoun="resource"
             requireTeachers={resourceForm.scope === 'teacher'}
             requireSchedules={resourceForm.scope === 'teacher'}
+            linkSelections
           />
         )}
         <label className="lms-field-label">
@@ -287,7 +284,7 @@ const ResourcesTab = ({
         ) : null}
 
         {resourceListCourseFilter ? (
-        <div className="lms-table-wrap">
+        <>
           <p className="lms-resources-library__count" style={{ padding: '0.5rem 0 0.75rem', margin: 0 }}>
             {filteredResources.length} shown
             {resourceListSearch.debouncedSearch && resources.length !== filteredResources.length
@@ -295,7 +292,7 @@ const ResourcesTab = ({
               : ''}
           </p>
           {selectedResourceIds.size > 0 ? (
-          <div className="lms-resources-bulk-bar">
+          <div className="lms-resources-bulk-bar admin-submissions__bulk-bar">
             <span>{selectedResourceIds.size} selected</span>
             <div className="lms-form-actions">
               <button
@@ -305,34 +302,45 @@ const ResourcesTab = ({
               >
                 Clear
               </button>
-              <button
-                type="button"
-                className={resourceListMode === 'trash' ? 'lms-btn-delete-forever' : 'lms-btn-trash'}
-                onClick={bulkResourceAction}
-                disabled={deletingResources}
-              >
-                <i className={`fas ${resourceListMode === 'trash' ? 'fa-trash-alt' : 'fa-archive'}`} aria-hidden />
-                {deletingResources
-                  ? 'Working…'
-                  : resourceListMode === 'trash'
-                    ? `Delete forever (${selectedResourceIds.size})`
-                    : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedResourceIds.size})`}
-              </button>
               {resourceListMode === 'trash' ? (
+                <>
+                  <button
+                    type="button"
+                    className="lms-btn-restore"
+                    onClick={bulkRestoreResources}
+                    disabled={deletingResources}
+                  >
+                    <i className="fas fa-undo" aria-hidden />
+                    {deletingResources ? 'Working…' : `Restore (${selectedResourceIds.size})`}
+                  </button>
+                  <button
+                    type="button"
+                    className="lms-btn-delete-forever"
+                    onClick={bulkResourceAction}
+                    disabled={deletingResources}
+                  >
+                    <i className="fas fa-trash-alt" aria-hidden />
+                    {deletingResources ? 'Working…' : `Delete forever (${selectedResourceIds.size})`}
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
-                  className="lms-btn-restore"
-                  onClick={bulkRestoreResources}
+                  className="lms-btn-trash"
+                  onClick={bulkResourceAction}
                   disabled={deletingResources}
                 >
-                  <i className="fas fa-undo" aria-hidden />
-                  Restore selected
+                  <i className="fas fa-archive" aria-hidden />
+                  {deletingResources
+                    ? 'Working…'
+                    : `${MOVE_TO_QUARANTINE_PHRASE} (${selectedResourceIds.size})`}
                 </button>
-              ) : null}
+              )}
             </div>
           </div>
           ) : null}
-          <table className="lms-table lms-table--resources">
+          <div className="admin-submissions__table-wrap">
+          <table className="admin-submissions__table">
             <thead>
               <tr>
                 <th className="lms-table-check-col">
@@ -389,7 +397,7 @@ const ResourcesTab = ({
                         aria-label={`Select ${r.title}`}
                       />
                     </td>
-                    <td>{r.title}</td>
+                    <td className="admin-submissions__name">{r.title}</td>
                     <td>{r.course?.title}</td>
                     <td>{r.scope === 'course' ? 'All students' : r.teacher?.name || '—'}</td>
                     <td>
@@ -406,7 +414,7 @@ const ResourcesTab = ({
                       {r.uploadedBy?.name || '—'}
                       {r.uploadedBy?.role ? ` (${r.uploadedBy.role})` : ''}
                     </td>
-                    <td className="lms-table-actions">
+                    <td className="admin-submissions__actions">
                       {resourceListMode === 'trash' ? (
                         <>
                           <button
@@ -430,12 +438,12 @@ const ResourcesTab = ({
                         <>
                           <button
                             type="button"
-                            className="lms-btn-secondary"
+                            className="admin-submissions__view-btn"
                             onClick={() => setMaterialPreview({ kind: 'resource', item: r })}
                           >
-                            <i className="fas fa-eye" aria-hidden /> Preview
+                            View
                           </button>
-                          <button type="button" className="lms-btn-secondary" onClick={() => startEditResource(r)}>
+                          <button type="button" className="admin-submissions__view-btn" onClick={() => startEditResource(r)}>
                             Edit
                           </button>
                           <button
@@ -455,8 +463,8 @@ const ResourcesTab = ({
               )}
             </tbody>
           </table>
-          {!resources.length ? <p className="lms-empty">No resources for this selection.</p> : null}
         </div>
+        </>
         ) : null}
       </div>
     </div>

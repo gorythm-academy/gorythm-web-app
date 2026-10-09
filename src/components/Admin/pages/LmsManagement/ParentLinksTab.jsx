@@ -245,7 +245,7 @@ const ParentLinksTab = ({
                             <button
                               type="button"
                               className="lms-schedule-action lms-schedule-action--edit"
-                              title="Edit link"
+                              title="Edit Link"
                               aria-label="Edit link"
                               onClick={() => startEditLink(l)}
                             >

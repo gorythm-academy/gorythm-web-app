@@ -21,6 +21,26 @@ const HeroSection = () => {
   const centerImageRef = useRef(null);
 
   useEffect(() => {
+    const publicUrl = process.env.PUBLIC_URL || '';
+    const links = [
+      [`${publicUrl}/images/hero/center-logo-240.avif`, 'image/avif'],
+      [`${publicUrl}/preload/lcp-hero.avif`, 'image/avif'],
+    ].map(([href, type]) => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = href;
+      link.type = type;
+      link.dataset.heroPreload = '1';
+      document.head.appendChild(link);
+      return link;
+    });
+    return () => {
+      links.forEach((link) => link.remove());
+    };
+  }, []);
+
+  useEffect(() => {
 
     // ===== PARTICLE ANIMATIONS =====
     particlesRef.current.forEach((particle, i) => {
@@ -81,7 +101,7 @@ const HeroSection = () => {
     caption2: "SIGNS",
     caption3: "DISCOVER YOURSELF",
     description:
-    "Gorythm is a research centre and development platform, dedicated to intellectual, emotional, and physical growth, delivering structured and purposeful learning for every stage of life.",
+    "Gorythm Academy is a research centre and development platform, dedicated to intellectual, emotional, and physical growth, delivering structured and purposeful learning for every stage of life.",
     particles: [
       { top: '15%', left: '5%', size: '4px' },
       { top: '70%', left: '90%', size: '6px' },
@@ -134,6 +154,7 @@ const HeroSection = () => {
         <div className="gradient-overlay"></div>
       </div>
 
+      <h1 className="hero-sr-only">Gorythm Academy</h1>
       <div className="hero-container">
         <div className="hero-content">
 

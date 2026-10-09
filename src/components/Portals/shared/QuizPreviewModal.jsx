@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { absFileUrl, uploadDisplayName } from '../../../utils/fileUrl';
+import { ProtectedFileLink, uploadDisplayName } from '../../../utils/fileUrl';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import QuizReviewPanel from './QuizReviewPanel';
 import './QuizPreviewModal.scss';
@@ -60,7 +60,7 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
             const kind = fileKind(url);
             return (
               <li key={url}>
-                <a href={absFileUrl(url)} target="_blank" rel="noreferrer">
+                <ProtectedFileLink path={url} target="_blank" rel="noreferrer">
                   <span className="quiz-file-view__file-icon" aria-hidden>
                     <i className={`fas ${kind.icon}`} />
                   </span>
@@ -69,7 +69,7 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
                     <small>{kind.label}</small>
                   </span>
                   <em>Open</em>
-                </a>
+                </ProtectedFileLink>
               </li>
             );
           })}

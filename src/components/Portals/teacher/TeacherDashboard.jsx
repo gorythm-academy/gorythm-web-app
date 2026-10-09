@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import {
   PortalAlert,
   PortalPageHeader,
@@ -9,7 +9,7 @@ import {
 } from '../shared/PortalUi';
 
 const TeacherDashboard = () => {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readPortalCache('/teacher/dashboard'));
   const [error, setError] = useState('');
 
   useEffect(() => {

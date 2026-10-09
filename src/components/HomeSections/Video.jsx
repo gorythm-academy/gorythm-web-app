@@ -6,6 +6,8 @@ import Player from '@vimeo/player';
 import { API_BASE_URL } from '../../config/constants';
 import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 import { providerThumbnailUrl, fetchVimeoThumbnailUrl } from '../../utils/videoEmbed';
+import { useCookieConsent } from '../../hooks/useCookieConsent';
+import { writeCookieConsent } from '../../utils/cookieConsent';
 import OptimizedPicture from '../OptimizedPicture/OptimizedPicture';
 import './Video.scss';
 
@@ -33,6 +35,9 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   const [videoEnded, setVideoEnded] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
   const [vimeoFallbackUrl, setVimeoFallbackUrl] = useState('');
+  const [needsMediaConsent, setNeedsMediaConsent] = useState(false);
+  const cookieConsent = useCookieConsent();
+  const mediaAllowed = cookieConsent?.media === true;
 
   const sectionRef = useRef(null);
   const iframeRef = useRef(null);
@@ -106,6 +111,18 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   }, []);
 
   const openVideo = useCallback(() => {
+    if (!mediaAllowed) {
+      setNeedsMediaConsent(true);
+      return;
+    }
+    setNeedsMediaConsent(false);
+    setVideoEnded(false);
+    setIsPlaying(true);
+  }, [mediaAllowed]);
+
+  const allowMediaAndPlay = useCallback(() => {
+    writeCookieConsent('all');
+    setNeedsMediaConsent(false);
     setVideoEnded(false);
     setIsPlaying(true);
   }, []);
@@ -124,7 +141,7 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   }, [isPlaying]);
 
   useEffect(() => {
-    if (!isPlaying || !isVimeo || !iframeRef.current) return undefined;
+    if (!isPlaying || !mediaAllowed || !isVimeo || !iframeRef.current) return undefined;
     const iframe = iframeRef.current;
     const player = new Player(iframe);
     vimeoPlayerRef.current = player;
@@ -141,7 +158,7 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
       vimeoPlayerRef.current = null;
       player.destroy().catch(() => {});
     };
-  }, [isPlaying, isVimeo, embedSrc]);
+  }, [isPlaying, mediaAllowed, isVimeo, embedSrc]);
 
   const handleReplay = useCallback(async (e) => {
     e.preventDefault();
@@ -223,7 +240,28 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
         <span className="video-play-text">PLAY</span>
       </button>
 
-      {isPlaying && (
+      {needsMediaConsent && !mediaAllowed ? (
+        <div
+          className="video-consent"
+          role="dialog"
+          aria-label="Allow video cookies"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <p>This video loads from an external player. Accept cookies to play.</p>
+          <button type="button" className="video-consent__btn" onClick={allowMediaAndPlay}>
+            Accept and play
+          </button>
+          <button
+            type="button"
+            className="video-consent__link"
+            onClick={() => setNeedsMediaConsent(false)}
+          >
+            Not now
+          </button>
+        </div>
+      ) : null}
+
+      {isPlaying && mediaAllowed && (
         <div className="video-section-player" role="region" aria-label="Intro video">
           <button
             className="video-section-player-close"

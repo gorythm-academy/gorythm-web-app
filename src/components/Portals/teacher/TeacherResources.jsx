@@ -5,6 +5,7 @@ import { hasLmsUploadValue, resolveLmsUploadList } from '../../../utils/fileUplo
 import FileUploadField from '../shared/FileUploadField';
 import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
 import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal';
 import { markPortalPageVisited, TEACHER_SEEN_ADMIN_RESOURCES } from '../../../utils/portalNewItems';
 import {
@@ -19,6 +20,8 @@ import './TeacherResources.scss';
 const EMPTY_RESOURCE = {
   title: '',
   courseId: '',
+  scheduleIds: [],
+  scheduleId: '',
   fileUrl: '',
   attachments: [],
   type: 'file',
@@ -37,6 +40,7 @@ const SEEN_ACTIVITY_KEY = 'teacher_resources_activity';
 const TeacherResources = () => {
   const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
+  const [teacherSchedules, setTeacherSchedules] = useState([]);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
@@ -55,10 +59,16 @@ const TeacherResources = () => {
   const [activityDismissTick, setActivityDismissTick] = useState(0);
 
   const reload = () =>
-    Promise.all([portalGet('/teacher/courses'), portalGet('/teacher/resources')])
-      .then(([c, r]) => {
+    Promise.all([
+      portalGet('/teacher/courses'),
+      portalGet('/teacher/schedule'),
+      portalGet('/teacher/resources'),
+    ])
+      .then(([c, sch, r]) => {
         if (c.success) setCourses(c.courses || []);
         else setLoadError(c.error || 'Failed to load courses');
+        if (sch.success) setTeacherSchedules(sch.schedules || []);
+        else setLoadError((prev) => prev || sch.error || 'Failed to load class slots');
         if (r.success) setResources(r.resources || []);
         else setLoadError((prev) => prev || r.error || 'Failed to load resources');
       })
@@ -77,6 +87,13 @@ const TeacherResources = () => {
     const t = setTimeout(() => setMsg(''), 4000);
     return () => clearTimeout(t);
   }, [msg]);
+
+  const courseScheduleOptions = useMemo(() => {
+    if (!resourceForm.courseId) return [];
+    return teacherSchedules.filter(
+      (slot) => String(slot.course?._id || slot.course) === String(resourceForm.courseId)
+    );
+  }, [teacherSchedules, resourceForm.courseId]);
 
   const filteredResources = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -158,6 +175,19 @@ const TeacherResources = () => {
       setSaving(false);
       return;
     }
+    if (editingResourceId) {
+      if (!resourceForm.scheduleId) {
+        await showAlert({ type: 'error', message: 'Select a class slot.' });
+        savingRef.current = false;
+        setSaving(false);
+        return;
+      }
+    } else if (!resourceForm.scheduleIds.length) {
+      await showAlert({ type: 'error', message: 'Select at least one class slot.' });
+      savingRef.current = false;
+      setSaving(false);
+      return;
+    }
     try {
       let fileUrl = resourceForm.fileUrl;
       let attachments;
@@ -165,7 +195,17 @@ const TeacherResources = () => {
         attachments = await resolveLmsUploadList(resourceForm.attachments, 'content/books');
         fileUrl = attachments[0] || '';
       }
-      const payload = { ...resourceForm, fileUrl, attachments };
+      const payload = {
+        title: resourceForm.title,
+        courseId: resourceForm.courseId,
+        type: resourceForm.type,
+        description: resourceForm.description,
+        fileUrl,
+        attachments,
+        ...(editingResourceId
+          ? { scheduleId: resourceForm.scheduleId }
+          : { scheduleIds: resourceForm.scheduleIds }),
+      };
       if (editingResourceId) {
         const id = portalDocId(editingResourceId);
         if (!id) {
@@ -177,8 +217,12 @@ const TeacherResources = () => {
         await portalPatch(`/teacher/resources/${id}`, payload);
         await showAlert({ type: 'success', message: 'Resource updated.' });
       } else {
-        await portalPost('/teacher/resources', payload);
-        await showAlert({ type: 'success', message: 'Resource added.' });
+        const result = await portalPost('/teacher/resources', payload);
+        const n = result.createdCount || 1;
+        await showAlert({
+          type: 'success',
+          message: `${n} resource${n === 1 ? '' : 's'} added. Visible only to students on the selected class slot${n === 1 ? '' : 's'}.`,
+        });
       }
       resetResourceForm();
       await reload();
@@ -202,6 +246,8 @@ const TeacherResources = () => {
     setResourceForm({
       title: r.title || '',
       courseId: String(r.course?._id || r.course || ''),
+      scheduleIds: [],
+      scheduleId: String(r.assignedSchedule?._id || r.assignedSchedule || ''),
       fileUrl: r.fileUrl || '',
       attachments: r.attachments?.length ? [...r.attachments] : r.fileUrl ? [r.fileUrl] : [],
       type: r.type || 'file',
@@ -302,8 +348,8 @@ const TeacherResources = () => {
               <h2>{editingResourceId ? 'Edit Resource' : 'Add Resource'}</h2>
               <p>
                 {editingResourceId
-                  ? 'Update the title, course, type, or content below.'
-                  : 'Upload a file, paste a link, or add a note for active students.'}
+                  ? 'Update the title, course, class slot, type, or content below.'
+                  : 'Choose class slots. One copy is added for each selected slot.'}
               </p>
             </div>
             <button
@@ -329,7 +375,14 @@ const TeacherResources = () => {
               <span>Course <RequiredMark /></span>
               <select
                 value={resourceForm.courseId}
-                onChange={(e) => setResourceForm({ ...resourceForm, courseId: e.target.value })}
+                onChange={(e) =>
+                  setResourceForm({
+                    ...resourceForm,
+                    courseId: e.target.value,
+                    scheduleIds: [],
+                    scheduleId: '',
+                  })
+                }
                 required
               >
                 <option value="">Select course</option>
@@ -340,6 +393,79 @@ const TeacherResources = () => {
                 ))}
               </select>
             </label>
+            {editingResourceId ? (
+              <label className="portal-field-label">
+                <span>Class slot <RequiredMark /></span>
+                <select
+                  value={resourceForm.scheduleId}
+                  onChange={(e) => setResourceForm({ ...resourceForm, scheduleId: e.target.value })}
+                  required
+                >
+                  <option value="">Select class slot</option>
+                  {courseScheduleOptions.map((slot) => (
+                    <option key={slot._id} value={slot._id}>
+                      {formatScheduleLabel(slot)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="teacher-resources__slot-select">
+                <div className="teacher-resources__slot-head">
+                  <span>Class slots <RequiredMark /></span>
+                  {courseScheduleOptions.length ? (
+                    <label className="teacher-resources__slot-all">
+                      <input
+                        type="checkbox"
+                        checked={
+                          courseScheduleOptions.length > 0 &&
+                          courseScheduleOptions.every((slot) =>
+                            resourceForm.scheduleIds.includes(String(slot._id))
+                          )
+                        }
+                        onChange={() => {
+                          const allIds = courseScheduleOptions.map((slot) => String(slot._id));
+                          const allSelected =
+                            allIds.length > 0 && allIds.every((id) => resourceForm.scheduleIds.includes(id));
+                          setResourceForm({ ...resourceForm, scheduleIds: allSelected ? [] : allIds });
+                        }}
+                      />
+                      <span>Select all</span>
+                    </label>
+                  ) : null}
+                </div>
+                {resourceForm.courseId && courseScheduleOptions.length ? (
+                  <div className="teacher-resources__slot-grid">
+                    {courseScheduleOptions.map((slot) => {
+                      const id = String(slot._id);
+                      return (
+                        <label key={id} className="teacher-resources__slot-item">
+                          <input
+                            type="checkbox"
+                            checked={resourceForm.scheduleIds.includes(id)}
+                            onChange={() =>
+                              setResourceForm({
+                                ...resourceForm,
+                                scheduleIds: resourceForm.scheduleIds.includes(id)
+                                  ? resourceForm.scheduleIds.filter((rowId) => rowId !== id)
+                                  : [...resourceForm.scheduleIds, id],
+                              })
+                            }
+                          />
+                          <span>{formatScheduleLabel(slot)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="teacher-resources__slot-hint">
+                    {resourceForm.courseId
+                      ? 'No class times are listed for this course yet. Please contact the academy.'
+                      : 'Select a course to choose class times.'}
+                  </p>
+                )}
+              </div>
+            )}
             <label className="portal-field-label">
               <span>Type</span>
               <select
@@ -527,6 +653,7 @@ const TeacherResources = () => {
                     </th>
                     <th>Title</th>
                     <th>Course</th>
+                    <th>Class slot</th>
                     <th>Type</th>
                     <th>Action</th>
                   </tr>
@@ -559,6 +686,7 @@ const TeacherResources = () => {
                           ) : null}
                         </td>
                         <td>{r.course?.title || '—'}</td>
+                        <td>{r.assignedSchedule ? formatScheduleTimeLabel(r.assignedSchedule) : '—'}</td>
                         <td>{resourceTypeLabel(r.type)}</td>
                         <td>
                           <div className="portal-table-actions">

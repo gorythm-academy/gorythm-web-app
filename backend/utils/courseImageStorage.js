@@ -80,24 +80,6 @@ function sanitizeCourseImageFilename(raw, fallbackExt = '.jpg') {
     return full;
 }
 
-function absolutePathForFilename(filename) {
-    if (!filename || filename.includes('..') || filename.includes('/')) return null;
-    return path.join(IMAGE_DIR, filename);
-}
-
-function renameImageFile(oldPublicPath, newFilename) {
-    const oldAbs = imageAbsolutePathFromPublic(oldPublicPath);
-    const newAbs = absolutePathForFilename(newFilename);
-    if (!oldAbs || !newAbs || !fs.existsSync(oldAbs)) {
-        throw new Error('Original image file not found.');
-    }
-    if (fs.existsSync(newAbs) && newAbs !== oldAbs) {
-        throw new Error(`"${newFilename}" already exists. Choose a different name.`);
-    }
-    fs.renameSync(oldAbs, newAbs);
-    return imagePublicPath(newFilename);
-}
-
 module.exports = {
     IMAGE_SUBDIR,
     IMAGE_DIR,
@@ -108,6 +90,4 @@ module.exports = {
     deleteImageFile,
     listImageFilenames,
     sanitizeCourseImageFilename,
-    absolutePathForFilename,
-    renameImageFile,
 };

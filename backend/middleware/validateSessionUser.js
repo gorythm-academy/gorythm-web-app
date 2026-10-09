@@ -12,7 +12,7 @@ async function validateSessionUser(req, res, next) {
     }
 
     try {
-        const user = await User.findById(userId).select('role deletedAt canLogin isActive');
+        const user = await User.findById(userId).select('role deletedAt canLogin isActive mustChangePassword');
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -51,6 +51,19 @@ async function validateSessionUser(req, res, next) {
                 error: 'Session is out of date. Please sign in again.',
                 message: 'Session is out of date. Please sign in again.',
             });
+        }
+
+        if (user.mustChangePassword) {
+            const path = String(req.originalUrl || '').split('?')[0];
+            const allowed = path === '/api/auth/change-password' || path === '/api/auth/change-initial-password';
+            if (!allowed) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Set a new password first.',
+                    message: 'Set a new password first.',
+                    mustChangePassword: true,
+                });
+            }
         }
 
         req.sessionUser = user;

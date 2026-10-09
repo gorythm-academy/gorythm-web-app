@@ -34,7 +34,7 @@ async function sendPaymentReceiptEmail(payment) {
         await transporter.sendMail({
             from: `"${fromName}" <${fromEmail}>`,
             to,
-            subject: `Payment receipt — ${payment.courseName || 'Gorythm'}`,
+            subject: `Payment receipt — ${payment.courseName || 'Gorythm Academy'}`,
             text: `Thank you. We received your payment of ${payment.currency || 'USD'} ${Number(payment.amount || 0).toFixed(2)}. Your receipt is attached.`,
             attachments: [
                 {

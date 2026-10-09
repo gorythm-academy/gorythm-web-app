@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../config/constants';
 import { getAuthToken, AUTH_REALM, inferAuthRealm } from './authStorage';
 
@@ -48,15 +49,69 @@ function appendUploadAuth(url, options = {}) {
   if (proofToken) {
     return `${url}${url.includes('?') ? '&' : '?'}proofToken=${encodeURIComponent(proofToken)}`;
   }
-  if (typeof window === 'undefined') return url;
+  return url;
+}
 
+const fileLinkCache = new Map();
+
+function authTokenFor(options = {}) {
   const realm = options.realm || inferAuthRealm();
-  const token =
+  return (
     getAuthToken(realm) ||
-    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN);
-  if (!token) return url;
+    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN)
+  );
+}
 
-  return `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+/** Short-lived link for one protected file. The login token is not put in the address. */
+export async function fileAccessUrl(path, options = {}) {
+  const plain = absFileUrl(path, { ...options, proofToken: options.proofToken, uploadToken: options.uploadToken });
+  if (!plain || !pathNeedsUploadAuth(normalizeStoredUploadPath(path) || path) || options.proofToken || options.uploadToken) {
+    return plain;
+  }
+  const cached = fileLinkCache.get(plain);
+  if (cached && cached.expiresAt > Date.now() + 15000) return cached.url;
+  const token = authTokenFor(options);
+  if (!token) return plain;
+  const base = (API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+  const res = await fetch(`${base}/api/auth/file-link`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ path: normalizeStoredUploadPath(path) || path }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.url) return '';
+  const url = data.url.startsWith('http') ? data.url : `${base}${data.url}`;
+  fileLinkCache.set(plain, { url, expiresAt: Date.now() + (Number(data.expiresIn) || 180) * 1000 });
+  return url;
+}
+
+export function useAuthorizedFileUrl(path, options = {}) {
+  const stored = normalizeStoredUploadPath(path);
+  const needsLink = pathNeedsUploadAuth(stored) && !(options.proofToken || options.uploadToken);
+  const [url, setUrl] = useState(() => (needsLink ? '' : absFileUrl(path, options)));
+
+  useEffect(() => {
+    if (!path) {
+      setUrl('');
+      return undefined;
+    }
+    if (!needsLink) {
+      setUrl(absFileUrl(path, options));
+      return undefined;
+    }
+    let cancel = false;
+    fileAccessUrl(path, options).then((next) => {
+      if (!cancel) setUrl(next || '');
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [path, needsLink, options.proofToken, options.uploadToken, options.realm]);
+
+  return url;
 }
 
 /** Download a protected upload using JWT (falls back to opening in a new tab). */
@@ -119,6 +174,27 @@ export function absFileUrl(path, options = {}) {
   }
 
   return url;
+}
+
+export function ProtectedFileLink({ path, linkOptions, children, ...rest }) {
+  const href = useAuthorizedFileUrl(path, linkOptions);
+  return (
+    <a href={href || undefined} {...rest}>
+      {children}
+    </a>
+  );
+}
+
+export function ProtectedFileImage({ path, linkOptions, ...rest }) {
+  const src = useAuthorizedFileUrl(path, linkOptions);
+  if (!src) return null;
+  return <img src={src} alt="" {...rest} />;
+}
+
+export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
+  const src = useAuthorizedFileUrl(path, linkOptions);
+  if (!src) return null;
+  return <iframe src={src} title="File" {...rest} />;
 }
 
 /** Human-readable filename from a stored upload path or URL. */

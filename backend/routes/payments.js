@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { deleteProofFile } = require('../services/trashCleanup');
 const mongoose = require('mongoose');
 const router = express.Router();
@@ -27,6 +28,7 @@ const { ensureProofDir, proofPublicPath, PROOF_DIR } = require('../utils/payment
 const { resolveStoredFilename } = require('../utils/safeFilename');
 const { activePaymentFilter, trashedPaymentFilter, activePaymentListFilter, overduePaymentFilter } = require('../utils/paymentQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
+const { checkoutWantsAutoPay } = require('../services/billingAutoPay');
 const {
     resolveCheckoutItems,
     stripeLineItemsFromResolved,
@@ -445,13 +447,31 @@ async function sendPaymentPdf(res, payment, { kind = 'invoice', lineFilter = nul
     return res.send(pdfBuffer);
 }
 
+async function userFromCheckoutBearer(req) {
+    const header = req.header('Authorization') || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    if (!token || !process.env.JWT_SECRET) return null;
+    let decoded;
+    try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+        return null;
+    }
+    const userId = decoded?.userId || decoded?.id;
+    if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) return null;
+    const user = await User.findById(userId).select('_id name email personalEmail role deletedAt canLogin isActive');
+    if (!user || user.deletedAt || user.canLogin === false || user.isActive === false) return null;
+    if (decoded.role && user.role !== decoded.role) return null;
+    return user;
+}
+
 // --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
 router.post(
     '/create-checkout',
     async (req, res) => {
     if (!requireStripe(res)) return;
     try {
-        const { userId, items, invoiceMode } = req.body || {};
+        const { items, invoiceMode } = req.body || {};
         const courseIds = collectPublicCourseIds(req.body);
         const rawItems = Array.isArray(items) && items.length
             ? items
@@ -464,20 +484,19 @@ router.post(
             });
         }
 
+        const autoPay = checkoutWantsAutoPay(req.body?.autoPay);
         let linkedUserId;
         let actor = null;
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            const user = await User.findById(userId).select('_id name email personalEmail role');
-            if (user) {
-                linkedUserId = user._id;
-                actor = {
-                    userId: user._id,
-                    studentId: user.role === 'student' ? user._id : null,
-                    name: user.name,
-                    email: user.personalEmail || user.email,
-                    role: user.role,
-                };
-            }
+        const sessionUser = await userFromCheckoutBearer(req);
+        if (sessionUser) {
+            linkedUserId = sessionUser._id;
+            actor = {
+                userId: sessionUser._id,
+                studentId: sessionUser.role === 'student' ? sessionUser._id : null,
+                name: sessionUser.name,
+                email: sessionUser.personalEmail || sessionUser.email,
+                role: sessionUser.role,
+            };
         }
 
         const useBillingCart = rawItems.length > 1 || Boolean(rawItems[0]?.enrollmentId);
@@ -528,10 +547,10 @@ router.post(
                 mode: 'payment',
                 success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${base}/payment-cancel`,
-                payment_intent_data: { setup_future_usage: 'off_session' },
+                ...(autoPay ? { payment_intent_data: { setup_future_usage: 'off_session' } } : {}),
                 metadata: {
                     courseId: String(courseId),
-                    autoPay: '1',
+                    autoPay: autoPay ? '1' : '0',
                     ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
                 },
             };
@@ -559,7 +578,7 @@ router.post(
                 email: actor?.email || '',
                 name: actor?.name || '',
             },
-            autoPayEnable: true,
+            autoPayEnable: autoPay,
         });
 
         const base = frontendBase();
@@ -570,11 +589,11 @@ router.post(
             mode: 'payment',
             success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${base}/payment-cancel`,
-            payment_intent_data: { setup_future_usage: 'off_session' },
+            ...(autoPay ? { payment_intent_data: { setup_future_usage: 'off_session' } } : {}),
             metadata: {
                 groupId: intent.groupId,
                 courseId: String(chargeable[0].courseId),
-                autoPay: '1',
+                autoPay: autoPay ? '1' : '0',
                 ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
             },
         };

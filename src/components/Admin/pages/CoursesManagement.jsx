@@ -893,7 +893,7 @@ const CoursesManagement = () => {
     const permanentDeleteCourse = async (courseId) => {
         if (listTab !== 'trash' || trashBusy) return;
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: 'This cannot be undone. The course will be removed from the database.',
             confirmLabel: 'Delete forever',
         });
@@ -976,7 +976,7 @@ const CoursesManagement = () => {
     const permanentDeleteSelectedCourses = async () => {
         if (!selectedCourses.length || listTab !== 'trash' || trashBusy) return;
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: `Permanently delete ${selectedCourses.length} course(s)? This cannot be undone.`,
             confirmLabel: 'Delete forever',
         });
@@ -2058,7 +2058,7 @@ const CoursesManagement = () => {
                                                             permanentDeleteCourse(courseId);
                                                         }}
                                                         className="action-btn delete-btn"
-                                                        title="Delete permanently"
+                                                        title="Delete Permanently"
                                                         disabled={trashBusy}
                                                     >
                                                         <i className="fas fa-times-circle"></i> Delete forever

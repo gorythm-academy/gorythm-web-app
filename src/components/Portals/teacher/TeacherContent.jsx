@@ -584,13 +584,13 @@ const TeacherContent = () => {
       />
 
       <PortalActivityBanner
-        title="Recent updates"
+        title="Recent Updates"
         rows={visibleActivityNotices}
         onDismiss={dismissActivityBanner}
       />
 
       <PortalActivityBanner
-        title="Submission removed by admin"
+        title="Submission Removed by Admin"
         rows={submissionRemovalNotices}
         rowKey={(row) => `${row.id}-${row.removedAt}`}
         tone="info"

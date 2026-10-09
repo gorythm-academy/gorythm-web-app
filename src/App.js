@@ -2,12 +2,12 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
+import CookieConsent from './components/CookieConsent/CookieConsent';
 import HeroSection from './components/HomeSections/Hero';
 import SubscribePopup from './components/HomeSections/SubscribePopup';
 import AboutSection from './components/HomeSections/About';
 import MissionSection from './components/HomeSections/Mission';
 import VideoSection from './components/HomeSections/Video';
-// import MarqueeSection from './components/HomeSections/Marquee';
 import CoursesSection from './components/HomeSections/Courses';
 import SubscribeSection from './components/HomeSections/Subscribe';
 import WhyGorythmSection from './components/HomeSections/WhyGorythm';
@@ -16,8 +16,6 @@ import StudentTestimonialsSection from './components/HomeSections/StudentTestimo
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
 import Cursor from './components/Cursor/Cursor';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
-// Side icon: floating WhatsApp button fixed on the left of the viewport
-// import WhatsAppFloat from './components/WhatsAppFloat/WhatsAppFloat';
 import './styles/App.scss';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
@@ -33,6 +31,8 @@ const SingleCourse = lazy(() =>
 const Login = lazy(() => import('./components/Pages/Login'));
 const AboutPage = lazy(() => import('./components/Pages/AboutPage'));
 const ContactPage = lazy(() => import('./components/Pages/ContactPage'));
+const LegalPage = lazy(() => import('./components/Pages/LegalPage'));
+const UnsubscribePage = lazy(() => import('./components/Pages/UnsubscribePage'));
 const IqMissionPage = lazy(() =>
   import('./components/Pages/MissionPages').then((m) => ({ default: m.IqMissionPage }))
 );
@@ -123,7 +123,6 @@ const Home = () => {
       <MissionSection />
       <CoursesSection />
       <VideoSection placement="home" />
-      {/* <MarqueeSection /> */}
       <AboutSection />
       <StudentTestimonialsSection />
       <WhyGorythmSection />
@@ -175,6 +174,11 @@ function AppLayout() {
               <Route path="/instructors" element={<Navigate to="/about" replace />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<LegalPage slug="privacy" />} />
+              <Route path="/terms" element={<LegalPage slug="terms" />} />
+              <Route path="/refunds" element={<LegalPage slug="refunds" />} />
+              <Route path="/cookies" element={<LegalPage slug="cookies" />} />
+              <Route path="/unsubscribe" element={<UnsubscribePage />} />
               <Route path="/login" element={<Login />} />
 
               {/* Mission detail pages */}
@@ -320,6 +324,7 @@ function AppLayout() {
           </ErrorBoundary>
         </main>
         {!hideSiteFooter && <FooterSimple />}
+        {!isAdminRoute && !isPortalLmsRoute && <CookieConsent />}
       </div>
     </SmoothScroll>
   );

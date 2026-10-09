@@ -3,6 +3,9 @@ const router = express.Router();
 
 const ClassSchedule = require('../../models/ClassSchedule');
 const Enrollment = require('../../models/Enrollment');
+const Assignment = require('../../models/Assignment');
+const Quiz = require('../../models/Quiz');
+const Resource = require('../../models/Resource');
 const Course = require('../../models/Course');
 const User = require('../../models/User');
 const { canonicalizeScheduleTimezone } = require('../../utils/scheduleTimezone');
@@ -19,6 +22,16 @@ const {
 } = require('../../utils/scheduleValidation');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+async function clearScheduleAssignments(scheduleIds) {
+    const ids = Array.isArray(scheduleIds) ? scheduleIds : [scheduleIds];
+    await Promise.all([
+        Enrollment.updateMany({ assignedSchedule: { $in: ids } }, { $set: { assignedSchedule: null } }),
+        Assignment.updateMany({ assignedSchedule: { $in: ids } }, { $set: { assignedSchedule: null } }),
+        Quiz.updateMany({ assignedSchedule: { $in: ids } }, { $set: { assignedSchedule: null } }),
+        Resource.updateMany({ assignedSchedule: { $in: ids } }, { $set: { assignedSchedule: null } }),
+    ]);
+}
 
 // ——— Class schedules ———
 router.get('/schedules', async (req, res) => {
@@ -187,10 +200,7 @@ router.delete('/schedules/:id', async (req, res) => {
         if (!schedule) {
             return res.status(404).json({ success: false, error: 'Schedule not found' });
         }
-        await Enrollment.updateMany(
-            { assignedSchedule: schedule._id },
-            { $set: { assignedSchedule: null } }
-        );
+        await clearScheduleAssignments(schedule._id);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to delete schedule' });
@@ -204,10 +214,7 @@ router.post('/schedules/bulk-delete', async (req, res) => {
             return res.status(400).json({ success: false, error: 'No schedule IDs provided' });
         }
 
-        await Enrollment.updateMany(
-            { assignedSchedule: { $in: ids } },
-            { $set: { assignedSchedule: null } }
-        );
+        await clearScheduleAssignments(ids);
         const result = await ClassSchedule.deleteMany({ _id: { $in: ids } });
 
         res.json({

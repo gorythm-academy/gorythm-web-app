@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import { PortalDataSection, PortalPageHeader } from '../shared/PortalUi';
 import { formatTime12h } from '../../../utils/formatTime12h';
 import ScheduleRoomOrLink from '../shared/ScheduleRoomOrLink';
@@ -8,8 +8,11 @@ import { portalDocId } from '../../../utils/portalDocId';
 import './TeacherClasses.scss';
 
 const TeacherClasses = () => {
-  const [schedules, setSchedules] = useState(null);
-  const [dayLabels, setDayLabels] = useState([]);
+  const [schedules, setSchedules] = useState(() => {
+    const cached = readPortalCache('/teacher/schedule');
+    return cached ? (cached.schedules || []) : null;
+  });
+  const [dayLabels, setDayLabels] = useState(() => readPortalCache('/teacher/schedule')?.dayLabels || []);
   const [error, setError] = useState('');
 
   useEffect(() => {

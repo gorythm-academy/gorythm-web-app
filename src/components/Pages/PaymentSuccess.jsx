@@ -92,7 +92,7 @@ export function PaymentSuccess() {
                 className="payment-result-link"
                 href={`${API_BASE_URL}/api/payments/receipt-by-session?session_id=${encodeURIComponent(sessionId)}`}
               >
-                Download invoice PDF
+                Download Invoice PDF
               </a>
             ) : null}
             {state.message ? (
@@ -119,7 +119,7 @@ export function PaymentSuccess() {
                 className="payment-result-link"
                 href={`${API_BASE_URL}/api/payments/receipt-by-session?session_id=${encodeURIComponent(sessionId)}`}
               >
-                Download invoice PDF
+                Download Invoice PDF
               </a>
             ) : null}
             <Link to="/contact" className="payment-result-link">

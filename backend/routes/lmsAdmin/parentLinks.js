@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { validate } = require('../../middleware/validate');
+const { parentStudentLink } = require('../../middleware/portalBodyRules');
 
 const ParentStudentLink = require('../../models/ParentStudentLink');
 const User = require('../../models/User');
@@ -32,7 +34,7 @@ router.get('/parent-links', async (req, res) => {
     }
 });
 
-router.post('/parent-links', async (req, res) => {
+router.post('/parent-links', validate([parentStudentLink]), async (req, res) => {
     try {
         const { parentId, studentId, relation = 'guardian' } = req.body;
         if (!parentId || !studentId) {

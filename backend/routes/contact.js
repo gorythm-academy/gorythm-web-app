@@ -8,6 +8,7 @@ const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
 const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
 const { escapeHtml } = require('../utils/escapeHtml');
+const { OFFICIAL_EMAIL, officialEmail } = require('../utils/officialEmail');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -48,9 +49,9 @@ async function createTransporter() {
     },
   });
 
-  const fromEmail = SMTP_FROM_EMAIL || SMTP_USER;
+  const fromEmail = officialEmail(SMTP_FROM_EMAIL || SMTP_USER || OFFICIAL_EMAIL);
   const fromName = SMTP_FROM_NAME || 'Gorythm Academy';
-  const inboxEmail = CONTACT_INBOX_EMAIL || fromEmail;
+  const inboxEmail = officialEmail(CONTACT_INBOX_EMAIL || OFFICIAL_EMAIL);
 
   return { transporter, fromEmail, fromName, inboxEmail };
 }
@@ -113,7 +114,7 @@ router.post(
       const safeMessage = escapeHtml(message);
 
       const textBody =
-        `New contact enquiry from Gorythm website:\n\n` +
+        `New contact enquiry from Gorythm Academy website:\n\n` +
         `Name: ${name}\n` +
         `Email: ${email}\n` +
         (phoneStr ? `Whatsapp Number: ${phoneStr}\n` : '') +
@@ -123,7 +124,7 @@ router.post(
         `Submitted at: ${contactMessage.createdAt.toISOString()}\n`;
 
       const htmlBody =
-        `<p>New contact enquiry from <strong>Gorythm</strong> website.</p>` +
+        `<p>New contact enquiry from <strong>Gorythm Academy</strong> website.</p>` +
         `<ul>` +
         `<li><strong>Name:</strong> ${safeName}</li>` +
         `<li><strong>Email:</strong> ${safeEmail}</li>` +

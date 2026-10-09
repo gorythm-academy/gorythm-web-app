@@ -56,14 +56,15 @@ async function loadStudentDisplayEnrollments(studentId, email, options = {}) {
         });
     }
     const enrollmentsRaw = await query.sort({ updatedAt: -1 }).lean();
+    const { backfillMissingFeeDueDates, feeProgressLabel } = require('../../services/feeDuePolicy');
+    const { enrollmentAllFeesPaid } = require('../../utils/feeDueDate');
+    await backfillMissingFeeDueDates(enrollmentsRaw);
     const rows = dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(enrollmentsRaw, studentId, email)).filter(
         (e) => e.course
     );
-    const { ensureEnrollmentDueDate, feeProgressLabel } = require('../../services/feeDuePolicy');
     for (const row of rows) {
-        await ensureEnrollmentDueDate(row);
         row.feeProgress = feeProgressLabel(row);
-        row.allFeesPaid = require('../../utils/feeDueDate').enrollmentAllFeesPaid(row);
+        row.allFeesPaid = enrollmentAllFeesPaid(row);
     }
     return rows;
 }
@@ -90,6 +91,31 @@ function normalizeStudentScheduleSlot(scheduleDoc) {
         endTime: scheduleDoc.endTime,
         roomOrLink: scheduleDoc.roomOrLink || '',
         teacher: scheduleDoc.teacher,
+    };
+}
+
+/** Read-only course card for student and parent portals. Class time stays hidden until the fee is received. */
+function publicEnrollmentSummary(row) {
+    const paid = isPaidEnrollment(row);
+    const schedule = paid ? normalizeStudentScheduleSlot(row.assignedSchedule) : null;
+    return {
+        id: String(row._id),
+        courseName: row.course?.title || '—',
+        status: row.status || 'active',
+        enrollmentDate: row.enrollmentDate || row.createdAt || null,
+        teacherName: schedule?.teacher?.name || '',
+        schedule: schedule
+            ? {
+                dayOfWeek: schedule.dayOfWeek,
+                startTime: schedule.startTime,
+                endTime: schedule.endTime,
+            }
+            : null,
+        scheduleLocked: !paid,
+        feeStatus: row.displayFeeStatus || row.paymentStatus || 'pending',
+        feeProgress: row.feeProgress || '',
+        dueDate: row.feeDueDate || row.course?.feeDueDate || null,
+        amount: row.feeAmount != null ? row.feeAmount : (row.course?.price != null ? row.course.price : null),
     };
 }
 
@@ -207,11 +233,9 @@ function isFutureAttendanceDate(dateInput) {
     return dayStart.getTime() > today.getTime();
 }
 
-/** Quizzes on instructor courses or created by this teacher (legacy/admin data). */
-function teacherQuizScopeFilter(teacherId, courseIds) {
-    const clauses = [{ teacher: teacherId }];
-    if (courseIds?.length) clauses.push({ course: { $in: courseIds } });
-    return { $or: clauses };
+/** Quizzes assigned to this teacher. Other teachers on the same course do not see this copy. */
+function teacherQuizScopeFilter(teacherId) {
+    return { teacher: teacherId };
 }
 
 async function assertTeacherOwnsAssignment(teacherId, assignment) {
@@ -511,6 +535,8 @@ module.exports = {
     unauthorized,
     mapAssignmentForPortal,
     loadStudentDisplayEnrollments,
+    isPaidEnrollment,
+    publicEnrollmentSummary,
     buildStudentWeeklyTimetable,
     getStudentCourseIds,
     assertParentChild,

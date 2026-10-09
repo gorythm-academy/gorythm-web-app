@@ -23,10 +23,3 @@ export function getCourseImageSrc(course) {
   return candidates[0] || DEFAULT_PLACEHOLDER;
 }
 
-export function setImageFallbackToPlaceholder(e) {
-  if (!e?.currentTarget) return;
-  if (e.currentTarget.dataset?.fallbackApplied === '1') return;
-  e.currentTarget.dataset.fallbackApplied = '1';
-  e.currentTarget.src = DEFAULT_PLACEHOLDER;
-}
-

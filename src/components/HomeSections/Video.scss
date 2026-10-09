@@ -19,6 +19,48 @@
 // SECTION
 // =============================================================================
 
+.video-consent {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100% - 32px));
+  padding: 20px 22px;
+  border-radius: 12px;
+  background: rgba(12, 12, 12, 0.94);
+  color: #fff;
+  text-align: center;
+  cursor: default;
+
+  p {
+    margin: 0 0 14px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+}
+
+.video-consent__btn {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #c5a45c;
+  color: #111;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.video-consent__link {
+  display: block;
+  margin: 10px auto 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
 .video-section {
   position: relative;         // needed for absolute-positioned PLAY button
   width: 100%;

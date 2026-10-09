@@ -173,6 +173,25 @@ async function assertItemNotBlocked({ email, courseId, courseName, studentId, en
     }
 }
 
+async function assertActorOwnsEnrollmentStudent(actor, studentId) {
+    const role = actor?.role;
+    if (role === 'student') {
+        if (String(studentId) !== String(actor.userId || '')) {
+            throw httpError('You can only pay your own course fees', 403);
+        }
+        return;
+    }
+    if (role === 'parent') {
+        const children = await loadLinkedChildren(actor.userId);
+        const allowed = new Set(children.map((child) => String(child._id)));
+        if (!allowed.has(String(studentId))) {
+            throw httpError('You can only pay fees for your linked children', 403);
+        }
+        return;
+    }
+    throw httpError('You can only pay your own course fees', 403);
+}
+
 async function resolveCheckoutItems({ rawItems = [], courseIds = [], actor = null }) {
     const seen = new Set();
     const resolved = [];
@@ -210,6 +229,7 @@ async function resolveCheckoutItems({ rawItems = [], courseIds = [], actor = nul
             if (!student || isUserTrashed(student) || student.role !== 'student') {
                 throw httpError('One of the selected students is no longer available');
             }
+            await assertActorOwnsEnrollmentStudent(actor, student._id);
             const studentEmail = String(student.personalEmail || student.email || '').trim().toLowerCase();
             await assertItemNotBlocked({
                 email: studentEmail,
@@ -240,7 +260,7 @@ async function resolveCheckoutItems({ rawItems = [], courseIds = [], actor = nul
         const courseId = raw?.courseId || raw?.course;
         if (!courseId) continue;
         const { course, amount } = await loadPublishedCourse(courseId);
-        const studentId = raw?.studentId || raw?.student || actor?.studentId || null;
+        const studentId = actor?.role === 'student' ? actor.studentId : null;
         let student = null;
         if (studentId) {
             student = await User.findOne({ _id: studentId, role: 'student', ...activeUserFilter() }).select(
@@ -248,9 +268,7 @@ async function resolveCheckoutItems({ rawItems = [], courseIds = [], actor = nul
             );
             if (!student) throw httpError('Student not found for one of the selected courses', 404);
         }
-        const studentEmail = String(
-            raw?.studentEmail || student?.personalEmail || student?.email || actor?.email || ''
-        )
+        const studentEmail = String(student?.personalEmail || student?.email || actor?.email || '')
             .trim()
             .toLowerCase();
         await assertItemNotBlocked({

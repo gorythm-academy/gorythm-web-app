@@ -85,12 +85,3 @@ export async function deleteSubscribePopupGalleryImage(
     throw error;
   }
 }
-
-export async function checkSubscribePopupAdminApi(realm = AUTH_REALM.ADMIN) {
-  try {
-    const res = await axios.get(`${apiRoot()}${BASE}/health`);
-    return res.data?.success === true;
-  } catch {
-    return false;
-  }
-}

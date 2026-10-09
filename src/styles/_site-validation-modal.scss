@@ -47,9 +47,12 @@
   background: rgba(197, 164, 92, 0.12);
   color: #c5a45c;
 
-  svg {
+  svg,
+  i {
     width: 22px;
     height: 22px;
+    font-size: 22px;
+    line-height: 22px;
     stroke-width: 2;
   }
 }
@@ -79,9 +82,12 @@
   cursor: pointer;
   transition: color 0.2s ease, background 0.2s ease;
 
-  svg {
+  svg,
+  i {
     width: 22px;
     height: 22px;
+    font-size: 22px;
+    line-height: 22px;
     stroke-width: 2;
   }
 

@@ -1,17 +1,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { portalGet, portalGetBlob, portalPost, portalPostForm } from '../shared/portalApi';
+import { invalidatePortalCache, portalGet, portalGetBlob, portalPost, portalPostForm, readPortalCache } from '../shared/portalApi';
 import { PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { StudentIdLine } from '../shared/StudentIdentity';
 import PortalBillingCheckout, { triggerBlobDownload } from '../shared/PortalBillingCheckout';
 
 const StudentFees = () => {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readPortalCache('/student/fees'));
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPortalCache('/student/fees'));
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((fresh = false) => {
+    if (fresh) {
+      invalidatePortalCache('/student/fees');
+      invalidatePortalCache('/student/dashboard');
+    }
+    if (!readPortalCache('/student/fees')) setLoading(true);
     return portalGet('/student/fees')
       .then((res) => {
         if (res.success) {
@@ -82,6 +87,7 @@ const StudentFees = () => {
         </div>
         <div>
           <h2>Course fees</h2>
+          {data?.student ? <StudentIdLine studentId={data.student.studentId} /> : null}
           <p>Review your courses here, then pay unpaid fees by card or bank transfer.</p>
         </div>
       </div>
@@ -98,11 +104,11 @@ const StudentFees = () => {
         tone="student"
         emptyEnrollmentsText="No courses are listed on your account yet. When the academy adds a course, it will appear here."
         emptyHistoryText="Paid invoices will appear here after a fee is received."
-        onPayStripe={async ({ enrollmentIds, invoiceMode, months }) => {
+        onPayStripe={async ({ enrollmentIds, invoiceMode, months, autoPay }) => {
           setBusy(true);
           setNotice('');
           try {
-            const res = await portalPost('/student/fees/checkout', { enrollmentIds, invoiceMode, months });
+            const res = await portalPost('/student/fees/checkout', { enrollmentIds, invoiceMode, months, autoPay: Boolean(autoPay) });
             if (!res.success || !res.url) throw new Error(res.error || 'Could not start card payment');
             window.location.href = res.url;
           } catch (err) {
@@ -123,7 +129,7 @@ const StudentFees = () => {
             const res = await portalPostForm('/student/fees/bank', form);
             if (!res.success) throw new Error(res.error || 'Could not submit bank payment proof');
             setNotice(res.message || 'Payment proof received. The academy will contact you after checking it.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {
@@ -142,7 +148,7 @@ const StudentFees = () => {
               return;
             }
             setNotice(enabled ? 'Auto-pay is on for this course.' : 'Auto-pay is off for this course.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {
@@ -156,7 +162,7 @@ const StudentFees = () => {
             const res = await portalPost('/student/fees/cards/delete', { paymentMethodId });
             if (!res.success) throw new Error(res.error || 'Could not remove this card');
             setNotice('Card removed.');
-            await load();
+            await load(true);
           } catch (err) {
             throw err;
           } finally {

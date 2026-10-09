@@ -5,6 +5,14 @@
     font-weight: 700;
   }
 
+  &.student-attendance .student-attendance__panel .my-attendance-daily-card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+  }
+
   .my-attendance-daily-card {
     background: linear-gradient(145deg, #ffffff 0%, #f0f9ff 48%, #e0f2fe 100%);
     border: 1px solid rgba(56, 189, 248, 0.35);
@@ -388,6 +396,8 @@
     }
 
     input[type='month'] {
+      width: 200px;
+      max-width: 100%;
       padding: 0.4rem 0.6rem;
       border: 1px solid #cbd5e1;
       border-radius: 8px;

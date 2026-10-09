@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import { PortalDataSection, PortalPageHeader } from '../shared/PortalUi';
 import PortalScheduleTable from '../shared/PortalScheduleTable';
 import './StudentSchedule.scss';
 
 const StudentSchedule = () => {
-  const [timetable, setTimetable] = useState(null);
-  const [dayLabels, setDayLabels] = useState([]);
+  const [timetable, setTimetable] = useState(() => {
+    const cached = readPortalCache('/student/schedule');
+    return cached ? (cached.timetable || []) : null;
+  });
+  const [dayLabels, setDayLabels] = useState(() => readPortalCache('/student/schedule')?.dayLabels || []);
   const [error, setError] = useState('');
 
   useEffect(() => {

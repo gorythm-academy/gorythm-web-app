@@ -3,16 +3,14 @@ const path = require('path');
 const authMiddleware = require('../middleware/auth');
 const { allowRoles } = require('../middleware/authorize');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
-const Course = require('../models/Course');
 const { buildGallery, cleanupOrphan, deleteMedia } = require('../services/mediaLibrary');
 const {
     ensureImageDir,
     imagePublicPath,
-    renameImageFile,
     IMAGE_DIR,
     ALLOWED_EXT,
 } = require('../utils/courseImageStorage');
-const { resolveStoredFilename, safeBasename } = require('../utils/safeFilename');
+const { resolveStoredFilename } = require('../utils/safeFilename');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -120,37 +118,6 @@ router.post('/', (req, res) => {
             filename: req.file.filename,
         });
     });
-});
-
-router.post('/rename', async (req, res) => {
-    try {
-        const oldPath = String(req.body?.imagePath || '').trim();
-        const rawName = String(req.body?.filename || '').trim();
-        if (!oldPath || !rawName) {
-            return res.status(400).json({ success: false, error: 'imagePath and filename are required' });
-        }
-
-        const currentFilename = oldPath.split('/').pop() || '';
-        const ext = path.extname(currentFilename).toLowerCase() || '.jpg';
-        const safeExt = ALLOWED_EXT_LOCAL.has(ext) ? ext : '.jpg';
-        const newFilename = rawName.includes('.') ? safeBasename(rawName) : safeBasename(`${rawName}${safeExt}`);
-        if (!newFilename) {
-            return res.status(400).json({ success: false, error: 'Invalid file name.' });
-        }
-
-        const newPath = imagePublicPath(newFilename);
-        if (newPath === oldPath) {
-            return res.json({ success: true, imagePath: oldPath, filename: newFilename });
-        }
-
-        const renamedPath = renameImageFile(oldPath, newFilename);
-
-        await Course.updateMany({ homepageImage: oldPath }, { $set: { homepageImage: renamedPath } });
-
-        return res.json({ success: true, imagePath: renamedPath, filename: newFilename });
-    } catch (error) {
-        return res.status(400).json({ success: false, error: error.message || 'Rename failed' });
-    }
 });
 
 router.post('/delete', async (req, res) => {

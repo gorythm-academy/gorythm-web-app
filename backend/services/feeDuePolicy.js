@@ -352,6 +352,36 @@ async function prepareUncompleteDueDate(enrollment) {
     return enrollment;
 }
 
+function enrollmentNeedsStoredDueDate(enrollment) {
+    const status = String(enrollment?.status || '');
+    const pay = String(enrollment?.paymentStatus || '');
+    if (status === 'completed' || pay === 'cancelled' || pay === 'refunded') return false;
+    if (enrollment?.feeDueDate) return false;
+    if (enrollmentFeeIsFree(enrollment)) return false;
+    return true;
+}
+
+/** Fill due dates that were never stored. Does not recount payments. */
+async function backfillMissingFeeDueDates(rows) {
+    const missing = (Array.isArray(rows) ? rows : []).filter(enrollmentNeedsStoredDueDate);
+    if (!missing.length) return;
+    await Promise.all(missing.map((row) => assignEnrollmentDueDate(row, {
+        course: row.course,
+        joinDate: row.enrollmentDate || row.createdAt,
+    })));
+    const ops = missing
+        .filter((row) => row._id && row.feeDueDate)
+        .map((row) => ({
+            updateOne: {
+                filter: { _id: row._id, feeDueDate: null },
+                update: { $set: { feeDueDate: row.feeDueDate, feeDueDay: row.feeDueDay ?? null } },
+            },
+        }));
+    if (ops.length) {
+        await Enrollment.bulkWrite(ops, { ordered: false }).catch(() => {});
+    }
+}
+
 async function ensureEnrollmentDueDate(enrollment) {
     const status = String(enrollment.status || '');
     const pay = String(enrollment.paymentStatus || '');
@@ -499,6 +529,7 @@ module.exports = {
     parseInstallmentMonths,
     skipEnrollmentMonth,
     prepareUncompleteDueDate,
+    backfillMissingFeeDueDates,
     ensureEnrollmentDueDate,
     assertCheckoutAllowed,
     buildEnrollmentFeeSummary,

@@ -4,6 +4,8 @@ const router = express.Router();
 const authMiddleware = require('../../middleware/auth');
 const { validateSessionUser } = require('../../middleware/validateSessionUser');
 const { allowRoles } = require('../../middleware/authorize');
+const { validate } = require('../../middleware/validate');
+const { parentStudentLink } = require('../../middleware/portalBodyRules');
 const { getPortalActorId } = require('../../middleware/portalAccess');
 const ParentStudentLink = require('../../models/ParentStudentLink');
 const User = require('../../models/User');
@@ -28,7 +30,7 @@ router.use(require('./parent'));
 router.use(require('./accountant'));
 
 // Legacy admin link endpoint (portal path)
-router.post('/admin/link-parent-student', allowRoles('manager', 'super-admin'), async (req, res) => {
+router.post('/admin/link-parent-student', allowRoles('manager', 'super-admin'), validate([parentStudentLink]), async (req, res) => {
     try {
         const { parentId, studentId, relation = 'guardian' } = req.body;
         if (!parentId || !studentId) {

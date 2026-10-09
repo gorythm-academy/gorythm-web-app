@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import {
   PortalDataSection,
   PortalAlert,
   PortalPageHeader,
 } from '../shared/PortalUi';
+import { StudentIdLine } from '../shared/StudentIdentity';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import PortalContentResourcesTable from '../shared/PortalContentResourcesTable';
 import PortalCollapsiblePanel from '../shared/PortalCollapsiblePanel';
@@ -25,12 +26,14 @@ const defaultExpandedSections = () => ({
 });
 
 const ParentProgress = () => {
-  const [children, setChildren] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [children, setChildren] = useState(() => readPortalCache('/parent/children')?.children || []);
+  const [selectedId, setSelectedId] = useState(
+    () => readPortalCache('/parent/children')?.children?.[0]?.student?._id || ''
+  );
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPortalCache('/parent/children'));
   const [error, setError] = useState('');
   const [previewResource, setPreviewResource] = useState(null);
   const [previewAssignment, setPreviewAssignment] = useState(null);
@@ -64,10 +67,17 @@ const ParentProgress = () => {
       setDetailError('');
       return;
     }
-    setDetail(null);
+    const detailPath = `/parent/children/${selectedId}`;
+    const cachedDetail = readPortalCache(detailPath);
+    if (cachedDetail) {
+      setDetail(cachedDetail);
+      setDetailLoading(false);
+    } else {
+      setDetail(null);
+      setDetailLoading(true);
+    }
     setDetailError('');
-    setDetailLoading(true);
-    portalGet(`/parent/children/${selectedId}`)
+    portalGet(detailPath)
       .then((res) => {
         if (res.success) {
           setDetail(res);
@@ -106,6 +116,7 @@ const ParentProgress = () => {
         </div>
         <div>
           <h2>Progress & Results</h2>
+          {selectedChild ? <StudentIdLine studentId={selectedChild.student?.studentId} /> : null}
           <p>
             {selectedChild?.student?.name
               ? `Viewing records for ${selectedChild.student.name}.`

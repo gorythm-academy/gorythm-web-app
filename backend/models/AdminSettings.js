@@ -37,7 +37,7 @@ const adminSettingsSchema = new mongoose.Schema(
             smtpPort: { type: String, default: '587' },
             smtpUser: { type: String, default: '' },
             smtpPassword: { type: String, default: '' },
-            fromEmail: { type: String, default: 'noreply@gorythmacademy.com' },
+            fromEmail: { type: String, default: 'gorythm.academy@gmail.com' },
             fromName: { type: String, default: 'Gorythm Academy' },
         },
         security: {

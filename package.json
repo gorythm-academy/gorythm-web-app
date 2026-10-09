@@ -8,17 +8,14 @@
   "dependencies": {
     "@fontsource/nunito": "^5.2.5",
     "@fortawesome/fontawesome-free": "^7.2.0",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.1",
     "@vimeo/player": "^2.30.4",
     "axios": "^1.13.2",
+    "dompurify": "^3.4.16",
     "framer-motion": "^12.23.26",
     "gsap": "^3.12.5",
     "jspdf": "^4.2.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-icons": "^5.5.0",
     "react-router-dom": "^7.11.0",
     "react-scripts": "^5.0.0",
     "sass": "^1.97.0",
@@ -40,6 +37,13 @@
       "react-app/jest"
     ]
   },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js",
+      "^react-router$": "<rootDir>/node_modules/react-router/dist/development/index.js"
+    }
+  },
   "browserslist": {
     "production": [
       ">0.2%",
@@ -53,6 +57,10 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "eslint-config-prettier": "^10.1.8",
     "sharp": "^0.34.5",
     "stylelint": "^17.6.0",

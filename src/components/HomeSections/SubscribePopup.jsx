@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './SubscribePopup.scss';
 import popupVisual from '../../assets/images/home/subscribe.png';
-import { API_BASE_URL, SUBSCRIBE_PRIVACY_POLICY_BODY } from '../../config/constants';
+import { Link } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/constants';
 import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
 
@@ -48,14 +49,8 @@ const SubscribePopup = () => {
     title: '',
     issues: [],
   });
-  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
-
   const closeValidationModal = useCallback(() => {
     setValidationModal((prev) => ({ ...prev, open: false }));
-  }, []);
-
-  const closePrivacyModal = useCallback(() => {
-    setPrivacyModalOpen(false);
   }, []);
 
   useEffect(() => {
@@ -195,18 +190,9 @@ const SubscribePopup = () => {
                 />
                 <span>
                   I agree to the{' '}
-                  <button
-                    type="button"
-                    className="subscribe-popup-privacy-link"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPrivacyModalOpen(true);
-                    }}
-                  >
+                  <Link to="/privacy" className="subscribe-popup-privacy-link">
                     Privacy Policy
-                  </button>
+                  </Link>
                   .
                 </span>
               </label>
@@ -231,13 +217,6 @@ const SubscribePopup = () => {
         title={validationModal.title}
         issues={validationModal.issues}
         onClose={closeValidationModal}
-      />
-      <SiteValidationModal
-        open={privacyModalOpen}
-        title="Privacy Policy"
-        issues={[SUBSCRIBE_PRIVACY_POLICY_BODY]}
-        onClose={closePrivacyModal}
-        showIcon={false}
       />
     </>
   );

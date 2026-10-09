@@ -387,7 +387,7 @@ const DashboardHome = () => {
             {/* Welcome Message with Status */}
             <div className="welcome-banner">
                 <div className="welcome-content">
-                    <h2>Welcome back, {user.name?.split(' ')[0] || 'Admin'}! 👋</h2>
+                    <h2>Welcome Back, {user.name?.split(' ')[0] || 'Admin'}! 👋</h2>
                     <p>Here's what's happening with Gorythm Academy today</p>
                 </div>
                 <div className="status-indicator">

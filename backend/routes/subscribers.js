@@ -11,6 +11,8 @@ const {
   loadSubscribePopupSettings,
   saveSubscribePopupSettings,
 } = require('../services/subscribePopupSettings');
+const { createUnsubscribeToken } = require('../utils/unsubscribeToken');
+const { sendNewsletter } = require('../services/newsletterEmail');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -76,11 +78,25 @@ router.post(
       const email = String(req.body?.email || '').trim().toLowerCase();
       const source = String(req.body?.source || 'unknown').trim() || 'unknown';
 
-      const subscriber = await Subscriber.findOneAndUpdate(
-        { email },
-        { $set: { source }, $setOnInsert: { email } },
-        { new: true, upsert: true }
-      );
+      const existing = await Subscriber.findOne({ email });
+      if (existing) {
+        existing.source = source;
+        existing.unsubscribedAt = null;
+        if (!existing.unsubscribeToken) existing.unsubscribeToken = createUnsubscribeToken();
+        await existing.save();
+        return res.status(201).json({
+          success: true,
+          message: 'Subscribed successfully',
+          subscriberId: existing._id,
+        });
+      }
+
+      const subscriber = await Subscriber.create({
+        email,
+        source,
+        unsubscribeToken: createUnsubscribeToken(),
+        unsubscribedAt: null,
+      });
 
       return res.status(201).json({
         success: true,
@@ -93,6 +109,44 @@ router.post(
     }
   }
 );
+
+const applyUnsubscribeToken = async (token) => {
+  const value = String(token || '').trim();
+  if (!value) {
+    return { status: 400, body: { success: false, error: 'Unsubscribe link is invalid.' } };
+  }
+  const subscriber = await Subscriber.findOne({ unsubscribeToken: value });
+  if (!subscriber) {
+    return { status: 404, body: { success: false, error: 'This unsubscribe link is not valid.' } };
+  }
+  if (!subscriber.unsubscribedAt) {
+    subscriber.unsubscribedAt = new Date();
+    await subscriber.save();
+  }
+  return {
+    status: 200,
+    body: { success: true, message: 'You have been unsubscribed.', email: subscriber.email },
+  };
+};
+
+router.get('/unsubscribe', publicWriteRateLimiter, async (req, res) => {
+  try {
+    const result = await applyUnsubscribeToken(req.query.token);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Could not unsubscribe.' });
+  }
+});
+
+router.post('/unsubscribe', publicWriteRateLimiter, async (req, res) => {
+  try {
+    const token = req.body?.token || req.query.token;
+    const result = await applyUnsubscribeToken(token);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Could not unsubscribe.' });
+  }
+});
 
 router.get('/admin', ...adminOnly, async (req, res) => {
   try {
@@ -143,6 +197,31 @@ router.post('/admin/popup-settings', ...adminOnly, async (req, res) => {
     });
   }
 });
+
+router.post(
+  '/admin/send',
+  ...adminOnly,
+  validate([rules.requiredString('subject', 'Subject'), rules.requiredString('body', 'Message')]),
+  async (req, res) => {
+    try {
+      const result = await sendNewsletter({
+        subject: req.body?.subject,
+        body: req.body?.body,
+      });
+      return res.json({
+        success: true,
+        message: `Sent ${result.sent} email${result.sent === 1 ? '' : 's'}.`,
+        ...result,
+      });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return res.status(status).json({
+        success: false,
+        error: error.message || 'Failed to send emails.',
+      });
+    }
+  }
+);
 
 router.post(
   '/admin/bulk-delete',

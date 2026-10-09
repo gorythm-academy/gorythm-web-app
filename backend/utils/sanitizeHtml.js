@@ -1,12 +1,29 @@
+const sanitizeHtmlLib = require('sanitize-html');
+
+const OPTIONS = {
+    allowedTags: sanitizeHtmlLib.defaults.allowedTags.concat([
+        'img',
+        'h1',
+        'h2',
+        'span',
+        'div',
+        'figure',
+        'figcaption',
+    ]),
+    allowedAttributes: {
+        ...sanitizeHtmlLib.defaults.allowedAttributes,
+        a: ['href', 'name', 'target', 'rel'],
+        img: ['src', 'alt', 'title', 'width', 'height'],
+        '*': ['class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    disallowedTagsMode: 'discard',
+};
+
 /** Strip dangerous HTML for research / rich text display. */
 function sanitizeHtml(html) {
     if (!html) return '';
-    let out = String(html);
-    out = out.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    out = out.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-    out = out.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-    out = out.replace(/javascript:/gi, '');
-    return out;
+    return sanitizeHtmlLib(String(html), OPTIONS);
 }
 
 module.exports = { sanitizeHtml };

@@ -4,6 +4,9 @@
   h1 {
     margin: 0 0 0.35rem;
     font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
     color: #0f172a;
   }
 
@@ -12,6 +15,10 @@
     color: #64748b;
     font-size: 0.95rem;
   }
+}
+
+.portal-summary-grid {
+  margin-bottom: 1.25rem;
 }
 
 .portal-summary-grid .portal-summary-card {
@@ -458,6 +465,24 @@
   .portal-field-label {
     margin: 0;
     min-width: 180px;
+    flex: 1 1 180px;
+  }
+
+  .portal-field-label--course,
+  .portal-field-label--calendar {
+    flex: 0 0 200px;
+    min-width: 160px;
+    max-width: 200px;
+  }
+
+  select,
+  input {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: #fff;
   }
 }
 
@@ -522,8 +547,23 @@
 
   .portal-field-label {
     margin: 0;
-    min-width: 180px;
+    min-width: 140px;
+    flex: 0 0 160px;
+    max-width: 180px;
   }
+
+  .portal-field-label--calendar {
+    flex: 0 0 200px;
+    min-width: 160px;
+    max-width: 200px;
+  }
+}
+
+.student-attendance .portal-attendance-filter-bar {
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
 .portal-attendance-details-btn {
@@ -842,11 +882,18 @@
 }
 
 .portal-quiz-option-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0.35rem 0;
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;
+
+  input[type='radio'] {
+    margin: 0;
+    flex-shrink: 0;
+  }
 }
 
 .portal-quiz-option-letter {

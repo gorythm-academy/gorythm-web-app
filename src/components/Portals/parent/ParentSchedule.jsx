@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
+import { StudentIdLine } from '../shared/StudentIdentity';
 import PortalScheduleTable from '../shared/PortalScheduleTable';
 import '../student/StudentSchedule.scss';
 
 const ParentSchedule = () => {
-  const [children, setChildren] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [children, setChildren] = useState(() => readPortalCache('/parent/children')?.children || []);
+  const [selectedId, setSelectedId] = useState(
+    () => readPortalCache('/parent/children')?.children?.[0]?.student?._id || ''
+  );
   const [timetable, setTimetable] = useState(null);
   const [dayLabels, setDayLabels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPortalCache('/parent/children'));
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [error, setError] = useState('');
   const [scheduleError, setScheduleError] = useState('');
@@ -33,10 +36,18 @@ const ParentSchedule = () => {
       setScheduleError('');
       return;
     }
-    setScheduleLoading(true);
+    const schedulePath = `/parent/children/${selectedId}/schedule`;
+    const cachedSchedule = readPortalCache(schedulePath);
+    if (cachedSchedule) {
+      setTimetable(cachedSchedule.timetable || []);
+      setDayLabels(cachedSchedule.dayLabels || []);
+      setScheduleLoading(false);
+    } else {
+      setScheduleLoading(true);
+      setTimetable(null);
+    }
     setScheduleError('');
-    setTimetable(null);
-    portalGet(`/parent/children/${selectedId}/schedule`)
+    portalGet(schedulePath)
       .then((res) => {
         if (res.success) {
           setTimetable(res.timetable || []);
@@ -107,6 +118,7 @@ const ParentSchedule = () => {
                     ? `${selectedChild.student.name}'s timetable`
                     : 'Class timetable'}
                 </h2>
+                {selectedChild ? <StudentIdLine studentId={selectedChild.student?.studentId} /> : null}
                 <p>
                   {scheduleLoading || timetable === null
                     ? 'Loading class schedule…'

@@ -1,0 +1,64 @@
+@import '../../styles/mixins';
+
+.cookie-consent {
+  position: fixed;
+  z-index: 80;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  max-width: 520px;
+  margin-left: auto;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(12, 12, 12, 0.96);
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+
+  p {
+    margin: 0 0 12px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+
+  a {
+    color: #c5a45c;
+  }
+}
+
+.cookie-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cookie-consent__ok,
+.cookie-consent__ghost {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cookie-consent__ok {
+  border: 0;
+  background: #c5a45c;
+  color: #111;
+}
+
+.cookie-consent__ghost {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: #fff;
+}
+
+@include respond-to('sm') {
+  .cookie-consent {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+  }
+}

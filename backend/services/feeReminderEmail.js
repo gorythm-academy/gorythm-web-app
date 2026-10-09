@@ -3,6 +3,7 @@ const Enrollment = require('../models/Enrollment');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { pktYmd, enrollmentAllFeesPaid, enrollmentFeeIsFree } = require('../utils/feeDueDate');
+const { isUnsetPortalEmail } = require('../utils/studentPortalEmail');
 const logger = require('../utils/logger');
 
 const DAYS_BEFORE_DUE = 3;
@@ -76,13 +77,17 @@ function reminderKind(enrollment, now = new Date()) {
     return null;
 }
 
+function usableReminderEmail(value) {
+    const pick = String(value || '').trim().toLowerCase();
+    if (!pick || isUnsetPortalEmail(pick)) return '';
+    return pick;
+}
+
 function recipientEmails(student, parent) {
     const emails = [];
     const add = (user) => {
-        const personal = String(user?.personalEmail || '').trim();
-        const email = String(user?.email || '').trim();
-        const pick = personal || email;
-        if (pick && !emails.includes(pick.toLowerCase())) emails.push(pick.toLowerCase());
+        const pick = usableReminderEmail(user?.personalEmail) || usableReminderEmail(user?.email);
+        if (pick && !emails.includes(pick)) emails.push(pick);
     };
     add(student);
     add(parent);
@@ -93,10 +98,22 @@ function reminderCopy(kind, enrollment, studentName) {
     const course = enrollment.course?.title || 'your course';
     const due = formatYmd(pktYmd(enrollment.feeDueDate));
     const name = studentName || 'Student';
+    if (enrollment.autoPayEnabled && kind === 'due') {
+        return {
+            subject: `Fee reminder — ${course} due ${due}`,
+            text: `Assalamu alaikum ${name},\n\nWe will charge your saved card for ${course} on ${due} (Pakistan time). You do not need to pay by hand unless that charge fails.\n\nGorythm Academy`,
+        };
+    }
     if (kind === 'due') {
         return {
             subject: `Fee reminder — ${course} due ${due}`,
             text: `Assalamu alaikum ${name},\n\nA fee for ${course} is due on ${due} (Pakistan time). Please pay from Fees by card or bank transfer.\n\nGorythm Academy`,
+        };
+    }
+    if (enrollment.autoPayEnabled) {
+        return {
+            subject: `Fee overdue — ${course}`,
+            text: `Assalamu alaikum ${name},\n\nThe automatic charge for ${course} did not complete (due ${due}, Pakistan time). Please pay from Fees or update your card.\n\nGorythm Academy`,
         };
     }
     return {
@@ -167,5 +184,7 @@ async function sendDueFeeReminders(now = new Date()) {
 module.exports = {
     DAYS_BEFORE_DUE,
     reminderKind,
+    reminderCopy,
+    recipientEmails,
     sendDueFeeReminders,
 };

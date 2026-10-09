@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
-import { FiAlertCircle, FiX } from 'react-icons/fi';
 import './SiteValidationModal.scss';
 
 /**
@@ -56,7 +55,7 @@ const SiteValidationModal = ({ open, title, issues, onClose, showIcon = true }) 
         >
           {showIcon ? (
             <span className="site-validation-modal__icon" aria-hidden="true">
-              <FiAlertCircle />
+              <i className="fa-solid fa-circle-exclamation" />
             </span>
           ) : null}
           <h2 id={titleId} className="site-validation-modal__title">
@@ -69,7 +68,7 @@ const SiteValidationModal = ({ open, title, issues, onClose, showIcon = true }) 
             onClick={handleClose}
             aria-label="Close"
           >
-            <FiX aria-hidden="true" />
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
           </button>
         </div>
         <ul

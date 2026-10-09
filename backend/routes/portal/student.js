@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const { allowPortalRoles, getPortalActorId } = require('../../middleware/portalAccess');
+const { validate } = require('../../middleware/validate');
+const { studentSubmission, quizAttempt } = require('../../middleware/portalBodyRules');
 const Enrollment = require('../../models/Enrollment');
 const AttendanceRecord = require('../../models/AttendanceRecord');
 const Assignment = require('../../models/Assignment');
@@ -10,6 +12,7 @@ const Quiz = require('../../models/Quiz');
 const QuizAttempt = require('../../models/QuizAttempt');
 const Resource = require('../../models/Resource');
 const Course = require('../../models/Course');
+const User = require('../../models/User');
 const { enrichEnrollmentsWithPaymentStatus } = require('../../services/enrollmentPaymentStatus');
 const { activeLmsFilter, trashedLmsFilter, mergeMongoFilters } = require('../../utils/lmsTrashQuery');
 const {
@@ -18,6 +21,8 @@ const {
     assignmentPastDue,
     getStudentSlotIssues,
     assertStudentCanAccessAssignment,
+    assertStudentCanAccessQuiz,
+    studentPublishedQuizMongoFilter,
     mapSubmissionForPortal,
 } = require('../../utils/lmsContentRules');
 const { buildQuizReviewPayload } = require('../../utils/quizReview');
@@ -29,6 +34,7 @@ const {
     unauthorized,
     mapAssignmentForPortal,
     loadStudentDisplayEnrollments,
+    publicEnrollmentSummary,
     buildStudentWeeklyTimetable,
     getStudentCourseIds,
     attendancePresentRate,
@@ -37,12 +43,45 @@ const {
 
 // ————————————————— STUDENT —————————————————
 
+router.get('/student/profile', allowPortalRoles('student'), async (req, res) => {
+    try {
+        const studentId = getPortalActorId(req);
+        if (!studentId) return unauthorized(res);
+        const user = await User.findById(studentId).select('name email personalEmail phone studentId status deletedAt');
+        if (!user || user.deletedAt) {
+            return res.status(404).json({ success: false, error: 'Student not found' });
+        }
+        res.json({
+            success: true,
+            profile: {
+                name: user.name,
+                email: user.email,
+                personalEmail: user.personalEmail || '',
+                phone: user.phone || '',
+                studentId: user.studentId || '',
+                status: user.status || 'active',
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to load student profile' });
+    }
+});
+
 router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const enrollmentsRaw = await Enrollment.find(withActiveEnrollments(studentId))
-            .populate('course', 'title category price deletedAt');
+        const [student, enrollmentsRaw] = await Promise.all([
+            User.findById(studentId).select('studentId'),
+            Enrollment.find(withActiveEnrollments(studentId))
+                .populate('course', 'title category price deletedAt totalFeeCount feeDueDate')
+                .populate({
+                    path: 'assignedSchedule',
+                    populate: { path: 'teacher', select: 'name deletedAt' },
+                }),
+        ]);
+        const { backfillMissingFeeDueDates, feeProgressLabel } = require('../../services/feeDuePolicy');
+        await backfillMissingFeeDueDates(enrollmentsRaw);
         const enrollments = dropTrashedCourses(await enrichEnrollmentsWithPaymentStatus(
             enrollmentsRaw,
             studentId,
@@ -72,19 +111,22 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
             (a) => !submittedIds.has(String(a._id)) && a.dueDate && new Date(a.dueDate) >= now
         );
 
-        const quizzes = await Quiz.find({
-            course: { $in: courseIds },
-            status: 'published',
-            ...activeLmsFilter(),
-        }).limit(20);
+        const quizzes = await Quiz.find(
+            mergeMongoFilters(await studentPublishedQuizMongoFilter(studentId), activeLmsFilter())
+        ).limit(20);
 
         const pendingFees = enrollments.filter((e) => {
             const status = e.displayFeeStatus || e.paymentStatus;
             return e.course && ['unpaid', 'overdue', 'failed', 'pending'].includes(status);
         }).length;
+        const courseRows = enrollments.map((row) => {
+            row.feeProgress = feeProgressLabel(row);
+            return publicEnrollmentSummary(row);
+        });
 
         res.json({
             success: true,
+            studentId: student?.studentId || '',
             summary: {
                 enrolledCourses: enrollments.filter((e) => e.course && e.status === 'active').length,
                 attendanceRate,
@@ -92,7 +134,7 @@ router.get('/student/dashboard', allowPortalRoles('student'), async (req, res) =
                 quizzesAvailable: quizzes.length,
                 pendingFees,
             },
-            enrollments,
+            enrollments: courseRows,
             dueAssignments: dueAssignments.map((a) => ({
                 _id: a._id,
                 title: a.title,
@@ -184,7 +226,7 @@ router.post('/student/fees/checkout', allowPortalRoles('student'), async (req, r
             enrollmentIds: req.body?.enrollmentIds || req.body?.items,
             invoiceMode: req.body?.invoiceMode,
             months: req.body?.months,
-            autoPay: Boolean(req.body?.autoPay),
+            autoPay: req.body?.autoPay,
         });
         res.json({ success: true, ...result });
     } catch (error) {
@@ -410,6 +452,7 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
         if (!courseIds.some((id) => String(id) === String(quiz.course._id || quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
+        await assertStudentCanAccessQuiz(studentId, quiz);
         const attempt = await QuizAttempt.findOne({
             quiz: quiz._id,
             student: studentId,
@@ -427,13 +470,14 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
         });
         let review = null;
         const canRetake = quizUpdatedAfterAttempt(quiz, attempt);
-        if (attempt) {
+        if (attempt && !canRetake) {
             const fullQuiz = await Quiz.findById(quiz._id).select('questions totalMarks title');
             review = buildQuizReviewPayload(fullQuiz, attempt.answers || []);
         }
         res.json({ success: true, quiz: obj, attempt, review, canRetake });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to load quiz' });
+        const code = error.status || 500;
+        res.status(code).json({ success: false, error: error.status ? error.message : 'Failed to load quiz' });
     }
 });
 
@@ -444,9 +488,10 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
         const courseIds = await getStudentCourseIds(studentId);
         const attempts = await QuizAttempt.find({ student: studentId, ...activeLmsFilter() });
         const attemptQuizIds = attempts.map((a) => a.quiz).filter(Boolean);
+        const publishedQuizzes = await studentPublishedQuizMongoFilter(studentId);
         const quizzes = await Quiz.find({
             $or: [
-                { course: { $in: courseIds }, status: 'published' },
+                publishedQuizzes,
                 ...(attemptQuizIds.length
                     ? [{ _id: { $in: attemptQuizIds }, course: { $in: courseIds } }]
                     : []),
@@ -568,7 +613,7 @@ router.post('/student/submissions/precheck', allowPortalRoles('student'), async 
     }
 });
 
-router.post('/student/submissions', allowPortalRoles('student'), async (req, res) => {
+router.post('/student/submissions', allowPortalRoles('student'), validate([studentSubmission]), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -622,7 +667,7 @@ router.post('/student/submissions', allowPortalRoles('student'), async (req, res
     }
 });
 
-router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, res) => {
+router.post('/student/quiz-attempts', allowPortalRoles('student'), validate([quizAttempt]), async (req, res) => {
     try {
         const studentId = getPortalActorId(req);
         if (!studentId) return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -636,6 +681,7 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
         if (!courseIds.some((id) => String(id) === String(quiz.course))) {
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
+        await assertStudentCanAccessQuiz(studentId, quiz);
         const priorActive = await QuizAttempt.findOne({
             quiz: quizId,
             student: studentId,
@@ -649,6 +695,9 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
             await priorActive.save();
         }
         let safeAttachments = [];
+        if (quiz.quizType === 'file' && (!Array.isArray(attachments) || !attachments.length)) {
+            return res.status(400).json({ success: false, error: 'Attach at least one file before submitting this quiz.' });
+        }
         if (quiz.quizType === 'file' && Array.isArray(attachments) && attachments.length) {
             const { normalizeUploadPublicPath } = require('../../utils/uploadUrlMatch');
             if (attachments.length > 5) {
@@ -693,7 +742,11 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), async (req, r
             rawCorrect: review.correctCount,
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to submit quiz attempt' });
+        const code = error.status || 500;
+        res.status(code).json({
+            success: false,
+            error: error.status ? error.message : 'Failed to submit quiz attempt',
+        });
     }
 });
 

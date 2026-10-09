@@ -13,13 +13,20 @@ import {
 const ITEMS_PER_PAGE = 15;
 const idKey = (id) => String(id);
 
-const filterSubscriberRows = (subscribers, searchTerm, filterSource, dateRange) => {
+const isUnsubscribed = (subscriber) => Boolean(subscriber?.unsubscribedAt);
+
+const filterSubscriberRows = (subscribers, searchTerm, filterSource, dateRange, filterStatus = 'all') => {
   const q = searchTerm.trim().toLowerCase();
   return subscribers.filter((subscriber) => {
     const email = String(subscriber.email || '').toLowerCase();
     const source = String(subscriber.source || '').toLowerCase();
     const matchesSearch = !q || email.includes(q) || source.includes(q);
     const matchesSource = filterSource === 'all' || source === filterSource;
+    const unsubscribed = isUnsubscribed(subscriber);
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'unsubscribed' && unsubscribed) ||
+      (filterStatus === 'subscribed' && !unsubscribed);
 
     const createdAt = new Date(subscriber.createdAt);
     const now = new Date();
@@ -36,7 +43,7 @@ const filterSubscriberRows = (subscribers, searchTerm, filterSource, dateRange) 
       matchesDate = createdAt >= monthAgo;
     }
 
-    return matchesSearch && matchesSource && matchesDate;
+    return matchesSearch && matchesSource && matchesDate && matchesStatus;
   });
 };
 
@@ -48,6 +55,7 @@ const sortSubscriberRows = (rows, sortBy, sortOrder) => {
     const getValue = (subscriber, key) => {
       if (key === 'email') return String(subscriber.email || '').toLowerCase();
       if (key === 'source') return String(subscriber.source || '').toLowerCase();
+      if (key === 'status') return isUnsubscribed(subscriber) ? 1 : 0;
       if (key === 'updated') return new Date(subscriber.updatedAt || 0).getTime();
       return new Date(subscriber.createdAt || 0).getTime();
     };
@@ -97,6 +105,10 @@ const Subscribers = () => {
   const [listTotalCount, setListTotalCount] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSource, setFilterSource] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [broadcastSubject, setBroadcastSubject] = useState('');
+  const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
   const [dateRange, setDateRange] = useState('all');
   const [sortBy, setSortBy] = useState('subscribed');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -282,8 +294,8 @@ const Subscribers = () => {
   };
 
   const filteredSubscribers = useMemo(
-    () => filterSubscriberRows(subscribers, searchTerm, filterSource, dateRange),
-    [subscribers, searchTerm, filterSource, dateRange]
+    () => filterSubscriberRows(subscribers, searchTerm, filterSource, dateRange, filterStatus),
+    [subscribers, searchTerm, filterSource, dateRange, filterStatus]
   );
 
   const sortedSubscribers = useMemo(
@@ -316,13 +328,15 @@ const Subscribers = () => {
         return !Number.isNaN(createdAt.getTime()) && createdAt >= weekAgo;
       }).length,
       sourceCount: sourceOptions.length,
+      subscribedCount: subscribers.filter((subscriber) => !isUnsubscribed(subscriber)).length,
+      unsubscribedCount: subscribers.filter((subscriber) => isUnsubscribed(subscriber)).length,
     };
   }, [subscribers, sourceOptions, listTotalCount]);
 
   useEffect(() => {
     setCurrentPage(1);
     setSelectedSubscribers([]);
-  }, [searchTerm, filterSource, dateRange, sortBy, sortOrder]);
+  }, [searchTerm, filterSource, filterStatus, dateRange, sortBy, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(sortedSubscribers.length / ITEMS_PER_PAGE));
   const pageStart = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -513,6 +527,40 @@ const Subscribers = () => {
     askDeleteSubscribers(selectedSubscribers);
   };
 
+  const sendCourseUpdate = async () => {
+    const subject = broadcastSubject.trim();
+    const body = broadcastBody.trim();
+    if (!subject || !body || broadcastSending) return;
+    setBroadcastSending(true);
+    try {
+      const token = getAuthToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/api/subscribers/admin/send`,
+        { subject, body },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      openDialog({
+        type: 'success',
+        title: 'Emails sent',
+        message:
+          response.data?.message ||
+          `Sent ${response.data?.sent || 0} email(s). Unsubscribed addresses were skipped.`,
+        confirmLabel: 'Close',
+      });
+      setBroadcastSubject('');
+      setBroadcastBody('');
+    } catch (error) {
+      openDialog({
+        type: 'error',
+        title: 'Send failed',
+        message: error.response?.data?.error || error.message || 'Could not send emails.',
+        confirmLabel: 'Close',
+      });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
   const downloadSubscribersCsv = async () => {
     if (exportingCsv || sortedSubscribers.length === 0) return;
 
@@ -528,7 +576,7 @@ const Subscribers = () => {
         });
         const allSubscribers = response.data?.subscribers || [];
         exportRows = sortSubscriberRows(
-          filterSubscriberRows(allSubscribers, searchTerm, filterSource, dateRange),
+          filterSubscriberRows(allSubscribers, searchTerm, filterSource, dateRange, filterStatus),
           sortBy,
           sortOrder
         );
@@ -539,14 +587,20 @@ const Subscribers = () => {
       const columns = [
         ['email', 'Email'],
         ['source', 'Source'],
+        ['status', 'Status'],
         ['subscribed', 'Subscribed'],
+        ['unsubscribed', 'Unsubscribed'],
         ['updated', 'Last Updated'],
       ];
 
       const rows = exportRows.map((subscriber) => ({
         email: subscriber.email || '',
         source: subscriber.source || 'unknown',
+        status: isUnsubscribed(subscriber) ? 'unsubscribed' : 'subscribed',
         subscribed: subscriber.createdAt ? new Date(subscriber.createdAt).toISOString() : '',
+        unsubscribed: subscriber.unsubscribedAt
+          ? new Date(subscriber.unsubscribedAt).toISOString()
+          : '',
         updated: subscriber.updatedAt ? new Date(subscriber.updatedAt).toISOString() : '',
       }));
 
@@ -640,8 +694,63 @@ const Subscribers = () => {
 
       <div className="settings-header">
         <h1><i className="fas fa-user-plus"></i> Subscribers</h1>
-        <p>Emails collected from Subscribe section and Newsletter popup.</p>
+        <p>Emails collected from Subscribe section and Newsletter popup. Unsubscribed addresses are kept so you can see who opted out.</p>
       </div>
+
+      <section className="subscribe-popup-admin" aria-labelledby="subscriber-broadcast-heading">
+        <header className="subscribe-popup-admin__hero">
+          <div>
+            <h2 id="subscriber-broadcast-heading">
+              <i className="fas fa-paper-plane" aria-hidden="true" />
+              Send course update
+            </h2>
+            <p>
+              Sends only to people who are still subscribed. Each email includes an unsubscribe link.
+            </p>
+          </div>
+        </header>
+        <div className="subscribe-popup-admin__form-panel">
+          <label className="subscribe-popup-admin__field" htmlFor="broadcast-subject">
+            <span>Subject</span>
+            <input
+              id="broadcast-subject"
+              type="text"
+              value={broadcastSubject}
+              onChange={(event) => setBroadcastSubject(event.target.value)}
+              placeholder="Course updates from Gorythm Academy"
+            />
+          </label>
+          <label className="subscribe-popup-admin__field" htmlFor="broadcast-body">
+            <span>Message</span>
+            <textarea
+              id="broadcast-body"
+              rows={5}
+              value={broadcastBody}
+              onChange={(event) => setBroadcastBody(event.target.value)}
+              placeholder="Write the update…"
+            />
+          </label>
+          <div className="subscribe-popup-admin__save-row">
+            <button
+              type="button"
+              className="subscribe-popup-admin__save"
+              onClick={sendCourseUpdate}
+              disabled={broadcastSending || !broadcastSubject.trim() || !broadcastBody.trim()}
+            >
+              {broadcastSending ? (
+                <>
+                  <i className="fas fa-spinner fa-spin" aria-hidden="true" /> Sending…
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-paper-plane" aria-hidden="true" />
+                  Send to {subscriberStats.subscribedCount} subscribed
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </section>
 
       <SubscribePopupSettings
         form={popupForm}
@@ -658,28 +767,28 @@ const Subscribers = () => {
           <div className="stat-icon total"><i className="fas fa-users"></i></div>
           <div className="stat-info">
             <h3>{subscriberStats.totalCount}</h3>
-            <p>Total Subscribers</p>
+            <p>Total records</p>
           </div>
         </div>
         <div className="contact-stat-card">
-          <div className="stat-icon new"><i className="fas fa-calendar-day"></i></div>
+          <div className="stat-icon new"><i className="fas fa-envelope-open"></i></div>
           <div className="stat-info">
-            <h3>{subscriberStats.todayCount}</h3>
-            <p>Today</p>
+            <h3>{subscriberStats.subscribedCount}</h3>
+            <p>Subscribed</p>
           </div>
         </div>
         <div className="contact-stat-card">
-          <div className="stat-icon in-progress"><i className="fas fa-calendar-week"></i></div>
+          <div className="stat-icon in-progress"><i className="fas fa-ban"></i></div>
+          <div className="stat-info">
+            <h3>{subscriberStats.unsubscribedCount}</h3>
+            <p>Unsubscribed</p>
+          </div>
+        </div>
+        <div className="contact-stat-card">
+          <div className="stat-icon resolved"><i className="fas fa-calendar-week"></i></div>
           <div className="stat-info">
             <h3>{subscriberStats.weekCount}</h3>
-            <p>Last 7 Days</p>
-          </div>
-        </div>
-        <div className="contact-stat-card">
-          <div className="stat-icon resolved"><i className="fas fa-layer-group"></i></div>
-          <div className="stat-info">
-            <h3>{subscriberStats.sourceCount}</h3>
-            <p>Sources</p>
+            <p>New in 7 days</p>
           </div>
         </div>
       </div>
@@ -700,6 +809,11 @@ const Subscribers = () => {
                 />
               </div>
               <div className="filter-controls">
+                <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="status-filter">
+                  <option value="all">All statuses</option>
+                  <option value="subscribed">Subscribed</option>
+                  <option value="unsubscribed">Unsubscribed</option>
+                </select>
                 <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="status-filter">
                   <option value="all">All Sources</option>
                   {sourceOptions.map((source) => (
@@ -780,6 +894,9 @@ const Subscribers = () => {
                       <th className="sortable" onClick={() => handleSort('source')}>
                         Source {renderSortIcon('source')}
                       </th>
+                      <th className="sortable" onClick={() => handleSort('status')}>
+                        Status {renderSortIcon('status')}
+                      </th>
                       <th className="sortable" onClick={() => handleSort('subscribed')}>
                         Subscribed {renderSortIcon('subscribed')}
                       </th>
@@ -807,6 +924,11 @@ const Subscribers = () => {
                         <td>
                           <span className="status-pill subscriber-source-pill">
                             {sourceLabel(subscriber.source)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`status-pill ${isUnsubscribed(subscriber) ? 'rejected' : 'resolved'}`}>
+                            {isUnsubscribed(subscriber) ? 'Unsubscribed' : 'Subscribed'}
                           </span>
                         </td>
                         <td>{formatDateTime(subscriber.createdAt)}</td>

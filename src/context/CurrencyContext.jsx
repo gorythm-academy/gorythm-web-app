@@ -34,11 +34,18 @@ export const CurrencyProvider = ({ children }) => {
       const detected = detectedResult.status === 'fulfilled' ? detectedResult.value : null;
       const ratePayload = ratesResult.status === 'fulfilled' ? ratesResult.value : null;
 
-      setCurrency(detected?.currency || USD_CURRENCY);
+      const detectedCurrency = detected?.currency || USD_CURRENCY;
+      const loadedRates = ratePayload?.rates || null;
+      const rate = loadedRates?.[detectedCurrency];
+      const canConvert =
+        detectedCurrency === USD_CURRENCY ||
+        (Number.isFinite(Number(rate)) && Number(rate) > 0);
+
+      setCurrency(canConvert ? detectedCurrency : USD_CURRENCY);
       setLocale(detected?.locale || localeFallback);
       setCountryCode(detected?.countryCode || '');
       setSource(detected?.source || 'fallback');
-      setRates(ratePayload?.rates || { USD: 1 });
+      setRates(loadedRates || { USD: 1 });
       setRateDate(ratePayload?.date || '');
       setIsLoading(false);
     };

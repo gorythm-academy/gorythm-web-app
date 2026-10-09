@@ -5,16 +5,6 @@ export const API_BASE_URL =
   (process.env.NODE_ENV === 'development' ? '' : 'https://gorythmacademy.com');
 /** Public site URL for UI placeholders and links (override in .env). */
 export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythmacademy.com';
-export const CONTACT_EMAIL = 'support@gorythmacademy.com';
-/** Optional env: full bank-transfer notice as plain text (replaces default composed message on the payment page). */
-export const BANK_TRANSFER_NOTE_CUSTOM = process.env.REACT_APP_BANK_TRANSFER_NOTE || '';
-/** Default bank-transfer copy before the linked support email (when `BANK_TRANSFER_NOTE_CUSTOM` is empty). */
-export const BANK_TRANSFER_NOTE_DEFAULT_LEAD =
-  'After you submit, we will email you at the address you provide with our bank details and the payment reference to use. Your enrollment stays pending until we confirm receipt. Questions:';
-/** Full default notice including plain-text email (e.g. default export); prefer composing with mailto in UI. */
-export const BANK_TRANSFER_NOTE =
-  BANK_TRANSFER_NOTE_CUSTOM ||
-  `${BANK_TRANSFER_NOTE_DEFAULT_LEAD} ${CONTACT_EMAIL}.`;
 export const INFO_EMAIL = 'gorythm.academy@gmail.com';
 /** Only this account is the system super-admin; cannot be deleted from the dashboard. */
 export const PROTECTED_SUPER_ADMIN_EMAIL = INFO_EMAIL;
@@ -22,7 +12,7 @@ export const CONTACT_PHONE = '+31 638 938 387';
 export const CONTACT_ADDRESS = 'Eindhoven, Netherlands';
 export const FACEBOOK_URL = 'https://www.facebook.com/share/1B437rw5Dk/';
 /** E.164 digits only (no +), for wa.me / api / deep links. */
-export const WHATSAPP_PHONE_DIGITS = '0031638938387';
+export const WHATSAPP_PHONE_DIGITS = '31638938387';
 export const WHATSAPP_PRESET_MESSAGE = "I'm interested in your courses";
 
 /** Universal link; often shows an intermediate “app or web” screen in the browser. */
@@ -64,30 +54,3 @@ export const YOUTUBE_URL = 'https://www.youtube.com/@GorythmAcademy';
 export const INSTAGRAM_URL =
   'https://www.instagram.com/gorythm08?igsh=MWFjemEyNG5jb2FsMA==';
 export const TIKTOK_URL = 'https://www.tiktok.com/@alfarhan621';
-
-/** Shown when users open “Privacy Policy” from subscribe forms (email updates consent). */
-export const SUBSCRIBE_PRIVACY_POLICY_BODY =
-  'By subscribing, you agree to receive updates about courses, programs, events, and learning resources from Gorythm Academy. Your information will remain private and will never be shared or sold to third parties. You may unsubscribe at any time.';
-
-const constants = {
-  API_BASE_URL,
-  SITE_URL,
-  CONTACT_EMAIL,
-  BANK_TRANSFER_NOTE,
-  BANK_TRANSFER_NOTE_CUSTOM,
-  BANK_TRANSFER_NOTE_DEFAULT_LEAD,
-  INFO_EMAIL,
-  CONTACT_PHONE,
-  CONTACT_ADDRESS,
-  FACEBOOK_URL,
-  WHATSAPP_URL,
-  WHATSAPP_PHONE_DIGITS,
-  WHATSAPP_PRESET_MESSAGE,
-  getWhatsAppDirectUrl,
-  onWhatsAppAnchorClick,
-  YOUTUBE_URL,
-  INSTAGRAM_URL,
-  TIKTOK_URL,
-};
-
-export default constants;

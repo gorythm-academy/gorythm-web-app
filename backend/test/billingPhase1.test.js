@@ -511,11 +511,128 @@ test('fee reminders send 3 days before the due date and once when overdue', () =
     assert.equal(reminderKind({ ...base, status: 'paused' }, new Date('2026-02-19T12:00:00+05:00')), null);
 });
 
-test('the last saved card cannot be deleted', () => {
-    const { canDeleteSavedCard } = require('../services/billingAutoPay');
+test('one unpaid installment keeps one auto-pay key even if the due date moves', () => {
+    const {
+        autoPayPeriodKey,
+        autoPayIdempotencyKey,
+        autoPayClaimAction,
+    } = require('../services/billingAutoPay');
+    const due = new Date('2026-09-24T02:14:00.000Z');
+    const enrollment = {
+        _id: '507f1f77bcf86cd799439011',
+        feeDueDate: due,
+        paidInstallmentCount: 1,
+    };
+    const key = autoPayPeriodKey(enrollment);
+    assert.equal(key, '507f1f77bcf86cd799439011:i1');
+    assert.equal(key, autoPayPeriodKey({ ...enrollment, feeDueDate: new Date('2026-10-24T02:14:00.000Z') }));
+    assert.notEqual(key, autoPayPeriodKey({ ...enrollment, paidInstallmentCount: 2 }));
+    assert.equal(autoPayPeriodKey({ _id: enrollment._id, paidInstallmentCount: 1 }), '');
+    assert.equal(autoPayIdempotencyKey(key, 1), autoPayIdempotencyKey(key, 1));
+    assert.notEqual(autoPayIdempotencyKey(key, 1), autoPayIdempotencyKey(key, 2));
+    const now = new Date('2026-09-27T14:14:00.000Z');
+    assert.equal(autoPayClaimAction(null, now), 'charge');
+    assert.equal(autoPayClaimAction({ status: 'done' }, now), 'skip');
+    assert.equal(autoPayClaimAction({ status: 'charged' }, now), 'record');
+    assert.equal(autoPayClaimAction({ status: 'failed', stopped: true }, now), 'skip');
+    assert.equal(autoPayClaimAction({
+        status: 'failed',
+        stopped: false,
+        lastAttemptAt: new Date('2026-09-27T03:14:00.000Z'),
+    }, now), 'skip');
+    assert.equal(autoPayClaimAction({
+        status: 'failed',
+        stopped: false,
+        lastAttemptAt: new Date('2026-09-26T14:00:00.000Z'),
+    }, now), 'retry');
+    assert.equal(autoPayClaimAction({
+        status: 'open',
+        updatedAt: new Date('2026-09-27T14:13:30.000Z'),
+    }, now), 'skip');
+});
+
+test('a saved Stripe charge repairs an unpaid fee even after the due date was edited', () => {
+    const { autoPayPeriodKey, enrollmentNeedsAutoPayRepair } = require('../services/billingAutoPay');
+    const due = new Date('2026-02-18T12:00:00+05:00');
+    const enrollment = {
+        _id: '507f1f77bcf86cd799439011',
+        status: 'active',
+        paymentStatus: 'pending',
+        feeDueDate: due,
+        totalFeeCount: 5,
+        paidInstallmentCount: 1,
+        course: { price: 40 },
+    };
+    assert.equal(autoPayPeriodKey(enrollment), autoPayPeriodKey({
+        ...enrollment,
+        feeDueDate: new Date('2026-02-26T12:00:00+05:00'),
+    }));
+    assert.equal(enrollmentNeedsAutoPayRepair(enrollment, { installmentCounted: false }), true);
+    assert.equal(enrollmentNeedsAutoPayRepair({
+        ...enrollment,
+        feeDueDate: new Date('2026-02-26T12:00:00+05:00'),
+    }, { installmentCounted: false }), true);
+    assert.equal(enrollmentNeedsAutoPayRepair({
+        ...enrollment,
+        paymentStatus: 'paid',
+        paidInstallmentCount: 2,
+        lastSettledDueDate: due,
+        feeDueDate: new Date('2026-03-18T12:00:00+05:00'),
+    }, { installmentCounted: true }), false);
+    assert.equal(enrollmentNeedsAutoPayRepair(enrollment, { installmentCounted: true }), false);
+});
+
+test('a bank block stops automatic charges immediately', () => {
+    const { shouldStopAutoPayRetries, isHardAutoPayDecline, shouldChargeAutoPay } = require('../services/billingAutoPay');
+    const blocked = { decline_code: 'transaction_not_allowed', message: 'Your card was declined.' };
+    assert.equal(isHardAutoPayDecline(blocked), true);
+    assert.equal(shouldStopAutoPayRetries(blocked, 1), true);
+    assert.equal(shouldStopAutoPayRetries({ message: 'Transaction not allowed' }, 1), true);
+    assert.equal(shouldStopAutoPayRetries({ decline_code: 'insufficient_funds' }, 1), false);
+    assert.equal(shouldStopAutoPayRetries({ decline_code: 'insufficient_funds' }, 3), true);
+    assert.equal(shouldChargeAutoPay({
+        autoPayEnabled: true,
+        status: 'active',
+        paymentStatus: 'paid',
+        feeDueDate: new Date('2026-02-18T12:00:00+05:00'),
+        lastSettledDueDate: new Date('2026-01-18T12:00:00+05:00'),
+        totalFeeCount: 5,
+        paidInstallmentCount: 1,
+        autoPayFailCount: 3,
+        course: { price: 40 },
+    }, new Date('2026-02-18T12:00:00+05:00')), false);
+});
+
+test('a saved card can be removed, including the last one', () => {
+    const { canDeleteSavedCard, checkoutWantsAutoPay, autoPayConsented } = require('../services/billingAutoPay');
     assert.equal(canDeleteSavedCard([]), false);
-    assert.equal(canDeleteSavedCard([{ id: 'pm_1' }]), false);
+    assert.equal(canDeleteSavedCard([{ id: 'pm_1' }]), true);
     assert.equal(canDeleteSavedCard([{ id: 'pm_1' }, { id: 'pm_2' }]), true);
+    assert.equal(checkoutWantsAutoPay(true), true);
+    assert.equal(checkoutWantsAutoPay('1'), true);
+    assert.equal(checkoutWantsAutoPay(false), false);
+    assert.equal(checkoutWantsAutoPay(undefined), false);
+    assert.equal(checkoutWantsAutoPay('false'), false);
+    assert.equal(autoPayConsented({ session: { metadata: { autoPay: '1' } } }), true);
+    assert.equal(autoPayConsented({ session: { metadata: { autoPay: '0' } } }), false);
+    assert.equal(autoPayConsented({
+        session: { metadata: { autoPay: '1' } },
+        intent: { autoPayEnable: false },
+    }), false);
+});
+
+test('auto-pay reminders say the card will be charged', () => {
+    const { reminderCopy } = require('../services/feeReminderEmail');
+    const enrollment = {
+        course: { title: 'Nazrah' },
+        feeDueDate: new Date('2026-02-18T12:00:00+05:00'),
+        autoPayEnabled: true,
+    };
+    const due = reminderCopy('due', enrollment, 'Amina');
+    assert.match(due.text, /saved card/i);
+    assert.doesNotMatch(due.text, /pay from Fees by card/i);
+    const manual = reminderCopy('due', { ...enrollment, autoPayEnabled: false }, 'Amina');
+    assert.match(manual.text, /pay from Fees/i);
 });
 
 

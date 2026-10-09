@@ -15,6 +15,16 @@ const subscriberSchema = new mongoose.Schema(
       trim: true,
       default: 'unknown',
     },
+    unsubscribeToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    unsubscribedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

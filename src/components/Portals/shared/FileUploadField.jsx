@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { PortalAlert } from './PortalUi';
-import { absFileUrl, uploadDisplayName } from '../../../utils/fileUrl';
+import { ProtectedFileLink, uploadDisplayName } from '../../../utils/fileUrl';
 
 export const LMS_UPLOAD_HINT = 'Max 12 MB per file; PDF, Word, or image.';
 
@@ -94,13 +94,13 @@ export default function FileUploadField({
               <li key={`${displayName}-${index}`}>
                 <span className="portal-file-list-name">{displayName}</span>
                 {uploadedUrl ? (
-                  <a
-                    href={absFileUrl(uploadedUrl)}
+                  <ProtectedFileLink
+                    path={uploadedUrl}
                     download={uploadDisplayName(uploadedUrl)}
                     className="portal-file-link"
                   >
                     Download
-                  </a>
+                  </ProtectedFileLink>
                 ) : pendingName ? (
                   <small className="portal-file-pending">Pending upload</small>
                 ) : null}

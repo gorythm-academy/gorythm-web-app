@@ -14,6 +14,12 @@ const quizSchema = new mongoose.Schema(
         title: { type: String, required: true, trim: true },
         course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
         teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        /** Class timeslot — only students on this schedule see the quiz. */
+        assignedSchedule: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ClassSchedule',
+            default: null,
+        },
         /** mcq = multiple-choice quiz with scored questions; file = reading/file quiz with no questions. */
         quizType: { type: String, enum: ['mcq', 'file'], default: 'mcq' },
         questions: [quizQuestionSchema],
@@ -29,5 +35,8 @@ const quizSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+quizSchema.index({ assignedSchedule: 1 });
+quizSchema.index({ course: 1, teacher: 1, assignedSchedule: 1 });
 
 module.exports = mongoose.model('Quiz', quizSchema);

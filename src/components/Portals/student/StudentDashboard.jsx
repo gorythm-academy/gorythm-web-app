@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
+import { parseAuthUser, AUTH_REALM } from '../../../utils/authStorage';
 import {
   PortalAlert,
   PortalPageHeader,
   PortalSummaryGridSkeleton,
   SummaryGrid,
 } from '../shared/PortalUi';
+import { EnrollmentSummaryList, studentIdLabel } from '../shared/StudentIdentity';
 
 const StudentDashboard = () => {
-  const [data, setData] = useState(null);
+  const authUser = parseAuthUser(AUTH_REALM.PORTAL) || {};
+  const [data, setData] = useState(() => readPortalCache('/student/dashboard'));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -24,6 +27,7 @@ const StudentDashboard = () => {
   const loading = !data;
   const s = data?.summary || {};
   const due = data?.dueAssignments || [];
+  const enrollments = data?.enrollments || [];
 
   return (
     <div className="portal-page">
@@ -34,7 +38,10 @@ const StudentDashboard = () => {
           <i className="fa-solid fa-graduation-cap" />
         </div>
         <div>
-          <h2>Welcome back</h2>
+          <h2>{authUser.name ? `Welcome back, ${authUser.name}` : 'Welcome back'}</h2>
+          <p className="portal-student-id-line">
+            {data ? `Student ID ${studentIdLabel(data.studentId)}` : '\u00a0'}
+          </p>
           <p>Track courses, assignments, quizzes, fees, and your class schedule from one place.</p>
         </div>
       </div>
@@ -53,8 +60,24 @@ const StudentDashboard = () => {
         />
       )}
 
+      <div className="portal-panel">
+        <div className="portal-panel__head">
+          <div>
+            <h2>Your courses</h2>
+            <p>Enrollment status, class time, and fee for each course.</p>
+          </div>
+        </div>
+        <div className={`portal-panel__body${!loading && !error && enrollments.length ? '' : ' portal-panel__body--padded'}`}>
+          {loading ? (
+            <p className="portal-student-card__empty">Loading courses…</p>
+          ) : (
+            <EnrollmentSummaryList enrollments={enrollments} />
+          )}
+        </div>
+      </div>
+
       {!loading && due.length ? (
-        <div className="portal-panel" style={{ marginTop: '1.25rem' }}>
+        <div className="portal-panel">
           <div className="portal-panel__head">
             <h2>Assignments Due</h2>
           </div>

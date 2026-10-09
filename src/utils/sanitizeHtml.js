@@ -1,10 +1,7 @@
+import DOMPurify from 'dompurify';
+
 /** Client-side HTML sanitizer for research content display. */
 export function sanitizeHtml(html) {
   if (!html) return '';
-  let out = String(html);
-  out = out.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  out = out.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-  out = out.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  out = out.replace(/javascript:/gi, '');
-  return out;
+  return DOMPurify.sanitize(String(html));
 }

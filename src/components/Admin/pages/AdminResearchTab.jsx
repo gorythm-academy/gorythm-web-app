@@ -604,7 +604,7 @@ const AdminResearchTab = () => {
         {!loading ? (
           <>
             {selectedIds.size > 0 ? (
-              <div className="lms-resources-bulk-bar lms-research-bulk-bar">
+              <div className="lms-resources-bulk-bar admin-submissions__bulk-bar">
                 <span>{selectedIds.size} selected</span>
                 <div className="lms-form-actions">
                   <button
@@ -618,6 +618,15 @@ const AdminResearchTab = () => {
                     <>
                       <button
                         type="button"
+                        className="lms-btn-restore"
+                        onClick={() => handlePosts('restore', [...selectedIds], `Restore ${selectedIds.size} article(s)?`)}
+                        disabled={deleting}
+                      >
+                        <i className="fas fa-undo" aria-hidden="true" />
+                        {deleting ? 'Working…' : `Restore (${selectedIds.size})`}
+                      </button>
+                      <button
+                        type="button"
                         className="lms-btn-delete-forever"
                         onClick={() =>
                           handlePosts('permanent', [...selectedIds], `Permanently delete ${selectedIds.size} article(s)?`)
@@ -626,14 +635,6 @@ const AdminResearchTab = () => {
                       >
                         <i className="fas fa-trash-alt" aria-hidden="true" />
                         {deleting ? 'Working…' : `Delete forever (${selectedIds.size})`}
-                      </button>
-                      <button
-                        type="button"
-                        className="lms-btn-restore"
-                        onClick={() => handlePosts('restore', [...selectedIds], `Restore ${selectedIds.size} article(s)?`)}
-                        disabled={deleting}
-                      >
-                        <i className="fas fa-undo" aria-hidden="true" /> Restore selected
                       </button>
                     </>
                   ) : (
@@ -653,8 +654,8 @@ const AdminResearchTab = () => {
               </div>
             ) : null}
 
-            <div className="lms-table-wrap">
-            <table className="lms-table lms-table--resources">
+            <div className="admin-submissions__table-wrap">
+            <table className="admin-submissions__table">
               <thead>
                 <tr>
                   <th className="lms-table-check-col">
@@ -682,7 +683,7 @@ const AdminResearchTab = () => {
                         aria-label={`Select ${post.title}`}
                       />
                     </td>
-                    <td>{post.title}</td>
+                    <td className="admin-submissions__name">{post.title}</td>
                     <td>{post.date || '—'}</td>
                     <td>
                       <span className="lms-resource-type-pill">
@@ -693,7 +694,7 @@ const AdminResearchTab = () => {
                         {post.isPublished !== false ? 'Published' : 'Draft'}
                       </span>
                     </td>
-                    <td className="lms-table-actions">
+                    <td className="admin-submissions__actions">
                       {isTrashView ? (
                         <>
                           <button
@@ -717,12 +718,12 @@ const AdminResearchTab = () => {
                         <>
                           <button
                             type="button"
-                            className="lms-btn-secondary"
+                            className="admin-submissions__view-btn"
                             onClick={() => setResearchPreview(post)}
                           >
-                            <i className="fas fa-eye" aria-hidden /> Preview
+                            View
                           </button>
-                          <button type="button" className="lms-btn-secondary" onClick={() => startEdit(post)}>
+                          <button type="button" className="admin-submissions__view-btn" onClick={() => startEdit(post)}>
                             Edit
                           </button>
                           <button

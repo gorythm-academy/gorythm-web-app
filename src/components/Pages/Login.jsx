@@ -153,7 +153,7 @@ const Login = () => {
                             <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
                                 <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                             </Link>
-                            <h1 className="auth-login__title">Set a new password</h1>
+                            <h1 className="auth-login__title">Set a New Password</h1>
                             <p className="auth-login__subtitle">
                                 For security, choose a new password before continuing.
                             </p>
@@ -231,7 +231,7 @@ const Login = () => {
                         <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
                             <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                         </Link>
-                        <h1 className="auth-login__title">Welcome back</h1>
+                        <h1 className="auth-login__title">Welcome Back</h1>
                         <p className="auth-login__subtitle">Sign in to your portal to continue learning.</p>
                     </header>
                     {portalMessage ? (
@@ -312,6 +312,11 @@ const Login = () => {
                         </span>
                         <i className="fas fa-arrow-right auth-login__admin-cta-arrow" aria-hidden="true" />
                     </Link>
+                    <p className="auth-login__legal">
+                        <Link to="/privacy">Privacy</Link>
+                        <span aria-hidden="true"> · </span>
+                        <Link to="/terms">Terms</Link>
+                    </p>
                 </div>
             </div>
         </div>

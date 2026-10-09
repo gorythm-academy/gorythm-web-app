@@ -7,6 +7,50 @@ const { activeLmsFilter } = require('../utils/lmsTrashQuery');
 
 const router = express.Router();
 
+const FX_TTL_MS = 12 * 60 * 60 * 1000;
+let fxCache = null;
+
+async function loadUsdRates() {
+    if (fxCache && Date.now() - fxCache.savedAt < FX_TTL_MS) return fxCache.payload;
+    const endpoints = [
+        'https://open.er-api.com/v6/latest/USD',
+        'https://api.exchangerate-api.com/v4/latest/USD',
+    ];
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint);
+            if (!response.ok) continue;
+            const json = await response.json();
+            if (!json?.rates || typeof json.rates !== 'object') continue;
+            const payload = {
+                base: json.base_code || json.base || 'USD',
+                rates: json.rates,
+                date: json.time_last_update_utc || json.date || '',
+            };
+            fxCache = { savedAt: Date.now(), payload };
+            return payload;
+        } catch {
+            /* try the next provider */
+        }
+    }
+    if (fxCache?.payload) return fxCache.payload;
+    const err = new Error('Exchange rates are unavailable');
+    err.status = 503;
+    throw err;
+}
+
+router.get('/usd-rates', async (req, res) => {
+    try {
+        const payload = await loadUsdRates();
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        return res.status(error.status || 500).json({
+            success: false,
+            error: 'Exchange rates are unavailable',
+        });
+    }
+});
+
 const SITE_URL = (process.env.FRONTEND_URL || 'https://gorythmacademy.com').replace(/\/$/, '');
 
 router.get('/subscribe-popup', async (req, res) => {

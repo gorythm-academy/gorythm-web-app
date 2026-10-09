@@ -43,6 +43,38 @@ function handleUnauthorized(status) {
   }
 }
 
+const portalGetCache = new Map();
+const PORTAL_LIST_CACHE_MS = 90 * 1000;
+const PORTAL_SESSION_CACHE_MS = 30 * 60 * 1000;
+
+function portalCacheTtl(path) {
+  return path === '/student/profile' ? PORTAL_SESSION_CACHE_MS : PORTAL_LIST_CACHE_MS;
+}
+
+function portalCacheEntry(path) {
+  return portalGetCache.get(path) || null;
+}
+
+export function readPortalCache(path) {
+  return portalCacheEntry(path)?.data ?? null;
+}
+
+function portalCacheIsFresh(path) {
+  const hit = portalCacheEntry(path);
+  if (!hit) return false;
+  return Date.now() - hit.at <= portalCacheTtl(path);
+}
+
+export function invalidatePortalCache(prefix = '') {
+  if (!prefix) {
+    portalGetCache.clear();
+    return;
+  }
+  for (const key of portalGetCache.keys()) {
+    if (key === prefix || key.startsWith(prefix)) portalGetCache.delete(key);
+  }
+}
+
 async function request(method, url, body) {
   try {
     const config = { method, url, headers: buildHeaders() };
@@ -59,7 +91,12 @@ async function request(method, url, body) {
 }
 
 export async function portalGet(path) {
-  return request('get', `${apiBase()}/api/portal${path}`);
+  if (portalCacheIsFresh(path)) return readPortalCache(path);
+  const data = await request('get', `${apiBase()}/api/portal${path}`);
+  if (data && data.success !== false) {
+    portalGetCache.set(path, { data, at: Date.now() });
+  }
+  return data;
 }
 
 export async function portalPost(path, body) {
@@ -139,22 +176,4 @@ export async function payrollPatch(path, body) {
 
 export async function payrollDelete(path) {
   return request('delete', `${apiBase()}/api/portal/accountant/payroll${path}`);
-}
-
-export const FEE_LABELS = {
-  paid: 'Paid',
-  pending: 'Unpaid',
-  unpaid: 'Unpaid',
-  awaiting_review: 'Pending Verification',
-  processing: 'Pending Verification',
-  overdue: 'Overdue',
-  failed: 'Failed',
-  refunded: 'Refunded',
-  cancelled: 'Cancelled',
-};
-
-/** Current month as YYYY-MM for `<input type="month">` */
-export function currentMonthKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }

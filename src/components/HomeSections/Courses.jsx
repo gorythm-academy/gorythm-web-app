@@ -9,7 +9,6 @@ import { getPriceDisplayParts } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
 import { getCourseImageSrc } from '../../utils/courseImages';
 import {
-  CATEGORY_ORDER,
   DESKTOP_MASONRY_MQ,
   buildMasonryColumns,
   getCategorySortIndex,
@@ -18,8 +17,6 @@ import {
 import SmartCourseImage from '../SmartCourseImage/SmartCourseImage';
 import './Courses.scss';
 import titleLineSvg from '../../assets/title-line.svg';
-
-export { CATEGORY_ORDER };
 
 const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const courseLinkParam = (c) => courseUrlSegment(c);
@@ -156,7 +153,7 @@ const CoursesSection = ({
 
               <div className="courses-section-left-footer">
                 <p className="courses-section-description courses-section_anim">
-                At Gorythm, every course is designed to build something that endures. Grounded in research, anchored in faith, structured for learners worldwide, and always oriented towards a purposeful vision.
+                At Gorythm Academy, every course is designed to build something that endures. Grounded in research, anchored in faith, structured for learners worldwide, and always oriented towards a purposeful vision.
                 </p>
                 <Link to={ctaTo} className="courses-section-cta courses-section_anim">
                   <span className="courses-section-cta-text">{ctaLabel}</span>

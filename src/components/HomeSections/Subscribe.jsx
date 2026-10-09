@@ -3,7 +3,8 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './Subscribe.scss';
-import { API_BASE_URL, SUBSCRIBE_PRIVACY_POLICY_BODY } from '../../config/constants';
+import { Link } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/constants';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
 
 const EMAIL_MAX_LEN = 254;
@@ -39,14 +40,8 @@ const SubscribeSection = () => {
     title: '',
     issues: [],
   });
-  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
-
   const closeValidationModal = useCallback(() => {
     setValidationModal((prev) => ({ ...prev, open: false }));
-  }, []);
-
-  const closePrivacyModal = useCallback(() => {
-    setPrivacyModalOpen(false);
   }, []);
 
   useEffect(() => {
@@ -150,18 +145,9 @@ const SubscribeSection = () => {
                 <span className="subscribe-checkbox-box" aria-hidden="true" />
                 <span className="subscribe-privacy-text">
                   I agree to the{' '}
-                  <button
-                    type="button"
-                    className="subscribe-privacy-link"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPrivacyModalOpen(true);
-                    }}
-                  >
+                  <Link to="/privacy" className="subscribe-privacy-link">
                     Privacy Policy
-                  </button>
+                  </Link>
                 </span>
               </label>
             </div>
@@ -200,13 +186,6 @@ const SubscribeSection = () => {
         title={validationModal.title}
         issues={validationModal.issues}
         onClose={closeValidationModal}
-      />
-      <SiteValidationModal
-        open={privacyModalOpen}
-        title="Privacy Policy"
-        issues={[SUBSCRIBE_PRIVACY_POLICY_BODY]}
-        onClose={closePrivacyModal}
-        showIcon={false}
       />
     </section>
   );

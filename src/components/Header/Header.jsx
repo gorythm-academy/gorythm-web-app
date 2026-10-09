@@ -313,7 +313,7 @@ const Header = () => {
               <div className="header-logo">
                 <Link to="/" className="logo-link" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
+                    <BrandLogo className="logo-image" alt="Gorythm Academy" width={40} height={40} />
                   </div>
 
                 </Link>
@@ -362,7 +362,7 @@ const Header = () => {
                     <li className="nav-item nav-item--login">
                       {portalHome ? (
                         <NavLink to={portalHome} className="nav-link nav-link--login">
-                          My portal
+                          My Portal
                         </NavLink>
                       ) : (
                         <NavLink to="/login" className="nav-link nav-link--login">
@@ -434,7 +434,7 @@ const Header = () => {
               <div className="mobile-logo">
                 <Link to="/" onClick={closeMobileMenu}>
                   <div className="logo-text">
-                    <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
+                    <BrandLogo className="logo-image" alt="Gorythm Academy" width={40} height={40} />
                   </div>
                 </Link>
               </div>
@@ -516,7 +516,7 @@ const Header = () => {
                 <div className="mobile-menu-left-divider" aria-hidden="true" />
                 <div className="mobile-auth-buttons mobile-auth-anim">
                   {portalHome ? (
-                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My portal</Link>
+                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My Portal</Link>
                   ) : (
                     <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
                   )}
@@ -633,7 +633,7 @@ const Header = () => {
                   <div className="mobile-menu-left-divider" aria-hidden="true" />
                   <div className="mobile-auth-buttons mobile-auth-anim">
                     {portalHome ? (
-                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My portal</Link>
+                    <Link to={portalHome} className="btn btn-mobile-login" onClick={closeMobileMenu}>My Portal</Link>
                   ) : (
                     <Link to="/login" className="btn btn-mobile-login" onClick={closeMobileMenu}>Login</Link>
                   )}
@@ -699,7 +699,7 @@ const Header = () => {
           <div className="menu-grid-header">
             <div className="menu-grid-logo">
               <div className="logo-text">
-                <BrandLogo className="logo-image" alt="Gorythm" width={40} height={40} />
+                <BrandLogo className="logo-image" alt="Gorythm Academy" width={40} height={40} />
               </div>
 
             </div>

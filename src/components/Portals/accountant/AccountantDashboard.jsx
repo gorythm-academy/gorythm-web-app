@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import {
   PortalAlert,
   PortalPageHeader,
@@ -18,8 +18,10 @@ const formatMonth = (monthKey) => {
 };
 
 const AccountantDashboard = () => {
-  const [summary, setSummary] = useState(null);
-  const [payrollMissingAlerts, setPayrollMissingAlerts] = useState([]);
+  const [summary, setSummary] = useState(() => readPortalCache('/accountant/dashboard')?.summary ?? null);
+  const [payrollMissingAlerts, setPayrollMissingAlerts] = useState(
+    () => readPortalCache('/accountant/dashboard')?.payrollMissingAlerts || []
+  );
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -44,7 +46,7 @@ const AccountantDashboard = () => {
           <i className="fa-solid fa-calculator" />
         </div>
         <div>
-          <h2>Welcome back</h2>
+          <h2>Welcome Back</h2>
           <p>Track pending fee proofs, teacher payroll queues, and monthly financial summaries in one place.</p>
         </div>
       </div>

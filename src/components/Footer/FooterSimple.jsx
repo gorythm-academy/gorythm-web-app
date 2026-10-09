@@ -29,7 +29,7 @@ const FooterSimple = () => {
         <div className="footer-milky-top">
           <div className="footer-milky-copy">
             <h2 className="footer-milky-title">Learn, Reflect, and Know Yourself!</h2>
-            <p className="footer-milky-subtitle">Gorythm: An initiative of Al-Farhan Institute</p>
+            <p className="footer-milky-subtitle">Gorythm Academy: An initiative of Al-Farhan Institute</p>
 
             <nav className="footer-milky-nav" aria-label="Footer navigation">
               <NavLink to="/" end>
@@ -83,6 +83,12 @@ const FooterSimple = () => {
         </div>
 
         <div className="footer-milky-bottom">
+          <nav className="footer-milky-legal" aria-label="Legal">
+            <NavLink to="/privacy">Privacy Policy</NavLink>
+            <NavLink to="/terms">Terms of Service</NavLink>
+            <NavLink to="/refunds">Refund Policy</NavLink>
+            <NavLink to="/cookies">Cookie Policy</NavLink>
+          </nav>
           <div className="footer-milky-copyright">
             Gorythm Academy © 2026. All rights reserved.
           </div>

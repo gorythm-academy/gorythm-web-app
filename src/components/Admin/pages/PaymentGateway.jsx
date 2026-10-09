@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
-import { getAuthUserJson } from '../../../utils/authStorage';
+import { getAuthToken } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
 import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
@@ -112,6 +112,7 @@ const PaymentGateway = () => {
     const [validationModal, setValidationModal] = useState({ open: false, title: '', issues: [] });
     const [selectedCourseIds, setSelectedCourseIds] = useState([]);
     const [invoiceMode, setInvoiceMode] = useState('combined');
+    const [autoPayConsent, setAutoPayConsent] = useState(false);
 
     const showNotice = (title, message, type = 'info') => {
         setNotice({ title, message, type });
@@ -459,20 +460,13 @@ const PaymentGateway = () => {
         setCheckoutLoading(true);
         rememberPaymentCourseId(selectedCourse._id);
         try {
-            let userId;
-            try {
-                const raw = getAuthUserJson();
-                if (raw) {
-                    const u = JSON.parse(raw);
-                    if (u?._id) userId = u._id;
-                }
-            } catch {
-                /* ignore */
-            }
-
+            const token = getAuthToken();
             const response = await fetch(`${API_BASE_URL}/api/payments/create-checkout`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({
                     courseId: String(selectedCourse._id),
                     ...(extraCourses.length
@@ -481,7 +475,7 @@ const PaymentGateway = () => {
                               invoiceMode,
                           }
                         : {}),
-                    ...(userId ? { userId: String(userId) } : {}),
+                    autoPay: autoPayConsent,
                 }),
             });
             const { data } = await parseJsonResponse(response);
@@ -757,6 +751,23 @@ const PaymentGateway = () => {
                                                             : `* Charged in ${baseCurrency}.`}
                                                     </p>
                                                 </div>
+                                                <label className="payment-autopay">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={autoPayConsent}
+                                                        onChange={(e) => setAutoPayConsent(e.target.checked)}
+                                                    />
+                                                    <span>
+                                                        <strong>Charge this card automatically each month</strong>
+                                                        <em>
+                                                            Leave this unticked to pay only this checkout.
+                                                            {selectedCourses.length
+                                                                ? ` If you tick it, we save the card and charge ${selectedCourses.map((course) => `${formatFromUsd(Number(course.price || 0))} for ${course.title}`).join('; ')} each later month until the course fees are paid.`
+                                                                : ' If you tick it, we save the card and charge the monthly fee until the course fees are paid.'}
+                                                            {' '}You can turn this off later from your account.
+                                                        </em>
+                                                    </span>
+                                                </label>
                                             </>
                                         ) : (
                                             <div className="payment-bank-info">
@@ -916,6 +927,14 @@ const PaymentGateway = () => {
                                 </>
                             ) : null}
 
+                            <p className="payment-legal-note">
+                                By continuing you agree to our{' '}
+                                <Link to="/terms">Terms of Service</Link>
+                                {' and '}
+                                <Link to="/refunds">Refund Policy</Link>
+                                . Payments are described in the{' '}
+                                <Link to="/privacy">Privacy Policy</Link>.
+                            </p>
                             <div className="payment-footer-row">
                                 <div className="payment-security">
                                     <i className="fas fa-lock"></i>

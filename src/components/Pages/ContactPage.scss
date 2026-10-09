@@ -151,6 +151,8 @@
   color: #c5a45c;
   stroke-width: 2;
   transition: color 0.25s ease;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .contact-page__details li a:hover .contact-page__icon-wrap .contact-page__icon,
@@ -226,9 +228,12 @@
   color: #c5a45c;
   transition: background 0.2s ease, color 0.2s ease;
 
-  svg {
+  svg,
+  i {
     width: 18px;
     height: 18px;
+    font-size: 18px;
+    line-height: 1;
     stroke-width: 2;
   }
 
@@ -294,6 +299,8 @@
 .contact-page__submit-icon {
   width: 18px;
   height: 18px;
+  font-size: 18px;
+  line-height: 1;
   flex-shrink: 0;
   color: currentColor;
   stroke-width: 2.5;
@@ -312,6 +319,10 @@
     width: 18px;
     height: 18px;
     accent-color: #c5a45c;
+  }
+
+  a {
+    color: #c5a45c;
   }
 }
 

@@ -33,6 +33,15 @@ function monthChoiceLabel(item, payMonths, includeCourse = false) {
   return `${name}paying ${payMonths} of ${remainingNow} remaining · ${leftAfter} left after this`;
 }
 
+function rowHasSavedCard(row, savedCards, savedCardsByStudent) {
+  const studentId = String(row?.studentId || row?.raw?.studentId || '');
+  if (Array.isArray(savedCardsByStudent) && savedCardsByStudent.length) {
+    const group = savedCardsByStudent.find((entry) => String(entry?.studentId || '') === studentId);
+    return Array.isArray(group?.cards) && group.cards.length > 0;
+  }
+  return Array.isArray(savedCards) && savedCards.length > 0;
+}
+
 function itemKey(item) {
   return String(item.enrollmentId || item._id || `${item.studentId}-${item.courseId}`);
 }
@@ -66,15 +75,20 @@ function paymentCoversEnrollment(payment, enrollment) {
   }
   const payUser = String(payment.user?._id || payment.user || '');
   const payCourse = String(payment.course?._id || payment.course || '');
+  const payCourseName = String(payment.course?.title || payment.courseName || '').trim().toLowerCase();
   if (payUser && studentId && payUser === studentId && payCourse && courseId && payCourse === courseId) {
+    return true;
+  }
+  if (payUser && studentId && payUser === studentId && courseName && payCourseName === courseName) {
     return true;
   }
   return Boolean(
     email
     && String(payment.email || '').toLowerCase() === email
-    && payCourse
-    && courseId
-    && payCourse === courseId
+    && (
+      (payCourse && courseId && payCourse === courseId)
+      || (courseName && payCourseName === courseName)
+    )
   );
 }
 
@@ -200,6 +214,8 @@ function normalizeEnrollmentRow(item) {
     enrollmentId: item.enrollmentId || item._id,
     studentId: item.studentId || item.student?._id,
     studentName: item.studentName || item.student?.name || '',
+    studentEmail: item.studentEmail || item.student?.personalEmail || item.student?.email || '',
+    courseId: item.courseId || item.course?._id || '',
     courseName: item.courseName || item.course?.title || '—',
     courseCategory: item.courseCategory || item.course?.category || '—',
     enrollmentStatus: normalizeEnrollmentStatus(item.enrollmentStatus || item.status || 'active'),
@@ -256,6 +272,7 @@ const PortalBillingCheckout = ({
   const [invoiceMode, setInvoiceMode] = useState('combined');
   const [months, setMonths] = useState(1);
   const [method, setMethod] = useState('stripe');
+  const [saveCardForAutoPay, setSaveCardForAutoPay] = useState(false);
   const [proofFile, setProofFile] = useState(null);
   const [phone, setPhone] = useState('');
   const [historyError, setHistoryError] = useState('');
@@ -360,7 +377,12 @@ const PortalBillingCheckout = ({
         setPayOpen(false);
         return;
       }
-      await onPayStripe({ enrollmentIds: ids, invoiceMode, months: payMonths });
+      await onPayStripe({
+        enrollmentIds: ids,
+        invoiceMode,
+        months: payMonths,
+        autoPay: saveCardForAutoPay,
+      });
     } catch (err) {
       await showAlert({
         type: 'error',
@@ -392,9 +414,12 @@ const PortalBillingCheckout = ({
 
   const handleDeleteCard = async (group, card) => {
     if (!onDeleteCard) return;
+    const onlyCard = (group.cards || []).length <= 1;
     const ok = await showConfirm({
       title: 'Remove this card?',
-      message: `${savedCardLabel(card)} will be removed from Stripe too.${card.lastUsed ? ' Auto-pay will use another saved card.' : ''}`,
+      message: onlyCard
+        ? `${savedCardLabel(card)} is the last saved card. Removing it turns automatic monthly charges off.`
+        : `${savedCardLabel(card)} will be removed from Stripe too.${card.lastUsed ? ' Auto-pay will use another saved card.' : ''}`,
     });
     if (!ok) return;
     try {
@@ -572,17 +597,17 @@ const PortalBillingCheckout = ({
       <div className="portal-panel portal-billing-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>Your courses</h2>
+            <h2>{groupByChild ? "Children's Courses" : 'Your Courses'}</h2>
             <p>Fee status, due date, and a Pay button when a course still needs payment.</p>
           </div>
           {unpaidItems.length ? (
             <button type="button" className="portal-billing-pay" disabled={busy} onClick={() => openPayOverlay()}>
-              Pay fees
+              Pay Fees
             </button>
           ) : null}
         </div>
         <div className="portal-panel__body">
-          <PortalDataSection loading={loading} error={error} loadingLabel="Loading your courses…">
+          <PortalDataSection loading={loading} error={error} loadingLabel={groupByChild ? "Loading children's courses…" : 'Loading your courses…'}>
             {enrollmentRows.length === 0 ? (
               <p className="portal-empty">{emptyEnrollmentsText}</p>
             ) : (
@@ -592,9 +617,9 @@ const PortalBillingCheckout = ({
                     <tr>
                       {groupByChild ? <th>Child</th> : null}
                       <th>Course</th>
-                      <th>Course status</th>
+                      <th>Course Status</th>
                       <th>Fee</th>
-                      <th>Due date</th>
+                      <th>Due Date</th>
                       <th>Amount</th>
                       <th className="portal-billing-pay-col">Pay</th>
                     </tr>
@@ -664,14 +689,14 @@ const PortalBillingCheckout = ({
                             ) : (
                               <span className="portal-billing-sub">—</span>
                             )}
-                            {onToggleAutoPay && !row.raw?.allFeesPaid && !row.noFee && String(row.enrollmentStatus || '').toLowerCase() !== 'paused' ? (
+                            {onToggleAutoPay && !row.raw?.allFeesPaid && !row.noFee && String(row.enrollmentStatus || '').toLowerCase() !== 'paused' && (row.autoPayEnabled || rowHasSavedCard(row, savedCards, savedCardsByStudent)) ? (
                               <button
                                 type="button"
                                 className="portal-billing-invoice-btn"
                                 disabled={busy}
                                 onClick={() => handleToggleAutoPay(row)}
                               >
-                                {row.autoPayEnabled ? 'Turn off auto-pay' : 'Turn on auto-pay'}
+                                {row.autoPayEnabled ? 'Turn off Auto-Pay' : 'Turn on Auto-Pay'}
                               </button>
                             ) : null}
                             </div>
@@ -691,31 +716,30 @@ const PortalBillingCheckout = ({
         <div className="portal-panel portal-billing-panel">
           <div className="portal-panel__head">
             <div>
-              <h2>Saved cards</h2>
-              <p>Cards Stripe saved from card payments. Auto-pay uses the last card that paid a fee. One card must stay saved.</p>
+              <h2>Saved Cards</h2>
+              <p>Cards saved from card payments. Auto-pay uses the last card that paid a fee. Removing the last card turns automatic monthly charges off.</p>
             </div>
           </div>
           <div className="portal-panel__body">
             {cardGroups.map((group) => (
               <div key={String(group.studentId || 'cards')} className="portal-billing-group">
                 {group.studentName ? <h3>{group.studentName}</h3> : null}
-                <ul className="portal-billing-lines">
+                <ul className="portal-billing-cards">
                   {group.cards.map((card) => (
-                    <li key={card.id}>
-                      {savedCardLabel(card)}
-                      {card.lastUsed ? ' · last used' : ''}
-                      {onDeleteCard && group.cards.length > 1 ? (
-                        <>
-                          {' · '}
-                          <button
-                            type="button"
-                            className="portal-billing-invoice-btn"
-                            disabled={busy}
-                            onClick={() => handleDeleteCard(group, card)}
-                          >
-                            Remove
-                          </button>
-                        </>
+                    <li key={card.id} className="portal-billing-card">
+                      <span>
+                        {savedCardLabel(card)}
+                        {card.lastUsed ? <span className="portal-billing-sub">Last used</span> : null}
+                      </span>
+                      {onDeleteCard ? (
+                        <button
+                          type="button"
+                          className="portal-billing-invoice-btn"
+                          disabled={busy}
+                          onClick={() => handleDeleteCard(group, card)}
+                        >
+                          Remove
+                        </button>
                       ) : null}
                     </li>
                   ))}
@@ -729,14 +753,14 @@ const PortalBillingCheckout = ({
       <div className="portal-panel portal-billing-panel">
         <div className="portal-panel__head">
           <div>
-            <h2>Payment history</h2>
+            <h2>Payment History</h2>
             <p>
               Click Invoice to download. Rows with more than one course let you choose a combined invoice or separate invoices.
             </p>
           </div>
           {invoiceDownloadTargets.length ? (
             <button type="button" className="portal-billing-download-all" onClick={openDownloadAllPicker} disabled={busy || Boolean(downloadingKey)}>
-              {downloadingKey === 'all' ? 'Downloading…' : 'Download all invoices'}
+              {downloadingKey === 'all' ? 'Downloading…' : 'Download All Invoices'}
             </button>
           ) : null}
         </div>
@@ -824,7 +848,7 @@ const PortalBillingCheckout = ({
       </div>
 
       {payOpen ? (
-        <PortalModal title="Pay course fees" tone={tone} kicker="Billing" onClose={() => {
+        <PortalModal title="Pay Course Fees" tone={tone} kicker="Billing" onClose={() => {
           if (busy) return;
           setPayOpen(false);
         }} wide>
@@ -845,7 +869,7 @@ const PortalBillingCheckout = ({
                           <th className="portal-billing-check-col">Pay</th>
                           <th>Course</th>
                           <th>Amount</th>
-                          <th>Due date</th>
+                          <th>Due Date</th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -984,6 +1008,26 @@ const PortalBillingCheckout = ({
                 </label>
               </fieldset>
 
+              {method === 'stripe' && selectedItems.length ? (
+                <fieldset className="portal-billing-options" disabled={busy}>
+                  <legend>Automatic monthly charges</legend>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={saveCardForAutoPay}
+                      onChange={(e) => setSaveCardForAutoPay(e.target.checked)}
+                    />
+                    Charge this card automatically each month
+                  </label>
+                  <p className="portal-billing-sub">
+                    Leave this unticked to pay only this checkout.
+                    {' '}If you tick it, we save the card and later charge{' '}
+                    {selectedItems.map((item) => `${formatMoney(item.amount)} for ${item.courseName}`).join('; ')}
+                    {' '}each month until the remaining fees are paid. You can turn this off or remove the card later.
+                  </p>
+                </fieldset>
+              ) : null}
+
               {method === 'bank' ? (
                 <div className="portal-billing-bank">
                   <ol className="portal-billing-bank-steps">
@@ -1036,7 +1080,7 @@ const PortalBillingCheckout = ({
       ) : null}
 
       {invoicePicker ? (
-        <PortalModal title="Download invoice" tone={tone} kicker="Invoice" onClose={() => !downloadingKey && setInvoicePicker(null)}>
+        <PortalModal title="Download Invoice" tone={tone} kicker="Invoice" onClose={() => !downloadingKey && setInvoicePicker(null)}>
           <p className="portal-billing-overlay-lead">
             This row includes more than one course. Download one combined invoice, or a separate invoice for each course.
           </p>
@@ -1062,7 +1106,7 @@ const PortalBillingCheckout = ({
       ) : null}
 
       {downloadAllPicker ? (
-        <PortalModal title="Download all invoices" tone={tone} kicker="Invoices" onClose={() => !downloadingKey && setDownloadAllPicker(false)}>
+        <PortalModal title="Download All Invoices" tone={tone} kicker="Invoices" onClose={() => !downloadingKey && setDownloadAllPicker(false)}>
           <p className="portal-billing-overlay-lead">
             Download one PDF of every invoice in this table, or download each invoice as a separate PDF.
           </p>

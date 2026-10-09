@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { portalGet } from '../shared/portalApi';
+import { portalGet, readPortalCache } from '../shared/portalApi';
 import {
   PortalDataSection,
   PortalPageHeader,
@@ -11,6 +11,7 @@ import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal'
 import {
   filterPortalItemsByCourse,
   getItemsNewSinceLastVisit,
+  sortNewestFirst,
   markPortalPageVisited,
 } from '../../../utils/portalNewItems';
 import '../../Admin/pages/LmsManagement.scss';
@@ -19,10 +20,10 @@ import './StudentContent.scss';
 const SEEN_KEY = 'student_content';
 
 const StudentContent = () => {
-  const [courses, setCourses] = useState([]);
-  const [resources, setResources] = useState([]);
+  const [courses, setCourses] = useState(() => readPortalCache('/student/content')?.courses || []);
+  const [resources, setResources] = useState(() => readPortalCache('/student/content')?.resources || []);
   const [courseFilter, setCourseFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPortalCache('/student/content'));
   const [error, setError] = useState('');
   const [previewResource, setPreviewResource] = useState(null);
   const [newItems, setNewItems] = useState([]);
@@ -56,11 +57,13 @@ const StudentContent = () => {
   );
 
   const filteredResources = useMemo(() => {
-    if (!courseFilter || courseFilter === 'all') return resources;
-    return resources.filter((r) => {
-      const id = r.course?._id || r.course;
-      return id && String(id) === String(courseFilter);
-    });
+    const list = !courseFilter || courseFilter === 'all'
+      ? resources
+      : resources.filter((r) => {
+          const id = r.course?._id || r.course;
+          return id && String(id) === String(courseFilter);
+        });
+    return sortNewestFirst(list);
   }, [resources, courseFilter]);
 
   const visibleNew = useMemo(

@@ -32,13 +32,13 @@ import ahmedPng from '../../assets/images/our team/ahmed.png';
 import ahmedWebp from '../../assets/images/our team/ahmed.webp';
 import ahmedAvif from '../../assets/images/our team/ahmed.avif';
 
-import muhammadMunimAnsariPng from '../../assets/images/our team/Muhammad Munim Ansari.png';
-import muhammadMunimAnsariWebp from '../../assets/images/our team/Muhammad Munim Ansari.webp';
-import muhammadMunimAnsariAvif from '../../assets/images/our team/Muhammad Munim Ansari.avif';
+import muhammadMunimAnsariPng from '../../assets/images/our team/muhammad-munim-ansari.png';
+import muhammadMunimAnsariWebp from '../../assets/images/our team/muhammad-munim-ansari.webp';
+import muhammadMunimAnsariAvif from '../../assets/images/our team/muhammad-munim-ansari.avif';
 
-import usmanAliPng from '../../assets/images/our team/Usman Ali.png';
-import usmanAliWebp from '../../assets/images/our team/Usman Ali.webp';
-import usmanAliAvif from '../../assets/images/our team/Usman Ali.avif';
+import usmanAliPng from '../../assets/images/our team/usman-ali.png';
+import usmanAliWebp from '../../assets/images/our team/usman-ali.webp';
+import usmanAliAvif from '../../assets/images/our team/usman-ali.avif';
 
 import fatimaPng from '../../assets/images/our team/fatima.png';
 import fatimaWebp from '../../assets/images/our team/fatima.webp';
@@ -56,9 +56,9 @@ import shahmeerPng from '../../assets/images/our team/shahmeer.png';
 import shahmeerWebp from '../../assets/images/our team/shahmeer.webp';
 import shahmeerAvif from '../../assets/images/our team/shahmeer.avif';
 
-import gulsenPng from '../../assets/images/our team/Gülsen Yazici.png';
-import gulsenWebp from '../../assets/images/our team/Gülsen Yazici.webp';
-import gulsenAvif from '../../assets/images/our team/Gülsen Yazici.avif';
+import gulsenPng from '../../assets/images/our team/gulsen-yazici.png';
+import gulsenWebp from '../../assets/images/our team/gulsen-yazici.webp';
+import gulsenAvif from '../../assets/images/our team/gulsen-yazici.avif';
 
 import './AboutPage.scss';
 
@@ -73,7 +73,7 @@ const values = [
   {
     title: 'Community',
     description:
-      'True learning is a shared pursuit. We curate environments where individuals do not merely study in parallel—they evolve in community. At Gorythm, you are recognized by your unique perspective, your distinct journey, and the vital purpose you bring to the collective space.',
+      'True learning is a shared pursuit. We curate environments where individuals do not merely study in parallel—they evolve in community. At Gorythm Academy, you are recognized by your unique perspective, your distinct journey, and the vital purpose you bring to the collective space.',
   },
   {
     title: 'Excellence',
@@ -83,7 +83,7 @@ const values = [
   {
     title: 'Faith',
     description:
-      'Gorythm prioritizes timeless truths over changing trends. Faith is not a separate piece of what we do—it is the core reality of who we are. It is the uncompromised foundation from which every program, insight, and framework we offer is built.',
+      'Gorythm Academy prioritizes timeless truths over changing trends. Faith is not a separate piece of what we do—it is the core reality of who we are. It is the uncompromised foundation from which every program, insight, and framework we offer is built.',
   },
 ];
 
@@ -93,7 +93,7 @@ const statementWords = ['emotionally', 'physically', 'intellectually'];
 const teamMembers = [
   {
     name: 'Shazia Shahab',
-    role: 'CEO, Gorythm',
+    role: 'CEO, Gorythm Academy',
     country: 'Netherlands',
     raster: { avif: shaziaAvif, webp: shaziaWebp, png: shaziaPng },
   },
@@ -117,32 +117,32 @@ const teamMembers = [
   },
   {
     name: 'Fatima Rashid',
-    role: 'Communications Specialist, Gorythm',
+    role: 'Communications Specialist, Gorythm Academy',
     country: 'Pakistan',
     raster: { avif: fatimaAvif, webp: fatimaWebp, png: fatimaPng },
   },
   {
     name: 'Asma Seher',
-    role: 'Operations Manager, Gorythm',
+    role: 'Operations Manager, Gorythm Academy',
     country: 'Pakistan',
     imageFit: 'contain',
     raster: { avif: asmaSeherAvif, webp: asmaSeherWebp, png: asmaSeherPng },
   },
   {
     name: 'Muhammad Munim Ansari',
-    role: 'Administrator, Gorythm',
+    role: 'Administrator, Gorythm Academy',
     country: 'Pakistan',
     raster: { avif: muhammadMunimAnsariAvif, webp: muhammadMunimAnsariWebp, png: muhammadMunimAnsariPng },
   },
   {
     name: 'Usman Ali',
-    role: 'Human Resource, Gorythm',
+    role: 'Human Resource, Gorythm Academy',
     country: 'Pakistan',
     raster: { avif: usmanAliAvif, webp: usmanAliWebp, png: usmanAliPng },
   },
   {
     name: 'Syed Shahmeer Ahmed',
-    role: 'Accounts, Gorythm',
+    role: 'Accounts, Gorythm Academy',
     country: 'Pakistan',
     raster: { avif: shahmeerAvif, webp: shahmeerWebp, png: shahmeerPng },
   },
@@ -290,7 +290,7 @@ const AboutPage = () => {
                   avifSrc={aboutIntroAvif}
                   webpSrc={aboutIntroWebp}
                   fallbackSrc={aboutIntroPng}
-                  alt="About Gorythm"
+                  alt="About Gorythm Academy"
                   loading="lazy"
                   width={800}
                   height={500}
@@ -301,7 +301,7 @@ const AboutPage = () => {
             <div className="about-page-dark__intro-copy">
               <h2>Four principles behind every program</h2>
               <p>
-              Everything you learn at Gorythm is well-researched, developed, reviewed, and carefully structured to deliver clear, and defined concepts.
+              Everything you learn at Gorythm Academy is well-researched, developed, reviewed, and carefully structured to deliver clear, and defined concepts.
               </p>
               <ul className="about-page-dark__intro-points">
                 <li>
@@ -358,20 +358,20 @@ const AboutPage = () => {
           <section className="about-page-dark__about-gorythm">
             <div className="about-page-dark__about-gorythm-block">
               <span className="about-page-dark__eyebrow about-page-dark__eyebrow--center">
-                About Gorythm
+                About Gorythm Academy
               </span>
               <div className="about-page-dark__section-copy">
                 <p>
                   Born from Al Farhan Academy. Built for transformation.
                 </p>
                 <p>
-                Gorythm began with a single, unshakeable conviction: education was never meant to be mere content delivery. It was always meant to be transformation.
+                Gorythm Academy began with a single, unshakeable conviction: education was never meant to be mere content delivery. It was always meant to be transformation.
                 </p>
                 <p>
                 We kept witnessing the exact same modern symptom—students who knew more but understood less; individuals who could absorb information but could not reflect; and knowledge that accumulated in the mind but never deepened into wisdom, character, or faith.
                 </p>
                 <p>
-                Gorythm was built to fix that exact detachment.
+                Gorythm Academy was built to fix that exact detachment.
                 </p>
                 <p>
                 The ultimate goal was never to discard knowledge, but to challenge the illusions of what we think is correct.
@@ -383,7 +383,7 @@ const AboutPage = () => {
                 Our curriculum and experiences are engineered for precise outcomes such as building self-awareness, securing your faith, and empowering you to live with absolute clarity in an increasingly fragmented world.
                 </p>
                 <p>
-                That is what Gorythm is here for.
+                That is what Gorythm Academy is here for.
                 </p>
               </div>
             </div>

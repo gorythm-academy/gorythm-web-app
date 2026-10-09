@@ -257,12 +257,15 @@
       color: #334155;
     }
 
-    input {
+    input,
+    textarea {
       width: 100%;
       padding: 0.62rem 0.75rem;
       border: 1px solid var(--spa-border);
       border-radius: 10px;
       font-size: 0.92rem;
+      font-family: inherit;
+      color: var(--spa-text);
       background: #fff;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
 
@@ -271,6 +274,12 @@
         border-color: color-mix(in srgb, var(--spa-accent) 55%, #fff);
         box-shadow: 0 0 0 3px var(--spa-accent-soft);
       }
+    }
+
+    textarea {
+      min-height: 8.5rem;
+      resize: vertical;
+      line-height: 1.5;
     }
   }
 

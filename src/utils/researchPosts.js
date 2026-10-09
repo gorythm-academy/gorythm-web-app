@@ -25,7 +25,7 @@ export function normalizeApiPost(post) {
     imagePath: post.imagePath || '',
     category: post.category || 'General',
     tags: post.tags || [],
-    author: post.author || 'Gorythm Team',
+    author: post.author || 'Gorythm Academy Team',
     date: post.date || '',
     publishedAt: post.publishedAt,
     isPublished: post.isPublished !== false,
@@ -80,20 +80,6 @@ export function getResearchPostImage(post) {
     };
   }
   return null;
-}
-
-export function researchTagFromSlug(slug) {
-  if (!slug) return null;
-  const normalized = String(slug).toLowerCase();
-  return {
-    slug: normalized,
-    name: normalized
-      .split('-')
-      .filter(Boolean)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' '),
-    description: '',
-  };
 }
 
 export function formatResearchContentHtml(content) {

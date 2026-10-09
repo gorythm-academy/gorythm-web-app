@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { portalGet } from './portalApi';
+import { portalGet, readPortalCache } from './portalApi';
 import { PortalDataSection, PortalLoading } from './PortalUi';
 import { statusChipClass } from '../../../constants/attendanceStatuses';
 import {
@@ -259,7 +259,18 @@ const AttendancePeriodView = ({
       setLoadingCourses(false);
       return;
     }
-    setLoadingCourses(true);
+    const cachedCourses = readPortalCache(coursesUrl);
+    if (cachedCourses?.courses) {
+      const list = cachedCourses.courses;
+      setCourses(list);
+      setCourseId((prev) => {
+        if (prev && list.some((c) => String(c._id) === String(prev))) return prev;
+        return list[0]?._id || '';
+      });
+      setLoadingCourses(false);
+    } else {
+      setLoadingCourses(true);
+    }
     setError('');
     portalGet(coursesUrl)
       .then((res) => {
@@ -287,15 +298,22 @@ const AttendancePeriodView = ({
       setData(null);
       return;
     }
-    setLoadingView(true);
-    setData(null);
-    setError('');
     const q = new URLSearchParams({
       courseId,
       period,
       date: dateParam,
     });
-    portalGet(`${viewUrl}?${q}`)
+    const viewPath = `${viewUrl}?${q}`;
+    const cachedView = readPortalCache(viewPath);
+    if (cachedView) {
+      setData(cachedView);
+      setLoadingView(false);
+    } else {
+      setLoadingView(true);
+      setData(null);
+    }
+    setError('');
+    portalGet(viewPath)
       .then((res) => {
         if (res.success) {
           setData(res);

@@ -77,6 +77,14 @@ module.exports = async (req, res) => {
                 }
                 break;
             }
+            case 'payment_intent.succeeded': {
+                const intent = event.data.object;
+                if (String(intent?.metadata?.autoPay || '') === '1') {
+                    const { settleAutoPayPaymentIntent } = require('../services/billingAutoPay');
+                    await settleAutoPayPaymentIntent(intent);
+                }
+                break;
+            }
             case 'payment_intent.payment_failed': {
                 const intent = event.data.object;
                 const msg = intent.last_payment_error?.message || 'Payment failed';
@@ -84,6 +92,10 @@ module.exports = async (req, res) => {
                     { stripePaymentIntentId: intent.id },
                     { status: 'failed', failureReason: msg }
                 );
+                if (String(intent?.metadata?.autoPay || '') === '1') {
+                    const { noteAutoPayStripeFailure } = require('../services/billingAutoPay');
+                    await noteAutoPayStripeFailure(intent);
+                }
                 break;
             }
             case 'charge.refunded': {

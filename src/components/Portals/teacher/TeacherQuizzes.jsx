@@ -8,6 +8,7 @@ import QuizPreviewModal from '../shared/QuizPreviewModal';
 import { collectQuizUpdateNotices } from '../../../utils/adminEditNotices';
 import { TEACHER_SEEN_QUIZ_UPDATES } from '../../../utils/portalNewItems';
 import { portalDocId } from '../../../utils/portalDocId';
+import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
 import { formatScore } from '../../../utils/formatScore';
 import { usePortalDialog } from '../shared/PortalDialogContext';
 import {
@@ -25,6 +26,8 @@ const EMPTY_FORM = {
   quizType: 'mcq',
   title: '',
   courseId: '',
+  scheduleIds: [],
+  scheduleId: '',
   totalMarks: '',
   dueDate: '',
   resourceLink: '',
@@ -44,6 +47,7 @@ const OPTION_LABELS = ['A', 'B', 'C'];
 const TeacherQuizzes = () => {
   const { showAlert, showConfirm } = usePortalDialog();
   const [courses, setCourses] = useState([]);
+  const [teacherSchedules, setTeacherSchedules] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,21 +66,24 @@ const TeacherQuizzes = () => {
 
   const notify = (message, type = 'info') => showAlert({ message, type });
 
-  const quizUpdateNotices = useMemo(
-    () => collectQuizUpdateNotices(quizzes, { storageKey: TEACHER_SEEN_QUIZ_UPDATES, audience: 'teacher' }),
-    [quizzes, updateTick]
-  );
+  const quizUpdateNotices = useMemo(() => {
+    void updateTick;
+    return collectQuizUpdateNotices(quizzes, { storageKey: TEACHER_SEEN_QUIZ_UPDATES, audience: 'teacher' });
+  }, [quizzes, updateTick]);
 
   const reload = async () => {
     setLoadError('');
     const results = await Promise.allSettled([
       portalGet('/teacher/courses'),
+      portalGet('/teacher/schedule'),
       portalGet('/teacher/quizzes'),
       portalGet('/teacher/quiz-attempts'),
     ]);
-    const [c, q, a] = results;
+    const [c, sch, q, a] = results;
     if (c.status === 'fulfilled' && c.value.success) setCourses(c.value.courses || []);
     else setLoadError((prev) => prev || (c.status === 'fulfilled' ? c.value.error : c.reason?.message) || 'Could not load courses.');
+    if (sch.status === 'fulfilled' && sch.value.success) setTeacherSchedules(sch.value.schedules || []);
+    else setLoadError((prev) => prev || (sch.status === 'fulfilled' ? sch.value.error : sch.reason?.message) || 'Could not load class slots.');
     if (q.status === 'fulfilled' && q.value.success) setQuizzes(q.value.quizzes || []);
     else setLoadError((prev) => prev || (q.status === 'fulfilled' ? q.value.error : q.reason?.message) || 'Could not load quizzes.');
     if (a.status === 'fulfilled' && a.value.success) {
@@ -90,6 +97,13 @@ const TeacherQuizzes = () => {
     () => courses.map((c) => ({ _id: portalDocId(c), title: c.title })),
     [courses]
   );
+
+  const courseScheduleOptions = useMemo(() => {
+    if (!form.courseId) return [];
+    return teacherSchedules.filter(
+      (slot) => String(slot.course?._id || slot.course) === String(form.courseId)
+    );
+  }, [teacherSchedules, form.courseId]);
 
   const filteredQuizzes = useMemo(
     () => filterPortalItemsByCourse(quizzes, quizCourseFilter),
@@ -195,9 +209,19 @@ const TeacherQuizzes = () => {
         }
       }
     }
+    if (editingId) {
+      if (!form.scheduleId) {
+        notify('Select a class slot.', 'warning');
+        return;
+      }
+    } else if (!form.scheduleIds.length) {
+      notify('Select at least one class slot.', 'warning');
+      return;
+    }
     const body = {
       quizType,
       courseId: form.courseId,
+      ...(editingId ? { scheduleId: form.scheduleId } : { scheduleIds: form.scheduleIds }),
       title: form.title,
       totalMarks: quizType === 'file' || form.totalMarks === '' ? null : Number(form.totalMarks),
       dueDate: form.dueDate || null,
@@ -220,8 +244,12 @@ const TeacherQuizzes = () => {
         await portalPatch(`/teacher/quizzes/${id}`, body);
         notify('Quiz updated.', 'success');
       } else {
-        await portalPost('/teacher/quizzes', body);
-        notify('Quiz published.', 'success');
+        const result = await portalPost('/teacher/quizzes', body);
+        const n = result.createdCount || 1;
+        notify(
+          `${n} quiz${n === 1 ? '' : 'zes'} published. Visible only to students on the selected class slot${n === 1 ? '' : 's'}.`,
+          'success'
+        );
       }
       resetForm();
       reload();
@@ -251,6 +279,8 @@ const TeacherQuizzes = () => {
       quizType: q.quizType === 'file' ? 'file' : 'mcq',
       title: q.title || '',
       courseId: String(q.course?._id || q.course || ''),
+      scheduleIds: [],
+      scheduleId: String(q.assignedSchedule?._id || q.assignedSchedule || ''),
       totalMarks: q.totalMarks != null ? String(q.totalMarks) : '',
       dueDate: q.dueDate ? new Date(q.dueDate).toISOString().slice(0, 10) : '',
       resourceLink: q.resourceLink || '',
@@ -264,7 +294,6 @@ const TeacherQuizzes = () => {
         : [{ ...EMPTY_Q }],
     });
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const deleteQuiz = async (q) => {
@@ -332,6 +361,7 @@ const TeacherQuizzes = () => {
           </span>
         </td>
         <td>{r.course?.title}</td>
+        <td>{r.assignedSchedule ? formatScheduleTimeLabel(r.assignedSchedule) : '—'}</td>
         <td>
           {r.quizType === 'file' ? '—' : <span className="teacher-quizzes__pill">{r.questions?.length ?? 0}</span>}
         </td>
@@ -411,6 +441,24 @@ const TeacherQuizzes = () => {
       />
 
       <div className="teacher-quizzes__layout">
+
+        <div className="teacher-quizzes__main">
+        <section className="teacher-quizzes__library">
+          <div className="teacher-quizzes__library-head">
+            <h2>Your Quizzes</h2>
+            <div className="teacher-quizzes__library-actions">
+              {renderCourseFilter(quizCourseFilter, setQuizCourseFilter, filteredQuizzes.length)}
+              {!showForm ? (
+                <button
+                  type="button"
+                  className="teacher-quizzes__make-btn"
+                  onClick={() => setShowForm(true)}
+                >
+                  <i className="fas fa-plus" aria-hidden="true" /> Make a Quiz
+                </button>
+              ) : null}
+            </div>
+          </div>
         {showForm ? (
         <aside className="teacher-quizzes__form-panel">
           <div className="teacher-quizzes__form-head">
@@ -474,7 +522,9 @@ const TeacherQuizzes = () => {
               <span>Course <RequiredMark /></span>
               <select
                 value={form.courseId}
-                onChange={(e) => setForm({ ...form, courseId: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, courseId: e.target.value, scheduleIds: [], scheduleId: '' })
+                }
                 required
               >
                 <option value="">Select course</option>
@@ -485,6 +535,79 @@ const TeacherQuizzes = () => {
                 ))}
               </select>
             </label>
+            {editingId ? (
+              <label className="portal-field-label">
+                <span>Class slot <RequiredMark /></span>
+                <select
+                  value={form.scheduleId}
+                  onChange={(e) => setForm({ ...form, scheduleId: e.target.value })}
+                  required
+                >
+                  <option value="">Select class slot</option>
+                  {courseScheduleOptions.map((slot) => (
+                    <option key={slot._id} value={slot._id}>
+                      {formatScheduleLabel(slot)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="teacher-quizzes__slot-select">
+                <div className="teacher-quizzes__slot-head">
+                  <span>Class slots <RequiredMark /></span>
+                  {courseScheduleOptions.length ? (
+                    <label className="teacher-quizzes__slot-all">
+                      <input
+                        type="checkbox"
+                        checked={
+                          courseScheduleOptions.length > 0 &&
+                          courseScheduleOptions.every((slot) =>
+                            form.scheduleIds.includes(String(slot._id))
+                          )
+                        }
+                        onChange={() => {
+                          const allIds = courseScheduleOptions.map((slot) => String(slot._id));
+                          const allSelected =
+                            allIds.length > 0 && allIds.every((id) => form.scheduleIds.includes(id));
+                          setForm({ ...form, scheduleIds: allSelected ? [] : allIds });
+                        }}
+                      />
+                      <span>Select all</span>
+                    </label>
+                  ) : null}
+                </div>
+                {form.courseId && courseScheduleOptions.length ? (
+                  <div className="teacher-quizzes__slot-grid">
+                    {courseScheduleOptions.map((slot) => {
+                      const id = String(slot._id);
+                      return (
+                        <label key={id} className="teacher-quizzes__slot-item">
+                          <input
+                            type="checkbox"
+                            checked={form.scheduleIds.includes(id)}
+                            onChange={() =>
+                              setForm({
+                                ...form,
+                                scheduleIds: form.scheduleIds.includes(id)
+                                  ? form.scheduleIds.filter((rowId) => rowId !== id)
+                                  : [...form.scheduleIds, id],
+                              })
+                            }
+                          />
+                          <span>{formatScheduleLabel(slot)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="teacher-quizzes__slot-hint">
+                    {form.courseId
+                      ? 'No class times are listed for this course yet. Please contact the academy.'
+                      : 'Select a course to choose class times.'}
+                  </p>
+                )}
+              </div>
+            )}
             {form.quizType !== 'file' ? (
               <label className="portal-field-label">
                 <span>Total marks (optional)</span>
@@ -603,23 +726,6 @@ const TeacherQuizzes = () => {
         </aside>
         ) : null}
 
-        <div className="teacher-quizzes__main">
-        <section className="teacher-quizzes__library">
-          <div className="teacher-quizzes__library-head">
-            <h2>Your Quizzes</h2>
-            <div className="teacher-quizzes__library-actions">
-              {renderCourseFilter(quizCourseFilter, setQuizCourseFilter, filteredQuizzes.length)}
-              {!showForm ? (
-                <button
-                  type="button"
-                  className="teacher-quizzes__make-btn"
-                  onClick={() => setShowForm(true)}
-                >
-                  <i className="fas fa-plus" aria-hidden="true" /> Make a Quiz
-                </button>
-              ) : null}
-            </div>
-          </div>
           <div className="teacher-quizzes__list-wrap">
             <table className="teacher-quizzes__table">
               <thead>
@@ -627,6 +733,7 @@ const TeacherQuizzes = () => {
                   <th>Title</th>
                   <th>Type</th>
                   <th>Course</th>
+                  <th>Class slot</th>
                   <th>Questions</th>
                   <th>Max Marks</th>
                   <th>Due</th>
@@ -638,7 +745,7 @@ const TeacherQuizzes = () => {
                 {quizGroups
                   ? quizGroups.flatMap((group) => [
                       <tr key={`head-${group.courseId}`} className="teacher-quizzes__course-row">
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           <span className="portal-course-group__title">{group.title}</span>
                         </td>
                       </tr>,
@@ -673,7 +780,9 @@ const TeacherQuizzes = () => {
                 <option value="">All quizzes</option>
                 {quizzesForSubmissionFilter.map((q) => (
                   <option key={portalDocId(q)} value={portalDocId(q)}>
-                    {q.title}
+                    {q.assignedSchedule
+                      ? `${q.title} (${formatScheduleTimeLabel(q.assignedSchedule)})`
+                      : q.title}
                   </option>
                 ))}
                 </select>

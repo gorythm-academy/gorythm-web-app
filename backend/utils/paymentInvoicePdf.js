@@ -311,7 +311,7 @@ function buildProfessionalInvoicePdf(payment, { lineFilter = null, historyRows =
     text('F2', 14, nameLeft, headerTop - 11, 'Gorythm Academy');
     ops.push('0.35 0.35 0.35 rg');
     text('F1', 9, nameLeft, headerTop - 26, 'www.gorythmacademy.com');
-    text('F1', 9, nameLeft, headerTop - 38, 'info@gorythmacademy.com');
+    text('F1', 9, nameLeft, headerTop - 38, 'gorythm.academy@gmail.com');
 
     ops.push(`0.96 0.96 0.96 rg ${INVOICE_BOX_X} ${invoiceBoxY} ${INVOICE_BOX_W} ${INVOICE_BOX_H} re f`);
     ops.push(`0 0 0 RG ${INVOICE_BOX_X} ${invoiceBoxY} ${INVOICE_BOX_W} ${INVOICE_BOX_H} re S`);
@@ -606,7 +606,7 @@ function buildStatementInvoicePdf(payment, { historyRows = [] } = {}) {
         textOn(ops, 'F2', 14, nameLeft, headerTop - 11, 'Gorythm Academy');
         ops.push('0.35 0.35 0.35 rg');
         textOn(ops, 'F1', 9, nameLeft, headerTop - 26, 'www.gorythmacademy.com');
-        textOn(ops, 'F1', 9, nameLeft, headerTop - 38, 'info@gorythmacademy.com');
+        textOn(ops, 'F1', 9, nameLeft, headerTop - 38, 'gorythm.academy@gmail.com');
         ops.push(`0.96 0.96 0.96 rg ${INVOICE_BOX_X} ${invoiceBoxY} ${INVOICE_BOX_W} ${INVOICE_BOX_H} re f`);
         ops.push(`0 0 0 RG ${INVOICE_BOX_X} ${invoiceBoxY} ${INVOICE_BOX_W} ${INVOICE_BOX_H} re S`);
         ops.push('0 0 0 rg');

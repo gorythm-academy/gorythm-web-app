@@ -20,7 +20,7 @@ export function PaymentCancel() {
             Return to payment
           </Link>
           <Link to="/courses" className="payment-result-link payment-result-link--secondary">
-            Browse courses
+            Browse Courses
           </Link>
         </div>
       </div>
