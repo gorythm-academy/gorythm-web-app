@@ -4,7 +4,7 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
-import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
+import { ProtectedFileFrame, ProtectedFileImage, ProtectedFileLink } from '../../../utils/fileUrl';
 import { useAdminDialog } from '../AdminDialogContext';
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import { markPortalPageVisited, ADMIN_SEEN_PAYMENTS } from '../../../utils/portalNewItems';
@@ -42,8 +42,19 @@ const COLUMN_DEFS = [
     'date',
     'actions',
 ];
-const DEFAULT_COLUMN_WIDTHS = [60, 240, 200, 200, 120, 200, 130, 110, 110, 170, 1];
 const COLUMN_MIN_WIDTHS = [50, 140, 140, 140, 90, 140, 96, 100, 100, 130, 90];
+const TXN_COL_INDEX = 1;
+// Phone portrait only (≤767px). 132px fits three Courier characters plus the ellipsis.
+const MOBILE_PORTRAIT_QUERY = '(max-width: 767px) and (orientation: portrait)';
+const TXN_WIDTH_MOBILE_PORTRAIT = 132;
+const isMobilePortraitViewport = () => (
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_PORTRAIT_QUERY).matches
+);
+const txnColumnWidth = (mobilePortrait) => (
+    mobilePortrait ? TXN_WIDTH_MOBILE_PORTRAIT : COLUMN_MIN_WIDTHS[TXN_COL_INDEX]
+);
+// Transaction ID starts at its narrowest. Widen the column to see the rest.
+const DEFAULT_COLUMN_WIDTHS = [60, COLUMN_MIN_WIDTHS[TXN_COL_INDEX], 200, 200, 120, 200, 130, 110, 110, 170, 420];
 const COLUMN_MAX_WIDTHS = [90, 960, 360, 360, 220, 420, 220, 220, 220, 320, 420];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const PAYMENTS_PAGE_SIZE = 25;
@@ -227,11 +238,33 @@ const PaymentsManagement = () => {
         startScrollLeft: 0,
     });
     const [isTableDragging, setIsTableDragging] = useState(false);
-    const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+    const [columnWidths, setColumnWidths] = useState(() => {
+        const widths = [...DEFAULT_COLUMN_WIDTHS];
+        widths[TXN_COL_INDEX] = txnColumnWidth(isMobilePortraitViewport());
+        return widths;
+    });
+    const txnWidthIsAutomatic = useRef(true);
     const [sortBy, setSortBy] = useState('date');
     const [sortOrder, setSortOrder] = useState('desc');
     const [selectedPayments, setSelectedPayments] = useState([]);
     const selectAllRef = useRef(null);
+
+    useEffect(() => {
+        const media = window.matchMedia(MOBILE_PORTRAIT_QUERY);
+        const applyTxnWidth = () => {
+            if (!txnWidthIsAutomatic.current) return;
+            const nextWidth = txnColumnWidth(media.matches);
+            setColumnWidths((prev) => {
+                if (prev[TXN_COL_INDEX] === nextWidth) return prev;
+                const next = [...prev];
+                next[TXN_COL_INDEX] = nextWidth;
+                return next;
+            });
+        };
+        applyTxnWidth();
+        media.addEventListener('change', applyTxnWidth);
+        return () => media.removeEventListener('change', applyTxnWidth);
+    }, []);
 
     const fetchBankDetails = useCallback(async () => {
         try {
@@ -431,7 +464,10 @@ const PaymentsManagement = () => {
 
         const startX = e.clientX;
         const startWidth = columnWidths[colIndex];
-        const minWidth = COLUMN_MIN_WIDTHS[colIndex] ?? 80;
+        const minWidth = colIndex === TXN_COL_INDEX
+            ? txnColumnWidth(isMobilePortraitViewport())
+            : (COLUMN_MIN_WIDTHS[colIndex] ?? 80);
+        if (colIndex === TXN_COL_INDEX) txnWidthIsAutomatic.current = false;
         const maxWidth = COLUMN_MAX_WIDTHS[colIndex] ?? 600;
         let rafId = null;
         let latestWidth = startWidth;
@@ -462,9 +498,12 @@ const PaymentsManagement = () => {
     };
 
     const resetColumnWidth = (colIndex) => {
+        if (colIndex === TXN_COL_INDEX) txnWidthIsAutomatic.current = true;
         setColumnWidths((prev) => {
             const next = [...prev];
-            next[colIndex] = DEFAULT_COLUMN_WIDTHS[colIndex];
+            next[colIndex] = colIndex === TXN_COL_INDEX
+                ? txnColumnWidth(isMobilePortraitViewport())
+                : DEFAULT_COLUMN_WIDTHS[colIndex];
             return next;
         });
     };
@@ -622,9 +661,9 @@ const PaymentsManagement = () => {
     const handlePermanentDelete = async (paymentId) => {
         if (listTab !== 'trash' || trashBusy) return;
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: 'Are you sure? This payment cannot be restored later.',
-            confirmLabel: 'Delete permanently',
+            confirmLabel: 'Delete Permanently',
             destructive: true,
         });
         if (!confirmed) return;
@@ -646,9 +685,9 @@ const PaymentsManagement = () => {
     const handlePermanentDeleteSelected = async () => {
         if (listTab !== 'trash' || !selectedPayments.length || trashBusy) return;
         const confirmed = await showConfirm({
-            title: 'Delete permanently?',
+            title: 'Delete Permanently?',
             message: `Are you sure you want to permanently delete ${selectedPayments.length} selected payment(s)? They cannot be restored later.`,
-            confirmLabel: 'Delete permanently',
+            confirmLabel: 'Delete Permanently',
             destructive: true,
         });
         if (!confirmed) return;
@@ -944,6 +983,8 @@ const PaymentsManagement = () => {
         }
     };
 
+    const paymentsTableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+
     if (loading && !lastFetchedAt && !fetchError) {
         return (
             <div className="payments-management loading">
@@ -1117,7 +1158,7 @@ const PaymentsManagement = () => {
                     tabIndex={0}
                     onClick={() => setFilterStatus('paid')}
                     onKeyDown={(e) => onStatCardKeyDown(e, 'paid')}
-                    title="Show paid payments"
+                    title="Show Paid Payments"
                 >
                     <div className="stat-icon revenue">
                         <i className="fas fa-dollar-sign"></i>
@@ -1133,7 +1174,7 @@ const PaymentsManagement = () => {
                     tabIndex={0}
                     onClick={() => setFilterStatus('paid')}
                     onKeyDown={(e) => onStatCardKeyDown(e, 'paid')}
-                    title="Show paid payments"
+                    title="Show Paid Payments"
                 >
                     <div className="stat-icon success">
                         <i className="fas fa-check-circle"></i>
@@ -1149,7 +1190,7 @@ const PaymentsManagement = () => {
                     tabIndex={0}
                     onClick={() => setFilterStatus('pending')}
                     onKeyDown={(e) => onStatCardKeyDown(e, 'pending')}
-                    title="Show pending payments"
+                    title="Show Pending Payments"
                 >
                     <div className="stat-icon pending">
                         <i className="fas fa-clock"></i>
@@ -1165,7 +1206,7 @@ const PaymentsManagement = () => {
                     tabIndex={0}
                     onClick={() => setFilterStatus('failed')}
                     onKeyDown={(e) => onStatCardKeyDown(e, 'failed')}
-                    title="Show failed payments"
+                    title="Show Failed Payments"
                 >
                     <div className="stat-icon failed">
                         <i className="fas fa-times-circle"></i>
@@ -1181,7 +1222,7 @@ const PaymentsManagement = () => {
                     tabIndex={0}
                     onClick={() => setFilterStatus('refunded')}
                     onKeyDown={(e) => onStatCardKeyDown(e, 'refunded')}
-                    title="Show refunded payments"
+                    title="Show Refunded Payments"
                 >
                     <div className="stat-icon refunded">
                         <i className="fas fa-undo"></i>
@@ -1287,7 +1328,7 @@ const PaymentsManagement = () => {
                                     onClick={handlePermanentDeleteSelected}
                                     disabled={trashBusy}
                                 >
-                                    <i className="fas fa-trash-alt" /> Delete permanently
+                                    <i className="fas fa-trash-alt" /> Delete Permanently
                                 </button>
                             </>
                         )}
@@ -1304,17 +1345,17 @@ const PaymentsManagement = () => {
                 onMouseUp={stopTableDragScroll}
                 onMouseLeave={stopTableDragScroll}
             >
-                <table className="payments-table">
+                <table
+                    className="payments-table"
+                    style={{
+                        width: paymentsTableWidth,
+                        minWidth: paymentsTableWidth,
+                        '--payments-txn-width': `${columnWidths[1]}px`,
+                    }}
+                >
                     <colgroup>
                         {COLUMN_DEFS.map((key, idx) => (
-                            <col
-                                key={key}
-                                style={
-                                    key === 'actions'
-                                        ? { width: '1%' }
-                                        : { width: `${columnWidths[idx]}px` }
-                                }
-                            />
+                            <col key={key} style={{ width: `${columnWidths[idx]}px` }} />
                         ))}
                     </colgroup>
                     <thead>
@@ -1328,8 +1369,8 @@ const PaymentsManagement = () => {
                                 />
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 0)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(0); }} />
                             </th>
-                            <th className="sortable" onClick={() => handleSort('transactionId')}>
-                                Transaction ID
+                            <th className="sortable transaction-id-head" onClick={() => handleSort('transactionId')}>
+                                <span className="transaction-id-label">Transaction ID</span>
                                 {sortBy === 'transactionId' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                                 <span className="col-resizer" onPointerDown={(e) => startColumnResize(e, 1)} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); resetColumnWidth(1); }} />
                             </th>
@@ -1395,13 +1436,13 @@ const PaymentsManagement = () => {
                                 <td className="transaction-id-cell">
                                     <div
                                         className="transaction-id"
-                                        title={payment.transactionId ? `Full ID: ${payment.transactionId}` : ''}
+                                        title={paymentTableId(payment) ? `Full ID: ${paymentTableId(payment)}` : ''}
                                     >
                                         <i className="fas fa-receipt" aria-hidden />
-                                        <code className="transaction-id-full" title={payment.transactionId || ''}>
-                                            {payment.transactionId || '—'}
+                                        <code className="transaction-id-full" title={paymentTableId(payment)}>
+                                            {paymentTableId(payment) || '—'}
                                         </code>
-                                        {payment.transactionId ? (
+                                        {paymentTableId(payment) ? (
                                             <button
                                                 type="button"
                                                 className="copy-txn-btn"
@@ -1410,7 +1451,7 @@ const PaymentsManagement = () => {
                                                 onMouseDown={(e) => e.stopPropagation()}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    copyToClipboard(payment.transactionId);
+                                                    copyToClipboard(paymentTableId(payment));
                                                 }}
                                             >
                                                 <i className="fas fa-copy" aria-hidden />
@@ -1502,7 +1543,7 @@ const PaymentsManagement = () => {
                                                     <button
                                                         className="action-btn receipt-btn"
                                                         type="button"
-                                                        title="View payment proof"
+                                                        title="View Payment Proof"
                                                         onClick={() => setProofModal(payment)}
                                                     >
                                                         <i className="fas fa-image"></i> Proof
@@ -1513,7 +1554,7 @@ const PaymentsManagement = () => {
                                                         key={button.key}
                                                         className="action-btn invoice-btn"
                                                         type="button"
-                                                        title="Download invoice"
+                                                        title="Download Invoice"
                                                         onClick={() => handleInvoiceButtonClick(button)}
                                                     >
                                                         <i className="fas fa-file-invoice"></i> Invoice
@@ -1568,7 +1609,7 @@ const PaymentsManagement = () => {
                                                 </button>
                                                 <button
                                                     className="action-btn delete-btn"
-                                                    title="Delete permanently"
+                                                    title="Delete Permanently"
                                                     disabled={trashBusy}
                                                     onClick={() => handlePermanentDelete(payment._id)}
                                                 >
@@ -1649,7 +1690,7 @@ const PaymentsManagement = () => {
                     />
                     <div className="payment-invoice-picker__panel">
                         <header className="payment-invoice-picker__head">
-                            <h3 id="payment-invoice-picker-title">Download invoice</h3>
+                            <h3 id="payment-invoice-picker-title">Download Invoice</h3>
                             <button
                                 type="button"
                                 className="payment-invoice-picker__close"
@@ -1795,7 +1836,7 @@ const PaymentsManagement = () => {
                     <div className="payment-receipt-modal__backdrop" onClick={() => setProofModal(null)} />
                     <div className="payment-receipt-modal__panel">
                         <div className="payment-receipt-modal__head">
-                            <h3>Payment proof</h3>
+                            <h3>Payment Proof</h3>
                             <button type="button" className="payment-receipt-modal__close" onClick={() => setProofModal(null)}>
                                 <i className="fas fa-times" />
                             </button>
@@ -1805,27 +1846,27 @@ const PaymentsManagement = () => {
                             {proofModal.course?.title || proofModal.courseName || 'Course'}
                         </p>
                         {String(proofModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
-                            <iframe
-                                title="Payment proof PDF"
-                                src={resolveMediaUrl(proofModal.proofUrl)}
+                            <ProtectedFileFrame
+                                path={proofModal.proofUrl}
+                                title="Payment Proof PDF"
                                 className="payment-receipt-modal__image"
                             />
                         ) : (
-                            <img
-                                src={resolveMediaUrl(proofModal.proofUrl)}
+                            <ProtectedFileImage
+                                path={proofModal.proofUrl}
                                 alt="Payment proof"
                                 className="payment-receipt-modal__image"
                             />
                         )}
-                        <a
-                            href={resolveMediaUrl(proofModal.proofUrl)}
+                        <ProtectedFileLink
+                            path={proofModal.proofUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             download
                             className="payment-receipt-modal__pdf-link"
                         >
-                            <i className="fas fa-download" /> Download proof
-                        </a>
+                            <i className="fas fa-download" /> Download Proof
+                        </ProtectedFileLink>
                     </div>
                 </div>
             ) : null}
@@ -1833,12 +1874,7 @@ const PaymentsManagement = () => {
     );
 };
 
-const shortenTxnId = (id) => {
-    if (!id) return '—';
-    const s = String(id);
-    if (s.length <= 22) return s;
-    return `${s.slice(0, 10)}…${s.slice(-8)}`;
-};
+const paymentTableId = (payment) => payment?.stripePaymentIntentId || payment?.transactionId || '';
 
 const copyToClipboard = (text) => {
     if (!text) return;

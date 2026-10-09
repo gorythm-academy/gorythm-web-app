@@ -130,11 +130,14 @@
         }
         
         .payments-table {
-            width: 100%;
             border-collapse: collapse;
-            min-width: 1200px;
             table-layout: fixed;
             
+            th.action-col,
+            td.action-col {
+                width: auto;
+            }
+
             th {
                 background: #f8fafc;
                 padding: 1rem;
@@ -217,8 +220,20 @@
                 }
             }
             
+            .transaction-id-head,
             .transaction-id-cell {
-                max-width: none;
+                width: var(--payments-txn-width);
+                max-width: var(--payments-txn-width);
+                overflow: hidden;
+            }
+
+            .transaction-id-label {
+                display: inline-block;
+                max-width: calc(100% - 1.25rem);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                vertical-align: bottom;
             }
 
             .transaction-id {
@@ -237,9 +252,9 @@
                 code.transaction-id-short {
                     flex: 1;
                     min-width: 0;
-                    white-space: normal;
-                    overflow-wrap: anywhere;
-                    word-break: break-all;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                     background: #f1f5f9;
                     padding: 4px 8px;
                     border-radius: 4px;
@@ -500,13 +515,6 @@
         }
     }
     
-    // ≤ 480px (small phone): table scrolls horizontally
-    @media (max-width: $bp-legacy-480) {
-        .payments-table {
-            display: block;
-            overflow-x: auto; // allow horizontal scroll for wide payment tables on small phones
-        }
-    }
 }
 
 // Active / Trash tabs: see _admin-list-tabs.scss (imported via Admin.scss)
