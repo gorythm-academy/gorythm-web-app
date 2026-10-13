@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
+import { forceAdminLogout } from '../../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../../config/constants';
 import '../Admin.scss';
 
@@ -201,7 +202,7 @@ const Analytics = () => {
                     ? overviewResult.reason
                     : null;
                 if (overviewError?.response?.status === 401) {
-                    window.location.assign('/admin/login');
+                    forceAdminLogout();
                     return;
                 }
                 warnings.push(
@@ -223,7 +224,7 @@ const Analytics = () => {
                     ? metricsResult.reason
                     : null;
                 if (metricsError?.response?.status === 401) {
-                    window.location.assign('/admin/login');
+                    forceAdminLogout();
                     return;
                 }
                 warnings.push(
@@ -358,7 +359,7 @@ const Analytics = () => {
         } catch (error) {
             console.error('Analytics fetch error:', error);
             if (error.response?.status === 401) {
-                window.location.assign('/admin/login');
+                forceAdminLogout();
                 return;
             }
             setFetchError(error.response?.data?.error || error.message || 'Failed to load analytics.');

@@ -1,6 +1,7 @@
 const stripe = process.env.STRIPE_SECRET_KEY
     ? require('stripe')(process.env.STRIPE_SECRET_KEY)
     : null;
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
@@ -490,26 +491,41 @@ async function deleteSavedCard({ actor, studentId, paymentMethodId }) {
     return { savedCards: serializeSavedCards(student), autoPayDisabled };
 }
 
+const AUTO_PAY_LOCK_MS = 2 * 60 * 1000;
+
 async function holdAutoPayScheduler() {
     const now = new Date();
-    const until = new Date(now.getTime() + 10 * 60 * 1000);
+    const until = new Date(now.getTime() + AUTO_PAY_LOCK_MS);
+    const owner = crypto.randomBytes(16).toString('hex');
     await AutoPayLock.updateOne(
         { name: 'scheduler' },
-        { $setOnInsert: { name: 'scheduler', lockedUntil: new Date(0) } },
+        { $setOnInsert: { name: 'scheduler', lockedUntil: new Date(0), owner: '' } },
         { upsert: true }
     );
     const got = await AutoPayLock.findOneAndUpdate(
         { name: 'scheduler', lockedUntil: { $lte: now } },
-        { $set: { lockedUntil: until } },
+        { $set: { lockedUntil: until, owner } },
         { new: true }
     );
-    return Boolean(got);
+    if (!got || got.owner !== owner) return null;
+    return owner;
 }
 
-async function releaseAutoPayScheduler() {
+async function renewAutoPayScheduler(owner) {
+    if (!owner) return false;
+    const until = new Date(Date.now() + AUTO_PAY_LOCK_MS);
+    const renewed = await AutoPayLock.updateOne(
+        { name: 'scheduler', owner },
+        { $set: { lockedUntil: until } }
+    );
+    return renewed.modifiedCount === 1;
+}
+
+async function releaseAutoPayScheduler(owner) {
+    if (!owner) return;
     await AutoPayLock.updateOne(
-        { name: 'scheduler' },
-        { $set: { lockedUntil: new Date(0) } }
+        { name: 'scheduler', owner },
+        { $set: { lockedUntil: new Date(0), owner: '' } }
     );
 }
 
@@ -624,13 +640,15 @@ async function notifyAutoPayStopped(enrollment, message) {
     if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASSWORD) return;
     const student = enrollment.student;
     const link = await ParentStudentLink.findOne({ student: student?._id || enrollment.student }).populate('parent', 'email personalEmail');
+    const { deliverableInbox } = require('../utils/studentPortalEmail');
     const recipients = [];
     const add = (value) => {
-        const email = String(value || '').trim().toLowerCase();
-        if (!email || isUnsetPortalEmail(email) || recipients.includes(email)) return;
+        const email = deliverableInbox(value);
+        if (!email || recipients.includes(email)) return;
         recipients.push(email);
     };
     add(student?.personalEmail);
+    add(student?.email);
     add(link?.parent?.personalEmail);
     add(link?.parent?.email);
     if (!recipients.length) return;
@@ -989,8 +1007,8 @@ async function chargeOneAutoPayEnrollment(enrollment, now = new Date()) {
 
 async function chargeDueAutoPays(now = new Date()) {
     if (!stripe) return { checked: 0, charged: 0, skipped: 0, failed: 0 };
-    const locked = await holdAutoPayScheduler();
-    if (!locked) return { checked: 0, charged: 0, skipped: 0, failed: 0, locked: true };
+    const lockOwner = await holdAutoPayScheduler();
+    if (!lockOwner) return { checked: 0, charged: 0, skipped: 0, failed: 0, locked: true };
     try {
         const enrollments = await Enrollment.find({
             autoPayEnabled: true,
@@ -1005,6 +1023,7 @@ async function chargeDueAutoPays(now = new Date()) {
         let skipped = 0;
         let failed = 0;
         for (const enrollment of enrollments) {
+            if (!(await renewAutoPayScheduler(lockOwner))) break;
             if (!shouldChargeAutoPay(enrollment, now)) {
                 skipped += 1;
                 continue;
@@ -1055,7 +1074,7 @@ async function chargeDueAutoPays(now = new Date()) {
         }
         return { checked: enrollments.length, charged, skipped, failed };
     } finally {
-        await releaseAutoPayScheduler();
+        await releaseAutoPayScheduler(lockOwner);
     }
 }
 

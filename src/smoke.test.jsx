@@ -119,7 +119,7 @@ describe('public smoke checks', () => {
       </MemoryRouter>
     );
 
-    await user.type(screen.getByLabelText(/email/i), 'amina@example.com');
+    await user.type(await screen.findByLabelText(/email/i), 'amina@example.com');
     await user.type(screen.getByLabelText(/^password/i), 'secret-pass');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -139,7 +139,7 @@ describe('public smoke checks', () => {
       </MemoryRouter>
     );
 
-    await user.type(screen.getByLabelText(/email/i), 'amina@example.com');
+    await user.type(await screen.findByLabelText(/email/i), 'amina@example.com');
     await user.type(screen.getByLabelText(/^password/i), 'wrong-pass');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
-import { getAuthToken } from '../../../utils/authStorage';
+import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
 import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
@@ -427,6 +427,7 @@ const PaymentGateway = () => {
 
             const response = await fetch(`${API_BASE_URL}/api/payments/register-bank`, {
                 method: 'POST',
+                credentials: 'include',
                 body: form,
             });
             const { data } = await parseJsonResponse(response);
@@ -460,12 +461,15 @@ const PaymentGateway = () => {
         setCheckoutLoading(true);
         rememberPaymentCourseId(selectedCourse._id);
         try {
-            const token = getAuthToken();
+            // Checkout is portal-scoped; always send realm so an admin cookie cannot bind payment.
             const response = await fetch(`${API_BASE_URL}/api/payments/create-checkout`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(hasAuthSession(AUTH_REALM.PORTAL)
+                        ? buildAuthHeaders(AUTH_REALM.PORTAL)
+                        : { 'X-Auth-Realm': 'portal' }),
                 },
                 body: JSON.stringify({
                     courseId: String(selectedCourse._id),

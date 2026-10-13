@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { parseAuthUser, clearAuthSession, AUTH_REALM } from '../../utils/authStorage';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
+import { forceAdminLogout } from '../../utils/adminAuthSession';
 import {
     readAdminDashboardAccent,
     DEFAULT_ADMIN_DASHBOARD_ACCENT,
@@ -37,7 +38,6 @@ const DashboardLayoutInner = () => {
         if (typeof window === 'undefined') return true;
         return !isMobileViewport();
     });
-    const navigate = useNavigate();
     const location = useLocation();
 
     useEffect(() => {
@@ -56,8 +56,7 @@ const DashboardLayoutInner = () => {
     }, []);
 
     const handleLogout = () => {
-        clearAuthSession(AUTH_REALM.ADMIN);
-        navigate('/admin/login');
+        forceAdminLogout();
     };
 
     const user = parseAuthUser(AUTH_REALM.ADMIN) || {};

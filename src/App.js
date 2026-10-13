@@ -20,9 +20,18 @@ import './styles/App.scss';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { AUTH_REALM } from './utils/authStorage';
+import { installAdminAuthInterceptor } from './utils/adminAuthSession';
+import { installPortalAuthInterceptor } from './utils/portalAuthSession';
+import { installAuthHttpDefaults } from './utils/authHttp';
+import { installAuthSyncListener } from './utils/authSync';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { usePageCanonical } from './hooks/usePageCanonical';
 import { RoutePageMeta } from './hooks/usePageMeta';
+
+installAuthHttpDefaults();
+installAdminAuthInterceptor();
+installPortalAuthInterceptor();
+installAuthSyncListener();
 
 const AllCourses = lazy(() => import('./components/Pages/AllCourses'));
 const SingleCourse = lazy(() =>
@@ -33,6 +42,9 @@ const AboutPage = lazy(() => import('./components/Pages/AboutPage'));
 const ContactPage = lazy(() => import('./components/Pages/ContactPage'));
 const LegalPage = lazy(() => import('./components/Pages/LegalPage'));
 const UnsubscribePage = lazy(() => import('./components/Pages/UnsubscribePage'));
+const ConfirmSubscriptionPage = lazy(() => import('./components/Pages/ConfirmSubscriptionPage'));
+const ForgotPassword = lazy(() => import('./components/Pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./components/Pages/ResetPassword'));
 const IqMissionPage = lazy(() =>
   import('./components/Pages/MissionPages').then((m) => ({ default: m.IqMissionPage }))
 );
@@ -137,7 +149,7 @@ function AppLayout() {
   usePageCanonical();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isPortalLmsRoute = /^\/(student|teacher|parent|accountant)(\/|$)/.test(location.pathname);
-  const isPublicLoginRoute = location.pathname === '/login';
+  const isPublicLoginRoute = ['/login', '/forgot-password', '/reset-password'].includes(location.pathname);
   const hideSiteFooter = isAdminRoute || isPublicLoginRoute || isPortalLmsRoute;
   const showCustomCursor = !isAdminRoute && !isPortalLmsRoute;
 
@@ -179,7 +191,10 @@ function AppLayout() {
               <Route path="/refunds" element={<LegalPage slug="refunds" />} />
               <Route path="/cookies" element={<LegalPage slug="cookies" />} />
               <Route path="/unsubscribe" element={<UnsubscribePage />} />
+              <Route path="/subscribe/confirm" element={<ConfirmSubscriptionPage />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Mission detail pages */}
               <Route path="/mission/iq" element={<IqMissionPage />} />

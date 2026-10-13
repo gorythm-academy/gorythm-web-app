@@ -29,6 +29,17 @@ const userSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     canLogin: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: false },
+    /** Bumped when the password changes so older login tokens stop working. */
+    sessionVersion: { type: Number, default: 0 },
+    /** Failed password attempts since last successful login (for lockout). */
+    failedLoginAttempts: { type: Number, default: 0 },
+    /** When set and in the future, login is rejected until this time. */
+    loginLockedUntil: { type: Date, default: null },
+    passwordResetTokenHash: { type: String, default: '', select: false },
+    passwordResetExpires: { type: Date, default: null, select: false },
+    loginEmailSentAt: { type: Date, default: null },
+    loginEmailSentTo: { type: [String], default: [] },
+    loginEmailLastError: { type: String, default: '' },
     isSystemAccount: { type: Boolean, default: false },
     enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     lastLogin: { type: Date },
@@ -64,6 +75,11 @@ userSchema.pre('save', async function(next) {
             .join(' ');
     }
     if (!this.isModified('password')) return next();
+    if (!this.isNew) {
+        this.sessionVersion = Number(this.sessionVersion || 0) + 1;
+        this.passwordResetTokenHash = '';
+        this.passwordResetExpires = null;
+    }
     this.password = await bcrypt.hash(this.password, 10);
     this.updatedAt = Date.now();
     next();
@@ -78,6 +94,11 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.methods.toJSON = function() {
     const user = this.toObject();
     delete user.password;
+    delete user.passwordResetTokenHash;
+    delete user.passwordResetExpires;
+    delete user.sessionVersion;
+    delete user.failedLoginAttempts;
+    delete user.loginLockedUntil;
     delete user.stripeCustomerId;
     delete user.stripePaymentMethodId;
     delete user.stripeSavedCards;

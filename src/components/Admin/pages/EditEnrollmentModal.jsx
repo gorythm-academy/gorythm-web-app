@@ -12,6 +12,8 @@ import {
     normalizeEnrollmentStatus,
     sanitizePortalEmailLocal,
     sortPublishedCourses,
+    formatLoginEmailNotice,
+    formatLoginEmailStatus,
     validatePasswordPair,
     validatePersonalEmail,
     validateStudentId,
@@ -46,6 +48,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
     const [courseSchedules, setCourseSchedules] = useState([]);
     const [schedulesLoading, setSchedulesLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [loginEmailState, setLoginEmailState] = useState(enrollment?.student || null);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formData, setFormData] = useState(() => ({
         studentName: enrollment?.student?.name || '',
@@ -92,6 +95,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
             feeDueDate: toDateInputValue(enrollment?.feeDueDate),
         });
         setFormError('');
+        setLoginEmailState(enrollment?.student || null);
     }, [isOpen, enrollment]);
 
     useDialogKeyboard({
@@ -202,7 +206,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                     setFormError('Student account was not found.');
                     return;
                 }
-                await axios.put(
+                const accountRes = await axios.put(
                     `${API_BASE_URL}/api/users/${studentId}`,
                     {
                         name: trimmedName,
@@ -223,7 +227,8 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
                 }
-                showAlert('Student account updated successfully.', 'success');
+                const notice = formatLoginEmailNotice(accountRes.data.loginEmail);
+                showAlert(`Student account updated successfully.${notice ? ` ${notice}` : ''}`, 'success');
                 onSaved?.(enrollment);
                 onClose();
                 return;
@@ -392,7 +397,41 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label><i className="fas fa-lock"></i> New password (optional)</label>
+                                <label>Login email</label>
+                                <p className="form-hint-muted">{formatLoginEmailStatus(loginEmailState || enrollment?.student)}</p>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={loading}
+                                    onClick={async () => {
+                                        const id = studentAccountId(enrollment);
+                                        if (!id) return;
+                                        setLoading(true);
+                                        try {
+                                            const token = getAuthToken();
+                                            const mailRes = await axios.post(
+                                                `${API_BASE_URL}/api/users/${id}/login-email`,
+                                                { force: true },
+                                                { headers: { Authorization: `Bearer ${token}` } }
+                                            );
+                                            const notice = formatLoginEmailNotice(mailRes.data.loginEmail);
+                                            setLoginEmailState((prev) => ({
+                                                ...(prev || enrollment?.student || {}),
+                                                ...(mailRes.data.user || {}),
+                                            }));
+                                            showAlert(notice || mailRes.data.loginEmail?.error || 'Login email was not sent.', notice ? 'success' : 'warning');
+                                        } catch (mailErr) {
+                                            showAlert(mailErr.response?.data?.error || 'Failed to send login email', 'error');
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                >
+                                    Email student card
+                                </button>
+                            </div>
+                            <div className="form-group">
+                                <label><i className="fas fa-lock"></i> Temporary password (optional)</label>
                                 <div className="password-field">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
@@ -447,8 +486,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                             }
                                             disabled={loading}
                                         />
-                                        <span className="checkmark" />
-                                        Force password reset on first login
+                                        <span>Force password reset on first login</span>
                                     </label>
                                 </div>
                             ) : null}

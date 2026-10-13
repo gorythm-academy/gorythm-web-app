@@ -16,9 +16,11 @@ const { getOrCreateSettings } = require('../services/settingsService');
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowPermission } = require('../middleware/authorize');
+const { readAuthTokenForRealm } = require('../utils/authCookies');
+const { assertTokenEpoch } = require('../utils/tokenEpoch');
 const logger = require('../utils/logger');
 const { validate, rules } = require('../middleware/validate');
-const { paymentRegisterRateLimiter } = require('../middleware/publicWriteRateLimit');
+const { paymentRegisterRateLimiter, checkoutRateLimiter } = require('../middleware/publicWriteRateLimit');
 const {
     fulfillStripeCheckoutSession,
     fulfillmentMessage,
@@ -447,9 +449,11 @@ async function sendPaymentPdf(res, payment, { kind = 'invoice', lineFilter = nul
     return res.send(pdfBuffer);
 }
 
-async function userFromCheckoutBearer(req) {
-    const header = req.header('Authorization') || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+async function userFromCheckoutSession(req) {
+    // Public checkout is portal-scoped — never bind a leftover admin cookie.
+    const realmHint = String(req.header('X-Auth-Realm') || 'portal').toLowerCase();
+    const realm = realmHint === 'admin' ? 'admin' : 'portal';
+    const token = readAuthTokenForRealm(req, realm);
     if (!token || !process.env.JWT_SECRET) return null;
     let decoded;
     try {
@@ -457,17 +461,20 @@ async function userFromCheckoutBearer(req) {
     } catch {
         return null;
     }
+    if (!assertTokenEpoch(decoded)) return null;
     const userId = decoded?.userId || decoded?.id;
     if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) return null;
-    const user = await User.findById(userId).select('_id name email personalEmail role deletedAt canLogin isActive');
+    const user = await User.findById(userId).select('_id name email personalEmail role deletedAt canLogin isActive sessionVersion');
     if (!user || user.deletedAt || user.canLogin === false || user.isActive === false) return null;
     if (decoded.role && user.role !== decoded.role) return null;
+    if (Number(decoded.sessionVersion ?? 0) !== Number(user.sessionVersion || 0)) return null;
     return user;
 }
 
 // --- Public: Stripe Checkout (cards, Link, Apple Pay / Google Pay via card when enabled in Dashboard) ---
 router.post(
     '/create-checkout',
+    checkoutRateLimiter,
     async (req, res) => {
     if (!requireStripe(res)) return;
     try {
@@ -487,7 +494,7 @@ router.post(
         const autoPay = checkoutWantsAutoPay(req.body?.autoPay);
         let linkedUserId;
         let actor = null;
-        const sessionUser = await userFromCheckoutBearer(req);
+        const sessionUser = await userFromCheckoutSession(req);
         if (sessionUser) {
             linkedUserId = sessionUser._id;
             actor = {

@@ -12,6 +12,19 @@ function isUnsetPortalEmail(email) {
     return lower.startsWith('pending.') || lower.startsWith('student.');
 }
 
+/** Real inbox. Portal logins on this domain are not mailboxes. */
+function deliverableInbox(email) {
+    const value = String(email || '').trim().toLowerCase();
+    if (!value || !value.includes('@') || value.includes(' ')) return '';
+    if (value.endsWith(GORYTHM_DOMAIN)) return '';
+    return value;
+}
+
+function isRealPortalLogin(email) {
+    const value = String(email || '').trim().toLowerCase();
+    return value.endsWith(GORYTHM_DOMAIN) && !isUnsetPortalEmail(value);
+}
+
 function displayPortalEmail(email) {
     return isUnsetPortalEmail(email) ? '' : String(email || '').trim();
 }
@@ -25,6 +38,8 @@ module.exports = {
     GORYTHM_DOMAIN,
     buildUnsetPortalEmail,
     isUnsetPortalEmail,
+    deliverableInbox,
+    isRealPortalLogin,
     displayPortalEmail,
     paymentRegistrationEmail,
 };

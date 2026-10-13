@@ -1,5 +1,5 @@
 # Security Route Checklist
-Last reviewed: 2026-04-29
+Last reviewed: 2026-10-13
 
 ## Scope
 - `backend/routes/admin.js`
@@ -15,8 +15,8 @@ Last reviewed: 2026-04-29
 - [x] `settings` write route now enforces permission check (`settings.general.write`) before updates.
 - [x] `payments` listing/refund/delete now enforce explicit permission middleware (`payments.read`, `payments.refund`, `payments.write`).
 
-## Weak routes to harden next
-- [ ] `portal` mutation routes need request-body validation:
+## Previously weak routes
+- [x] `portal` mutation routes validate request bodies:
   - `POST /student/submissions`
   - `POST /student/quiz-attempts`
   - `POST /teacher/attendance`
@@ -24,17 +24,16 @@ Last reviewed: 2026-04-29
   - `POST /teacher/quizzes`
   - `POST /teacher/resources`
   - `POST /admin/link-parent-student`
-- [ ] `payroll` routes need validation and safer error handling:
+- [x] `payroll` write routes validate request bodies, and `GET /teachers` and `GET /runs` catch query failures:
   - `POST /salary-profile`
   - `POST /attendance`
   - `POST /run`
-  - `GET /teachers` and `GET /runs` should use try/catch to avoid unhandled query failures.
-- [ ] `users` still has write endpoints without `validate(...)` middleware:
+- [x] `users` write endpoints use `validate(...)`:
   - `PATCH /:id/status`
   - `POST /bulk-delete`
   - `PATCH /bulk-status`
 
 ## Verification notes
-- `users` route group already has router-level auth + role gating (`super-admin`, `admin`).
-- `portal` route group has auth + role checks per endpoint, but payload validation is currently inconsistent.
-- `payroll` route group has router-level auth + role gating (`accountant`, `admin`, `super-admin`) but lacks schema validation.
+- `users` route group has router-level auth + role gating (`super-admin`, `admin`) and schema validation on the write routes above.
+- `portal` route group has auth, role checks, and payload validation on the mutation routes above.
+- `payroll` route group has router-level auth + role gating (`accountant`, `admin`, `super-admin`) and schema validation on its write routes.

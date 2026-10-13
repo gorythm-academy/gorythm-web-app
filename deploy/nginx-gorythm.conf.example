@@ -6,15 +6,16 @@
 #
 # Paths:
 #   Adjust root to where `npm run build` output lives (usually .../build).
+#   Adjust the certificate paths after Certbot creates them.
 #
 # Install:
 #   sudo cp deploy/nginx-gorythm.conf.example /etc/nginx/sites-available/gorythm
 #   sudo ln -s /etc/nginx/sites-available/gorythm /etc/nginx/sites-enabled/
 #   sudo nginx -t && sudo systemctl reload nginx
 #
-# SSL (after DNS points here):
-#   sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com -d api.yourdomain.com
-#   (Certbot will add ssl_certificate lines; listen 443 blocks are optional until then.)
+# Certificates (after DNS points here). Create them before reloading this file:
+#   sudo certbot certonly --webroot -w /var/www/certbot \
+#     -d yourdomain.com -d www.yourdomain.com -d api.yourdomain.com
 #
 # Compression (often also in nginx.conf http {}):
 #   gzip on;
@@ -30,11 +31,38 @@ upstream gorythm_api {
     keepalive 64;
 }
 
-# ---- Main site (React SPA) ----
+# ---- HTTP: certificate renewal + redirect to HTTPS ----
 server {
     listen 80;
     listen [::]:80;
+    server_name yourdomain.com www.yourdomain.com api.yourdomain.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ---- Main site (React SPA) ----
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name yourdomain.com www.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:GorythmSSL:10m;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     root /var/www/gorythm/build;
     index index.html;
@@ -42,12 +70,14 @@ server {
     # Single Page App shell — never long-cache HTML (new deploy = new hashed assets)
     location = /index.html {
         add_header Cache-Control "no-cache";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     }
 
     # Hashed JS/CSS/media from `react-scripts build` (PageSpeed: long cache TTL)
     location ^~ /static/ {
         expires 1y;
         add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         try_files $uri =404;
     }
 
@@ -55,24 +85,28 @@ server {
     location ^~ /images/ {
         expires 30d;
         add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         try_files $uri =404;
     }
 
     location ^~ /preload/ {
         expires 30d;
         add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         try_files $uri =404;
     }
 
     location ^~ /video/ {
         expires 30d;
         add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         try_files $uri =404;
     }
 
     # Short cache for manifest / favicon (swap filenames when branding changes)
     location = /manifest.json {
         add_header Cache-Control "public, max-age=3600";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         try_files $uri =404;
     }
 
@@ -108,9 +142,18 @@ server {
 
 # ---- API (Express) ----
 server {
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name api.yourdomain.com;
+
+    # Same certificate as the site when Certbot issued one cert for all three names.
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
 
     client_max_body_size 25m;
 

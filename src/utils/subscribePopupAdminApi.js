@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM } from './authStorage';
+import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from './authStorage';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from './compressImageForUpload';
 
 const BASE = '/api/admin/subscribe-popup';
@@ -10,9 +10,8 @@ function apiRoot() {
 }
 
 function authHeaders(realm = AUTH_REALM.ADMIN) {
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
-  return { Authorization: `Bearer ${token}` };
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
+  return buildAuthHeaders(realm);
 }
 
 function extractError(err, fallback) {

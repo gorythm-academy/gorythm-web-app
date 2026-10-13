@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM } from './authStorage';
+import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from './authStorage';
 
 export const MEDIA_CATEGORY = {
   COURSES: 'courses-images',
@@ -13,18 +13,18 @@ function apiBase() {
   return (API_BASE_URL || '').replace(/\/$/, '');
 }
 
-function requireToken(realm = AUTH_REALM.ADMIN) {
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
-  return token;
+function requireSession(realm = AUTH_REALM.ADMIN) {
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
+  return buildAuthHeaders(realm);
 }
 
 /** List images for a media category (admin gallery). */
 export async function fetchAdminMediaGallery(category, realm = AUTH_REALM.ADMIN) {
-  const token = requireToken(realm);
+  const headers = requireSession(realm);
   const res = await axios.get(`${apiBase()}/api/admin/media`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers,
     params: { category },
+    withCredentials: true,
   });
   return res.data?.images || [];
 }
@@ -32,13 +32,12 @@ export async function fetchAdminMediaGallery(category, realm = AUTH_REALM.ADMIN)
 /** Delete a file only when no record still references it. */
 export async function cleanupAdminMedia(category, path, realm = AUTH_REALM.ADMIN) {
   if (!path) return;
-  const token = getAuthToken(realm);
-  if (!token) return;
+  if (!hasAuthSession(realm)) return;
   try {
     await axios.post(
       `${apiBase()}/api/admin/media/cleanup`,
       { category, path },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: buildAuthHeaders(realm), withCredentials: true }
     );
   } catch {
     /* best-effort */
@@ -53,7 +52,7 @@ export async function deleteAdminMedia(
   realm = AUTH_REALM.ADMIN
 ) {
   if (!path) return;
-  const token = requireToken(realm);
+  const headers = requireSession(realm);
   try {
     const res = await axios.post(
       `${apiBase()}/api/admin/media/delete`,
@@ -63,7 +62,7 @@ export async function deleteAdminMedia(
         ...(force ? { force: '1' } : {}),
         ...(excludeCourseId ? { excludeCourseId } : {}),
       },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers, withCredentials: true }
     );
     if (res.data?.success === false) {
       throw new Error(res.data?.error || 'Delete failed');

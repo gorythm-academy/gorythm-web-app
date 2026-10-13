@@ -14,6 +14,7 @@ import {
     sanitizePortalEmailLocal,
     sortPublishedCourses,
     userStatusFromEnrollmentStatus,
+    formatLoginEmailNotice,
     validatePasswordPair,
     validatePersonalEmail,
     validateStudentId,
@@ -154,9 +155,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                 throw new Error('Portal email must be in this format: id@gorythmacademy.com');
             }
 
-            const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword, {
-                required: true,
-            });
+            const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
             if (passwordErr) throw new Error(passwordErr);
 
             if (!formData.courseId) throw new Error('Please select a course.');
@@ -180,13 +179,18 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                 {
                     name,
                     email,
-                    password: formData.password,
+                    ...(formData.password.trim()
+                        ? {
+                            password: formData.password,
+                            mustChangePassword: formData.mustChangePassword,
+                        }
+                        : {}),
                     role: 'student',
                     personalEmail: personalTrim,
+                    deferLoginEmail: true,
                     phone: (formData.phone || '').trim(),
                     studentId: studentIdTrim || undefined,
                     status: accountStatus,
-                    mustChangePassword: formData.mustChangePassword,
                 },
                 { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
             );
@@ -213,7 +217,20 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                 throw new Error(enrollRes.data.message || 'Enrollment failed');
             }
 
-            setSuccess('Student account created and enrolled successfully!');
+            let notice = '';
+            try {
+                const mailRes = await axios.post(
+                    `${API_BASE_URL}/api/users/${createdUserId}/login-email`,
+                    { force: false },
+                    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+                );
+                notice = formatLoginEmailNotice(mailRes.data.loginEmail);
+            } catch (mailErr) {
+                console.error('Login email failed', mailErr);
+                notice = 'Not sent — email could not be delivered';
+            }
+
+            setSuccess(`Student account created and enrolled successfully!${notice ? ` ${notice}` : ''}`);
             onSuccess?.(enrollRes.data.enrollment);
             setTimeout(() => handleClose(), 1500);
         } catch (err) {
@@ -336,7 +353,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-password">
-                                        <i className="fas fa-lock"></i> Password <RequiredMark />
+                                        <i className="fas fa-lock"></i> Temporary password (optional)
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -362,11 +379,14 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                             <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                         </button>
                                     </div>
+                                    <small className="form-hint-muted">
+                                        Leave this blank to email a one-time set-password link. A temporary password is changed at first login and is not emailed.
+                                    </small>
                                 </div>
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-confirm-password">
-                                        <i className="fas fa-lock"></i> Confirm password <RequiredMark />
+                                        <i className="fas fa-lock"></i> Confirm temporary password
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -396,19 +416,20 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                     </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label className="checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            name="mustChangePassword"
-                                            checked={formData.mustChangePassword}
-                                            onChange={handleChange}
-                                            disabled={loading || success}
-                                        />
-                                        <span className="checkmark"></span>
-                                        Force password reset on first login
-                                    </label>
-                                </div>
+                                {formData.password.trim() ? (
+                                    <div className="form-group">
+                                        <label className="checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                name="mustChangePassword"
+                                                checked={formData.mustChangePassword}
+                                                onChange={handleChange}
+                                                disabled={loading || success}
+                                            />
+                                            <span>Force password reset on first login</span>
+                                        </label>
+                                    </div>
+                                ) : null}
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-id">

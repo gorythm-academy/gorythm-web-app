@@ -1,12 +1,18 @@
 /**
  * Two independent sessions: admin dashboard vs LMS portals.
- * Logging into one does not clear the other.
+ * JWTs live in httpOnly cookies (+ in-memory for same-tab Bearer).
+ * localStorage/sessionStorage keep user profile + session flag only (XSS-safer).
  */
+
+import { clearServerAuthCookie } from './authCookieClient';
 
 export const AUTH_REALM = {
   ADMIN: 'admin',
   PORTAL: 'portal',
 };
+
+/** Sentinel: session is cookie-backed; do not send as Bearer. */
+export const COOKIE_SESSION_TOKEN = '__cookie_session__';
 
 const ADMIN_ROLES = new Set(['manager', 'super-admin']);
 const PREVIEW_SESSION_KEY = 'gorythm_admin_portal_preview';
@@ -15,10 +21,73 @@ const PREVIEW_SESSION_KEY = 'gorythm_admin_portal_preview';
 const LEGACY_TOKEN = 'token';
 const LEGACY_USER = 'user';
 
+/** Blocks cookie restore after Sign out, including when logout is slower than the wait timeout. */
+const LOGOUT_GUARD_KEY = 'gorythm_logout_guard';
+
+function readLogoutGuards() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LOGOUT_GUARD_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markLogoutGuard(realm) {
+  const guards = readLogoutGuards();
+  const stamp = Date.now();
+  if (!realm) {
+    guards[AUTH_REALM.ADMIN] = stamp;
+    guards[AUTH_REALM.PORTAL] = stamp;
+  } else {
+    guards[realm] = stamp;
+  }
+  try {
+    localStorage.setItem(LOGOUT_GUARD_KEY, JSON.stringify(guards));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function logoutGuardActive(realm) {
+  const guards = readLogoutGuards();
+  if (!realm) return Boolean(guards[AUTH_REALM.ADMIN] || guards[AUTH_REALM.PORTAL]);
+  return Boolean(guards[realm]);
+}
+
+export function clearLogoutGuard(realm) {
+  if (!realm) {
+    try {
+      localStorage.removeItem(LOGOUT_GUARD_KEY);
+    } catch {
+      /* private mode */
+    }
+    return;
+  }
+  const guards = readLogoutGuards();
+  delete guards[realm];
+  try {
+    if (!guards[AUTH_REALM.ADMIN] && !guards[AUTH_REALM.PORTAL]) {
+      localStorage.removeItem(LOGOUT_GUARD_KEY);
+    } else {
+      localStorage.setItem(LOGOUT_GUARD_KEY, JSON.stringify(guards));
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Same-tab Bearer cache (lost on full page reload; cookie remains). */
+const memoryTokens = {
+  [AUTH_REALM.ADMIN]: null,
+  [AUTH_REALM.PORTAL]: null,
+};
+
 function realmKeys(realm) {
   return {
     token: `gorythm_${realm}_token`,
     user: `gorythm_${realm}_user`,
+    flag: `gorythm_${realm}_session`,
   };
 }
 
@@ -39,27 +108,32 @@ function clearAdminPortalPreviewFlag() {
 }
 
 function resolveRealmStorage(realm) {
-  const { token: tokenKey, user: userKey } = realmKeys(realm);
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
 
-  const sessionToken = sessionStorage.getItem(tokenKey);
-  const sessionUser = sessionStorage.getItem(userKey);
-  if (sessionToken && sessionUser) return sessionStorage;
-
-  const localToken = localStorage.getItem(tokenKey);
-  const localUser = localStorage.getItem(userKey);
-  if (localToken && localUser) return localStorage;
+  for (const storage of [sessionStorage, localStorage]) {
+    const user = storage.getItem(userKey);
+    if (!user) continue;
+    const token = storage.getItem(tokenKey);
+    const flag = storage.getItem(flagKey);
+    // Cookie-primary: user + flag. Legacy: user + token.
+    if (flag === '1' || token) return storage;
+  }
 
   return null;
 }
 
 function readSessionFromStorage(storage, realm) {
-  const { token: tokenKey, user: userKey } = realmKeys(realm);
-  const token = storage.getItem(tokenKey);
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
   const rawUser = storage.getItem(userKey);
-  if (!token || !rawUser) return null;
+  if (!rawUser) return null;
   try {
     const user = JSON.parse(rawUser);
     if (!user || typeof user !== 'object') return null;
+    const legacyToken = storage.getItem(tokenKey);
+    const flag = storage.getItem(flagKey) === '1';
+    const memory = memoryTokens[realm] || null;
+    const token = memory || legacyToken || (flag ? COOKIE_SESSION_TOKEN : null);
+    if (!token) return null;
     return { token, user };
   } catch {
     return null;
@@ -88,9 +162,12 @@ function migrateLegacyAuth() {
   if (!resolveRealmStorage(realm)) {
     const fromLocal = !!localStorage.getItem(LEGACY_TOKEN);
     const storage = fromLocal ? localStorage : sessionStorage;
-    const { token: tokenKey, user: userKey } = realmKeys(realm);
+    const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
+    // Keep legacy token until next login; also set flag for cookie era.
     storage.setItem(tokenKey, legacyToken);
     storage.setItem(userKey, legacyUser);
+    storage.setItem(flagKey, '1');
+    memoryTokens[realm] = legacyToken;
   }
 
   localStorage.removeItem(LEGACY_TOKEN);
@@ -99,15 +176,38 @@ function migrateLegacyAuth() {
   sessionStorage.removeItem(LEGACY_USER);
 }
 
+/**
+ * Move any persisted JWT into memory and keep only user + session flag in storage.
+ * Durable auth is the httpOnly cookie; web storage must not hold JWTs.
+ */
+function liftLegacyTokenToMemory(realm) {
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
+  for (const storage of [sessionStorage, localStorage]) {
+    const legacy = storage.getItem(tokenKey);
+    const user = storage.getItem(userKey);
+    if (!legacy || !user) continue;
+    if (legacy !== COOKIE_SESSION_TOKEN && !memoryTokens[realm]) {
+      memoryTokens[realm] = legacy;
+    }
+    storage.setItem(flagKey, '1');
+    storage.removeItem(tokenKey);
+  }
+}
+
 function reconcileRealmStorage(realm) {
-  const { token: tokenKey, user: userKey } = realmKeys(realm);
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
+  liftLegacyTokenToMemory(realm);
 
   for (const storage of [sessionStorage, localStorage]) {
     const token = storage.getItem(tokenKey);
     const user = storage.getItem(userKey);
-    if ((token && !user) || (!token && user)) {
-      storage.removeItem(tokenKey);
+    const flag = storage.getItem(flagKey);
+    if (user && !token && flag !== '1') {
       storage.removeItem(userKey);
+    }
+    if (!user && (token || flag)) {
+      storage.removeItem(tokenKey);
+      storage.removeItem(flagKey);
     }
   }
 
@@ -115,45 +215,78 @@ function reconcileRealmStorage(realm) {
   if (!active) return;
 
   const inactive = active === sessionStorage ? localStorage : sessionStorage;
-  const activeToken = active.getItem(tokenKey);
-  const inactiveToken = inactive.getItem(tokenKey);
-  if (inactiveToken && inactiveToken !== activeToken) {
-    inactive.removeItem(tokenKey);
-    inactive.removeItem(userKey);
-  } else if (!inactiveToken && inactive.getItem(userKey)) {
-    inactive.removeItem(userKey);
+  inactive.removeItem(tokenKey);
+  inactive.removeItem(userKey);
+  inactive.removeItem(flagKey);
+}
+
+function hasSessionFlag(realm) {
+  const { flag: flagKey, user: userKey } = realmKeys(realm);
+  for (const storage of [sessionStorage, localStorage]) {
+    if (storage.getItem(userKey) && storage.getItem(flagKey) === '1') return true;
+  }
+  return false;
+}
+
+function writeSession(storage, realm, token, userStr) {
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
+  storage.setItem(userKey, userStr);
+  storage.setItem(flagKey, '1');
+  // Never persist JWT in web storage (XSS). Durable auth is the httpOnly cookie;
+  // memory holds Bearer only for this tab until reload.
+  localStorage.removeItem(tokenKey);
+  sessionStorage.removeItem(tokenKey);
+  if (token && token !== COOKIE_SESSION_TOKEN) {
+    memoryTokens[realm] = token;
   }
 }
 
-/**
- * @param {'admin'|'portal'} realm
- */
+/** Keep the current session storage (remember-me or this tab) and swap in a fresh token. */
+export function replaceAuthSession(token, user, realm = AUTH_REALM.PORTAL) {
+  const storage = resolveRealmStorage(realm) || sessionStorage;
+  const userObj = parseUserObject(user);
+  const userStr = userObj ? JSON.stringify(userObj) : JSON.stringify(user);
+  writeSession(storage, realm, token, userStr);
+}
+
 export function setAuthSession(token, user, rememberMe, realm = AUTH_REALM.PORTAL) {
   const userObj = parseUserObject(user);
   const userStr = userObj ? JSON.stringify(userObj) : typeof user === 'string' ? user : JSON.stringify(user);
-  const { token: tokenKey, user: userKey } = realmKeys(realm);
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
   const persist = Boolean(rememberMe);
 
   if (realm === AUTH_REALM.PORTAL) {
     clearAdminPortalPreviewFlag();
   }
 
+  // A real login (not a cookie hydrate) ends the post-logout restore block.
+  if (token !== COOKIE_SESSION_TOKEN) {
+    clearLogoutGuard(realm);
+  }
+
   if (persist) {
-    localStorage.setItem(tokenKey, token);
-    localStorage.setItem(userKey, userStr);
+    writeSession(localStorage, realm, token, userStr);
     sessionStorage.removeItem(tokenKey);
     sessionStorage.removeItem(userKey);
+    sessionStorage.removeItem(flagKey);
   } else {
-    sessionStorage.setItem(tokenKey, token);
-    sessionStorage.setItem(userKey, userStr);
+    writeSession(sessionStorage, realm, token, userStr);
     localStorage.removeItem(tokenKey);
     localStorage.removeItem(userKey);
+    localStorage.removeItem(flagKey);
+  }
+
+  try {
+    const { broadcastAuthLogin, isAuthSyncBroadcastSuppressed } = require('./authSync');
+    if (!isAuthSyncBroadcastSuppressed()) {
+      const id = userObj?.id || userObj?._id || '';
+      broadcastAuthLogin(realm, id);
+    }
+  } catch {
+    /* sync optional at boot */
   }
 }
 
-/**
- * @param {'admin'|'portal'} [realm] — defaults from URL (/admin → admin)
- */
 export function inferAuthRealm() {
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
     return AUTH_REALM.ADMIN;
@@ -161,11 +294,45 @@ export function inferAuthRealm() {
   return AUTH_REALM.PORTAL;
 }
 
+/**
+ * Auth credential for request builders.
+ * - Real JWT when available in memory (or legacy storage during migration)
+ * - COOKIE_SESSION_TOKEN sentinel when only httpOnly cookie + session flag exist
+ *   (truthy so legacy `if (!token)` checks pass; must be stripped before send)
+ * - null when logged out
+ */
 export function getAuthToken(realm = inferAuthRealm()) {
   migrateLegacyAuth();
   reconcileRealmStorage(realm);
-  const storage = resolveRealmStorage(realm);
-  return storage?.getItem(realmKeys(realm).token) || null;
+  if (memoryTokens[realm]) return memoryTokens[realm];
+  const { token: tokenKey } = realmKeys(realm);
+  const legacy = sessionStorage.getItem(tokenKey) || localStorage.getItem(tokenKey);
+  if (legacy) return legacy;
+  if (hasSessionFlag(realm)) return COOKIE_SESSION_TOKEN;
+  return null;
+}
+
+/** True when a portal/admin session exists (Bearer and/or httpOnly cookie). */
+export function hasAuthSession(realm = inferAuthRealm()) {
+  const { user } = getAuthSession(realm);
+  return Boolean(user && getAuthToken(realm));
+}
+
+/** Headers for API calls: realm hint + Bearer only when a real JWT is in memory. */
+export function buildAuthHeaders(realm = inferAuthRealm(), extra = {}) {
+  const headers = {
+    'X-Auth-Realm': realm === AUTH_REALM.ADMIN ? 'admin' : 'portal',
+    ...extra,
+  };
+  const token = getAuthToken(realm);
+  if (token && token !== COOKIE_SESSION_TOKEN) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+export function isCookieSessionToken(token) {
+  return token === COOKIE_SESSION_TOKEN;
 }
 
 export function getAuthUserJson(realm = inferAuthRealm()) {
@@ -197,6 +364,12 @@ export function getAuthSession(realm) {
   return readSessionFromStorage(storage, realm) || { token: null, user: null };
 }
 
+export function isRememberedSession(realm = AUTH_REALM.PORTAL) {
+  migrateLegacyAuth();
+  reconcileRealmStorage(realm);
+  return resolveRealmStorage(realm) === localStorage;
+}
+
 export function setAuthUserJson(userStr, realm = inferAuthRealm()) {
   const storage = resolveRealmStorage(realm);
   if (storage) {
@@ -204,33 +377,59 @@ export function setAuthUserJson(userStr, realm = inferAuthRealm()) {
   }
 }
 
+function wipeRealm(realm) {
+  const { token: tokenKey, user: userKey, flag: flagKey } = realmKeys(realm);
+  memoryTokens[realm] = null;
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(userKey);
+  localStorage.removeItem(flagKey);
+  sessionStorage.removeItem(tokenKey);
+  sessionStorage.removeItem(userKey);
+  sessionStorage.removeItem(flagKey);
+}
+
 /**
- * @param {'admin'|'portal'} [realm] — omit to clear both sessions (full sign-out)
+ * Wipe client session storage only (no cookie clear, no cross-tab broadcast).
+ * Used when another tab already cleared the httpOnly cookie.
+ * @param {'admin'|'portal'} [realm] — omit to clear both
  */
-export function clearAuthSession(realm) {
+export function clearAuthSessionLocal(realm) {
   if (!realm) {
     clearAdminPortalPreviewFlag();
-    for (const r of [AUTH_REALM.ADMIN, AUTH_REALM.PORTAL]) {
-      const { token: tokenKey, user: userKey } = realmKeys(r);
-      localStorage.removeItem(tokenKey);
-      localStorage.removeItem(userKey);
-      sessionStorage.removeItem(tokenKey);
-      sessionStorage.removeItem(userKey);
-    }
+    wipeRealm(AUTH_REALM.ADMIN);
+    wipeRealm(AUTH_REALM.PORTAL);
     localStorage.removeItem(LEGACY_TOKEN);
     localStorage.removeItem(LEGACY_USER);
     sessionStorage.removeItem(LEGACY_TOKEN);
     sessionStorage.removeItem(LEGACY_USER);
     return;
   }
-
   if (realm === AUTH_REALM.PORTAL) {
     clearAdminPortalPreviewFlag();
   }
+  wipeRealm(realm);
+}
 
-  const { token: tokenKey, user: userKey } = realmKeys(realm);
-  localStorage.removeItem(tokenKey);
-  localStorage.removeItem(userKey);
-  sessionStorage.removeItem(tokenKey);
-  sessionStorage.removeItem(userKey);
+/**
+ * Clear the httpOnly cookie first, then local session + cross-tab notice.
+ * Callers that redirect must await this so restore-from-cookie cannot revive the session.
+ * @param {'admin'|'portal'} [realm] — omit to clear both sessions (full sign-out)
+ * @returns {Promise<void>}
+ */
+export function clearAuthSession(realm) {
+  markLogoutGuard(realm);
+  const cookieDone = realm ? clearServerAuthCookie(realm) : clearServerAuthCookie();
+  return Promise.resolve(cookieDone)
+    .catch(() => null)
+    .then(() => {
+      clearAuthSessionLocal(realm);
+      try {
+        const { broadcastAuthLogout, isAuthSyncBroadcastSuppressed } = require('./authSync');
+        if (!isAuthSyncBroadcastSuppressed()) {
+          broadcastAuthLogout(realm || 'all');
+        }
+      } catch {
+        /* sync optional at boot */
+      }
+    });
 }

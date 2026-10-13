@@ -148,8 +148,9 @@ const PortalLayout = ({ role, title }) => {
 
   const handleLogout = () => {
     invalidatePortalCache();
-    clearAuthSession(AUTH_REALM.PORTAL);
-    navigate('/login');
+    clearAuthSession(AUTH_REALM.PORTAL).finally(() => {
+      navigate('/login');
+    });
   };
 
   return (

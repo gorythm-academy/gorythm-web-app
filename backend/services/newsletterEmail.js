@@ -6,6 +6,7 @@ const {
     createUnsubscribeToken,
     ensureUnsubscribeToken,
     unsubscribeUrlForToken,
+    unsubscribeApiUrlForToken,
 } = require('../utils/unsubscribeToken');
 
 const SEND_LIMIT = 200;
@@ -68,7 +69,9 @@ async function sendNewsletter({ subject, body }) {
             subscriber.unsubscribeToken = createUnsubscribeToken();
             await subscriber.save();
         }
-        const unsubUrl = unsubscribeUrlForToken(await ensureUnsubscribeToken(subscriber));
+        const token = await ensureUnsubscribeToken(subscriber);
+        const unsubUrl = unsubscribeUrlForToken(token);
+        const oneClickUrl = unsubscribeApiUrlForToken(token);
         const html = `<p>${escapeHtml(textBody).replace(/\n/g, '<br />')}</p>
 <p style="margin-top:24px;font-size:12px;color:#666">
 You received this because you subscribed to Gorythm Academy updates.
@@ -83,7 +86,7 @@ You received this because you subscribed to Gorythm Academy updates.
                 text: `${textBody}\n\nUnsubscribe: ${unsubUrl}`,
                 html,
                 headers: {
-                    'List-Unsubscribe': `<${unsubUrl}>`,
+                    'List-Unsubscribe': `<${oneClickUrl}>`,
                     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
                 },
             });

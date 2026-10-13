@@ -44,6 +44,7 @@ const SubscribePopup = () => {
   const [email, setEmail] = useState('');
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Thank you for subscribing.');
   const [validationModal, setValidationModal] = useState({
     open: false,
     title: '',
@@ -113,26 +114,25 @@ const SubscribePopup = () => {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        let msg = 'Could not subscribe right now. Please try again.';
-        try {
-          const data = await response.json();
-          if (data?.error) msg = data.error;
-        } catch {
-          /* ignore */
-        }
         setValidationModal({
           open: true,
           title: 'Subscription could not be completed',
-          issues: [msg],
+          issues: [data?.error || 'Could not subscribe right now. Please try again.'],
         });
         return;
       }
 
+      setSuccessMessage(
+        data.pendingConfirmation
+          ? data.message || 'Check your email to confirm you want course updates again.'
+          : 'Thank you for subscribing.'
+      );
       setIsSubmitted(true);
       window.setTimeout(() => {
         setIsVisible(false);
-      }, 1200);
+      }, data.pendingConfirmation ? 6000 : 1200);
     } catch (error) {
       setValidationModal({
         open: true,
@@ -167,7 +167,7 @@ const SubscribePopup = () => {
 
           {isSubmitted ? (
             <div className="subscribe-popup-success">
-              <h3>Thank you for subscribing.</h3>
+              <h3>{successMessage}</h3>
             </div>
           ) : (
             <form className="subscribe-popup-form" onSubmit={handleSubmit} noValidate>

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM } from './authStorage';
+import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from './authStorage';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from './compressImageForUpload';
 import {
   cleanupAdminMedia,
@@ -22,12 +22,12 @@ export async function uploadLmsFile(file, category = 'assignments', realm = AUTH
   const form = new FormData();
   form.append('file', prepared);
   form.append('category', category);
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
   const base = (API_BASE_URL || '').replace(/\/$/, '');
   try {
     const res = await axios.post(`${base}/api/upload`, form, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(realm),
+      withCredentials: true,
     });
     const path = res.data?.url;
     if (!path) throw new Error(res.data?.error || 'Upload failed');
@@ -82,12 +82,12 @@ export async function uploadPromoVideoThumbnail(file, replacePath = '', realm = 
   const form = new FormData();
   form.append('file', prepared);
   if (replacePath) form.append('replacePath', replacePath);
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
   const base = (API_BASE_URL || '').replace(/\/$/, '');
   try {
     const res = await axios.post(`${base}/api/admin/promo-videos/thumbnail`, form, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(realm),
+      withCredentials: true,
     });
     const thumbPath = res.data?.thumbnailPath;
     if (!thumbPath) throw new Error(res.data?.error || 'Upload failed');
@@ -128,12 +128,12 @@ export async function uploadCourseImage(file, replacePath = '', filename = '', r
   if (filename) form.append('filename', filename);
   if (replacePath) form.append('replacePath', replacePath);
   form.append('file', prepared);
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
   const base = (API_BASE_URL || '').replace(/\/$/, '');
   try {
     const res = await axios.post(`${base}/api/admin/course-images`, form, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(realm),
+      withCredentials: true,
     });
     const imagePath = res.data?.imagePath;
     if (!imagePath) throw new Error(res.data?.error || 'Upload failed');
@@ -178,12 +178,12 @@ export async function uploadResearchImage(file, replacePath = '', filename = '',
   if (filename) form.append('filename', filename);
   if (replacePath) form.append('replacePath', replacePath);
   form.append('file', prepared);
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
   const base = (API_BASE_URL || '').replace(/\/$/, '');
   try {
     const res = await axios.post(`${base}/api/admin/research-images`, form, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildAuthHeaders(realm),
+      withCredentials: true,
     });
     const imagePath = res.data?.imagePath;
     if (!imagePath) throw new Error(res.data?.error || 'Upload failed');
@@ -218,13 +218,12 @@ export async function deleteResearchGalleryImage(
 /** Rename research image file on server. */
 export async function renameResearchImage(imagePath, filename, realm = AUTH_REALM.ADMIN) {
   if (!imagePath || !filename) throw new Error('imagePath and filename are required');
-  const token = getAuthToken(realm);
-  if (!token) throw new Error('Not logged in');
+  if (!hasAuthSession(realm)) throw new Error('Not logged in');
   const base = (API_BASE_URL || '').replace(/\/$/, '');
   const res = await axios.post(
     `${base}/api/admin/research-images/rename`,
     { imagePath, filename },
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: buildAuthHeaders(realm), withCredentials: true }
   );
   const newPath = res.data?.imagePath;
   if (!newPath) throw new Error(res.data?.error || 'Rename failed');

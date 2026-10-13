@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken, AUTH_REALM } from '../../../utils/authStorage';
+import { forceAdminLogout } from '../../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../../config/constants';
 import '../Admin.scss';
 import AdminTablePagination from '../shared/AdminTablePagination';
@@ -223,7 +224,7 @@ const Subscribers = () => {
       setListTruncated(false);
       setListTotalCount(null);
       if (error.response?.status === 401) {
-        window.location.assign('/admin/login');
+        forceAdminLogout();
         return;
       }
       setFetchError(error.response?.data?.error || error.message || 'Failed to load subscribers.');
@@ -405,7 +406,7 @@ const Subscribers = () => {
       setFetchError('');
     } catch (error) {
       if (error.response?.status === 401) {
-        window.location.assign('/admin/login');
+        forceAdminLogout();
         return;
       }
       setFetchError(

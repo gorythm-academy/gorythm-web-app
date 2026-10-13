@@ -11,7 +11,7 @@ import {
   getCourseMasonryColumnIndex,
   sortCoursesForCatalog,
 } from '../../utils/courseMasonry';
-import { getAuthToken, AUTH_REALM } from '../../utils/authStorage';
+import { hasAuthSession, buildAuthHeaders, AUTH_REALM } from '../../utils/authStorage';
 import SmartCourseImage from '../SmartCourseImage/SmartCourseImage';
 import './SingleCourse.scss';
 
@@ -56,15 +56,13 @@ export function SingleCourse() {
     setLoadError(false);
     setNotFound(false);
 
-    const adminToken = isAdminPreview ? getAuthToken(AUTH_REALM.ADMIN) : null;
-    const courseUrl =
-      isAdminPreview && adminToken
-        ? `${API_BASE_URL}/api/courses/preview/${slug}`
-        : `${API_BASE_URL}/api/courses/${slug}`;
-    const courseFetchOpts =
-      isAdminPreview && adminToken
-        ? { headers: { Authorization: `Bearer ${adminToken}` } }
-        : undefined;
+    const adminPreview = isAdminPreview && hasAuthSession(AUTH_REALM.ADMIN);
+    const courseUrl = adminPreview
+      ? `${API_BASE_URL}/api/courses/preview/${slug}`
+      : `${API_BASE_URL}/api/courses/${slug}`;
+    const courseFetchOpts = adminPreview
+      ? { credentials: 'include', headers: buildAuthHeaders(AUTH_REALM.ADMIN) }
+      : undefined;
 
     fetch(courseUrl, courseFetchOpts)
       .then((r) => r.json())

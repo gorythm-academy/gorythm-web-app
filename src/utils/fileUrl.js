@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM, inferAuthRealm } from './authStorage';
+import {
+  getAuthToken,
+  buildAuthHeaders,
+  isCookieSessionToken,
+  AUTH_REALM,
+  inferAuthRealm,
+} from './authStorage';
 
 const PROTECTED_UPLOAD_PREFIXES = [
   '/api/uploads/payment-proofs/',
@@ -56,10 +62,40 @@ const fileLinkCache = new Map();
 
 function authTokenFor(options = {}) {
   const realm = options.realm || inferAuthRealm();
-  return (
-    getAuthToken(realm) ||
-    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN)
-  );
+  const primary = getAuthToken(realm);
+  if (primary || options.realm) return primary;
+  // Only cross-fallback when caller did not pin a realm.
+  return getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN);
+}
+
+/**
+ * Rewrite protected /api/uploads URLs inside HTML (img/src, a/href) to short-lived
+ * authorized links so inline content does not rely on headerless dual-cookie heuristics.
+ */
+export async function authorizeHtmlUploadUrls(html, options = {}) {
+  const source = String(html || '');
+  if (!source.includes('/api/uploads/')) return source;
+
+  const realm = options.realm || inferAuthRealm();
+  const re = /\b(src|href)=["']([^"']*\/api\/uploads\/[^"']+)["']/gi;
+  const found = new Map();
+  let match;
+  while ((match = re.exec(source)) !== null) {
+    const rawUrl = match[2];
+    const stored = normalizeStoredUploadPath(rawUrl);
+    if (!stored || !pathNeedsUploadAuth(stored)) continue;
+    if (!found.has(rawUrl)) found.set(rawUrl, stored);
+  }
+  if (!found.size) return source;
+
+  let out = source;
+  for (const [rawUrl, stored] of found) {
+    const authorized = await fileAccessUrl(stored, { realm });
+    if (authorized) {
+      out = out.split(rawUrl).join(authorized);
+    }
+  }
+  return out;
 }
 
 /** Short-lived link for one protected file. The login token is not put in the address. */
@@ -72,13 +108,20 @@ export async function fileAccessUrl(path, options = {}) {
   if (cached && cached.expiresAt > Date.now() + 15000) return cached.url;
   const token = authTokenFor(options);
   if (!token) return plain;
+  const realm = options.realm || inferAuthRealm();
   const base = (API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+  const headers = {
+    ...buildAuthHeaders(realm),
+    'Content-Type': 'application/json',
+  };
+  // fetch is not covered by axios interceptor — never send the cookie sentinel as Bearer.
+  if (isCookieSessionToken(token) || isCookieSessionToken(headers.Authorization?.replace(/^Bearer\s+/i, ''))) {
+    delete headers.Authorization;
+  }
   const res = await fetch(`${base}/api/auth/file-link`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'include',
+    headers,
     body: JSON.stringify({ path: normalizeStoredUploadPath(path) || path }),
   });
   const data = await res.json().catch(() => ({}));
@@ -89,45 +132,53 @@ export async function fileAccessUrl(path, options = {}) {
 }
 
 export function useAuthorizedFileUrl(path, options = {}) {
+  const proofToken = options.proofToken || '';
+  const uploadToken = options.uploadToken || '';
+  const realm = options.realm;
   const stored = normalizeStoredUploadPath(path);
-  const needsLink = pathNeedsUploadAuth(stored) && !(options.proofToken || options.uploadToken);
-  const [url, setUrl] = useState(() => (needsLink ? '' : absFileUrl(path, options)));
+  const needsLink = pathNeedsUploadAuth(stored) && !(proofToken || uploadToken);
+  const [url, setUrl] = useState(() => (
+    needsLink ? '' : absFileUrl(path, { proofToken, uploadToken, realm })
+  ));
 
   useEffect(() => {
+    const linkOptions = { proofToken, uploadToken, realm };
     if (!path) {
       setUrl('');
       return undefined;
     }
     if (!needsLink) {
-      setUrl(absFileUrl(path, options));
+      setUrl(absFileUrl(path, linkOptions));
       return undefined;
     }
     let cancel = false;
-    fileAccessUrl(path, options).then((next) => {
+    fileAccessUrl(path, linkOptions).then((next) => {
       if (!cancel) setUrl(next || '');
     });
     return () => {
       cancel = true;
     };
-  }, [path, needsLink, options.proofToken, options.uploadToken, options.realm]);
+  }, [path, needsLink, proofToken, uploadToken, realm]);
 
   return url;
 }
 
-/** Download a protected upload using JWT (falls back to opening in a new tab). */
+/** Download a protected upload using session cookie / Bearer (falls back to new tab). */
 export async function downloadProtectedUpload(path, options = {}) {
   const href = absFileUrl(path, options);
   if (!href) return;
 
   const realm = options.realm || inferAuthRealm();
-  const token =
-    getAuthToken(realm) ||
-    getAuthToken(realm === AUTH_REALM.ADMIN ? AUTH_REALM.PORTAL : AUTH_REALM.ADMIN);
-
+  const token = authTokenFor(options);
   if (token) {
     try {
+      const headers = { ...buildAuthHeaders(realm) };
+      if (isCookieSessionToken(token) || isCookieSessionToken(headers.Authorization?.replace(/^Bearer\s+/i, ''))) {
+        delete headers.Authorization;
+      }
       const res = await fetch(href, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers,
       });
       if (res.ok) {
         const blob = await res.blob();

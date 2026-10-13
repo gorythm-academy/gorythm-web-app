@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import axios from 'axios';
 import { lmsAdminGet } from '../utils/lmsAdminApi';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken } from '../utils/authStorage';
+import { hasAuthSession, buildAuthHeaders, AUTH_REALM } from '../utils/authStorage';
 import {
   badgesFromLmsTabBadgesResponse,
   lmsTabBadgesClientCache,
@@ -68,11 +68,11 @@ function fetchResourcesSubmissionsBadge() {
 }
 
 function fetchPaymentsBadge() {
-  const token = getAuthToken();
-  if (!token) return Promise.resolve(0);
+  if (!hasAuthSession(AUTH_REALM.ADMIN)) return Promise.resolve(0);
   return axios.get(`${API_BASE_URL}/api/payments/admin/unseen-count`, {
     params: { since: getPortalSeenCutoff(ADMIN_SEEN_PAYMENTS) },
-    headers: { Authorization: `Bearer ${token}` },
+    headers: buildAuthHeaders(AUTH_REALM.ADMIN),
+    withCredentials: true,
   }).then((res) => Number(res.data?.count) || 0);
 }
 

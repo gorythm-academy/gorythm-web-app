@@ -3,7 +3,7 @@ const Enrollment = require('../models/Enrollment');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { pktYmd, enrollmentAllFeesPaid, enrollmentFeeIsFree } = require('../utils/feeDueDate');
-const { isUnsetPortalEmail } = require('../utils/studentPortalEmail');
+const { deliverableInbox } = require('../utils/studentPortalEmail');
 const logger = require('../utils/logger');
 
 const DAYS_BEFORE_DUE = 3;
@@ -70,7 +70,8 @@ function reminderKind(enrollment, now = new Date()) {
         if (enrollment.feeReminderOverdueSentFor === dueKey) return null;
         return { kind: 'overdue', dueKey, due };
     }
-    if (compareYmd(today, addDaysYmd(due, -DAYS_BEFORE_DUE)) === 0) {
+    const windowStart = addDaysYmd(due, -DAYS_BEFORE_DUE);
+    if (compareYmd(today, windowStart) >= 0 && compareYmd(today, due) <= 0) {
         if (enrollment.feeReminderDueSentFor === dueKey) return null;
         return { kind: 'due', dueKey, due };
     }
@@ -78,9 +79,7 @@ function reminderKind(enrollment, now = new Date()) {
 }
 
 function usableReminderEmail(value) {
-    const pick = String(value || '').trim().toLowerCase();
-    if (!pick || isUnsetPortalEmail(pick)) return '';
-    return pick;
+    return deliverableInbox(value);
 }
 
 function recipientEmails(student, parent) {
@@ -152,13 +151,27 @@ async function sendDueFeeReminders(now = new Date()) {
             skipped += 1;
             continue;
         }
-        const link = await ParentStudentLink.findOne({ student: student._id }).populate('parent', 'name email personalEmail');
-        const to = recipientEmails(student, link?.parent);
+        const links = await ParentStudentLink.find({ student: student._id }).populate('parent', 'name email personalEmail');
+        const to = recipientEmails(student, null);
+        for (const link of links) {
+            for (const email of recipientEmails(null, link?.parent)) {
+                if (!to.includes(email)) to.push(email);
+            }
+        }
         if (!to.length) {
             skipped += 1;
             continue;
         }
         const copy = reminderCopy(match.kind, enrollment, student.name);
+        const flagField = match.kind === 'due' ? 'feeReminderDueSentFor' : 'feeReminderOverdueSentFor';
+        const claimed = await Enrollment.findOneAndUpdate(
+            { _id: enrollment._id, [flagField]: { $ne: match.dueKey } },
+            { $set: { [flagField]: match.dueKey } }
+        );
+        if (!claimed) {
+            skipped += 1;
+            continue;
+        }
         try {
             await transporter.sendMail({
                 from: fromAddress(),
@@ -166,11 +179,12 @@ async function sendDueFeeReminders(now = new Date()) {
                 subject: copy.subject,
                 text: copy.text,
             });
-            if (match.kind === 'due') enrollment.feeReminderDueSentFor = match.dueKey;
-            else enrollment.feeReminderOverdueSentFor = match.dueKey;
-            await enrollment.save();
             sent += 1;
         } catch (err) {
+            await Enrollment.updateOne(
+                { _id: enrollment._id, [flagField]: match.dueKey },
+                { $set: { [flagField]: claimed[flagField] || '' } }
+            );
             logger.warn('Fee reminder email failed', {
                 enrollmentId: String(enrollment._id),
                 errorMessage: err.message,

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
+import { forceAdminLogout } from '../../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
 import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
@@ -11,7 +12,7 @@ const idKey = (id) => String(id);
 
 const handleAdminAuthError = (error) => {
   if (error.response?.status === 401) {
-    window.location.assign('/admin/login');
+    forceAdminLogout();
     return true;
   }
   return false;

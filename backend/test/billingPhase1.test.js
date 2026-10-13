@@ -506,6 +506,8 @@ test('fee reminders send 3 days before the due date and once when overdue', () =
     };
     assert.equal(reminderKind(base, new Date('2026-02-14T12:00:00+05:00'))?.kind, undefined);
     assert.equal(reminderKind(base, new Date('2026-02-15T12:00:00+05:00'))?.kind, 'due');
+    assert.equal(reminderKind(base, new Date('2026-02-16T12:00:00+05:00'))?.kind, 'due');
+    assert.equal(reminderKind(base, new Date('2026-02-18T12:00:00+05:00'))?.kind, 'due');
     assert.equal(reminderKind({ ...base, feeReminderDueSentFor: '2026-02-18' }, new Date('2026-02-15T12:00:00+05:00')), null);
     assert.equal(reminderKind(base, new Date('2026-02-19T12:00:00+05:00'))?.kind, 'overdue');
     assert.equal(reminderKind({ ...base, status: 'paused' }, new Date('2026-02-19T12:00:00+05:00')), null);

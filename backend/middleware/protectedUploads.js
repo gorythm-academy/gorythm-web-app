@@ -8,6 +8,8 @@ const User = require('../models/User');
 const Payment = require('../models/Payment');
 const { activePaymentFilter } = require('../utils/paymentQuery');
 const { canAccessLmsUpload } = require('../services/lmsUploadAccess');
+const { readAuthTokenFromRequest } = require('../utils/authCookies');
+const { assertTokenEpoch } = require('../utils/tokenEpoch');
 
 const PUBLIC_PREFIXES = ['courses-images/', 'video-thumbnails/', 'research-images/', 'subscribe-popup-images/'];
 
@@ -27,12 +29,6 @@ function isProtectedPath(rel) {
     return PROTECTED_PREFIXES.some((p) => rel.startsWith(p));
 }
 
-function extractBearer(req) {
-    const auth = req.header('Authorization');
-    if (auth?.startsWith('Bearer ')) return auth.slice(7).trim();
-    return null;
-}
-
 function uploadPublicPath(rel) {
     return `/api/uploads/${String(rel || '').replace(/^\//, '')}`;
 }
@@ -44,13 +40,17 @@ async function liveUserForUpload(req, rel) {
         if (!decoded || decoded.purpose !== 'file' || decoded.path !== uploadPublicPath(rel)) return null;
         return resolveLiveUser(decoded);
     }
-    return resolveLiveUser(verifyJwt(extractBearer(req)));
+    // Cookie-primary sessions: Bearer may be absent after reload; use shared reader.
+    return resolveLiveUser(verifyJwt(readAuthTokenFromRequest(req)));
 }
 
 function verifyJwt(token) {
     if (!token || !process.env.JWT_SECRET) return null;
     try {
-        return jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // Short-lived ?ft= file links omit authEpoch; session JWTs must match AUTH_EPOCH.
+        if (decoded?.purpose !== 'file' && !assertTokenEpoch(decoded)) return null;
+        return decoded;
     } catch {
         return null;
     }
@@ -61,11 +61,18 @@ async function resolveLiveUser(decoded) {
     const userId = decoded.userId || decoded.id;
     if (!userId) return null;
 
-    const user = await User.findById(userId).select('role deletedAt canLogin isActive email');
+    const user = await User.findById(userId).select('role deletedAt canLogin isActive email sessionVersion');
     if (!user) return null;
     if (user.deletedAt) return null;
     if (user.canLogin === false || user.isActive === false) return null;
     if (decoded.role && user.role !== decoded.role) return null;
+    // File-link JWTs are short-lived and omit sessionVersion; live session JWTs must match.
+    if (
+        decoded.purpose !== 'file' &&
+        Number(decoded.sessionVersion ?? 0) !== Number(user.sessionVersion || 0)
+    ) {
+        return null;
+    }
 
     return {
         userId: String(user._id),
@@ -154,17 +161,14 @@ async function issueFileLink(req, rawPath) {
         err.status = 400;
         throw err;
     }
-    const live = await resolveLiveUser(verifyJwt(extractBearer(req)));
+    const live = await resolveLiveUser(verifyJwt(readAuthTokenFromRequest(req)));
     if (!live) {
         const err = new Error('Unauthorized');
         err.status = 401;
         throw err;
     }
     if (rel.startsWith('payment-proofs/') || rel.startsWith('payments/')) {
-        const allowed = await canAccessPaymentProof(
-            { header: (name) => req.header(name), query: {} },
-            rel
-        );
+        const allowed = await canAccessPaymentProof(req, rel);
         if (!allowed) {
             const err = new Error('Unauthorized');
             err.status = 401;

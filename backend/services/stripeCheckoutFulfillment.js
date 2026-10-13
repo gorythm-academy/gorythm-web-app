@@ -218,6 +218,9 @@ async function fulfillStripeCheckoutSession(session) {
     });
     if (existingPayment?.status === 'paid') {
         await existingPayment.populate(['user', 'course']);
+        if (!existingPayment.receiptSentAt) {
+            await sendPaymentReceiptEmail(existingPayment);
+        }
         if (existingPayment.failureReason) {
             const issue = inferFulfillmentIssue(existingPayment.failureReason);
             const alreadyEnrolledDuplicate =

@@ -67,8 +67,20 @@ async function resolveStudentUserFromPayment(payment) {
 
 /**
  * Create/link student + enrollment. Does not change payment status — call before marking paid.
- * Paid enrollments stay inactive until admin completes setup (portal email, timeslot, activate).
+ * A successful payment turns that enrollment, and the student login, active.
  */
+async function activatePaidStudent(userId, enrollment) {
+    if (!userId) return;
+    if (enrollment) {
+        const status = String(enrollment.status || '').toLowerCase();
+        if (!status || status === 'inactive' || status === 'pending') {
+            enrollment.status = 'active';
+            await enrollment.save();
+        }
+    }
+    await syncStudentUserLoginFromAllEnrollments(userId);
+}
+
 async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
     if (!payment) {
         throw new Error('Payment not found');
@@ -117,6 +129,7 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         const course = await Course.findById(courseId).select('price totalFeeCount feeDueDate');
         copyTotalFeeCountFromCourse(existingEnrollment, course);
         await applyInstallmentPayment(existingEnrollment, payment, { course });
+        await activatePaidStudent(userId, existingEnrollment);
         return existingEnrollment;
     }
 
@@ -141,11 +154,11 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
     await applyInstallmentPayment(enrollment, payment, { course });
 
     await addEnrollmentToRosters(userId, courseId);
+    await activatePaidStudent(userId, enrollment);
     setImmediate(() => {
         Promise.allSettled([
             ensureStudentId(userId),
             syncStudentRosterFromEnrollments(userId),
-            syncStudentUserLoginFromAllEnrollments(userId),
         ]);
     });
 

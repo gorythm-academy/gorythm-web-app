@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../config/constants';
-import { getAuthToken } from '../../../utils/authStorage';
+import { hasAuthSession, buildAuthHeaders, AUTH_REALM } from '../../../utils/authStorage';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch, lmsAdminDelete } from '../../../utils/lmsAdminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
@@ -47,11 +47,10 @@ const ParentLinksSection = ({ panelId = 'parents-tabpanel-parent-links' }) => {
   }, [showAlert]);
 
   const fetchLinkPickers = useCallback(async (parentSearch = '', studentSearch = '') => {
-    const token = getAuthToken();
-    if (!token) return;
+    if (!hasAuthSession(AUTH_REALM.ADMIN)) return;
     setPickersLoading(true);
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = buildAuthHeaders(AUTH_REALM.ADMIN);
       const [parentRes, studentRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/users`, {
           headers,

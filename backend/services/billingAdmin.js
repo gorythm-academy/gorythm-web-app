@@ -10,6 +10,7 @@ const { assertLaterDueDate, parseDueDateInput, applyEnrollmentDueDateInput, push
 const { nextInvoiceNumber } = require('../utils/invoiceNumber');
 const { isPaidStoredStatus, displayEnrollmentFeeStatus, statusLabel } = require('../utils/billingStatus');
 const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
+const { deliverableInbox } = require('../utils/studentPortalEmail');
 
 async function paymentsInGroup(payment) {
     if (payment?.groupId) {
@@ -178,7 +179,7 @@ async function markEnrollmentReceived(enrollmentId, actorId) {
         user: enrollment.student?._id || enrollment.student,
         course: enrollment.course?._id || enrollment.course,
         studentName: enrollment.student?.name || 'Student',
-        email: enrollment.student?.personalEmail || enrollment.student?.email || '',
+        email: deliverableInbox(enrollment.student?.personalEmail) || deliverableInbox(enrollment.student?.email) || '',
         phone: enrollment.student?.phone || '',
         courseName: enrollment.course?.title || '',
         amount,

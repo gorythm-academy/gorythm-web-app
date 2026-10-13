@@ -72,6 +72,8 @@ const paymentSchema = new mongoose.Schema({
     dueDate: { type: Date, default: null },
     dueDateExtensions: { type: [dueDateExtensionSchema], default: [] },
     receiptIssuedAt: { type: Date, default: null },
+    receiptSentAt: { type: Date, default: null },
+    adminNotifiedAt: { type: Date, default: null },
     installmentCounted: { type: Boolean, default: false },
     installmentMonths: { type: Number, default: 1, min: 1 },
     cardBrand: { type: String, default: '' },

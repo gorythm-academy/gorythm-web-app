@@ -12,6 +12,11 @@ function unsubscribeUrlForToken(token) {
     return `${publicSiteOrigin()}/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
+/** One-click mail clients POST here. A plain GET must not unsubscribe. */
+function unsubscribeApiUrlForToken(token) {
+    return `${publicSiteOrigin()}/api/subscribers/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
 async function ensureUnsubscribeToken(subscriber) {
     if (subscriber.unsubscribeToken) return subscriber.unsubscribeToken;
     subscriber.unsubscribeToken = createUnsubscribeToken();
@@ -23,5 +28,6 @@ module.exports = {
     createUnsubscribeToken,
     publicSiteOrigin,
     unsubscribeUrlForToken,
+    unsubscribeApiUrlForToken,
     ensureUnsubscribeToken,
 };

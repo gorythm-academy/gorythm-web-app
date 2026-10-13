@@ -36,6 +36,29 @@ export const normalizeEnrollmentStatus = (status) => {
 export const userStatusFromEnrollmentStatus = (enrollmentStatus) =>
     normalizeEnrollmentStatus(enrollmentStatus);
 
+export const formatLoginEmailNotice = (loginEmail) => {
+    if (!loginEmail) return '';
+    if (loginEmail.sent && Array.isArray(loginEmail.sentTo) && loginEmail.sentTo.length) {
+        return `Login email sent to ${loginEmail.sentTo.join(', ')}.`;
+    }
+    if (loginEmail.error) return String(loginEmail.error);
+    return '';
+};
+
+export const formatLoginEmailStatus = (user) => {
+    if (!user) return '';
+    if (user.loginEmailSentAt) {
+        const when = new Date(user.loginEmailSentAt);
+        const date = Number.isNaN(when.getTime()) ? '' : when.toLocaleString();
+        const to = Array.isArray(user.loginEmailSentTo) && user.loginEmailSentTo.length
+            ? ` to ${user.loginEmailSentTo.join(', ')}`
+            : '';
+        return `Login email sent${date ? ` ${date}` : ''}${to}.`;
+    }
+    if (user.loginEmailLastError) return user.loginEmailLastError;
+    return 'Login email has not been sent.';
+};
+
 export const validatePasswordPair = (password, confirmPassword, { required = false } = {}) => {
     const pwd = String(password || '');
     const confirm = String(confirmPassword || '');

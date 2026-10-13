@@ -202,6 +202,13 @@
         }
     }
 
+    &__note {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        line-height: 1.5;
+        color: var(--color-text);
+    }
+
     &__options {
         display: flex;
         flex-wrap: wrap;
@@ -294,6 +301,15 @@
             outline: 2px solid var(--color-text-dark);
             outline-offset: 2px;
         }
+    }
+
+    a.auth-login__submit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        text-decoration: none;
+        box-sizing: border-box;
     }
 
     &__divider {

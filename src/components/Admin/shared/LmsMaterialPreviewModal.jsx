@@ -1,7 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { downloadProtectedUpload, normalizeStoredUploadPath, ProtectedFileLink } from '../../../utils/fileUrl';
+import {
+  authorizeHtmlUploadUrls,
+  downloadProtectedUpload,
+  normalizeStoredUploadPath,
+  ProtectedFileLink,
+} from '../../../utils/fileUrl';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
+import { AUTH_REALM } from '../../../utils/authStorage';
 import ResearchSeriesView from '../../Pages/ResearchSeriesView';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import './LmsMaterialPreviewModal.scss';
@@ -32,6 +38,22 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
   const attachments = useMemo(() => (item && kind !== 'research' ? listAttachments(item) : []), [item, kind]);
   const isLinkResource = kind === 'resource' && item?.type === 'link';
   const isResearch = kind === 'research';
+  const fileRealm = tone === 'admin' ? AUTH_REALM.ADMIN : AUTH_REALM.PORTAL;
+  const [authorizedArticleHtml, setAuthorizedArticleHtml] = useState('');
+
+  useEffect(() => {
+    if (!open || !isResearch || !item?.content?.trim()) {
+      setAuthorizedArticleHtml('');
+      return undefined;
+    }
+    let cancelled = false;
+    authorizeHtmlUploadUrls(item.content, { realm: fileRealm }).then((html) => {
+      if (!cancelled) setAuthorizedArticleHtml(html || item.content);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isResearch, item?.content, fileRealm]);
 
   if (!open || !item) return null;
 
@@ -140,7 +162,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
             ) : item.content?.trim() ? (
               <div
                 className="lms-material-preview__article"
-                dangerouslySetInnerHTML={{ __html: item.content }}
+                dangerouslySetInnerHTML={{ __html: authorizedArticleHtml || item.content }}
               />
             ) : (
               <p className="lms-material-preview__empty">No article body yet.</p>
@@ -177,11 +199,12 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
                     ) : (
                       <ProtectedFileLink
                         path={url}
+                        linkOptions={{ realm: fileRealm }}
                         target="_blank"
                         rel="noreferrer"
                         onClick={(event) => {
                           event.preventDefault();
-                          downloadProtectedUpload(url);
+                          downloadProtectedUpload(url, { realm: fileRealm });
                         }}
                       >
                         {label}

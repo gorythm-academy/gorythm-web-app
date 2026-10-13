@@ -124,12 +124,16 @@ const ContactPage = () => {
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!response.ok || !data.success || data.emailSent === false) {
         console.error('Contact form API error', { status: response.status, data });
         setValidationModal({
           open: true,
           title: 'Message could not be sent',
-          issues: [data.error || 'Something went wrong while sending your message. Please try again.'],
+          issues: [
+            data.emailSent === false
+              ? 'We saved your message, but could not email the academy. Please try again or use WhatsApp.'
+              : (data.error || 'Something went wrong while sending your message. Please try again.'),
+          ],
         });
         return;
       }

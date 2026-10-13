@@ -1,6 +1,8 @@
 import axios from 'axios';
-import { getAuthToken, clearAuthSession, AUTH_REALM } from './authStorage';
+import { buildAuthHeaders, AUTH_REALM } from './authStorage';
 import { API_BASE_URL } from '../config/constants';
+import { forceAdminLogout } from './adminAuthSession';
+import { isAuthSessionRevokedError } from './authLoginErrors';
 
 function apiBase() {
   return (API_BASE_URL || '').replace(/\/$/, '');
@@ -18,19 +20,13 @@ export function getAdminErrorMessage(err, fallback = 'Request failed') {
   return err.message || fallback;
 }
 
-function handleUnauthorized(status) {
-  if (status !== 401 || typeof window === 'undefined') return;
-  const path = window.location.pathname || '';
-  if (path.startsWith('/admin') && !path.startsWith('/admin/login')) {
-    clearAuthSession(AUTH_REALM.ADMIN);
-    window.location.assign('/admin/login');
-  }
+function handleUnauthorized(err) {
+  if (!isAuthSessionRevokedError(err)) return;
+  forceAdminLogout();
 }
 
 export async function adminRequest(method, url, body, config = {}) {
-  const token = getAuthToken(AUTH_REALM.ADMIN);
-  const headers = { ...(config.headers || {}) };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = { ...buildAuthHeaders(AUTH_REALM.ADMIN), ...(config.headers || {}) };
 
   try {
     const res = await axios({
@@ -39,10 +35,11 @@ export async function adminRequest(method, url, body, config = {}) {
       data: body,
       ...config,
       headers,
+      withCredentials: true,
     });
     return res;
   } catch (err) {
-    handleUnauthorized(err.response?.status);
+    handleUnauthorized(err);
     const wrapped = new Error(getAdminErrorMessage(err));
     wrapped.cause = err;
     wrapped.status = err.response?.status;

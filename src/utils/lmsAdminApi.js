@@ -1,17 +1,18 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
-import { getAuthToken, AUTH_REALM } from './authStorage';
+import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from './authStorage';
+import { forceAdminLogout } from './adminAuthSession';
+import { isAuthSessionRevokedError } from './authLoginErrors';
 
 function apiBase() {
   return (API_BASE_URL || '').replace(/\/$/, '');
 }
 
 function authHeaders() {
-  const token = getAuthToken(AUTH_REALM.ADMIN);
-  if (!token) {
+  if (!hasAuthSession(AUTH_REALM.ADMIN)) {
     throw new Error('Not logged in. Please sign in to the admin dashboard again.');
   }
-  return { Authorization: `Bearer ${token}` };
+  return buildAuthHeaders(AUTH_REALM.ADMIN);
 }
 
 function formatError(err, fallback = 'Request failed') {
@@ -29,9 +30,13 @@ async function request(method, path, data) {
       headers: authHeaders(),
     };
     if (data !== undefined) config.data = data;
+    config.withCredentials = true;
     const res = await axios(config);
     return res.data;
   } catch (err) {
+    if (isAuthSessionRevokedError(err)) {
+      forceAdminLogout();
+    }
     throw new Error(formatError(err));
   }
 }

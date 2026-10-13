@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
-import { getAuthToken } from '../../../utils/authStorage';
+import { buildAuthHeaders, AUTH_REALM } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import {
   cleanupPromoVideoThumbnail,
@@ -182,10 +182,7 @@ const PromoVideosManagement = () => {
   /** Paths created by upload in this modal session only (safe to orphan-cleanup on cancel). */
   const sessionUploadedPathsRef = useRef(new Set());
 
-  const authHeaders = useCallback(() => {
-    const token = getAuthToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
+  const authHeaders = useCallback(() => buildAuthHeaders(AUTH_REALM.ADMIN), []);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -214,8 +211,6 @@ const PromoVideosManagement = () => {
   }, [fetchList]);
 
   const fetchGalleryImages = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) return;
     setGalleryLoading(true);
     try {
       const images = await fetchPromoThumbnailGallery();

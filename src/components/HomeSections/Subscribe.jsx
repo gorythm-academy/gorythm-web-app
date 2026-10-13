@@ -35,6 +35,7 @@ const SubscribeSection = () => {
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Thank you for subscribing.');
   const [validationModal, setValidationModal] = useState({
     open: false,
     title: '',
@@ -80,22 +81,21 @@ const SubscribeSection = () => {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        let msg = 'Could not subscribe right now. Please try again.';
-        try {
-          const data = await response.json();
-          if (data?.error) msg = data.error;
-        } catch {
-          /* ignore */
-        }
         setValidationModal({
           open: true,
           title: 'Subscription could not be completed',
-          issues: [msg],
+          issues: [data?.error || 'Could not subscribe right now. Please try again.'],
         });
         return;
       }
 
+      setSuccessMessage(
+        data.pendingConfirmation
+          ? data.message || 'Check your email to confirm you want course updates again.'
+          : 'Thank you for subscribing.'
+      );
       setIsSubmitted(true);
       setEmail('');
       setAgreePrivacy(false);
@@ -116,7 +116,7 @@ const SubscribeSection = () => {
       <div className="subscribe-section-inner">
         {isSubmitted ? (
           <div className="subscribe-success" role="status" aria-live="polite">
-            <p>Thank you for subscribing.</p>
+            <p>{successMessage}</p>
           </div>
         ) : (
           <form className="subscribe-row" onSubmit={handleSubmit} noValidate>

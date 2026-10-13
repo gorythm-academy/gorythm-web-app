@@ -1,12 +1,11 @@
 import axios from 'axios';
-import { getAuthToken, clearAuthSession, AUTH_REALM } from '../../../utils/authStorage';
+import { buildAuthHeaders, AUTH_REALM } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
+import { forcePortalLogout } from '../../../utils/portalAuthSession';
+import { isAuthSessionRevokedError } from '../../../utils/authLoginErrors';
 
 function buildHeaders() {
-  const headers = {};
-  const token = getAuthToken(AUTH_REALM.PORTAL);
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+  return buildAuthHeaders(AUTH_REALM.PORTAL);
 }
 
 function apiBase() {
@@ -29,18 +28,10 @@ export function getPortalErrorMessage(err, fallback = 'Request failed') {
   return err.message || fallback;
 }
 
-function handleUnauthorized(status) {
-  if (status !== 401 || typeof window === 'undefined') return;
-  const path = window.location.pathname || '';
-  if (
-    path.startsWith('/student') ||
-    path.startsWith('/teacher') ||
-    path.startsWith('/parent') ||
-    path.startsWith('/accountant')
-  ) {
-    clearAuthSession(AUTH_REALM.PORTAL);
-    window.location.assign('/login');
-  }
+function handleUnauthorized(err) {
+  if (typeof window === 'undefined') return;
+  if (!isAuthSessionRevokedError(err)) return;
+  forcePortalLogout();
 }
 
 const portalGetCache = new Map();
@@ -82,7 +73,7 @@ async function request(method, url, body) {
     const res = await axios(config);
     return res.data;
   } catch (err) {
-    handleUnauthorized(err.response?.status);
+    handleUnauthorized(err);
     const wrapped = new Error(getPortalErrorMessage(err));
     wrapped.cause = err;
     wrapped.status = err.response?.status;
@@ -121,7 +112,7 @@ export async function portalGetBlob(path) {
     });
     return res.data;
   } catch (err) {
-    handleUnauthorized(err.response?.status);
+    handleUnauthorized(err);
     let message = getPortalErrorMessage(err, 'Could not download the file. Please try again.');
     const data = err.response?.data;
     if (typeof Blob !== 'undefined' && data instanceof Blob) {
@@ -150,7 +141,7 @@ export async function portalPostForm(path, formData) {
     });
     return res.data;
   } catch (err) {
-    handleUnauthorized(err.response?.status);
+    handleUnauthorized(err);
     const wrapped = new Error(getPortalErrorMessage(err));
     wrapped.cause = err;
     wrapped.status = err.response?.status;

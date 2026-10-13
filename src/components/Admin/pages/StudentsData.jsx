@@ -90,7 +90,14 @@ const buildStudentCardsFromApi = (studentsPayload = []) =>
 const sortStudentCards = (cards, sortBy, sortOrder) => {
     const dir = sortOrder === 'desc' ? -1 : 1;
     const byName = sortBy === 'student' || sortBy === 'name';
+    const byNewest = sortBy === 'createdAt' || sortBy === 'joined';
     return [...cards].sort((a, b) => {
+        if (byNewest) {
+            const at = new Date(a.student?.createdAt || 0).getTime();
+            const bt = new Date(b.student?.createdAt || 0).getTime();
+            if (at !== bt) return (at - bt) * dir;
+            return String(a.key).localeCompare(String(b.key)) * dir;
+        }
         if (byName) {
             const an = String(a.student?.name || '').toLowerCase();
             const bn = String(b.student?.name || '').toLowerCase();
@@ -162,8 +169,8 @@ const StudentsData = () => {
         inactiveRows: 0,
         completedRows: 0,
     });
-    const [sortBy, setSortBy] = useState('studentId');
-    const [sortOrder, setSortOrder] = useState('asc');
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState('desc');
 
     const [detailStudent, setDetailStudent] = useState(null);
     const [detailTab, setDetailTab] = useState('active');
@@ -192,8 +199,8 @@ const StudentsData = () => {
         filterStatus: 'all',
         filterFeeStatus: 'all',
         listTab: 'active',
-        sortBy: 'studentId',
-        sortOrder: 'asc',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
     });
     const pageRef = useRef(page);
     pageRef.current = page;

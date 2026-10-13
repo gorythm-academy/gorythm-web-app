@@ -10,7 +10,6 @@ Right now the Contact Us form only runs in the browser (client-side). To **colle
 
 2. **Third‑party form service** – Use a provider that gives you a form endpoint and stores submissions (and optionally emails you):
    - [Formspree](https://formspree.io) – send the form to their URL, they email you and/or show submissions in a dashboard.
-   - [Netlify Forms](https://docs.netlify.com/forms/setup/) or [Vercel + serverless](https://vercel.com/docs/functions) – if you deploy there, you can add a serverless function that saves to a DB or sends email.
 
 3. **Email only (no backend)** – Use a `mailto:` link instead of a real form. The user’s email client opens with your address (e.g. `gorythm.academy@gmail.com`) as recipient. You don’t get a structured “inbox” of form data; you get emails when users submit.
 

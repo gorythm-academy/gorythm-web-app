@@ -226,10 +226,10 @@ router.get('/students', async (req, res) => {
         const feeStatusFilter = (trash || trashStudents)
             ? 'all'
             : String(req.query.feeStatus || 'all').trim().toLowerCase();
-        const sortBy = String(req.query.sortBy || 'studentId').trim();
-        const sortOrder = String(req.query.sortOrder || 'asc').trim().toLowerCase() === 'desc'
-            ? 'desc'
-            : 'asc';
+        const sortBy = String(req.query.sortBy || 'createdAt').trim();
+        const sortOrder = String(req.query.sortOrder || 'desc').trim().toLowerCase() === 'asc'
+            ? 'asc'
+            : 'desc';
         const includeCounts = req.query.includeCounts === 'true' || req.query.includeCounts === '1';
 
         const { total: totalStudents, users } = await queryStudentUsers({

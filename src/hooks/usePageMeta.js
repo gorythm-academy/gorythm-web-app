@@ -53,6 +53,18 @@ const STATIC_PAGE_META = {
     title: 'Student Login | Gorythm Academy',
     description: 'Sign in to the Gorythm Academy student, teacher, parent, or staff portal.',
   },
+  '/forgot-password': {
+    title: 'Reset password | Gorythm Academy',
+    description: 'Request a portal password reset link from Gorythm Academy.',
+  },
+  '/reset-password': {
+    title: 'Choose a new password | Gorythm Academy',
+    description: 'Set a new password for a Gorythm Academy portal account.',
+  },
+  '/subscribe/confirm': {
+    title: 'Confirm course updates | Gorythm Academy',
+    description: 'Confirm that you want Gorythm Academy course updates again.',
+  },
   '/mission/iq': {
     title: 'IQ Mission | Gorythm Academy',
     description: 'Intellectual growth at Gorythm Academy — structured learning grounded in timeless principles.',
@@ -142,7 +154,15 @@ export function usePageMeta(meta, { enabled = true } = {}) {
   }, [enabled, title, description, image, type, url, jsonLdKey, jsonLd]);
 }
 
-const NOINDEX_PATHS = new Set(['/payment', '/payment-success', '/payment-cancel', '/admin/login']);
+const NOINDEX_PATHS = new Set([
+  '/payment',
+  '/payment-success',
+  '/payment-cancel',
+  '/admin/login',
+  '/forgot-password',
+  '/reset-password',
+  '/subscribe/confirm',
+]);
 
 function syncRobots(noindex) {
   upsertMeta('name', 'robots', noindex ? 'noindex' : '');

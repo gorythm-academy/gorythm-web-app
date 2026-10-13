@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
@@ -172,6 +173,14 @@ async function parentIdsMatchingRelationSearch(regex) {
     return ParentStudentLink.find({ relation: regex }).distinct('parent');
 }
 
+function loginEmailFields(user) {
+    return {
+        loginEmailSentAt: user?.loginEmailSentAt || null,
+        loginEmailSentTo: Array.isArray(user?.loginEmailSentTo) ? user.loginEmailSentTo : [],
+        loginEmailLastError: user?.loginEmailLastError || '',
+    };
+}
+
 function mapUserListRow(user) {
     return {
         _id: user._id,
@@ -185,6 +194,7 @@ function mapUserListRow(user) {
         isActive: isUserActive(user),
         mustChangePassword: user.mustChangePassword,
         isSystemAccount: !!user.isSystemAccount,
+        ...loginEmailFields(user),
         status: normalizeUserStatus(user.status, isUserActive(user)),
         enrolledCourses: user.enrolledCourses?.length || 0,
         joinDate: user.createdAt,
@@ -473,6 +483,7 @@ router.get('/:id', async (req, res) => {
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
+                ...loginEmailFields(user),
                 status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
@@ -491,11 +502,11 @@ router.post(
         rules.requiredString('name', 'Name'),
         rules.requiredString('email', 'Email'),
         rules.email('email', 'Email'),
-        rules.requiredString('password', 'Password', 8),
     ]),
     async (req, res) => {
     try {
-        const { name, email, password, role, phone, mustChangePassword, personalEmail, studentId, status } = req.body;
+        const { name, email, role, phone, mustChangePassword, personalEmail, studentId, status } = req.body;
+        const rawPassword = String(req.body.password || '').trim();
 
         const actorRole = req.user?.role;
         const isSuper = actorRole === 'super-admin';
@@ -532,16 +543,25 @@ router.post(
         }
 
         const normalizedStatus = normalizeUserStatus(status, true);
+        const peopleAccount = PEOPLE_ROLES.includes(nextRole);
+        if (rawPassword && rawPassword.length < 8) {
+            return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+        }
+        if (!peopleAccount && rawPassword.length < 8) {
+            return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+        }
         const userFields = {
             name,
             email: email.toLowerCase(),
-            password,
+            password: rawPassword || crypto.randomBytes(24).toString('hex'),
             role: nextRole,
             phone: phone || '',
             status: normalizedStatus,
             isActive: isUserLoginAllowedFromStatus(normalizedStatus),
             canLogin: isUserLoginAllowedFromStatus(normalizedStatus),
-            mustChangePassword: mustChangePassword !== false,
+            mustChangePassword: mustChangePassword !== undefined
+                ? !!mustChangePassword
+                : (peopleAccount || mustChangePassword !== false),
             isSystemAccount: false,
         };
 
@@ -601,6 +621,18 @@ router.post(
             }
         }
 
+        let loginEmail = null;
+        if (req.body.deferLoginEmail !== true) {
+            const { sendLoginCard } = require('../services/loginCardEmail');
+            loginEmail = await sendLoginCard(user._id, { force: false });
+            const mailed = await User.findById(user._id).select('loginEmailSentAt loginEmailSentTo loginEmailLastError');
+            if (mailed) {
+                user.loginEmailSentAt = mailed.loginEmailSentAt;
+                user.loginEmailSentTo = mailed.loginEmailSentTo;
+                user.loginEmailLastError = mailed.loginEmailLastError;
+            }
+        }
+
         await logAudit({
             actor: req.user.userId || req.user.id,
             action: 'user.create',
@@ -623,11 +655,13 @@ router.post(
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
+                ...loginEmailFields(user),
                 status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: 0,
                 joinDate: user.createdAt,
                 lastLogin: null
             },
+            ...(loginEmail ? { loginEmail } : {}),
             ...(parentLinks.length ? { parentLinks } : {}),
         });
     } catch (error) {
@@ -655,6 +689,8 @@ router.put(
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
+        const previousEmail = user.email;
+        const previousPersonal = user.personalEmail;
 
         if (isManagerActor(actorRole) && isSuperAdminRole(user.role)) {
             return res.status(403).json({ success: false, error: 'You cannot modify super-admin accounts' });
@@ -745,9 +781,8 @@ router.put(
                 });
             }
             user.password = trimmedPassword;
-            if (mustChangePassword !== undefined) {
-                user.mustChangePassword = !!mustChangePassword;
-            }
+            if (mustChangePassword !== undefined) user.mustChangePassword = !!mustChangePassword;
+            else if (PEOPLE_ROLES.includes(user.role)) user.mustChangePassword = true;
         }
 
         // No auto-generation: studentId is set only when explicitly provided.
@@ -768,6 +803,25 @@ router.put(
         // (only affects rows where course is still unassigned).
         if (user.role === 'student' && status !== undefined) {
             await syncPlaceholderEnrollmentStatus(user._id, user.status);
+        }
+
+        const { isRealPortalLogin, deliverableInbox } = require('../utils/studentPortalEmail');
+        const previousReal = isRealPortalLogin(previousEmail);
+        const nextReal = isRealPortalLogin(user.email);
+        const portalBecameReal = !previousReal && nextReal;
+        const portalChanged = previousReal && nextReal
+            && String(previousEmail || '').toLowerCase() !== String(user.email || '').toLowerCase();
+        const inboxBecameAvailable = !deliverableInbox(previousPersonal) && !!deliverableInbox(user.personalEmail);
+        let loginEmail = null;
+        if (portalChanged || (!user.loginEmailSentAt && (portalBecameReal || inboxBecameAvailable))) {
+            const { sendLoginCard } = require('../services/loginCardEmail');
+            loginEmail = await sendLoginCard(user._id, { force: portalChanged });
+            const mailed = await User.findById(user._id).select('loginEmailSentAt loginEmailSentTo loginEmailLastError');
+            if (mailed) {
+                user.loginEmailSentAt = mailed.loginEmailSentAt;
+                user.loginEmailSentTo = mailed.loginEmailSentTo;
+                user.loginEmailLastError = mailed.loginEmailLastError;
+            }
         }
 
         await logAudit({
@@ -792,16 +846,37 @@ router.put(
                 isActive: isUserActive(user),
                 mustChangePassword: user.mustChangePassword,
                 isSystemAccount: !!user.isSystemAccount,
+                ...loginEmailFields(user),
                 status: normalizeUserStatus(user.status, isUserActive(user)),
                 enrolledCourses: user.enrolledCourses?.length || 0,
                 joinDate: user.createdAt,
                 lastLogin: user.lastLogin || null
             },
+            ...(loginEmail ? { loginEmail } : {}),
             ...(parentLinks.length || user.role === 'parent' ? { parentLinks } : {}),
         });
     } catch (error) {
         req.log.error('Error updating user', { err: error });
         res.status(500).json({ success: false, error: 'Failed to update user' });
+    }
+});
+
+router.post('/:id/login-email', async (req, res) => {
+    try {
+        const { sendLoginCard } = require('../services/loginCardEmail');
+        const loginEmail = await sendLoginCard(req.params.id, { force: req.body?.force !== false });
+        if (loginEmail.reason === 'missing_user') {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        const user = await User.findById(req.params.id).select('loginEmailSentAt loginEmailSentTo loginEmailLastError');
+        return res.json({
+            success: true,
+            loginEmail,
+            user: user ? loginEmailFields(user) : null,
+        });
+    } catch (error) {
+        req.log.error('Error sending login email', { err: error });
+        return res.status(500).json({ success: false, error: 'Failed to send login email' });
     }
 });
 
@@ -823,9 +898,8 @@ router.patch(
         }
 
         user.password = password;
-        if (mustChangePassword !== undefined) {
-            user.mustChangePassword = !!mustChangePassword;
-        }
+        if (mustChangePassword !== undefined) user.mustChangePassword = !!mustChangePassword;
+        else if (PEOPLE_ROLES.includes(user.role)) user.mustChangePassword = true;
         user.updatedAt = Date.now();
         await user.save();
         await logAudit({

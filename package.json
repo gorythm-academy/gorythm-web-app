@@ -9,14 +9,14 @@
     "@fontsource/nunito": "^5.2.5",
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@vimeo/player": "^2.30.4",
-    "axios": "^1.13.2",
+    "axios": "^1.20.0",
     "dompurify": "^3.4.16",
     "framer-motion": "^12.23.26",
     "gsap": "^3.12.5",
     "jspdf": "^4.2.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.11.0",
+    "react-router-dom": "^7.18.4",
     "react-scripts": "^5.0.0",
     "sass": "^1.97.0",
     "web-vitals": "^2.1.4"
@@ -29,6 +29,7 @@
     "lint:js": "npx eslint \"src/**/*.{js,jsx}\"",
     "lint:styles": "npx stylelint \"src/**/*.scss\"",
     "lint": "npm run lint:js && npm run lint:styles",
+    "postinstall": "node scripts/fix-babel-import-order.js",
     "optimize-images": "node scripts/generate-modern-image-variants.mjs"
   },
   "eslintConfig": {
@@ -67,5 +68,25 @@
     "stylelint-config-recommended-scss": "^17.0.0",
     "stylelint-config-standard-scss": "^17.0.0",
     "stylelint-scss": "^7.0.0"
+  },
+  "description": "Frontend application for the Gorythm platform.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/farhanullah31/gorythm_client.git"
+  },
+  "keywords": [],
+  "author": "",
+  "overrides": {
+    "proxy-addr": "2.0.8",
+    "shell-quote": "1.12.0",
+    "websocket-driver": "0.7.5"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/farhanullah31/gorythm_client/issues"
   }
 }

@@ -25,6 +25,7 @@ const autoPayChargeSchema = new mongoose.Schema(
 const autoPayLockSchema = new mongoose.Schema({
     name: { type: String, required: true, unique: true },
     lockedUntil: { type: Date, default: null },
+    owner: { type: String, default: '' },
 });
 
 module.exports = {

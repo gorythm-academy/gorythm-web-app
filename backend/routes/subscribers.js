@@ -13,6 +13,13 @@ const {
 } = require('../services/subscribePopupSettings');
 const { createUnsubscribeToken } = require('../utils/unsubscribeToken');
 const { sendNewsletter } = require('../services/newsletterEmail');
+const {
+  hashToken: hashResubscribeToken,
+  createRawToken: createResubscribeToken,
+  confirmExpiresAt,
+  subscribeAction,
+} = require('../services/subscriberResubscribe');
+const { sendResubscribeEmail } = require('../services/resubscribeEmail');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
 
@@ -79,9 +86,32 @@ router.post(
       const source = String(req.body?.source || 'unknown').trim() || 'unknown';
 
       const existing = await Subscriber.findOne({ email });
+      if (existing && subscribeAction(existing) === 'confirm') {
+        const token = createResubscribeToken();
+        existing.source = source;
+        existing.resubscribeTokenHash = hashResubscribeToken(token);
+        existing.resubscribeTokenExpires = confirmExpiresAt();
+        if (!existing.unsubscribeToken) existing.unsubscribeToken = createUnsubscribeToken();
+        await existing.save();
+        const mailed = await sendResubscribeEmail(existing.email, token);
+        if (!mailed.sent) {
+          existing.resubscribeTokenHash = '';
+          existing.resubscribeTokenExpires = null;
+          await existing.save();
+          return res.status(503).json({
+            success: false,
+            error: 'We could not send the confirmation email. Please try again later.',
+          });
+        }
+        return res.status(200).json({
+          success: true,
+          pendingConfirmation: true,
+          message: 'Check your email to confirm you want course updates again. You stay unsubscribed until you confirm.',
+        });
+      }
+
       if (existing) {
         existing.source = source;
-        existing.unsubscribedAt = null;
         if (!existing.unsubscribeToken) existing.unsubscribeToken = createUnsubscribeToken();
         await existing.save();
         return res.status(201).json({
@@ -129,12 +159,34 @@ const applyUnsubscribeToken = async (token) => {
   };
 };
 
-router.get('/unsubscribe', publicWriteRateLimiter, async (req, res) => {
+router.get('/unsubscribe', publicWriteRateLimiter, (_req, res) => {
+  return res.status(405).json({
+    success: false,
+    error: 'Open the unsubscribe page and confirm. This link does not unsubscribe by itself.',
+  });
+});
+
+router.post('/confirm-resubscribe', publicWriteRateLimiter, async (req, res) => {
   try {
-    const result = await applyUnsubscribeToken(req.query.token);
-    return res.status(result.status).json(result.body);
+    const token = String(req.body?.token || '').trim();
+    if (!token || token.length > 200) {
+      return res.status(400).json({ success: false, error: 'This confirmation link is not valid.' });
+    }
+    const subscriber = await Subscriber.findOne({
+      resubscribeTokenHash: hashResubscribeToken(token),
+      resubscribeTokenExpires: { $gt: new Date() },
+    });
+    if (!subscriber) {
+      return res.status(400).json({ success: false, error: 'This confirmation link is not valid or has expired.' });
+    }
+    subscriber.unsubscribedAt = null;
+    subscriber.resubscribeTokenHash = '';
+    subscriber.resubscribeTokenExpires = null;
+    if (!subscriber.unsubscribeToken) subscriber.unsubscribeToken = createUnsubscribeToken();
+    await subscriber.save();
+    return res.json({ success: true, message: 'You are subscribed to course updates again.' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Could not unsubscribe.' });
+    return res.status(500).json({ success: false, error: 'Could not confirm this subscription.' });
   }
 });
 
@@ -152,7 +204,9 @@ router.get('/admin', ...adminOnly, async (req, res) => {
   try {
     const fetchAll = req.query.all === 'true' || req.query.all === '1';
     const totalCount = await Subscriber.countDocuments({});
-    const query = Subscriber.find({}).sort({ createdAt: -1 });
+    const query = Subscriber.find({})
+      .select('-resubscribeTokenHash -resubscribeTokenExpires')
+      .sort({ createdAt: -1 });
     const subscribers = fetchAll
       ? await query.lean()
       : await query.limit(SUBSCRIBER_LIST_LIMIT).lean();

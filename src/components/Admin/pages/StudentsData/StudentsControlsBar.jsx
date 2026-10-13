@@ -56,12 +56,16 @@ const StudentsControlsBar = ({
                 value={`${sortBy}:${sortOrder}`}
                 onChange={(e) => {
                     const [nextBy, nextOrder] = String(e.target.value).split(':');
-                    setSortBy(nextBy === 'student' ? 'student' : 'studentId');
+                    if (nextBy === 'student') setSortBy('student');
+                    else if (nextBy === 'createdAt') setSortBy('createdAt');
+                    else setSortBy('studentId');
                     setSortOrder(nextOrder === 'desc' ? 'desc' : 'asc');
                 }}
                 aria-label="Sort students"
                 title="Rearrange student cards"
             >
+                <option value="createdAt:desc">Newest first</option>
+                <option value="createdAt:asc">Oldest first</option>
                 <option value="studentId:asc">Roll number ↑</option>
                 <option value="studentId:desc">Roll number ↓</option>
                 <option value="student:asc">Name A–Z</option>

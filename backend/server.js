@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -41,7 +42,6 @@ const payrollRoutes = require('./routes/payroll');
 const subscribePopupAdminRoutes = require('./routes/subscribePopupAdmin');
 const settingsRoutes = require('./routes/settings');
 const siteRoutes = require('./routes/site');
-const { authRateLimiter } = require('./middleware/security');
 const { protectedUploadsGate } = require('./middleware/protectedUploads');
 const requestContext = require('./middleware/requestContext');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
@@ -133,13 +133,14 @@ app.use(cors({
         return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Realm'],
 }));
 app.use(
     helmet({
         crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
 );
+app.use(cookieParser());
 app.use(requestContext);
 
 // MongoDB Connection
@@ -218,6 +219,7 @@ app.post(
 );
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 
 const uploadsDir = process.env.UPLOAD_ROOT
     ? path.resolve(process.env.UPLOAD_ROOT)
@@ -241,7 +243,8 @@ app.use(
 );
 
 // Routes
-app.use('/api/auth', authRateLimiter, authRoutes);
+// Auth rate limiter is applied per-route inside routes/auth.js (login endpoints only).
+app.use('/api/auth', authRoutes);
 app.use('/api/admin/media', mediaRoutes);
 app.use('/api/admin/promo-videos', promoVideoAdminRoutes);
 app.use('/api/admin/course-images', courseImageRoutes);

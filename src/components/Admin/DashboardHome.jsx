@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { getAuthToken, parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
+import { hasAuthSession, buildAuthHeaders, parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
+import { forceAdminLogout } from '../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../config/constants';
 import {
     persistAndNotifyAdminDashboardAccent,
@@ -141,11 +142,11 @@ const DashboardHome = () => {
     }, []);
 
     const fetchUpcomingClasses = useCallback(async () => {
-        const token = getAuthToken(AUTH_REALM.ADMIN);
-        if (!token) return;
+        if (!hasAuthSession(AUTH_REALM.ADMIN)) return;
         try {
             const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard/upcoming-classes`, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: buildAuthHeaders(AUTH_REALM.ADMIN),
+                withCredentials: true,
             });
             if (response.data?.success) {
                 setUpcomingClasses(
@@ -164,16 +165,17 @@ const DashboardHome = () => {
             setLoading(true);
             setError('');
             
-            const token = getAuthToken(AUTH_REALM.ADMIN);
-            
-            if (!token) {
+            if (!hasAuthSession(AUTH_REALM.ADMIN)) {
                 setLoading(false);
-                navigate('/admin/login', { replace: true });
+                forceAdminLogout();
                 return;
             }
 
-            const headers = { Authorization: `Bearer ${token}` };
-            const statsRes = await axios.get(`${API_BASE_URL}/api/admin/dashboard/stats`, { headers });
+            const headers = buildAuthHeaders(AUTH_REALM.ADMIN);
+            const statsRes = await axios.get(`${API_BASE_URL}/api/admin/dashboard/stats`, {
+                headers,
+                withCredentials: true,
+            });
 
             if (statsRes.data?.success) {
                 const nextStats = statsRes.data.stats || {};
@@ -223,7 +225,7 @@ const DashboardHome = () => {
         } catch (error) {
             if (error.response?.status === 401) {
                 setLoading(false);
-                navigate('/admin/login', { replace: true });
+                forceAdminLogout();
                 return;
             }
             setConnection((c) => ({ ...c, api: 'fail' }));
@@ -243,7 +245,7 @@ const DashboardHome = () => {
             setError(getDashboardErrorMessage(error));
             setLoading(false);
         }
-    }, [navigate]);
+    }, []);
 
     // Fetch dashboard data from backend
     useEffect(() => {
@@ -285,13 +287,12 @@ const DashboardHome = () => {
     };
 
     const clearRecentActivities = async () => {
-        const token = getAuthToken(AUTH_REALM.ADMIN);
-        if (!token) return;
+        if (!hasAuthSession(AUTH_REALM.ADMIN)) return;
         try {
             await axios.post(
                 `${API_BASE_URL}/api/admin/dashboard/clear-activities`,
                 {},
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers: buildAuthHeaders(AUTH_REALM.ADMIN), withCredentials: true }
             );
             setAllActivities([]);
             setActivitiesExpanded(false);

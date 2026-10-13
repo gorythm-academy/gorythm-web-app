@@ -152,10 +152,11 @@ router.post(
 
     return res.status(201).json({
       success: true,
-      message: 'Message received successfully',
+      message: emailError
+        ? 'Message saved, but the academy inbox could not be emailed'
+        : 'Message received successfully',
       contactId: contactMessage._id,
       emailSent: !emailError,
-      emailError: emailError || undefined,
     });
   } catch (error) {
     req.log.error('Contact form error', { err: error });

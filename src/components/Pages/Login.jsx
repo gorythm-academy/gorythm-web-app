@@ -4,15 +4,22 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
     setAuthSession,
-    getAuthToken,
     getAuthUserJson,
     setAuthUserJson,
+    replaceAuthSession,
     getAuthSession,
+    clearAuthSession,
+    isRememberedSession,
+    hasAuthSession,
+    buildAuthHeaders,
     AUTH_REALM,
 } from '../../utils/authStorage';
 import { API_BASE_URL } from '../../config/constants';
 import { validatePasswordPair } from '../../utils/studentAdminValidation';
 import { portalHomeByRole } from '../../utils/portalHomeByRole';
+import { verifyPortalSession } from '../../utils/portalAuthSession';
+import { restoreSessionFromCookie } from '../../utils/authSessionRestore';
+import { getLoginFormError } from '../../utils/authLoginErrors';
 import BrandLogo from '../BrandLogo/BrandLogo';
 import './Login.scss';
 
@@ -32,6 +39,7 @@ const Login = () => {
         password: '',
     });
     const [rememberMe, setRememberMe] = useState(false);
+    const [isCheckingSession, setIsCheckingSession] = useState(() => !isSetPasswordMode);
     const [showPassword, setShowPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
@@ -52,26 +60,92 @@ const Login = () => {
     }, [location.state]);
 
     useEffect(() => {
-        if (isSetPasswordMode) return;
-        const { token, user } = getAuthSession(AUTH_REALM.PORTAL);
-        if (!token || !user) return;
-        if (user.mustChangePassword) {
-            navigate('/login?set-password=1', { replace: true });
-            return;
-        }
-        const adminRoles = ['manager', 'super-admin'];
-        if (adminRoles.includes(user.role)) return;
-        navigate(postLoginPath() || portalHomeByRole(user.role), { replace: true });
+        if (isSetPasswordMode) return undefined;
+        let cancelled = false;
+
+        const run = async () => {
+            let { token, user } = getAuthSession(AUTH_REALM.PORTAL);
+            if (!token || !user) {
+                const restored = await restoreSessionFromCookie(AUTH_REALM.PORTAL);
+                token = restored?.token;
+                user = restored?.user;
+            }
+            if (!token || !user) {
+                setIsCheckingSession(false);
+                return;
+            }
+            const adminRoles = ['manager', 'super-admin'];
+            if (adminRoles.includes(user.role)) {
+                await clearAuthSession(AUTH_REALM.PORTAL);
+                if (cancelled) return;
+                setIsCheckingSession(false);
+                return;
+            }
+
+            setIsCheckingSession(true);
+            try {
+                const live = await verifyPortalSession();
+                if (cancelled) return;
+                if (!live) {
+                    setIsCheckingSession(false);
+                    return;
+                }
+                if (live.mustChangePassword) {
+                    navigate('/login?set-password=1', { replace: true });
+                    return;
+                }
+                navigate(postLoginPath() || portalHomeByRole(live.role), { replace: true });
+            } catch {
+                if (cancelled) return;
+                setError('Cannot reach the server. Check your connection and try signing in.');
+                setIsCheckingSession(false);
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
     }, [isSetPasswordMode, navigate, postLoginPath]);
 
     useEffect(() => {
-        if (!isSetPasswordMode) return;
-        const token = getAuthToken(AUTH_REALM.PORTAL);
-        const rawUser = getAuthUserJson(AUTH_REALM.PORTAL);
-        if (!token || !rawUser) {
-            navigate('/login', { replace: true });
-        }
-    }, [isSetPasswordMode, navigate]);
+        if (!isSetPasswordMode) return undefined;
+        let cancelled = false;
+
+        const run = async () => {
+            let { token, user } = getAuthSession(AUTH_REALM.PORTAL);
+            if (!token || !user) {
+                const restored = await restoreSessionFromCookie(AUTH_REALM.PORTAL);
+                token = restored?.token;
+                user = restored?.user;
+            }
+            if (!token || !user) {
+                await clearAuthSession(AUTH_REALM.PORTAL);
+                if (cancelled) return;
+                navigate('/login', { replace: true });
+                return;
+            }
+            try {
+                const live = await verifyPortalSession();
+                if (cancelled) return;
+                if (!live) {
+                    navigate('/login', { replace: true });
+                    return;
+                }
+                if (!live.mustChangePassword) {
+                    navigate(postLoginPath() || portalHomeByRole(live.role), { replace: true });
+                }
+            } catch {
+                if (cancelled) return;
+                setError('Cannot reach the server. Check your connection and try again.');
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [isSetPasswordMode, navigate, postLoginPath]);
 
     const portalMessage = location.state?.message;
 
@@ -81,11 +155,18 @@ const Login = () => {
 
         try {
             setIsSubmitting(true);
-            const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-                email: formData.email,
-                password: formData.password,
-                rememberMe,
-            });
+            const response = await axios.post(
+                `${API_BASE_URL}/api/auth/login`,
+                {
+                    email: formData.email,
+                    password: formData.password,
+                    rememberMe,
+                },
+                {
+                    withCredentials: true,
+                    headers: { 'X-Auth-Realm': 'portal' },
+                }
+            );
             const role = response.data.user?.role;
             if (role === 'manager' || role === 'super-admin') {
                 setError('Admin accounts must use the admin login page at /admin/login.');
@@ -98,7 +179,7 @@ const Login = () => {
             }
             navigate(postLoginPath() || portalHomeByRole(response.data.user.role), { replace: true });
         } catch (err) {
-            setError(err.response?.data?.error || 'Authentication failed');
+            setError(getLoginFormError(err, 'Authentication failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -114,9 +195,9 @@ const Login = () => {
             return;
         }
 
-        const token = getAuthToken(AUTH_REALM.PORTAL);
         const rawUser = getAuthUserJson(AUTH_REALM.PORTAL);
-        if (!token || !rawUser) {
+        if (!hasAuthSession(AUTH_REALM.PORTAL) || !rawUser) {
+            await clearAuthSession(AUTH_REALM.PORTAL);
             setError('Session expired. Please login again.');
             navigate('/login');
             return;
@@ -126,20 +207,41 @@ const Login = () => {
             setIsSubmitting(true);
             const response = await axios.post(
                 `${API_BASE_URL}/api/auth/change-initial-password`,
-                { newPassword },
-                { headers: { Authorization: `Bearer ${token}` } }
+                {
+                    newPassword,
+                    rememberMe: isRememberedSession(AUTH_REALM.PORTAL),
+                },
+                { headers: buildAuthHeaders(AUTH_REALM.PORTAL), withCredentials: true }
             );
 
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
+            if (response.data.token) {
+                replaceAuthSession(response.data.token, updatedUser, AUTH_REALM.PORTAL);
+            } else {
+                setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
+            }
             navigate(postLoginPath() || portalHomeByRole(updatedUser.role), { replace: true });
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to update password');
+            setError(getLoginFormError(err, 'Failed to update password'));
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    if (isCheckingSession) {
+        return (
+            <div className="auth-login">
+                <div className="auth-login__center">
+                    <div className="auth-login__card">
+                        <p className="auth-login__subtitle" role="status">
+                            Checking your session…
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (isSetPasswordMode) {
         return (
@@ -250,7 +352,7 @@ const Login = () => {
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    placeholder="you@example.com"
+                                    placeholder="Portal username or personal email"
                                     autoComplete="username"
                                     required
                                 />
@@ -291,8 +393,8 @@ const Login = () => {
                                 />
                                 <span>Remember me</span>
                             </label>
-                            <Link to="/contact" className="auth-login__link">
-                                Need account help?
+                            <Link to="/forgot-password" className="auth-login__link">
+                                Forgot password?
                             </Link>
                         </div>
                         {error ? <div className="auth-login__error">{error}</div> : null}

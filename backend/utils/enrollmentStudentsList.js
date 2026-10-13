@@ -6,7 +6,7 @@ const { normalizeEnrollmentStatusInput } = require('./enrollmentStatus');
 const { isUnsetPortalEmail } = require('./studentPortalEmail');
 
 const ALLOWED_FEE_STATUSES = ['paid', 'pending', 'failed', 'refunded'];
-const STUDENT_LIST_SELECT = 'name email personalEmail phone avatar studentId isActive canLogin createdAt deletedAt status lastLogin';
+const STUDENT_LIST_SELECT = 'name email personalEmail phone avatar studentId isActive canLogin createdAt deletedAt status lastLogin loginEmailSentAt loginEmailSentTo loginEmailLastError';
 
 function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -53,23 +53,33 @@ function isPendingSetup(user) {
 }
 
 /**
- * Parse list sort: sortBy=studentId|student (name), sortOrder=asc|desc.
+ * Parse list sort: sortBy=createdAt|joined|studentId|student (name), sortOrder=asc|desc.
  * Missing roll numbers sort last when ascending, first when descending.
  */
 function resolveStudentListSort(sortByRaw, sortOrderRaw) {
-    const sortBy = String(sortByRaw || 'studentId').toLowerCase();
-    const sortOrder = String(sortOrderRaw || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+    const sortBy = String(sortByRaw || 'createdAt').toLowerCase();
+    const sortOrder = String(sortOrderRaw || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
     const direction = sortOrder === 'desc' ? -1 : 1;
-    const byRoll = sortBy === 'studentid' || sortBy === 'roll' || sortBy === 'rollnumber';
-    return {
-        field: byRoll ? 'studentId' : 'name',
-        sortOrder,
-        direction,
-    };
+    if (sortBy === 'studentid' || sortBy === 'roll' || sortBy === 'rollnumber') {
+        return { field: 'studentId', sortOrder, direction };
+    }
+    if (sortBy === 'student' || sortBy === 'name') {
+        return { field: 'name', sortOrder, direction };
+    }
+    return { field: 'createdAt', sortOrder, direction };
 }
 
 async function findSortedStudentUsers(userFilter, { skip, limit, sortBy, sortOrder }) {
     const { field, direction } = resolveStudentListSort(sortBy, sortOrder);
+
+    if (field === 'createdAt') {
+        return User.find(userFilter)
+            .select(STUDENT_LIST_SELECT)
+            .sort({ createdAt: direction, _id: direction })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+    }
 
     if (field === 'name') {
         return User.find(userFilter)

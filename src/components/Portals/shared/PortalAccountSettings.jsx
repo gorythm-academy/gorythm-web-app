@@ -4,7 +4,12 @@ import { PortalAlert, PortalDataSection, PortalPageHeader } from './PortalUi';
 import { changePortalPassword, portalGet, readPortalCache } from './portalApi';
 import { StudentProfileFields } from './StudentIdentity';
 import { validatePasswordPair } from '../../../utils/studentAdminValidation';
-import { parseAuthUser, setAuthUserJson, AUTH_REALM } from '../../../utils/authStorage';
+import {
+    parseAuthUser,
+    replaceAuthSession,
+    isRememberedSession,
+    AUTH_REALM,
+} from '../../../utils/authStorage';
 import './PortalAccountSettings.scss';
 
 const PortalAccountSettings = ({ subtitle = 'Update your portal login password.' }) => {
@@ -64,9 +69,11 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
             const res = await changePortalPassword({
                 currentPassword: trimmedCurrent,
                 newPassword,
+                rememberMe: isRememberedSession(AUTH_REALM.PORTAL),
             });
             if (res.user) {
-                setAuthUserJson(JSON.stringify({ ...user, ...res.user, mustChangePassword: false }), AUTH_REALM.PORTAL);
+                const nextUser = { ...user, ...res.user, mustChangePassword: false };
+                if (res.token) replaceAuthSession(res.token, nextUser, AUTH_REALM.PORTAL);
             }
             setCurrentPassword('');
             setNewPassword('');

@@ -4,14 +4,21 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
     setAuthSession,
-    getAuthToken,
     getAuthUserJson,
     setAuthUserJson,
+    replaceAuthSession,
     getAuthSession,
+    clearAuthSession,
+    isRememberedSession,
+    hasAuthSession,
+    buildAuthHeaders,
     AUTH_REALM,
 } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { validatePasswordPair } from '../../../utils/studentAdminValidation';
+import { verifyAdminSession } from '../../../utils/adminAuthSession';
+import { restoreSessionFromCookie } from '../../../utils/authSessionRestore';
+import { getLoginFormError } from '../../../utils/authLoginErrors';
 import BrandLogo from '../../BrandLogo/BrandLogo';
 import './Login.scss';
 
@@ -30,6 +37,7 @@ const AdminLogin = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCheckingSession, setIsCheckingSession] = useState(() => !isSetPasswordMode);
     const [showPassword, setShowPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
@@ -41,11 +49,14 @@ const AdminLogin = () => {
         setError('');
         try {
             setIsSubmitting(true);
-            const response = await axios.post(`${API_BASE_URL}/api/auth/admin-login`, {
-                email,
-                password,
-                rememberMe,
-            });
+            const response = await axios.post(
+                `${API_BASE_URL}/api/auth/admin-login`,
+                { email, password, rememberMe },
+                {
+                    withCredentials: true,
+                    headers: { 'X-Auth-Realm': 'admin' },
+                }
+            );
 
             setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.ADMIN);
 
@@ -58,8 +69,7 @@ const AdminLogin = () => {
                 replace: true,
             });
         } catch (err) {
-            const msg = err.response?.data?.error;
-            setError(msg || 'Invalid credentials.');
+            setError(getLoginFormError(err, 'Invalid credentials.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -73,9 +83,9 @@ const AdminLogin = () => {
             setError(passwordErr);
             return;
         }
-        const token = getAuthToken(AUTH_REALM.ADMIN);
         const rawUser = getAuthUserJson(AUTH_REALM.ADMIN);
-        if (!token || !rawUser) {
+        if (!hasAuthSession(AUTH_REALM.ADMIN) || !rawUser) {
+            await clearAuthSession(AUTH_REALM.ADMIN);
             setError('Session expired. Please log in again.');
             navigate('/admin/login', { replace: true });
             return;
@@ -84,15 +94,22 @@ const AdminLogin = () => {
             setIsSubmitting(true);
             const response = await axios.post(
                 `${API_BASE_URL}/api/auth/change-initial-password`,
-                { newPassword },
-                { headers: { Authorization: `Bearer ${token}` } }
+                {
+                    newPassword,
+                    rememberMe: isRememberedSession(AUTH_REALM.ADMIN),
+                },
+                { headers: buildAuthHeaders(AUTH_REALM.ADMIN), withCredentials: true }
             );
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.ADMIN);
+            if (response.data.token) {
+                replaceAuthSession(response.data.token, updatedUser, AUTH_REALM.ADMIN);
+            } else {
+                setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.ADMIN);
+            }
             navigate(adminDestAfterAuth(), { replace: true });
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to update password');
+            setError(getLoginFormError(err, 'Failed to update password'));
         } finally {
             setIsSubmitting(false);
         }
@@ -104,24 +121,100 @@ const AdminLogin = () => {
     }, [location.state]);
 
     useEffect(() => {
-        if (isSetPasswordMode) return;
-        const { token, user } = getAuthSession(AUTH_REALM.ADMIN);
-        if (!token || !user) return;
-        if (user.mustChangePassword) {
-            navigate('/admin/login?set-password=1', { replace: true });
-            return;
-        }
-        navigate(adminDestAfterAuth(), { replace: true });
+        if (isSetPasswordMode) return undefined;
+        let cancelled = false;
+
+        const run = async () => {
+            let { token, user } = getAuthSession(AUTH_REALM.ADMIN);
+            if (!token || !user) {
+                const restored = await restoreSessionFromCookie(AUTH_REALM.ADMIN);
+                token = restored?.token;
+                user = restored?.user;
+            }
+            if (!token || !user) {
+                setIsCheckingSession(false);
+                return;
+            }
+
+            setIsCheckingSession(true);
+            try {
+                const live = await verifyAdminSession();
+                if (cancelled) return;
+                if (!live) {
+                    setIsCheckingSession(false);
+                    return;
+                }
+                if (live.mustChangePassword) {
+                    navigate('/admin/login?set-password=1', { replace: true });
+                    return;
+                }
+                navigate(adminDestAfterAuth(), { replace: true });
+            } catch {
+                if (cancelled) return;
+                // Network/server error: stay on login — do not bounce into dashboard.
+                setError('Cannot reach the server. Check your connection and try signing in.');
+                setIsCheckingSession(false);
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
     }, [adminDestAfterAuth, isSetPasswordMode, navigate]);
 
     useEffect(() => {
-        if (!isSetPasswordMode) return;
-        const token = getAuthToken(AUTH_REALM.ADMIN);
-        const rawUser = getAuthUserJson(AUTH_REALM.ADMIN);
-        if (!token || !rawUser) {
-            navigate('/admin/login', { replace: true });
-        }
-    }, [isSetPasswordMode, navigate]);
+        if (!isSetPasswordMode) return undefined;
+        let cancelled = false;
+
+        const run = async () => {
+            let { token, user } = getAuthSession(AUTH_REALM.ADMIN);
+            if (!token || !user) {
+                const restored = await restoreSessionFromCookie(AUTH_REALM.ADMIN);
+                token = restored?.token;
+                user = restored?.user;
+            }
+            if (!token || !user) {
+                await clearAuthSession(AUTH_REALM.ADMIN);
+                if (cancelled) return;
+                navigate('/admin/login', { replace: true });
+                return;
+            }
+            try {
+                const live = await verifyAdminSession();
+                if (cancelled) return;
+                if (!live) {
+                    navigate('/admin/login', { replace: true });
+                    return;
+                }
+                if (!live.mustChangePassword) {
+                    navigate(adminDestAfterAuth(), { replace: true });
+                }
+            } catch {
+                if (cancelled) return;
+                setError('Cannot reach the server. Check your connection and try again.');
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [adminDestAfterAuth, isSetPasswordMode, navigate]);
+
+    if (isCheckingSession) {
+        return (
+            <div className="auth-login auth-login--admin">
+                <div className="auth-login__center">
+                    <div className="auth-login__card">
+                        <p className="auth-login__subtitle" role="status">
+                            Checking your session…
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (isSetPasswordMode) {
         return (
@@ -261,15 +354,18 @@ const AdminLogin = () => {
                                 </button>
                             </div>
                         </div>
-                        <div className="auth-login__field">
+                        <div className="auth-login__options">
                             <label className="auth-login__checkbox">
                                 <input
                                     type="checkbox"
                                     checked={rememberMe}
                                     onChange={(e) => setRememberMe(e.target.checked)}
                                 />
-                                <span>Remember me on this device</span>
+                                <span>Remember me on this device (up to 12 hours)</span>
                             </label>
+                            <Link to="/forgot-password?from=admin" className="auth-login__link">
+                                Forgot password?
+                            </Link>
                         </div>
                         {error ? <div className="auth-login__error">{error}</div> : null}
                         <button type="submit" className="auth-login__submit" disabled={isSubmitting}>
