@@ -3,13 +3,14 @@ import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import heroBannerPng from '../../assets/images/home/hero-banner-image.png';
 import { HERO_CENTER_LOGO_AVIF, HERO_CENTER_LOGO_WEBP } from '../../config/publicAssets';
+import { PUBLIC_URL } from '../../config/env';
 import './Hero.scss';
 
 /**
  * Stable URLs under `public/preload/` — duplicated from bundled PNG by `npm run optimize-images`.
  * Lets `public/index.html` `<link rel="preload">` discover the same bytes the `<picture>` picks first (AVIF-capable browsers).
  */
-const PUBLIC = process.env.PUBLIC_URL || '';
+const PUBLIC = PUBLIC_URL;
 const HERO_LCP_AVIF = `${PUBLIC}/preload/lcp-hero.avif`;
 const HERO_LCP_WEBP = `${PUBLIC}/preload/lcp-hero.webp`;
 
@@ -21,7 +22,7 @@ const HeroSection = () => {
   const centerImageRef = useRef(null);
 
   useEffect(() => {
-    const publicUrl = process.env.PUBLIC_URL || '';
+    const publicUrl = PUBLIC_URL;
     const links = [
       [`${publicUrl}/images/hero/center-logo-240.avif`, 'image/avif'],
       [`${publicUrl}/preload/lcp-hero.avif`, 'image/avif'],
@@ -43,17 +44,29 @@ const HeroSection = () => {
   useEffect(() => {
 
     // ===== PARTICLE ANIMATIONS =====
-    particlesRef.current.forEach((particle, i) => {
-      gsap.to(particle, {
-        y: -20,
-        rotation: 360,
-        duration: 3 + i,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut"
-      });
-    });
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const centerEl = centerImageRef.current;
+    const tweens = reduceMotion
+      ? []
+      : particlesRef.current.filter(Boolean).map((particle, i) =>
+          gsap.to(particle, {
+            y: -20,
+            rotation: 360,
+            duration: 3 + i,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut"
+          })
+        );
 
+    // These tweens repeat forever: stop them when leaving the page.
+    return () => {
+      tweens.forEach((tween) => tween.kill());
+      if (centerEl) gsap.killTweensOf(centerEl);
+    };
   }, []);
 
   // ==================================================

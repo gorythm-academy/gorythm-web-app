@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { reportIndexErrors } = require('../utils/duplicateKey');
 
 const enrollmentSchema = new mongoose.Schema({
     student: {
@@ -53,6 +54,8 @@ const enrollmentSchema = new mongoose.Schema({
     /** Copied from the course at enroll. Empty means old one-time behaviour. */
     totalFeeCount: { type: Number, default: null, min: 1 },
     paidInstallmentCount: { type: Number, default: 0, min: 0 },
+    /** Money received toward the next installment that is not a whole installment yet (dollars). */
+    partialPaidAmount: { type: Number, default: 0, min: 0 },
     lastSettledDueDate: { type: Date, default: null },
     autoPayEnabled: { type: Boolean, default: false },
     autoPayPayer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -89,5 +92,21 @@ enrollmentSchema.pre('save', function assignFeeDueDate(next) {
 enrollmentSchema.index({ student: 1, deletedAt: 1 });
 enrollmentSchema.index({ deletedAt: 1 });
 enrollmentSchema.index({ paymentStatus: 1, feeDueDate: 1 });
+// One live enrollment per student and course. Quarantined rows (deletedAt set) and
+// placeholder rows without a course are not part of the rule.
+enrollmentSchema.index(
+    { student: 1, course: 1 },
+    {
+        unique: true,
+        name: 'uniq_active_student_course',
+        partialFilterExpression: {
+            course: { $type: 'objectId' },
+            deletedAt: { $type: 'null' },
+        },
+    }
+);
 
-module.exports = mongoose.model('Enrollment', enrollmentSchema);
+const Enrollment = mongoose.model('Enrollment', enrollmentSchema);
+reportIndexErrors(Enrollment);
+
+module.exports = Enrollment;

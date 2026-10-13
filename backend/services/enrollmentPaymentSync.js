@@ -1,6 +1,7 @@
 const Enrollment = require('../models/Enrollment');
 const { findStudentByContactEmail } = require('./enrollmentDuplicateCheck');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { isDuplicateKeyError } = require('../utils/duplicateKey');
 
 /** Paid fee, pending admin setup — enrollment stays inactive until admin activates. */
 const PAID_PENDING_ADMIN_STATUS = 'inactive';
@@ -9,7 +10,17 @@ const PAID_PENDING_ADMIN_STATUS = 'inactive';
  * Keep Enrollment.paymentStatus in sync with Payment / Stripe checkout.
  * Prefers existing course row, then trashed twin, then placeholder (first course only), else creates.
  */
-async function syncEnrollmentPaymentStatus({
+async function syncEnrollmentPaymentStatus(args) {
+    try {
+        return await syncEnrollmentPaymentStatusOnce(args);
+    } catch (err) {
+        if (!isDuplicateKeyError(err)) throw err;
+        // Another request created the same enrollment a moment ago: run again and update that row.
+        return syncEnrollmentPaymentStatusOnce({ ...args, forceNew: false });
+    }
+}
+
+async function syncEnrollmentPaymentStatusOnce({
     userId,
     courseId,
     paymentStatus = 'paid',

@@ -14,6 +14,8 @@ const Resource = require('../../models/Resource');
 const Course = require('../../models/Course');
 const User = require('../../models/User');
 const { enrichEnrollmentsWithPaymentStatus } = require('../../services/enrollmentPaymentStatus');
+const { withFulfillmentLock } = require('../../services/fulfillmentLock');
+const { isDuplicateKeyError } = require('../../utils/duplicateKey');
 const { activeLmsFilter, trashedLmsFilter, mergeMongoFilters } = require('../../utils/lmsTrashQuery');
 const {
     studentAssignmentMongoFilter,
@@ -682,66 +684,78 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), validate([qui
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
         await assertStudentCanAccessQuiz(studentId, quiz);
-        const priorActive = await QuizAttempt.findOne({
-            quiz: quizId,
-            student: studentId,
-            ...activeLmsFilter(),
-        });
-        if (priorActive) {
-            if (!quizUpdatedAfterAttempt(quiz, priorActive)) {
-                return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
-            }
-            priorActive.deletedAt = new Date();
-            await priorActive.save();
-        }
-        let safeAttachments = [];
-        if (quiz.quizType === 'file' && (!Array.isArray(attachments) || !attachments.length)) {
-            return res.status(400).json({ success: false, error: 'Attach at least one file before submitting this quiz.' });
-        }
-        if (quiz.quizType === 'file' && Array.isArray(attachments) && attachments.length) {
-            const { normalizeUploadPublicPath } = require('../../utils/uploadUrlMatch');
-            if (attachments.length > 5) {
-                return res.status(400).json({ success: false, error: 'Too many files (max 5)' });
-            }
-            for (const raw of attachments) {
-                const path = normalizeUploadPublicPath(raw);
-                if (!path || path.includes('..') || !path.includes('/quizzes/student/')) {
-                    return res.status(400).json({ success: false, error: 'Upload the quiz file again, then submit.' });
-                }
-                safeAttachments.push(path);
-            }
-        }
-        const review = buildQuizReviewPayload(quiz, answers);
-        const trashedAttempt = await QuizAttempt.findOne({
-            quiz: quizId,
-            student: studentId,
-            ...trashedLmsFilter(),
-        });
-        let attempt;
-        if (trashedAttempt) {
-            trashedAttempt.answers = answers;
-            trashedAttempt.attachments = safeAttachments;
-            trashedAttempt.score = review.score;
-            trashedAttempt.deletedAt = null;
-            await trashedAttempt.save();
-            attempt = trashedAttempt;
-        } else {
-            attempt = await QuizAttempt.create({
+        // Two quick submits must not create two attempts for the same student and quiz.
+        await withFulfillmentLock(`quiz-attempt:${studentId}:${quizId}`, async () => {
+            const priorActive = await QuizAttempt.findOne({
                 quiz: quizId,
                 student: studentId,
-                answers,
-                attachments: safeAttachments,
-                score: review.score,
+                ...activeLmsFilter(),
             });
-        }
-        res.status(201).json({
-            success: true,
-            attempt,
-            review,
-            totalQuestions: review.totalQuestions,
-            rawCorrect: review.correctCount,
+            if (priorActive) {
+                if (!quizUpdatedAfterAttempt(quiz, priorActive)) {
+                    return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
+                }
+                priorActive.deletedAt = new Date();
+                await priorActive.save();
+            }
+            let safeAttachments = [];
+            if (quiz.quizType === 'file' && (!Array.isArray(attachments) || !attachments.length)) {
+                return res.status(400).json({ success: false, error: 'Attach at least one file before submitting this quiz.' });
+            }
+            if (quiz.quizType === 'file' && Array.isArray(attachments) && attachments.length) {
+                const { normalizeUploadPublicPath } = require('../../utils/uploadUrlMatch');
+                if (attachments.length > 5) {
+                    return res.status(400).json({ success: false, error: 'Too many files (max 5)' });
+                }
+                for (const raw of attachments) {
+                    const path = normalizeUploadPublicPath(raw);
+                    if (!path || path.includes('..') || !path.includes('/quizzes/student/')) {
+                        return res.status(400).json({ success: false, error: 'Upload the quiz file again, then submit.' });
+                    }
+                    safeAttachments.push(path);
+                }
+            }
+            const review = buildQuizReviewPayload(quiz, answers);
+            const trashedAttempt = await QuizAttempt.findOne({
+                quiz: quizId,
+                student: studentId,
+                ...trashedLmsFilter(),
+            });
+            let attempt;
+            if (trashedAttempt) {
+                trashedAttempt.answers = answers;
+                trashedAttempt.attachments = safeAttachments;
+                trashedAttempt.score = review.score;
+                trashedAttempt.deletedAt = null;
+                await trashedAttempt.save();
+                attempt = trashedAttempt;
+            } else {
+                attempt = await QuizAttempt.create({
+                    quiz: quizId,
+                    student: studentId,
+                    answers,
+                    attachments: safeAttachments,
+                    score: review.score,
+                });
+            }
+            res.status(201).json({
+                success: true,
+                attempt,
+                review,
+                totalQuestions: review.totalQuestions,
+                rawCorrect: review.correctCount,
+            });
         });
     } catch (error) {
+        if (error?.code === 'FULFILLMENT_BUSY') {
+            return res.status(409).json({
+                success: false,
+                error: 'Your quiz is already being submitted. Please wait a moment.',
+            });
+        }
+        if (isDuplicateKeyError(error)) {
+            return res.status(400).json({ success: false, error: 'You have already attempted this quiz' });
+        }
         const code = error.status || 500;
         res.status(code).json({
             success: false,

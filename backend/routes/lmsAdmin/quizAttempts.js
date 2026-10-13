@@ -8,6 +8,7 @@ const { buildQuizReviewPayload, formatScoreDisplay } = require('../../utils/quiz
 const { activeUserFilter } = require('../../utils/userQuery');
 const { activeLmsFilter, trashedLmsFilter, parseTrashQuery } = require('../../utils/lmsTrashQuery');
 const { softDeleteMany, restoreMany, permanentDeleteMany } = require('../../services/lmsTrashOps');
+const { isDuplicateKeyError } = require('../../utils/duplicateKey');
 const { parseListPagination, parseIncludeMeta, escapeRegex, loadActiveCoursesMeta } = require('./shared');
 
 async function buildQuizAttemptSearchFilter(search) {
@@ -171,6 +172,12 @@ router.patch('/quiz-attempts/:id/restore', async (req, res) => {
         }
         res.json({ success: true, restoredCount: 1 });
     } catch (error) {
+        if (isDuplicateKeyError(error)) {
+            return res.status(409).json({
+                success: false,
+                error: 'This student already has a newer attempt for this quiz. Move that one to trash first.',
+            });
+        }
         res.status(500).json({ success: false, error: 'Failed to restore quiz attempt' });
     }
 });
@@ -210,8 +217,18 @@ router.post('/quiz-attempts/bulk-restore', async (req, res) => {
         if (!Array.isArray(ids) || !ids.length) {
             return res.status(400).json({ success: false, error: 'ids array required' });
         }
-        const restoredCount = await restoreMany(QuizAttempt, ids);
-        res.json({ success: true, restoredCount });
+        // One at a time: an attempt whose student already has a newer one stays in trash.
+        let restoredCount = 0;
+        let skippedCount = 0;
+        for (const id of ids) {
+            try {
+                restoredCount += await restoreMany(QuizAttempt, [id]);
+            } catch (err) {
+                if (!isDuplicateKeyError(err)) throw err;
+                skippedCount += 1;
+            }
+        }
+        res.json({ success: true, restoredCount, skippedCount });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to restore quiz attempts' });
     }

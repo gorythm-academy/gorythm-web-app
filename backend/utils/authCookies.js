@@ -157,9 +157,30 @@ function readAuthTokenForRealm(req, realm) {
     return cookies[name] || null;
 }
 
+/** True when the request carries a real Bearer token (not just the httpOnly cookie). */
+function requestHasBearer(req) {
+    return Boolean(readBearerFromHeader(req));
+}
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * CSRF guard for cookie sessions. A browser attaches cookies to cross-site requests on its own, but a
+ * page on another site cannot add a custom header without a CORS preflight that this API refuses.
+ * So a state-changing request that is authenticated only by a cookie must carry X-Auth-Realm.
+ */
+function cookieRequestIsForged(req) {
+    if (SAFE_METHODS.has(String(req.method || '').toUpperCase())) return false;
+    if (requestHasBearer(req)) return false;
+    const realm = String(req.header('X-Auth-Realm') || '').toLowerCase();
+    return realm !== 'admin' && realm !== 'portal';
+}
+
 module.exports = {
     ADMIN_COOKIE,
     PORTAL_COOKIE,
+    requestHasBearer,
+    cookieRequestIsForged,
     setAuthCookie,
     clearAuthCookie,
     clearAllAuthCookies,

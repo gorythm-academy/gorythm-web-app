@@ -226,6 +226,8 @@ const ContactPage = () => {
                     type="text"
                     name="name"
                     placeholder="Name"
+                    aria-label="Name"
+                    autoComplete="name"
                     value={form.name}
                     onChange={handleChange}
                     required
@@ -237,6 +239,7 @@ const ContactPage = () => {
                     type="tel"
                     name="phone"
                     placeholder="WhatsApp Number"
+                    aria-label="WhatsApp number"
                     value={form.phone}
                     onChange={handlePhoneChange}
                     autoComplete="tel"
@@ -251,6 +254,7 @@ const ContactPage = () => {
                     type="email"
                     name="email"
                     placeholder="Email Address"
+                    aria-label="Email address"
                     value={form.email}
                     onChange={handleChange}
                     required
@@ -264,6 +268,7 @@ const ContactPage = () => {
                 <textarea
                   name="message"
                   placeholder="How can we help you? Feel free to get in touch!"
+                  aria-label="Your message"
                   value={form.message}
                   onChange={handleChange}
                   rows={4}

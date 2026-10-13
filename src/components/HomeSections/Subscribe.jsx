@@ -44,6 +44,14 @@ const SubscribeSection = () => {
   const closeValidationModal = useCallback(() => {
     setValidationModal((prev) => ({ ...prev, open: false }));
   }, []);
+  const resetTimerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -99,7 +107,8 @@ const SubscribeSection = () => {
       setIsSubmitted(true);
       setEmail('');
       setAgreePrivacy(false);
-      setTimeout(() => setIsSubmitted(false), 5000);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => setIsSubmitted(false), 5000);
     } catch (error) {
       setValidationModal({
         open: true,
@@ -130,6 +139,7 @@ const SubscribeSection = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email address"
+                aria-label="Email address"
                 className="subscribe-input"
                 disabled={isSubmitting}
                 autoComplete="email"

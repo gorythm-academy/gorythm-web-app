@@ -301,7 +301,7 @@ app.use(errorHandler);
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
     const frontendUrl = process.env.FRONTEND_URL || 'https://gorythmacademy.com';
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         logger.info('Gorythm Academy backend started', {
             port: PORT,
             hasMongoUri: Boolean(process.env.MONGODB_URI),
@@ -312,6 +312,29 @@ if (require.main === module) {
         const { startAutoPayScheduler } = require('./services/billingAutoPay');
         startAutoPayScheduler();
     });
+
+    // Deploys send SIGTERM: finish requests that are running (a payment may be mid-way), then exit.
+    let shuttingDown = false;
+    const shutdown = (signal) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        logger.info('Shutting down', { signal });
+        const forceTimer = setTimeout(() => {
+            logger.error('Shutdown timed out, exiting');
+            process.exit(1);
+        }, 15 * 1000);
+        if (typeof forceTimer.unref === 'function') forceTimer.unref();
+        server.close(async () => {
+            try {
+                await mongoose.connection.close();
+            } catch (err) {
+                logger.error('Closing database failed', { err });
+            }
+            process.exit(0);
+        });
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = app;

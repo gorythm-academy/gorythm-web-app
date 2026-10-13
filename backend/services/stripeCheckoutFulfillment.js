@@ -10,6 +10,7 @@ const { activeCourseFilter } = require('../utils/courseQuery');
 const logger = require('../utils/logger');
 const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
 const { fulfillBillingIntent } = require('./billingCheckout');
+const { withFulfillmentLock } = require('./fulfillmentLock');
 const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
 const { presentmentFromStripeSession } = require('../utils/stripeMoney');
 const { nextInvoiceNumber, ensureInvoiceNumber } = require('../utils/invoiceNumber');
@@ -139,6 +140,12 @@ async function fulfillStripeCheckoutSession(session) {
     if (!session) {
         return { payment: null, enrolled: false, fulfillmentIssue: null };
     }
+    if (!session.id) return fulfillStripeCheckoutSessionUnlocked(session);
+    // The webhook and verify-session can arrive together; handle one checkout at a time.
+    return withFulfillmentLock(`checkout:${session.id}`, () => fulfillStripeCheckoutSessionUnlocked(session));
+}
+
+async function fulfillStripeCheckoutSessionUnlocked(session) {
 
     const { applyAutoPayAfterCheckout } = require('./billingAutoPay');
     const isSetup = session.mode === 'setup' || String(session.metadata?.autoPaySetup || '') === '1';

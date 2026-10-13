@@ -356,6 +356,21 @@ const Subscribers = () => {
     }
   };
 
+  // Column headers that sort: reachable by keyboard and announced with their sort state.
+  const sortableHeaderProps = (column) => ({
+    scope: 'col',
+    className: 'sortable',
+    tabIndex: 0,
+    onClick: () => handleSort(column),
+    onKeyDown: (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleSort(column);
+      }
+    },
+    'aria-sort': sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none',
+  });
+
   const renderSortIcon = (column) => {
     if (sortBy !== column) return <i className="fas fa-sort"></i>;
     return <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i>;
@@ -805,23 +820,24 @@ const Subscribers = () => {
                 <input
                   type="text"
                   placeholder="Search by email or source..."
+                  aria-label="Search subscribers"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                 />
               </div>
               <div className="filter-controls">
-                <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="status-filter">
+                <select aria-label="Filter by status" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="status-filter">
                   <option value="all">All statuses</option>
                   <option value="subscribed">Subscribed</option>
                   <option value="unsubscribed">Unsubscribed</option>
                 </select>
-                <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="status-filter">
+                <select aria-label="Filter by source" value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="status-filter">
                   <option value="all">All Sources</option>
                   {sourceOptions.map((source) => (
                     <option key={source} value={source}>{sourceLabel(source)}</option>
                   ))}
                 </select>
-                <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="status-filter">
+                <select aria-label="Filter by date" value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="status-filter">
                   <option value="all">All Time</option>
                   <option value="today">Today</option>
                   <option value="week">Last 7 Days</option>
@@ -879,9 +895,10 @@ const Subscribers = () => {
                 <table className="contact-messages-table subscribers-table">
                   <thead>
                     <tr>
-                      <th className="checkbox-cell">
+                      <th className="checkbox-cell" scope="col">
                         <input
                           type="checkbox"
+                          aria-label="Select all subscribers on this page"
                           checked={
                             paginatedSubscribers.length > 0 &&
                             paginatedSubscribers.every((subscriber) => isRowSelected(subscriber._id))
@@ -889,22 +906,22 @@ const Subscribers = () => {
                           onChange={toggleAllSubscribers}
                         />
                       </th>
-                      <th className="sortable" onClick={() => handleSort('email')}>
+                      <th {...sortableHeaderProps('email')}>
                         Email {renderSortIcon('email')}
                       </th>
-                      <th className="sortable" onClick={() => handleSort('source')}>
+                      <th {...sortableHeaderProps('source')}>
                         Source {renderSortIcon('source')}
                       </th>
-                      <th className="sortable" onClick={() => handleSort('status')}>
+                      <th {...sortableHeaderProps('status')}>
                         Status {renderSortIcon('status')}
                       </th>
-                      <th className="sortable" onClick={() => handleSort('subscribed')}>
+                      <th {...sortableHeaderProps('subscribed')}>
                         Subscribed {renderSortIcon('subscribed')}
                       </th>
-                      <th className="sortable" onClick={() => handleSort('updated')}>
+                      <th {...sortableHeaderProps('updated')}>
                         Last Updated {renderSortIcon('updated')}
                       </th>
-                      <th>Actions</th>
+                      <th scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -913,6 +930,7 @@ const Subscribers = () => {
                         <td className="checkbox-cell">
                           <input
                             type="checkbox"
+                            aria-label={`Select ${subscriber.email || 'subscriber'}`}
                             checked={isRowSelected(subscriber._id)}
                             onChange={() => toggleSubscriberSelection(subscriber._id)}
                           />

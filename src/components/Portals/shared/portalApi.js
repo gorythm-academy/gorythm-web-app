@@ -23,7 +23,7 @@ export function getPortalErrorMessage(err, fallback = 'Request failed') {
   if (err.response?.status === 401) return 'Session expired. Please log in again.';
   if (err.code === 'ERR_NETWORK' || !err.response) {
     const base = apiBase() || window.location.origin;
-    return `Cannot reach API (${base || 'server'}). Start the backend and check REACT_APP_API_URL.`;
+    return `Cannot reach API (${base || 'server'}). Start the backend and check VITE_API_URL.`;
   }
   return err.message || fallback;
 }

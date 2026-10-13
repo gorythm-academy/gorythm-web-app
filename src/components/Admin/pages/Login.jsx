@@ -3,10 +3,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
-    setAuthSession,
+    startCookieSession,
+    refreshCookieSession,
     getAuthUserJson,
-    setAuthUserJson,
-    replaceAuthSession,
     getAuthSession,
     clearAuthSession,
     isRememberedSession,
@@ -58,7 +57,7 @@ const AdminLogin = () => {
                 }
             );
 
-            setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.ADMIN);
+            startCookieSession(response.data.user, rememberMe, AUTH_REALM.ADMIN);
 
             if (response.data.user?.mustChangePassword) {
                 navigate('/admin/login?set-password=1', { replace: true });
@@ -102,11 +101,7 @@ const AdminLogin = () => {
             );
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            if (response.data.token) {
-                replaceAuthSession(response.data.token, updatedUser, AUTH_REALM.ADMIN);
-            } else {
-                setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.ADMIN);
-            }
+            refreshCookieSession(updatedUser, AUTH_REALM.ADMIN);
             navigate(adminDestAfterAuth(), { replace: true });
         } catch (err) {
             setError(getLoginFormError(err, 'Failed to update password'));

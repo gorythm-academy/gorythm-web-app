@@ -50,6 +50,10 @@ function serializeDisplayEnrollment(row, student) {
         courseName: row.course?.title || '—',
         courseCategory: row.course?.category || '',
         amount: toMoney(row.feeAmount ?? row.course?.price),
+        partialPaidAmount: toMoney(Math.min(
+            Number(row.partialPaidAmount || 0),
+            Number(row.feeAmount ?? row.course?.price ?? 0)
+        )),
         dueDate: row.feeDueDate || row.course?.feeDueDate || null,
         overdueSince: displayStatus === 'overdue' ? overdueOnDate(row.feeDueDate || row.course?.feeDueDate) : null,
         enrollmentDate: row.enrollmentDate,

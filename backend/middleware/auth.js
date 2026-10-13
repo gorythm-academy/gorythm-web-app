@@ -1,11 +1,19 @@
 const jwt = require('jsonwebtoken');
-const { readAuthTokenFromRequest } = require('../utils/authCookies');
+const { readAuthTokenFromRequest, cookieRequestIsForged } = require('../utils/authCookies');
 const { assertTokenEpoch } = require('../utils/tokenEpoch');
 
 const DASHBOARD_ROLES = new Set(['manager', 'super-admin']);
 
 const authMiddleware = (req, res, next) => {
     const token = readAuthTokenFromRequest(req);
+
+    if (token && cookieRequestIsForged(req)) {
+        return res.status(403).json({
+            success: false,
+            error: 'Request was blocked. Reload the page and try again.',
+            message: 'Request was blocked. Reload the page and try again.',
+        });
+    }
 
     if (!token) {
         return res.status(401).json({

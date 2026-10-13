@@ -1,10 +1,10 @@
+import { ENV_API_URL, ENV_SITE_URL, IS_DEV_SERVER } from './env';
+
 // Centralized project constants
-/** In dev, default to same-origin + setupProxy → localhost:5000 when unset. */
-export const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === 'development' ? '' : 'https://gorythmacademy.com');
+/** In dev, default to same-origin + the Vite dev proxy → localhost:5000 when unset. */
+export const API_BASE_URL = ENV_API_URL || (IS_DEV_SERVER ? '' : 'https://gorythmacademy.com');
 /** Public site URL for UI placeholders and links (override in .env). */
-export const SITE_URL = process.env.REACT_APP_SITE_URL || 'https://gorythmacademy.com';
+export const SITE_URL = ENV_SITE_URL || 'https://gorythmacademy.com';
 export const INFO_EMAIL = 'gorythm.academy@gmail.com';
 /** Only this account is the system super-admin; cannot be deleted from the dashboard. */
 export const PROTECTED_SUPER_ADMIN_EMAIL = INFO_EMAIL;

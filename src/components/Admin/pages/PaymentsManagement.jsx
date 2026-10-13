@@ -186,6 +186,7 @@ const PaymentsManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [dueDateModal, setDueDateModal] = useState(null);
+    const [receiveModal, setReceiveModal] = useState(null);
     const [declineModal, setDeclineModal] = useState(null);
     const [proofModal, setProofModal] = useState(null);
     const [invoicePicker, setInvoicePicker] = useState(null);
@@ -701,17 +702,18 @@ const PaymentsManagement = () => {
     }, [selectedVisibleCount, paginatedPayments.length]);
 
     useEffect(() => {
-        if (!dueDateModal && !declineModal && !proofModal && !invoicePicker) return undefined;
+        if (!dueDateModal && !receiveModal && !declineModal && !proofModal && !invoicePicker) return undefined;
         const onKeyDown = (event) => {
             if (event.key !== 'Escape') return;
             if (dueDateModal && !dueDateModal.saving) setDueDateModal(null);
+            if (receiveModal && !receiveModal.saving) setReceiveModal(null);
             if (declineModal && !declineModal.saving) setDeclineModal(null);
             if (proofModal) setProofModal(null);
             if (invoicePicker) setInvoicePicker(null);
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [dueDateModal, declineModal, proofModal, invoicePicker]);
+    }, [dueDateModal, receiveModal, declineModal, proofModal, invoicePicker]);
 
     const runPaymentAction = async (paymentId, action, body = {}, confirm) => {
         if (confirm) {
@@ -839,12 +841,36 @@ const PaymentsManagement = () => {
             confirmLabel: 'Refund',
         });
 
-    const handleMarkReceived = (payment) =>
-        runPaymentAction(payment._id, 'mark-received', {}, {
-            title: 'Mark as received?',
-            message: 'This marks the bill paid and enrolls the student(s). Use this for bank or cash payments.',
-            confirmLabel: 'Mark received',
+    const handleMarkReceived = (payment) => {
+        const singleBill = idsForPaymentRow(payment).length === 1 && (payment.lines?.length || 0) <= 1;
+        setReceiveModal({
+            id: payment._id,
+            label: payment.course?.title || payment.courseName || 'this bill',
+            billed: Number(payment.amount || 0),
+            amount: String(Number(payment.amount || 0)),
+            partialAllowed: singleBill,
+            saving: false,
         });
+    };
+
+    const submitReceive = async () => {
+        if (!receiveModal?.id) return;
+        const billedCents = Math.round(receiveModal.billed * 100);
+        const receivedCents = Math.round(Number(receiveModal.amount) * 100);
+        const isPartial = receiveModal.partialAllowed && receivedCents !== billedCents;
+        if (isPartial && (!Number.isFinite(receivedCents) || receivedCents <= 0 || receivedCents > billedCents)) {
+            showAlert('Enter an amount greater than zero and not more than the bill.', 'error');
+            return;
+        }
+        setReceiveModal((prev) => (prev ? { ...prev, saving: true } : prev));
+        const ok = await runPaymentAction(
+            receiveModal.id,
+            'mark-received',
+            isPartial ? { amount: receivedCents / 100 } : {}
+        );
+        if (ok) setReceiveModal(null);
+        else setReceiveModal((prev) => (prev ? { ...prev, saving: false } : prev));
+    };
 
     const handleDeclinePayment = (payment) => {
         setDeclineModal({
@@ -978,6 +1004,9 @@ const PaymentsManagement = () => {
                 dueDateDefault,
                 dueDateMessage,
                 dueDateModal,
+                receiveModal,
+                setReceiveModal,
+                submitReceive,
                 dueDateSaving,
                 exportPayments,
                 fetchError,

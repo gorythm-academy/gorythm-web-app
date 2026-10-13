@@ -14,6 +14,7 @@ import {
   TIKTOK_URL,
 } from '../../config/constants';
 import { navigateToMailto } from '../../utils/mailto';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 /** Viewports using compact nav (hamburger / tablet layout). */
 const MOBILE_TABLET_MAX_WIDTH = 1279;
@@ -299,6 +300,27 @@ const Header = () => {
 
   const toggleGridSidebar = () => setIsMenuOpen(prev => !prev);
 
+  // Mobile menu: focus moves in, Tab stays inside, Escape closes, focus returns to the hamburger.
+  useModalFocus(mobileMenuRef, isMobileMenuOpen && !isMobileMenuClosing, {
+    onEscape: () => closeMobileMenu(),
+  });
+
+  // The slide-out grid panel is off screen while closed; keep keyboard focus out of it.
+  useEffect(() => {
+    const panel = gridPanelRef.current;
+    if (!panel) return;
+    if (isMenuOpen) panel.removeAttribute('inert');
+    else panel.setAttribute('inert', '');
+  }, [isMenuOpen]);
+
+  // Do not leave the close animation timer running after leaving the page.
+  useEffect(
+    () => () => {
+      if (closeMenuTimeout.current) clearTimeout(closeMenuTimeout.current);
+    },
+    []
+  );
+
   return (
     <>
       {/* Main header – always in DOM; hidden via CSS when mobile menu is open */}
@@ -400,6 +422,8 @@ const Header = () => {
                     className="mobile-menu-toggle"
                     onClick={openMobileMenu}
                     aria-label="Open navigation menu"
+                    aria-expanded={isMobileMenuOpen}
+                    aria-haspopup="dialog"
                   >
                     <span className="toggle-line line-1"></span>
                     <span className="toggle-line line-2"></span>
@@ -411,6 +435,7 @@ const Header = () => {
                     className={`menu-grid-trigger ${isMenuOpen ? 'active' : ''}`}
                     onClick={toggleGridSidebar}
                     aria-label={isMenuOpen ? 'Close menu grid' : 'Open menu grid'}
+                    aria-expanded={isMenuOpen}
                   >
                     <span className="menu-grid-icon">
                       {[...Array(9)].map((_, i) => <span key={i} className="menu-grid-dot"></span>)}
@@ -427,6 +452,9 @@ const Header = () => {
         <div
           className={`mobile-menu-overlay${isMobileMenuActive && !isMobileMenuClosing ? ' active' : ''}${isMobileMenuClosing ? ' closing' : ''}`}
           ref={mobileMenuRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site navigation"
         >
           <div className="mobile-menu-container">
             {/* Header row */}

@@ -1,4 +1,6 @@
+const fs = require('fs');
 const express = require('express');
+const { fileMatchesMime } = require('../utils/fileSignature');
 const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const {
@@ -94,13 +96,21 @@ const upload = multer({
 });
 
 router.post('/', authMiddleware, validateSessionUser, (req, res) => {
-    upload.single('file')(req, res, (err) => {
+    upload.single('file')(req, res, async (err) => {
         if (err) {
             return res.status(400).json({ success: false, error: err.message || 'Upload failed' });
         }
         try {
             if (!req.file) {
                 return res.status(400).json({ success: false, error: 'No file uploaded' });
+            }
+            // The browser-supplied type can be faked; the file's own first bytes cannot.
+            if (!(await fileMatchesMime(req.file.path, req.file.mimetype))) {
+                await fs.promises.unlink(req.file.path).catch(() => {});
+                return res.status(400).json({
+                    success: false,
+                    error: 'File content does not match its type. Use a real PDF, Word, or image file.',
+                });
             }
             const { category, uploaderRole } = uploadContext(req);
             const url = categoryPublicPath(category, uploaderRole, req.file.filename);

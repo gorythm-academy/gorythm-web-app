@@ -21,6 +21,7 @@ const {
 const { defaultFeeDueDate, maxPayableMonths, parseInstallmentMonths } = require('../utils/feeDueDate');
 const { nextInvoiceNumbers } = require('../utils/invoiceNumber');
 const { onPaymentPaid } = require('./onPaymentPaid');
+const { withFulfillmentLock } = require('./fulfillmentLock');
 
 const MIN_STRIPE_CENTS = 50;
 
@@ -89,7 +90,8 @@ function buildPaymentDocsFromResolved({ items, invoiceMode, sharedFields }) {
     return [
         {
             ...sharedFields,
-            amount: items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+            // Add in whole cents so 3 x 0.1 style totals do not drift.
+            amount: items.reduce((sum, item) => sum + Math.round(Number(item.amount || 0) * 100), 0) / 100,
             course: items[0].courseId,
             courseName: courseNameForItems(items),
             user: items[0].studentId || sharedFields.user || undefined,
@@ -248,6 +250,8 @@ async function resolveCheckoutItems({ rawItems = [], courseIds = [], actor = nul
                 courseDescription: '',
                 amount,
                 monthlyAmount: amount,
+                // Money already received toward the next installment; the first checkout only charges what is left.
+                creditAmount: toMoney(Math.min(Number(enrollment.partialPaidAmount || 0), amount)),
                 maxMonths: maxPayableMonths({
                     ...enrollment.toObject?.() || enrollment,
                     course: enrollment.course,
@@ -329,12 +333,14 @@ function withSharedInstallmentMonths(items, requestedMonths) {
     return items.map((item) => {
         const monthly = toMoney(item.monthlyAmount ?? item.amount);
         const n = parseInstallmentMonths(months, item.maxMonths ?? months) || months;
+        const credit = Math.min(toMoney(item.creditAmount || 0), toMoney(monthly * n));
         return {
             ...item,
             monthlyAmount: monthly,
             months: n,
             installmentMonths: n,
-            amount: toMoney(monthly * n),
+            creditApplied: credit,
+            amount: toMoney(monthly * n - credit),
             courseName: n > 1 ? `${String(item.courseName || 'Course').replace(/\s*\(\d+ months\)$/, '')} (${n} months)` : item.courseName,
         };
     });
@@ -343,6 +349,20 @@ function withSharedInstallmentMonths(items, requestedMonths) {
 function stripeLineItemsFromResolved(items) {
     return items.map((item) => {
         const months = Math.max(1, Math.floor(Number(item.months || item.installmentMonths || 1)));
+        if (Number(item.creditApplied || 0) > 0) {
+            // Part of the fee is already paid, so Stripe gets one line for the balance instead of months x price.
+            return {
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: `${item.studentName ? `${item.courseName} — ${item.studentName}` : item.courseName} (balance)`,
+                        description: String(item.courseDescription || item.studentName || item.courseName).slice(0, 500),
+                    },
+                    unit_amount: Math.round(Number(item.amount) * 100),
+                },
+                quantity: 1,
+            };
+        }
         const monthly = Number(item.monthlyAmount != null ? item.monthlyAmount : Number(item.amount || 0) / months);
         return {
             price_data: {
@@ -495,6 +515,7 @@ async function fulfillLinesForPayment(payment, options = {}) {
                 issues.push(error.message || `Enrollment failed for ${line.courseName || 'a course'}`);
             }
         }
+        if (!issues.length) payment.fulfilledAt = new Date();
     } finally {
         payment.user = snapshot.user;
         payment.course = snapshot.course;
@@ -508,14 +529,41 @@ async function fulfillLinesForPayment(payment, options = {}) {
     return { enrollments, issues };
 }
 
+/** A paid row that crashed before enrollment finished may be retried for this long. */
+const FULFILLMENT_RETRY_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+function paymentNeedsFulfillmentRetry(row, now = Date.now()) {
+    if (!row || !isPaidPaymentStatus(row.status)) return false;
+    if (row.fulfilledAt || row.failureReason) return false;
+    const created = row.createdAt ? new Date(row.createdAt).getTime() : 0;
+    return created > 0 && now - created <= FULFILLMENT_RETRY_WINDOW_MS;
+}
+
+function isPaidPaymentStatus(status) {
+    return status === 'paid' || status === 'completed';
+}
+
 async function fulfillBillingIntent(intent, sessionExtras = {}) {
     if (!intent) return { payments: [], enrolled: false, fulfillmentIssue: null };
+    // One handler at a time per checkout: webhook, verify-session and auto-pay can overlap.
+    return withFulfillmentLock(`intent:${intent.groupId}`, () => fulfillBillingIntentLocked(intent, sessionExtras));
+}
 
+async function fulfillBillingIntentLocked(intent, sessionExtras = {}) {
     const already = await Payment.find({ groupId: intent.groupId, ...activePaymentFilter() });
     if (already.length) {
         intent.status = 'consumed';
         intent.consumedAt = intent.consumedAt || new Date();
         await intent.save();
+        // Money was captured but enrollment may not have finished the first time.
+        for (const row of already) {
+            if (!paymentNeedsFulfillmentRetry(row)) continue;
+            const result = await fulfillLinesForPayment(row);
+            if (result.issues.length) {
+                row.failureReason = result.issues.join(' ');
+                await row.save();
+            }
+        }
         return {
             payments: already,
             enrolled: already.every((row) => !row.failureReason),
@@ -612,6 +660,7 @@ async function loadEnrollmentFeeRowsForStudents(studentIds) {
                 courseName: row.course.title,
                 courseCategory: row.course.category || '',
                 amount,
+                partialPaidAmount: toMoney(Math.min(Number(row.partialPaidAmount || 0), amount)),
                 dueDate: row.feeDueDate || row.course?.feeDueDate || defaultFeeDueDate(),
                 paymentStatus: row.paymentStatus,
                 displayStatus,
@@ -665,6 +714,7 @@ function studentOwnsPayment(studentId, payment, studentEmail) {
 }
 
 module.exports = {
+    paymentNeedsFulfillmentRetry,
     newBillingGroupId,
     toMoney,
     httpError,

@@ -81,7 +81,7 @@ router.get('/payroll-runs', async (req, res) => {
     try {
         const filter = {};
         if (req.query.status && req.query.status !== 'all') {
-            filter.status = req.query.status;
+            filter.status = String(req.query.status);
         }
         const runs = await PayrollRun.find(filter)
             .populate('teacher', 'name email')

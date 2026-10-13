@@ -9,7 +9,9 @@ export function usePageCanonical() {
 
   useEffect(() => {
     const base = SITE_URL.replace(/\/$/, '');
-    const href = pathname === '/' ? `${base}/` : `${base}${pathname}`;
+    // /about and /about/ are the same page: one canonical address, never a trailing slash.
+    const cleanPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+    const href = cleanPath === '/' || !cleanPath ? `${base}/` : `${base}${cleanPath}`;
     let link = document.querySelector('link[rel="canonical"]');
     if (!link) {
       link = document.createElement('link');

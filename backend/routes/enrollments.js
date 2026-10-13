@@ -21,6 +21,8 @@ const {
 } = require('../utils/enrollmentAdminList');
 const { activeEnrollmentFilter, trashedEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activeUserFilter } = require('../utils/userQuery');
+const { publicErrorText } = require('../utils/publicError');
+const { isDuplicateKeyError } = require('../utils/duplicateKey');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const {
     syncStudentRosterFromEnrollments,
@@ -185,7 +187,7 @@ router.get('/', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching enrollments',
-            error: error.message
+            error: publicErrorText(error),
         });
     }
 });
@@ -329,7 +331,7 @@ router.get('/students', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching students',
-            error: error.message,
+            error: publicErrorText(error),
         });
     }
 });
@@ -397,7 +399,7 @@ router.get('/student/:studentId', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching student enrollments',
-            error: error.message,
+            error: publicErrorText(error),
         });
     }
 });
@@ -571,11 +573,15 @@ router.post('/', async (req, res) => {
             enrollment: populatedEnrollment
         });
     } catch (error) {
+        if (isDuplicateKeyError(error)) {
+            // Two admins enrolled the same student at once; the database kept only one row.
+            return res.status(400).json({ success: false, message: 'Student is already enrolled in this course' });
+        }
         req.log.error('Enrollment error', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error creating enrollment',
-            error: error.message
+            error: publicErrorText(error),
         });
     }
 });
@@ -770,10 +776,10 @@ router.put('/:id', async (req, res) => {
                 message: error.message,
             });
         }
+        req.log?.error?.('Error updating enrollment', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error updating enrollment',
-            error: error.message
         });
     }
 });
@@ -846,6 +852,12 @@ router.patch('/:id/restore', async (req, res) => {
         }
         res.json({ success: true, message: 'Enrollment restored' });
     } catch (error) {
+        if (isDuplicateKeyError(error)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot restore: student already has an active enrollment for this course. Remove or quarantine the active row first.',
+            });
+        }
         res.status(500).json({ success: false, message: 'Error restoring enrollment' });
     }
 });
@@ -905,10 +917,11 @@ router.delete('/:id', async (req, res) => {
             message: 'Enrollment moved to trash',
         });
     } catch (error) {
+        req.log?.error?.('Error deleting enrollment', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error deleting enrollment',
-            error: error.message,
+            error: publicErrorText(error),
         });
     }
 });
@@ -1081,10 +1094,11 @@ router.post('/bulk-update', async (req, res) => {
             message: `${enrollmentIds.length} enrollment(s) updated successfully`
         });
     } catch (error) {
+        req.log?.error?.('Error updating enrollments', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error updating enrollments',
-            error: error.message
+            error: publicErrorText(error),
         });
     }
 });
@@ -1126,10 +1140,11 @@ router.get('/stats', async (req, res) => {
             },
         });
     } catch (error) {
+        req.log?.error?.('Error fetching enrollment stats', { err: error });
         res.status(500).json({
             success: false,
             message: 'Error fetching enrollment stats',
-            error: error.message
+            error: publicErrorText(error),
         });
     }
 });

@@ -24,6 +24,14 @@ const checkoutRateLimiter = rateLimit({
     message: { success: false, error: 'Too many checkout attempts. Please try again later.' },
 });
 
+const sessionLookupRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many requests. Please try again later.' },
+});
+
 const passwordResetRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
@@ -36,5 +44,6 @@ module.exports = {
     publicWriteRateLimiter,
     paymentRegisterRateLimiter,
     checkoutRateLimiter,
+    sessionLookupRateLimiter,
     passwordResetRateLimiter,
 };

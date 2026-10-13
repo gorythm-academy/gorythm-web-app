@@ -1,6 +1,7 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axios from 'axios';
 import HeroSection from './components/HomeSections/Hero';
@@ -9,8 +10,10 @@ import Login from './components/Pages/Login';
 import PaymentGateway from './components/Admin/pages/PaymentGateway';
 import { CurrencyProvider } from './context/CurrencyContext';
 
-jest.mock('axios', () => ({
-  post: jest.fn(),
+vi.mock('axios', () => ({
+  default: {
+    post: vi.fn(),
+  },
 }));
 
 function jsonResponse(body, ok = true) {
@@ -27,7 +30,7 @@ describe('public smoke checks', () => {
     localStorage.clear();
     sessionStorage.clear();
     axios.post.mockReset();
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = vi.fn(async (url) => {
       const target = String(url);
       if (target.includes('/api/courses/public')) {
         return jsonResponse({
@@ -90,7 +93,9 @@ describe('public smoke checks', () => {
     );
 
     await user.click(await screen.findByRole('button', { name: /bank transfer/i }));
-    await user.click(screen.getByRole('button', { name: /submit bank payment/i }));
+    // Browsers block a click-submit while `required` fields are empty (native tooltip), so submit the
+    // form event directly to exercise the component's own validation messages.
+    fireEvent.submit(screen.getByRole('button', { name: /submit bank payment/i }).closest('form'));
 
     expect(await screen.findByText('Please enter the student full name.')).toBeInTheDocument();
     expect(screen.getByText('Please enter your email address.')).toBeInTheDocument();
@@ -99,7 +104,6 @@ describe('public smoke checks', () => {
   test('login sends a student to the student home', async () => {
     axios.post.mockResolvedValue({
       data: {
-        token: 'test-token',
         user: {
           role: 'student',
           name: 'Amina',

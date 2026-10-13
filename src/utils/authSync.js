@@ -3,6 +3,12 @@
  * Uses BroadcastChannel when available, with a localStorage ping fallback.
  */
 
+// authStorage <-> authSync import each other; both only call the other's functions at runtime
+// (never while the module is loading), so the cycle is safe.
+import { clearAuthSessionLocal, getAuthSession } from './authStorage';
+import { invalidateAdminSessionVerifyCache } from './adminAuthSession';
+import { invalidatePortalSessionVerifyCache } from './portalAuthSession';
+
 const AUTH_REALM = { ADMIN: 'admin', PORTAL: 'portal' };
 
 const SYNC_KEY = 'gorythm_auth_sync';
@@ -40,13 +46,6 @@ function isPortalAppPath(path) {
  * @param {'admin'|'portal'|'all'|null|undefined} realm
  */
 export function applyRemoteAuthLogout(realm) {
-  // Lazy import to avoid circular init with authStorage ↔ authSync
-  const {
-    clearAuthSessionLocal,
-  } = require('./authStorage');
-  const { invalidateAdminSessionVerifyCache } = require('./adminAuthSession');
-  const { invalidatePortalSessionVerifyCache } = require('./portalAuthSession');
-
   suppressBroadcast = true;
   try {
     invalidateAdminSessionVerifyCache();
@@ -108,9 +107,6 @@ function writeSyncPayload(payload) {
  * and reload this tab when the signed-in id changed so UI cannot stay stale.
  */
 export function applyRemoteAuthLogin(realm, userId) {
-  const { getAuthSession } = require('./authStorage');
-  const { invalidateAdminSessionVerifyCache } = require('./adminAuthSession');
-  const { invalidatePortalSessionVerifyCache } = require('./portalAuthSession');
   invalidateAdminSessionVerifyCache();
   invalidatePortalSessionVerifyCache();
   if (typeof window === 'undefined') return;

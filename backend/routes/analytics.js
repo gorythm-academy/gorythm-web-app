@@ -112,7 +112,7 @@ router.use(allowRoles('super-admin', 'manager'));
 // Get comprehensive analytics data
 router.get('/overview', async (req, res) => {
     try {
-        const days = Math.max(1, parseInt(req.query.days, 10) || 30);
+        const days = Math.min(366, Math.max(1, parseInt(req.query.days, 10) || 30));
         const cacheKey = String(days);
         const cached = analyticsOverviewCache.get();
         if (cached && cached.key === cacheKey) {
@@ -529,7 +529,7 @@ router.get('/revenue', async (req, res) => {
 // Performance metrics endpoint
 router.get('/metrics', async (req, res) => {
     try {
-        const days = Math.max(1, parseInt(req.query.days, 10) || 30);
+        const days = Math.min(366, Math.max(1, parseInt(req.query.days, 10) || 30));
         const cacheKey = String(days);
         const cached = analyticsMetricsCache.get();
         if (cached && cached.key === cacheKey) {

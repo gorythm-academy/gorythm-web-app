@@ -117,7 +117,6 @@ router.post(
         setAuthCookie(res, 'portal', token, !!rememberMe);
 
         res.json({
-            token,
             user: {
                 id: user._id,
                 name: user.name,
@@ -176,7 +175,6 @@ router.post(
         const token = createToken(user, !!rememberMe, { adminSession: true });
         setAuthCookie(res, 'admin', token, !!rememberMe);
         res.json({
-            token,
             user: {
                 id: user._id,
                 name: user.name,
@@ -233,7 +231,6 @@ router.post(
             return res.json({
                 success: true,
                 message: 'Password changed successfully',
-                token,
                 user: {
                     id: user._id,
                     name: user.name,
@@ -328,7 +325,6 @@ router.post('/change-initial-password', authMiddleware, validateSessionUser, asy
         return res.json({
             success: true,
             message: 'Password changed successfully',
-            token,
             user: {
                 id: user._id,
                 name: user.name,

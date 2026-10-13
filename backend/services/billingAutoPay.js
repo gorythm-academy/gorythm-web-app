@@ -103,6 +103,11 @@ function sameDueInstant(left, right) {
 function enrollmentNeedsAutoPayRepair(enrollment, payment = null) {
     if (!enrollment) return false;
     if (payment && payment.installmentCounted) return false;
+    // A part payment is already on the ledger; running the fulfilment again would find nothing to do.
+    if (payment && (Number(payment.partialCredited || 0) > 0
+        || (Array.isArray(payment.lines) && payment.lines.some((line) => Number(line?.partialCredited || 0) > 0)))) {
+        return false;
+    }
     const display = displayEnrollmentFeeStatus(enrollment);
     return display === 'unpaid' || display === 'overdue' || display === 'failed';
 }
@@ -120,6 +125,9 @@ function shouldChargeAutoPay(enrollment, now = new Date()) {
     if (['cancelled', 'refunded'].includes(String(enrollment.paymentStatus || ''))) return false;
     if (enrollmentAllFeesPaid(enrollment) || enrollmentFeeIsFree(enrollment)) return false;
     if (isExtraInstallmentPayment(enrollment, now)) return false;
+    // Part of this fee was already received (cash/bank). The card charge would be the wrong amount,
+    // so the family pays the balance from Fees instead.
+    if (Number(enrollment.partialPaidAmount || 0) > 0) return false;
     if (maxPayableMonths(enrollment) < 1) return false;
     const display = displayEnrollmentFeeStatus({
         ...enrollment,
@@ -491,7 +499,8 @@ async function deleteSavedCard({ actor, studentId, paymentMethodId }) {
     return { savedCards: serializeSavedCards(student), autoPayDisabled };
 }
 
-const AUTO_PAY_LOCK_MS = 2 * 60 * 1000;
+// Long enough to cover one slow Stripe charge between two renewals.
+const AUTO_PAY_LOCK_MS = 5 * 60 * 1000;
 
 async function holdAutoPayScheduler() {
     const now = new Date();
@@ -518,7 +527,20 @@ async function renewAutoPayScheduler(owner) {
         { name: 'scheduler', owner },
         { $set: { lockedUntil: until } }
     );
-    return renewed.modifiedCount === 1;
+    // matchedCount: the lock is still ours, even if the new expiry equals the old one.
+    return renewed.matchedCount === 1;
+}
+
+/** Renew, retrying once on a database hiccup. False only when the lock is really gone or unreachable. */
+async function renewAutoPaySchedulerSafely(owner) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+            return await renewAutoPayScheduler(owner);
+        } catch (err) {
+            logger.error('Auto-pay lock renew failed', { errorMessage: err.message, attempt });
+        }
+    }
+    return false;
 }
 
 async function releaseAutoPayScheduler(owner) {
@@ -835,6 +857,7 @@ async function chargeOneAutoPayEnrollment(enrollment, now = new Date()) {
     }
     const periodKey = autoPayPeriodKey(enrollment);
     if (!periodKey) throw httpError('This fee has no due date');
+    if (Number(enrollment.partialPaidAmount || 0) > 0) return { skipped: true, partialBalance: true };
     const finishedEarlier = await finishExistingAutoPayForEnrollment(enrollment);
     if (finishedEarlier) return finishedEarlier;
     const held = await acquireAutoPayClaim(enrollment, periodKey, now);
@@ -1023,7 +1046,10 @@ async function chargeDueAutoPays(now = new Date()) {
         let skipped = 0;
         let failed = 0;
         for (const enrollment of enrollments) {
-            if (!(await renewAutoPayScheduler(lockOwner))) break;
+            if (!(await renewAutoPaySchedulerSafely(lockOwner))) {
+                logger.warn('Auto-pay run stopped early: scheduler lock was lost', { remaining: enrollments.length });
+                break;
+            }
             if (!shouldChargeAutoPay(enrollment, now)) {
                 skipped += 1;
                 continue;

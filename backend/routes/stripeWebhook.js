@@ -7,6 +7,16 @@ const { syncEnrollmentFromPayment } = require('../services/enrollmentPaymentSync
 const { fulfillStripeCheckoutSession } = require('../services/stripeCheckoutFulfillment');
 const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
 const { activePaymentFilter } = require('../utils/paymentQuery');
+const { reverseInstallmentPayment } = require('../services/feeDuePolicy');
+const {
+    claimWebhookEvent,
+    completeWebhookEvent,
+    releaseWebhookEvent,
+    isChargeFullyRefunded,
+} = require('../services/stripeWebhookEvents');
+
+/** A failure event must never overwrite a payment that already succeeded or was refunded. */
+const FAILABLE_PAYMENT_STATUSES = ['pending', 'processing', 'awaiting_review'];
 
 async function updateActivePayment(query, update, options = {}) {
     return Payment.findOneAndUpdate({ ...query, ...activePaymentFilter() }, update, options);
@@ -15,13 +25,28 @@ async function updateActivePayment(query, update, options = {}) {
 async function markPaymentsRefunded(query, refundId) {
     const payments = await Payment.find({ ...query, ...activePaymentFilter() });
     for (const payment of payments) {
+        const alreadyRefunded = payment.status === 'refunded';
         payment.status = 'refunded';
         if (refundId) payment.refundId = refundId;
         await payment.save();
+        if (alreadyRefunded) continue;
         await payment.populate(['user', 'course']);
         await syncEnrollmentFromPayment(payment);
+        await reverseInstallmentPayment(payment);
     }
     return payments;
+}
+
+/** Only a full refund closes the fee; a partial refund is left for an admin to review. */
+async function handleRefundedCharge(charge, refundId, log) {
+    const paymentIntentId =
+        typeof charge?.payment_intent === 'string' ? charge.payment_intent : charge?.payment_intent?.id;
+    if (!paymentIntentId) return;
+    if (!isChargeFullyRefunded(charge)) {
+        log.warn('Stripe partial refund ignored; review the payment manually', { paymentIntentId });
+        return;
+    }
+    await markPaymentsRefunded({ stripePaymentIntentId: paymentIntentId }, refundId);
 }
 
 module.exports = async (req, res) => {
@@ -43,6 +68,18 @@ module.exports = async (req, res) => {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
+    const log = req.log || logger;
+
+    let claim;
+    try {
+        claim = await claimWebhookEvent(event);
+    } catch (err) {
+        log.error('Stripe webhook claim failed', { err });
+        return res.status(500).json({ received: false });
+    }
+    if (claim === 'duplicate') return res.json({ received: true, duplicate: true });
+    if (claim === 'busy') return res.status(409).json({ received: false });
+
     try {
         switch (event.type) {
             case 'checkout.session.completed': {
@@ -54,7 +91,7 @@ module.exports = async (req, res) => {
             case 'checkout.session.async_payment_failed': {
                 const session = event.data.object;
                 await updateActivePayment(
-                    { transactionId: session.id },
+                    { transactionId: session.id, status: { $in: FAILABLE_PAYMENT_STATUSES } },
                     {
                         status: 'failed',
                         failureReason:
@@ -89,7 +126,7 @@ module.exports = async (req, res) => {
                 const intent = event.data.object;
                 const msg = intent.last_payment_error?.message || 'Payment failed';
                 await updateActivePayment(
-                    { stripePaymentIntentId: intent.id },
+                    { stripePaymentIntentId: intent.id, status: { $in: FAILABLE_PAYMENT_STATUSES } },
                     { status: 'failed', failureReason: msg }
                 );
                 if (String(intent?.metadata?.autoPay || '') === '1') {
@@ -100,45 +137,35 @@ module.exports = async (req, res) => {
             }
             case 'charge.refunded': {
                 const charge = event.data.object;
-                const paymentIntentId =
-                    typeof charge.payment_intent === 'string'
-                        ? charge.payment_intent
-                        : charge.payment_intent?.id;
                 const latestRefundId =
                     Array.isArray(charge.refunds?.data) && charge.refunds.data.length
                         ? charge.refunds.data[0]?.id
                         : undefined;
-
-                if (paymentIntentId) {
-                    await markPaymentsRefunded(
-                        { stripePaymentIntentId: paymentIntentId },
-                        latestRefundId
-                    );
-                }
+                await handleRefundedCharge(charge, latestRefundId, log);
                 break;
             }
             case 'refund.created': {
                 const refund = event.data.object;
-                const paymentIntentId =
-                    typeof refund.payment_intent === 'string'
-                        ? refund.payment_intent
-                        : refund.payment_intent?.id;
-
-                if (paymentIntentId) {
-                    await markPaymentsRefunded(
-                        { stripePaymentIntentId: paymentIntentId },
-                        refund.id
-                    );
+                const chargeId = typeof refund.charge === 'string' ? refund.charge : refund.charge?.id;
+                if (!chargeId) {
+                    log.warn('Stripe refund event has no charge; skipped', { refundId: refund.id });
+                    break;
                 }
+                const charge = await stripe.charges.retrieve(chargeId);
+                await handleRefundedCharge(charge, refund.id, log);
                 break;
             }
             default:
-                (req.log || logger).info('Stripe webhook unhandled event type', { eventType: event.type });
+                log.info('Stripe webhook unhandled event type', { eventType: event.type });
         }
     } catch (err) {
-        (req.log || logger).error('Stripe webhook handler error', { err });
-        return res.status(500).json({ received: false, error: err.message });
+        log.error('Stripe webhook handler error', { err });
+        await releaseWebhookEvent(event.id).catch(() => {});
+        return res.status(500).json({ received: false });
     }
 
+    await completeWebhookEvent(event.id).catch((err) => {
+        log.error('Stripe webhook could not mark event done', { err });
+    });
     res.json({ received: true });
 };

@@ -106,6 +106,4 @@ userSchema.methods.toJSON = function() {
 };
 
 userSchema.index({ role: 1, deletedAt: 1 });
-userSchema.index({ studentId: 1 });
-
 module.exports = mongoose.model('User', userSchema);

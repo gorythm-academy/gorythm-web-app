@@ -1,5 +1,7 @@
-/** Stable URLs under `public/` (not hashed by CRA). Keep in sync with `scripts/generate-modern-image-variants.mjs`. */
-const p = process.env.PUBLIC_URL || '';
+import { PUBLIC_URL } from './env';
+
+/** Stable URLs under `public/` (not hashed by the bundler). Keep in sync with `scripts/generate-modern-image-variants.mjs`. */
+const p = PUBLIC_URL;
 
 export function publicAsset(path) {
   const normalized = path.startsWith('/') ? path : `/${path}`;

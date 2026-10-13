@@ -6,7 +6,7 @@ import { StudentProfileFields } from './StudentIdentity';
 import { validatePasswordPair } from '../../../utils/studentAdminValidation';
 import {
     parseAuthUser,
-    replaceAuthSession,
+    refreshCookieSession,
     isRememberedSession,
     AUTH_REALM,
 } from '../../../utils/authStorage';
@@ -73,7 +73,7 @@ const PortalAccountSettings = ({ subtitle = 'Update your portal login password.'
             });
             if (res.user) {
                 const nextUser = { ...user, ...res.user, mustChangePassword: false };
-                if (res.token) replaceAuthSession(res.token, nextUser, AUTH_REALM.PORTAL);
+                refreshCookieSession(nextUser, AUTH_REALM.PORTAL);
             }
             setCurrentPassword('');
             setNewPassword('');

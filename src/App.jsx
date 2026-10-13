@@ -173,7 +173,7 @@ function AppLayout() {
         <ScrollToTop />
 
         <main className="main-content">
-          <ErrorBoundary>
+          <ErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
               {/* Public Routes */}

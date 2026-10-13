@@ -1,29 +1,28 @@
-import React, { useEffect } from 'react';
+import React, { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useModalFocus } from '../../../hooks/useModalFocus';
 import './PortalModal.scss';
 
 export default function PortalModal({ title, onClose, children, wide, tone = 'default', kicker = null }) {
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const dialogRef = useRef(null);
+  const titleId = useId();
+
+  useModalFocus(dialogRef, true, { onEscape: onClose });
 
   return createPortal(
     <div className="portal-modal-backdrop" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
         className={`portal-modal portal-modal--${tone} ${wide ? 'portal-modal--wide' : ''}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="portal-modal-title"
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="portal-modal-header">
           <div>
             {kicker ? <p className="portal-modal-kicker">{kicker}</p> : null}
-            <h2 id="portal-modal-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
           </div>
           <button type="button" className="portal-modal-close" onClick={onClose} aria-label="Close">
             <i className="fas fa-times" aria-hidden />

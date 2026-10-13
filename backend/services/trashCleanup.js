@@ -8,6 +8,7 @@ const ParentStudentLink = require('../models/ParentStudentLink');
 const { proofAbsolutePathFromPublic } = require('../utils/paymentProofStorage');
 const { deleteImageFile } = require('../utils/courseImageStorage');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
+const { isDuplicateKeyError } = require('../utils/duplicateKey');
 
 function deleteProofFile(proofUrl) {
     const abs = proofAbsolutePathFromPublic(proofUrl);
@@ -67,10 +68,22 @@ async function softTrashCourseEnrollments(courseId) {
 }
 
 async function restoreCourseEnrollments(courseId) {
-    await Enrollment.updateMany(
-        { course: courseId, deletedAt: { $exists: true, $ne: null } },
-        { $set: { deletedAt: null } }
-    );
+    // One row at a time: a student who already has an active row for this course keeps the
+    // quarantined one in quarantine instead of failing the whole restore.
+    const quarantined = await Enrollment.find({
+        course: courseId,
+        deletedAt: { $exists: true, $ne: null },
+    }).select('_id');
+    for (const row of quarantined) {
+        try {
+            await Enrollment.updateOne(
+                { _id: row._id, deletedAt: { $exists: true, $ne: null } },
+                { $set: { deletedAt: null } }
+            );
+        } catch (err) {
+            if (!isDuplicateKeyError(err)) throw err;
+        }
+    }
 
     const enrollments = await Enrollment.find({
         course: courseId,

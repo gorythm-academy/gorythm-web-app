@@ -5,7 +5,7 @@ import AdminMediaGallery from '../shared/AdminMediaGallery';
 import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import { COLUMN_DEFS, formatCourseDueDate, getCourseDisplayOrder } from './coursesManagementShared';
 
-export function CoursesManagementView(state) {
+export function CoursesManagementView({ state }) {
   const {
     academyDueDate,
     activeTeachers,

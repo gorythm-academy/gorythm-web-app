@@ -4,7 +4,7 @@ import { ProtectedFileFrame, ProtectedFileImage, ProtectedFileLink } from '../..
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import { COLUMN_DEFS, canOpenStudentFromPayment, copyToClipboard, formatPaymentStatus, getStatusIcon, idsForPaymentRow, isPaymentPaid, methodBadgeClass, methodIconClass, paymentTableId } from './paymentsManagementShared';
 
-export function PaymentsManagementView(state) {
+export function PaymentsManagementView({ state }) {
   const {
     bankConfigOpen,
     bankForm,
@@ -19,6 +19,9 @@ export function PaymentsManagementView(state) {
     dueDateDefault,
     dueDateMessage,
     dueDateModal,
+    receiveModal,
+    setReceiveModal,
+    submitReceive,
     dueDateSaving,
     exportPayments,
     fetchError,
@@ -860,6 +863,68 @@ export function PaymentsManagementView(state) {
                                 onClick={submitDueDate}
                             >
                                 {dueDateModal.saving ? 'Saving…' : 'Save due date'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {receiveModal ? (
+                <div className="payment-receipt-modal" role="dialog" aria-modal="true">
+                    <div
+                        className="payment-receipt-modal__backdrop"
+                        onClick={() => !receiveModal.saving && setReceiveModal(null)}
+                    />
+                    <div className="payment-receipt-modal__panel payment-due-modal">
+                        <div className="payment-receipt-modal__head">
+                            <h3>Mark as received</h3>
+                            <button
+                                type="button"
+                                className="payment-receipt-modal__close"
+                                aria-label="Close"
+                                onClick={() => !receiveModal.saving && setReceiveModal(null)}
+                            >
+                                <i className="fas fa-times" />
+                            </button>
+                        </div>
+                        <p>
+                            This marks {receiveModal.label} paid and enrolls the student(s). Use this for bank or cash payments.
+                        </p>
+                        {receiveModal.partialAllowed ? (
+                            <label className="payment-due-modal__field">
+                                Amount received (bill is ${receiveModal.billed.toFixed(2)})
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    max={receiveModal.billed}
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={receiveModal.amount}
+                                    onChange={(e) => setReceiveModal((prev) => (prev ? { ...prev, amount: e.target.value } : prev))}
+                                    disabled={receiveModal.saving}
+                                />
+                                <small>
+                                    If less than the bill was received, the amount is kept as part payment. The month
+                                    counts as paid once the balance is received too.
+                                </small>
+                            </label>
+                        ) : null}
+                        <div className="payment-due-modal__actions">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={receiveModal.saving}
+                                onClick={() => setReceiveModal(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-add"
+                                disabled={receiveModal.saving || (receiveModal.partialAllowed && !(Number(receiveModal.amount) > 0))}
+                                onClick={submitReceive}
+                            >
+                                {receiveModal.saving ? 'Saving…' : 'Mark received'}
                             </button>
                         </div>
                     </div>

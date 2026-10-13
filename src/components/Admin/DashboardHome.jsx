@@ -4,6 +4,7 @@ import axios from 'axios';
 import { hasAuthSession, buildAuthHeaders, parseAuthUser, AUTH_REALM } from '../../utils/authStorage';
 import { forceAdminLogout } from '../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../config/constants';
+import { ENV_API_URL, IS_DEV_SERVER } from '../../config/env';
 import {
     persistAndNotifyAdminDashboardAccent,
     readAdminDashboardAccent,
@@ -31,8 +32,8 @@ function formatAdminRole(role) {
 }
 
 function getApiEndpointLabel() {
-    if (!API_BASE_URL && process.env.NODE_ENV === 'development') {
-        const devProxy = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    if (!API_BASE_URL && IS_DEV_SERVER) {
+        const devProxy = ENV_API_URL || 'http://localhost:5000';
         try {
             const proxyUrl = new URL(devProxy);
             return proxyUrl.port ? `Proxied to port ${proxyUrl.port}` : `Proxied to ${proxyUrl.host}`;

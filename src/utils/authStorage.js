@@ -5,6 +5,13 @@
  */
 
 import { clearServerAuthCookie } from './authCookieClient';
+// authStorage <-> authSync import each other; both only call the other's functions at runtime
+// (never while the module is loading), so the cycle is safe.
+import {
+  broadcastAuthLogin,
+  broadcastAuthLogout,
+  isAuthSyncBroadcastSuppressed,
+} from './authSync';
 
 export const AUTH_REALM = {
   ADMIN: 'admin',
@@ -238,6 +245,9 @@ function writeSession(storage, realm, token, userStr) {
   sessionStorage.removeItem(tokenKey);
   if (token && token !== COOKIE_SESSION_TOKEN) {
     memoryTokens[realm] = token;
+  } else {
+    // Cookie-only session: drop any older in-memory Bearer so it cannot override the fresh cookie.
+    memoryTokens[realm] = null;
   }
 }
 
@@ -277,7 +287,6 @@ export function setAuthSession(token, user, rememberMe, realm = AUTH_REALM.PORTA
   }
 
   try {
-    const { broadcastAuthLogin, isAuthSyncBroadcastSuppressed } = require('./authSync');
     if (!isAuthSyncBroadcastSuppressed()) {
       const id = userObj?.id || userObj?._id || '';
       broadcastAuthLogin(realm, id);
@@ -285,6 +294,20 @@ export function setAuthSession(token, user, rememberMe, realm = AUTH_REALM.PORTA
   } catch {
     /* sync optional at boot */
   }
+}
+
+/**
+ * After a successful login the server has set the httpOnly cookie and returns only the user.
+ * Store the user + session flag and end the post-logout restore block.
+ */
+export function startCookieSession(user, rememberMe, realm = AUTH_REALM.PORTAL) {
+  clearLogoutGuard(realm);
+  setAuthSession(COOKIE_SESSION_TOKEN, user, rememberMe, realm);
+}
+
+/** After a password change the server re-issued the cookie; keep the same storage and refresh the user. */
+export function refreshCookieSession(user, realm = AUTH_REALM.PORTAL) {
+  replaceAuthSession(COOKIE_SESSION_TOKEN, user, realm);
 }
 
 export function inferAuthRealm() {
@@ -424,7 +447,6 @@ export function clearAuthSession(realm) {
     .then(() => {
       clearAuthSessionLocal(realm);
       try {
-        const { broadcastAuthLogout, isAuthSyncBroadcastSuppressed } = require('./authSync');
         if (!isAuthSyncBroadcastSuppressed()) {
           broadcastAuthLogout(realm || 'all');
         }

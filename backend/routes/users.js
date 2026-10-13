@@ -315,7 +315,8 @@ router.get('/', async (req, res) => {
                 filter._id = { $in: [] };
             }
         } else if (role && role !== 'all') {
-            filter.role = role;
+            // Always a plain string: ?role[$ne]=x must not become a query operator.
+            filter.role = String(role);
         }
         const trash = req.query.trash === 'true' || req.query.trash === '1';
         const statusFilter = trash ? trashedUserFilter() : activeUserFilter();

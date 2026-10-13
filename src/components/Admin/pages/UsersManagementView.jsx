@@ -11,7 +11,7 @@ import AdminSearchBox from '../shared/AdminSearchBox';
 import { PARENT_RELATION_OPTIONS } from './LmsManagement/lmsHelpers';
 import { COLUMN_LABELS, GORYTHM_EMAIL_DOMAIN, STAFF_STATUS_OPTIONS, USER_STATUS_OPTIONS, displayRoleLabel, normalizeStaffStatus, sanitizePortalEmailLocal } from './usersManagementShared';
 
-export function UsersManagementView(state) {
+export function UsersManagementView({ state }) {
   const {
     addParentChildLink,
     allCourses,
@@ -683,7 +683,7 @@ export function UsersManagementView(state) {
                 </div>
                 <div className="header-right">
                     {showAddButton && listTab === 'active' && (
-                        <button className="btn-primary btn-add" onClick={openCreateModal}>
+                        <button type="button" className="btn-primary btn-add" onClick={openCreateModal}>
                             <i className="fas fa-user-plus"></i>{' '}
                             {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
                         </button>
@@ -694,7 +694,7 @@ export function UsersManagementView(state) {
 
             {embedded && showAddButton && listTab === 'active' && (
                 <div className="users-embedded-actions">
-                    <button className="btn-primary btn-add" onClick={openCreateModal}>
+                    <button type="button" className="btn-primary btn-add" onClick={openCreateModal}>
                         <i className="fas fa-user-plus"></i>{' '}
                         {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
                     </button>

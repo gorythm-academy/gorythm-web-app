@@ -4,6 +4,7 @@ const User = require('../models/User');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { cleanupTeacherOnTrash } = require('./cleanupTeacherOnTrash');
 const { syncStudentUserLoginFromAllEnrollments } = require('./syncStudentAccountLogin');
+const { isDuplicateKeyError } = require('../utils/duplicateKey');
 
 async function softTrashUser(user) {
     if (!user || user.deletedAt) return user;
@@ -76,7 +77,13 @@ async function restoreTrashedUser(user) {
                 if (twin) continue;
             }
 
-            await Enrollment.updateOne({ _id: row._id }, { $set: { deletedAt: null } });
+            try {
+                await Enrollment.updateOne({ _id: row._id }, { $set: { deletedAt: null } });
+            } catch (err) {
+                // An active twin appeared since the check above: keep this row quarantined.
+                if (isDuplicateKeyError(err)) continue;
+                throw err;
+            }
 
             if (row.course) {
                 await Course.findByIdAndUpdate(row.course, {

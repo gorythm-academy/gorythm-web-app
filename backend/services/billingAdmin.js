@@ -11,6 +11,8 @@ const { nextInvoiceNumber } = require('../utils/invoiceNumber');
 const { isPaidStoredStatus, displayEnrollmentFeeStatus, statusLabel } = require('../utils/billingStatus');
 const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
 const { deliverableInbox } = require('../utils/studentPortalEmail');
+const { enrollmentAllFeesPaid } = require('../utils/feeDueDate');
+const { toCents, fromCents } = require('../utils/installmentLedger');
 
 async function paymentsInGroup(payment) {
     if (payment?.groupId) {
@@ -27,11 +29,53 @@ async function paymentsInGroup(payment) {
     return payment ? [payment] : [];
 }
 
-async function markPaymentPaidAndFulfill(payment, { verifiedBy = null, methodNote = '' } = {}) {
+/** Reads an optional "amount received" value. Returns null when nothing was entered. */
+function parseReceivedAmount(value) {
+    if (value === undefined || value === null || String(value).trim() === '') return null;
+    const cents = toCents(value);
+    if (!Number.isFinite(Number(value)) || cents <= 0) {
+        throw httpError('Enter an amount received that is greater than zero');
+    }
+    return fromCents(cents);
+}
+
+/**
+ * Lets an admin accept less than the bill (a part payment). The money goes on the student's part-paid
+ * balance; the course only counts an installment as paid once the balance adds up to one.
+ */
+async function reduceBillToReceivedAmount(payment, receivedAmount) {
+    const billedCents = toCents(payment.amount);
+    const receivedCents = toCents(receivedAmount);
+    if (receivedCents > billedCents) throw httpError('The amount received cannot be more than the bill');
+    if (receivedCents === billedCents) return;
+
+    const lines = Array.isArray(payment.lines) ? payment.lines : [];
+    if (lines.length > 1) throw httpError('A part payment can only be recorded on a bill for a single course');
+    const studentId = lines[0]?.student || payment.user?._id || payment.user;
+    const courseId = lines[0]?.course || payment.course?._id || payment.course;
+    let enrollment = null;
+    if (lines[0]?.enrollment) {
+        enrollment = await Enrollment.findOne({ _id: lines[0].enrollment, ...activeEnrollmentFilter() });
+    }
+    if (!enrollment && studentId && courseId) {
+        enrollment = await Enrollment.findOne({ student: studentId, course: courseId, ...activeEnrollmentFilter() });
+    }
+    if (!enrollment) {
+        throw httpError('A part payment needs an existing enrollment. Receive the full amount for a new student.');
+    }
+    if (enrollmentAllFeesPaid(enrollment)) throw httpError('All fees for this course are already paid');
+
+    payment.billedAmount = payment.billedAmount ?? fromCents(billedCents);
+    payment.amount = fromCents(receivedCents);
+    if (lines[0]) lines[0].amount = fromCents(receivedCents);
+}
+
+async function markPaymentPaidAndFulfill(payment, { verifiedBy = null, methodNote = '', receivedAmount = null } = {}) {
     if (!payment) throw httpError('Payment not found', 404);
     if (isPaidStatus(payment.status)) throw httpError('Payment is already paid');
     if (payment.status === 'refunded') throw httpError('Refunded payments cannot be marked received');
     if (payment.status === 'cancelled') throw httpError('Cancelled payments cannot be marked received');
+    if (receivedAmount != null) await reduceBillToReceivedAmount(payment, receivedAmount);
 
     payment.status = 'paid';
     payment.rejectionReason = '';
@@ -161,7 +205,7 @@ async function extendEnrollmentDueDate(enrollmentId, dueDateInput, actorId) {
     return enrollment;
 }
 
-async function markEnrollmentReceived(enrollmentId, actorId) {
+async function markEnrollmentReceived(enrollmentId, actorId, { receivedAmount = null } = {}) {
     if (!mongoose.Types.ObjectId.isValid(String(enrollmentId))) {
         throw httpError('Invalid enrollment id');
     }
@@ -172,10 +216,23 @@ async function markEnrollmentReceived(enrollmentId, actorId) {
     if (enrollment.paymentStatus === 'paid') throw httpError('This enrollment is already paid');
     if (enrollment.paymentStatus === 'cancelled') throw httpError('Cancelled enrollments cannot be marked received');
 
-    const amount = Number(enrollment.course?.price || 0);
-    if (!amount) throw httpError('This course has no payable amount');
+    const price = Number(enrollment.course?.price || 0);
+    if (!price) throw httpError('This course has no payable amount');
+    let amount = price;
+    let billedAmount = null;
+    if (receivedAmount != null) {
+        if (toCents(receivedAmount) > toCents(price)) {
+            throw httpError('The amount received cannot be more than one installment');
+        }
+        if (toCents(receivedAmount) < toCents(price)) {
+            if (enrollmentAllFeesPaid(enrollment)) throw httpError('All fees for this course are already paid');
+            amount = fromCents(toCents(receivedAmount));
+            billedAmount = price;
+        }
+    }
 
     const payment = await Payment.create({
+        billedAmount,
         user: enrollment.student?._id || enrollment.student,
         course: enrollment.course?._id || enrollment.course,
         studentName: enrollment.student?.name || 'Student',
@@ -282,6 +339,7 @@ async function listOutstandingFees() {
 module.exports = {
     paymentsInGroup,
     markPaymentPaidAndFulfill,
+    parseReceivedAmount,
     extendPaymentDueDate,
     cancelPaymentRecord,
     extendEnrollmentDueDate,

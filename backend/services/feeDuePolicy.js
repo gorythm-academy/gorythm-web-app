@@ -24,6 +24,13 @@ const {
     pushDueDateExtension,
 } = require('../utils/feeDueDate');
 const { displayEnrollmentFeeStatus } = require('../utils/billingStatus');
+const {
+    toCents,
+    fromCents,
+    addToLedger,
+    removeFromLedger,
+    balanceDue,
+} = require('../utils/installmentLedger');
 
 function httpError(message, status = 400) {
     const err = new Error(message);
@@ -162,9 +169,28 @@ async function recountPaidInstallments(enrollment) {
     const total = parsedTotalFeeCount(enrollment.totalFeeCount);
     const previous = Number(enrollment.paidInstallmentCount || 0);
     const rows = await paidInvoiceRowsForEnrollment(enrollment);
-    const paid = rows.reduce((sum, row) => sum + Math.max(1, Math.floor(Number(row.installmentMonths || 1))), 0);
+    // Part-paid invoices add money, not whole months, so they are summed in cents and turned into
+    // months at the end. Everything else counts as the number of months it paid for.
+    let fullMonths = 0;
+    let partialCents = 0;
+    for (const row of rows) {
+        const credited = toCents(row.partialCredited);
+        if (credited > 0) partialCents += credited;
+        else fullMonths += Math.max(1, Math.floor(Number(row.installmentMonths || 1)));
+    }
+    let priceCents = toCents(enrollment.course?.price);
+    if (partialCents > 0 && priceCents <= 0) {
+        const courseId = enrollment.course?._id || enrollment.course;
+        const course = courseId ? await Course.findById(courseId).select('price').lean() : null;
+        priceCents = toCents(course?.price);
+    }
+    const partialMonths = partialCents > 0 && priceCents > 0 ? Math.floor(partialCents / priceCents) : 0;
+    const paid = fullMonths + partialMonths;
     const next = total == null ? paid : Math.min(paid, total);
-    enrollment.paidInstallmentCount = next === 0 && previous > 0 ? previous : next;
+    enrollment.paidInstallmentCount = next === 0 && previous > 0 && partialCents === 0 ? previous : next;
+    if (partialCents > 0 || Number(enrollment.partialPaidAmount || 0) > 0) {
+        enrollment.partialPaidAmount = fromCents(partialCents - partialMonths * priceCents);
+    }
     return enrollment;
 }
 
@@ -227,11 +253,18 @@ function isPartialInstallment(paidAmount, coursePrice) {
     const paid = Number(paidAmount || 0);
     const price = Number(coursePrice || 0);
     if (!Number.isFinite(price) || price <= 0) return false;
-    return paid + 0.009 < price;
+    // Compare whole cents so floating point noise (e.g. 0.1 + 0.2) cannot flip the result.
+    return Math.round(paid * 100) < Math.round(price * 100);
 }
 
 async function applyInstallmentPayment(enrollment, payment, { course = null } = {}) {
     if (!enrollment || !payment) return { counted: false, extra: false };
+    // Already applied: a repeated webhook or page refresh must not count it again or clear the flag.
+    // A payment with several lines shares one flag, so its lines are protected by fulfilledAt instead.
+    const lineCount = Array.isArray(payment.lines) ? payment.lines.length : 0;
+    if (payment.installmentCounted && lineCount <= 1) {
+        return { counted: true, extra: false, alreadyCounted: true };
+    }
     const courseDoc = course || enrollment.course;
     copyTotalFeeCountFromCourse(enrollment, courseDoc);
     if (enrollmentFeeIsFree({ ...enrollment.toObject?.() || enrollment, course: courseDoc })) {
@@ -245,9 +278,12 @@ async function applyInstallmentPayment(enrollment, payment, { course = null } = 
     const allowed = maxPayableMonths(enrollment);
     const months = parseInstallmentMonths(monthsRequested, allowed || monthsRequested);
     const expectedAmount = Number(courseDoc?.price || 0) * Math.max(1, months);
-    if (isPartialInstallment(lineAmountForEnrollment(payment, enrollment), expectedAmount)) {
-        await enrollment.save();
-        return { counted: false, extra: false, partial: true };
+    const lineAmount = lineAmountForEnrollment(payment, enrollment);
+    if (isPartialInstallment(lineAmount, expectedAmount)) {
+        return applyPartialInstallment(enrollment, payment, {
+            price: Number(courseDoc?.price || 0),
+            amount: lineAmount,
+        });
     }
 
     if (enrollmentAllFeesPaid(enrollment) || isExtraInstallmentPayment(enrollment) || allowed < 1) {
@@ -261,6 +297,11 @@ async function applyInstallmentPayment(enrollment, payment, { course = null } = 
     }
 
     const n = Math.max(1, Math.min(months, allowed));
+    return settleInstallments(enrollment, payment, n);
+}
+
+/** Count `n` whole installments as paid and move the due date forward. */
+async function settleInstallments(enrollment, payment, n) {
     const previousDue = enrollment.feeDueDate;
     enrollment.paidInstallmentCount = Number(enrollment.paidInstallmentCount || 0) + n;
     enrollment.lastSettledDueDate = previousDue || new Date();
@@ -286,8 +327,80 @@ async function applyInstallmentPayment(enrollment, payment, { course = null } = 
     return { counted: true, extra: false, months: n };
 }
 
+/** The payment line that belongs to this enrollment, or the payment itself when it has no lines. */
+function paymentLineHolder(payment, enrollment) {
+    const lines = Array.isArray(payment?.lines) ? payment.lines : [];
+    if (!lines.length) return payment;
+    const enrollmentId = String(enrollment?._id || '');
+    const courseId = String(enrollment?.course?._id || enrollment?.course || payment?.course?._id || payment?.course || '');
+    return lines.find((row) => {
+        if (enrollmentId && String(row.enrollment || '') === enrollmentId) return true;
+        if (courseId && String(row.course?._id || row.course || '') === courseId) return true;
+        return false;
+    }) || null;
+}
+
+/**
+ * The student paid less than a whole installment. Keep the money as credit on the enrollment and
+ * count an installment as paid only once the credit adds up to one.
+ */
+async function applyPartialInstallment(enrollment, payment, { price, amount }) {
+    const holder = paymentLineHolder(payment, enrollment);
+    const amountCents = toCents(amount);
+    // Nothing left to pay, or nothing to credit: keep the old behaviour (the payment is recorded, the ledger is untouched).
+    if (!holder || amountCents <= 0 || enrollmentAllFeesPaid(enrollment)) {
+        await enrollment.save();
+        return { counted: false, extra: false, partial: true };
+    }
+    // Already credited (repeated webhook, page refresh or repair job): never credit the same money twice.
+    if (toCents(holder.partialCredited) > 0) {
+        return { counted: Boolean(payment.installmentCounted), extra: false, partial: true, alreadyCounted: true };
+    }
+
+    const ledger = addToLedger({
+        paid: enrollment.paidInstallmentCount,
+        creditCents: toCents(enrollment.partialPaidAmount),
+        priceCents: toCents(price),
+        amountCents,
+        maxPaid: parsedTotalFeeCount(enrollment.totalFeeCount),
+    });
+    holder.partialCredited = fromCents(amountCents);
+    enrollment.partialPaidAmount = fromCents(ledger.creditCents);
+
+    if (ledger.completed > 0) {
+        // settleInstallments adds the completed installments to the stored count.
+        const result = await settleInstallments(enrollment, payment, ledger.completed);
+        return { ...result, partial: true };
+    }
+    if (typeof payment.save === 'function') await payment.save();
+    await enrollment.save();
+    return { counted: false, extra: false, partial: true, creditCents: ledger.creditCents };
+}
+
+/** After installments were taken back: fix the payment status and make sure the course has a due date. */
+async function reopenAfterReducedInstallments(enrollment) {
+    // One refunded month must not mark a course refunded while other months are still paid.
+    if (
+        enrollment.paidInstallmentCount > 0 &&
+        ['refunded', 'failed', 'pending'].includes(String(enrollment.paymentStatus || ''))
+    ) {
+        enrollment.paymentStatus = 'paid';
+    }
+    if (String(enrollment.status || '') !== 'completed' && !enrollmentAllFeesPaid(enrollment)) {
+        if (!enrollment.feeDueDate || !isFeeDueDatePast(enrollment.feeDueDate)) {
+            const day = await academyDayFor(enrollment);
+            enrollment.feeDueDate = firstDueDateFromJoin(new Date(), day);
+            enrollment.feeDueDay = day;
+        }
+    }
+}
+
 async function reverseInstallmentPayment(payment) {
-    if (!payment?.installmentCounted) return;
+    const paymentHasLines = Array.isArray(payment?.lines) && payment.lines.length > 0;
+    const hasPartial = paymentHasLines
+        ? payment.lines.some((row) => toCents(row.partialCredited) > 0)
+        : toCents(payment?.partialCredited) > 0;
+    if (!payment?.installmentCounted && !hasPartial) return;
     const lines = Array.isArray(payment.lines) && payment.lines.length
         ? payment.lines
         : [{ student: payment.user, course: payment.course, enrollment: payment.enrollment }];
@@ -312,15 +425,29 @@ async function reverseInstallmentPayment(payment) {
             });
         }
         if (!enrollment) continue;
+        const holder = paymentHasLines ? line : payment;
+        const creditedCents = toCents(holder.partialCredited);
+        if (creditedCents > 0) {
+            // Part-paid money: take it back out of the ledger instead of removing whole months.
+            const courseId = enrollment.course?._id || enrollment.course;
+            const course = courseId ? await Course.findById(courseId).select('price').lean() : null;
+            const ledger = removeFromLedger({
+                paid: enrollment.paidInstallmentCount,
+                creditCents: toCents(enrollment.partialPaidAmount),
+                priceCents: toCents(course?.price),
+                amountCents: creditedCents,
+            });
+            enrollment.paidInstallmentCount = ledger.paid;
+            enrollment.partialPaidAmount = fromCents(ledger.creditCents);
+            holder.partialCredited = 0;
+            if (ledger.undone > 0) await reopenAfterReducedInstallments(enrollment);
+            await enrollment.save();
+            continue;
+        }
+        if (!payment.installmentCounted) continue;
         const months = Math.max(1, Math.floor(Number(line.installmentMonths || payment.installmentMonths || 1)));
         enrollment.paidInstallmentCount = Math.max(0, Number(enrollment.paidInstallmentCount || 0) - months);
-        if (String(enrollment.status || '') !== 'completed' && !enrollmentAllFeesPaid(enrollment)) {
-            if (!enrollment.feeDueDate || !isFeeDueDatePast(enrollment.feeDueDate)) {
-                const day = await academyDayFor(enrollment);
-                enrollment.feeDueDate = firstDueDateFromJoin(new Date(), day);
-                enrollment.feeDueDay = day;
-            }
-        }
+        await reopenAfterReducedInstallments(enrollment);
         await enrollment.save();
     }
     payment.installmentCounted = false;
@@ -394,6 +521,7 @@ async function ensureEnrollmentDueDate(enrollment) {
         await recountPaidInstallments(enrollment);
         updates.totalFeeCount = enrollment.totalFeeCount;
         updates.paidInstallmentCount = enrollment.paidInstallmentCount;
+        updates.partialPaidAmount = Number(enrollment.partialPaidAmount || 0);
     }
     if (!enrollment.feeDueDate) {
         await assignEnrollmentDueDate(enrollment, { course: enrollment.course });
@@ -480,6 +608,7 @@ async function paidInvoiceRowsForEnrollment(enrollment) {
             amount: line?.amount ?? row.amount,
             method: row.paymentMethod,
             installmentMonths: Math.max(1, Math.floor(Number(line?.installmentMonths || row.installmentMonths || 1))),
+            partialCredited: Number((line ? line.partialCredited : row.partialCredited) || 0),
         };
     });
 }
@@ -490,13 +619,19 @@ async function buildEnrollmentFeeSummary(enrollment) {
     const paidCount = Number(enrollment.paidInstallmentCount || 0);
     const remainingCount = total == null ? null : Math.max(0, total - paidCount);
     const price = Number(enrollment.course?.price || 0);
+    const partialPaid = Number(enrollment.partialPaidAmount || 0);
     return {
         studentName: enrollment.student?.name || '',
         courseName: enrollment.course?.title || '',
         paidCount,
         totalFeeCount: total,
         remainingCount,
-        remainingAmount: remainingCount == null ? null : remainingCount * price,
+        // The money already received toward the next installment is not owed again.
+        remainingAmount: remainingCount == null
+            ? null
+            : Math.max(0, fromCents(remainingCount * toCents(price) - toCents(partialPaid))),
+        partialPaidAmount: partialPaid,
+        balanceDue: partialPaid > 0 ? balanceDue(price, partialPaid) : price,
         paidInvoices,
         displayFeeStatus: displayEnrollmentFeeStatus(enrollment),
         allFeesPaid: enrollmentAllFeesPaid(enrollment),

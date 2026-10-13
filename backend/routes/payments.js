@@ -20,7 +20,15 @@ const { readAuthTokenForRealm } = require('../utils/authCookies');
 const { assertTokenEpoch } = require('../utils/tokenEpoch');
 const logger = require('../utils/logger');
 const { validate, rules } = require('../middleware/validate');
-const { paymentRegisterRateLimiter, checkoutRateLimiter } = require('../middleware/publicWriteRateLimit');
+const {
+    paymentRegisterRateLimiter,
+    checkoutRateLimiter,
+    sessionLookupRateLimiter,
+} = require('../middleware/publicWriteRateLimit');
+
+const { escapeRegex } = require('../utils/escapeRegex');
+
+const STRIPE_SESSION_ID_RE = /^cs_(?:test|live)_[A-Za-z0-9_]{10,200}$/;
 const {
     fulfillStripeCheckoutSession,
     fulfillmentMessage,
@@ -41,6 +49,7 @@ const {
 } = require('../services/billingCheckout');
 const {
     markPaymentPaidAndFulfill,
+    parseReceivedAmount,
     extendPaymentDueDate,
     cancelPaymentRecord,
     extendEnrollmentDueDate,
@@ -627,11 +636,14 @@ router.post(
     }
 });
 
-router.get('/verify-session', async (req, res) => {
+router.get('/verify-session', sessionLookupRateLimiter, async (req, res) => {
     if (!requireStripe(res)) return;
     const sessionId = req.query.session_id;
     if (!sessionId || typeof sessionId !== 'string') {
         return res.status(400).json({ success: false, error: 'session_id is required' });
+    }
+    if (!STRIPE_SESSION_ID_RE.test(sessionId)) {
+        return res.status(400).json({ success: false, error: 'Invalid session_id' });
     }
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -687,15 +699,31 @@ router.get('/verify-session', async (req, res) => {
             paymentIds: payment?._id ? [payment._id] : [],
         });
     } catch (error) {
+        if (error?.code === 'FULFILLMENT_BUSY') {
+            // Another request is finishing this checkout; the money is already captured.
+            return res.json({
+                success: true,
+                paid: true,
+                enrolled: false,
+                fulfillmentIssue: null,
+                message: 'Your payment was received and is still being processed. Please refresh this page in a minute.',
+                courseTitle: null,
+                paymentId: null,
+                paymentIds: [],
+            });
+        }
         req.log.error('verify-session failed', { err: error });
         res.status(400).json({ success: false, error: 'Could not verify session' });
     }
 });
 
-router.get('/receipt-by-session', async (req, res) => {
+router.get('/receipt-by-session', sessionLookupRateLimiter, async (req, res) => {
     const sessionId = req.query.session_id;
     if (!sessionId || typeof sessionId !== 'string') {
         return res.status(400).json({ success: false, error: 'session_id is required' });
+    }
+    if (!STRIPE_SESSION_ID_RE.test(sessionId)) {
+        return res.status(400).json({ success: false, error: 'Invalid session_id' });
     }
     try {
         const payments = await Payment.find({
@@ -798,7 +826,7 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
         }
 
         if (search) {
-            const regex = { $regex: search, $options: 'i' };
+            const regex = { $regex: escapeRegex(search.slice(0, 100)), $options: 'i' };
             filter.$or = [
                 { studentName: regex },
                 { email: regex },
@@ -909,7 +937,9 @@ router.patch('/outstanding/:enrollmentId/due-date', allowPermission('payments.wr
 
 router.post('/outstanding/:enrollmentId/mark-received', allowPermission('payments.write'), async (req, res) => {
     try {
-        const payment = await markEnrollmentReceived(req.params.enrollmentId, req.user?.userId || req.user?.id);
+        const payment = await markEnrollmentReceived(req.params.enrollmentId, req.user?.userId || req.user?.id, {
+            receivedAmount: parseReceivedAmount(req.body?.amount),
+        });
         res.json({ success: true, message: 'Payment marked as received', payment: serializePayment(payment) });
     } catch (error) {
         res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to mark payment received' });
@@ -1110,7 +1140,9 @@ router.post('/:id/refund', allowPermission('payments.refund'), async (req, res) 
         });
     } catch (error) {
         req.log.error('Refund error', { err: error });
-        res.status(500).json({ success: false, error: error.message || 'Refund failed' });
+        // Stripe's own message ("already refunded", ...) helps the admin; other errors stay in the log.
+        const stripeMessage = String(error?.type || '').startsWith('Stripe') ? error.message : null;
+        res.status(500).json({ success: false, error: stripeMessage || 'Refund failed' });
     }
 });
 
@@ -1136,10 +1168,17 @@ router.post('/:id/mark-received', allowPermission('payments.write'), async (req,
         if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
         const group = await paymentsInGroup(payment);
         const actorId = req.user?.userId || req.user?.id;
+        const receivedAmount = parseReceivedAmount(req.body?.amount);
+        if (receivedAmount != null && group.length > 1) {
+            return res.status(400).json({
+                success: false,
+                error: 'A part payment cannot be recorded on a combined checkout. Receive the full amount instead.',
+            });
+        }
         const updated = [];
         for (const row of group) {
             if (isPaidStatus(row.status)) continue;
-            updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy: actorId }));
+            updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy: actorId, receivedAmount }));
         }
         res.json({
             success: true,

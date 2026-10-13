@@ -133,12 +133,14 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
 
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.key === 'Escape') setIsPlaying(false);
+      if (e.key !== 'Escape') return;
+      setIsPlaying(false);
+      setNeedsMediaConsent(false);
     };
-    if (!isPlaying) return undefined;
+    if (!isPlaying && !needsMediaConsent) return undefined;
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [isPlaying]);
+  }, [isPlaying, needsMediaConsent]);
 
   useEffect(() => {
     if (!isPlaying || !mediaAllowed || !isVimeo || !iframeRef.current) return undefined;

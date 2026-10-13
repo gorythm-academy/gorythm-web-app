@@ -1,140 +1,29 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
-import AddStudentUnifiedModal from './AddStudentUnifiedModal';
-import EnrollStudentModal from './EnrollStudentModal';
-import EditEnrollmentModal from './EditEnrollmentModal';
-import StudentDetailOverlay from './StudentDetailOverlay';
-import StudentCard from './StudentsData/StudentCard';
-import StudentsControlsBar from './StudentsData/StudentsControlsBar';
-import StudentsPagination from './StudentsData/StudentsPagination';
-import StudentsStatsGrid from './StudentsData/StudentsStatsGrid';
 import { useAdminDialog } from '../AdminDialogContext';
-import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
-import { portalEmailDisplayLabel, isUnsetPortalEmail } from '../../../utils/studentPortalEmail';
+import { portalEmailDisplayLabel } from '../../../utils/studentPortalEmail';
 import {
     normalizeEnrollmentStatus,
 } from '../../../utils/studentAdminValidation';
 import { billingStatusLabel, formatFeeSummaryMessage } from '../../../utils/billingLabels';
-import { ACTIVE_RECORDS_LABEL, QUARANTINE_COURSES_LABEL, QUARANTINE_STUDENTS_LABEL } from '../../../utils/adminListLabels';
+import { QUARANTINE_COURSES_LABEL, QUARANTINE_STUDENTS_LABEL } from '../../../utils/adminListLabels';
 import './StudentsData.scss';
+import { StudentsDataView } from './StudentsDataView';
+import {
+    getEnrollmentTeacherLabel,
+    getEnrollmentTimeslotLabel,
+    summarizeLabels,
+    buildStudentCardsFromApi,
+    sortStudentCards,
+    buildListCacheKey,
+    buildOverlayCacheKey,
+} from './studentsDataHelpers';
 
 const PAGE_SIZE = 9;
 const CSV_EXPORT_PAGE_SIZE = 5000;
-
-/** Allotted schedule teacher ONLY — never courseTeachers fallback. */
-const getEnrollmentTeacherItems = (enrollment) => {
-    if (!enrollment) return [];
-    const name = enrollment.assignedSchedule?.teacher?.name;
-    return name ? [name] : [];
-};
-
-const getEnrollmentTeacherLabel = (enrollment) => getEnrollmentTeacherItems(enrollment).join(', ');
-
-const getEnrollmentTimeslotLabel = (enrollment) =>
-    formatScheduleTimeLabel(enrollment?.assignedSchedule);
-
-const summarizeLabels = (values, emptyLabel = '—') => {
-    const cleaned = values.filter(Boolean);
-    if (!cleaned.length) return emptyLabel;
-    const unique = [...new Set(cleaned)];
-    if (unique.length === 1) return unique[0];
-    return 'Mixed';
-};
-
-const buildCourseSummary = (rows) => {
-    const titles = [];
-    const seen = new Set();
-    for (const row of rows) {
-        const title = row?.course?.title;
-        if (!title || seen.has(title)) continue;
-        seen.add(title);
-        titles.push(title);
-    }
-    if (!titles.length) return 'No course assigned';
-    if (titles.length <= 2) return titles.join(', ');
-    return `${titles.slice(0, 2).join(', ')} +${titles.length - 2} more`;
-};
-
-const isPendingSetupStudent = (student) => {
-    if (!student) return false;
-    return isUnsetPortalEmail(student.email);
-};
-
-const buildStudentCardsFromApi = (studentsPayload = []) =>
-    studentsPayload.map((entry) => {
-        const student = entry.student || {};
-        const rows = entry.enrollments || [];
-        const key = student._id ? String(student._id) : `student:${student.email || student.name}`;
-        const statuses = rows.map((e) => normalizeEnrollmentStatus(e.status));
-        const feeStatuses = rows.map((e) =>
-            billingStatusLabel(e.displayFeeStatus || e.paymentStatus || 'pending')
-        );
-        return {
-            key,
-            student,
-            enrollments: rows,
-            parents: entry.parents || student.parents || [],
-            courseSummary: buildCourseSummary(rows),
-            courseCount: new Set(rows.map((e) => e.course?._id || e.course?.title).filter(Boolean)).size,
-            statusLabel: summarizeLabels(statuses, rows.length ? 'inactive' : '—'),
-            feeStatusLabel: summarizeLabels(feeStatuses, 'Pending'),
-            enrollmentCount: rows.length,
-            pendingSetup: entry.pendingSetup ?? isPendingSetupStudent(student),
-        };
-    });
-
-/** Keep card order aligned with sort control even if API order is stale. */
-const sortStudentCards = (cards, sortBy, sortOrder) => {
-    const dir = sortOrder === 'desc' ? -1 : 1;
-    const byName = sortBy === 'student' || sortBy === 'name';
-    const byNewest = sortBy === 'createdAt' || sortBy === 'joined';
-    return [...cards].sort((a, b) => {
-        if (byNewest) {
-            const at = new Date(a.student?.createdAt || 0).getTime();
-            const bt = new Date(b.student?.createdAt || 0).getTime();
-            if (at !== bt) return (at - bt) * dir;
-            return String(a.key).localeCompare(String(b.key)) * dir;
-        }
-        if (byName) {
-            const an = String(a.student?.name || '').toLowerCase();
-            const bn = String(b.student?.name || '').toLowerCase();
-            const cmp = an.localeCompare(bn, undefined, { sensitivity: 'base' });
-            if (cmp !== 0) return cmp * dir;
-            return String(a.key).localeCompare(String(b.key));
-        }
-        const ar = String(a.student?.studentId || '').trim();
-        const br = String(b.student?.studentId || '').trim();
-        const aMissing = !ar;
-        const bMissing = !br;
-        if (aMissing !== bMissing) return aMissing ? 1 : -1;
-        const cmp = ar.localeCompare(br, undefined, { numeric: true, sensitivity: 'base' });
-        if (cmp !== 0) return cmp * dir;
-        return String(a.key).localeCompare(String(b.key));
-    });
-};
-
-const buildListCacheKey = ({
-    listTab,
-    page,
-    debouncedSearchTerm,
-    filterStatus,
-    filterFeeStatus,
-    sortBy,
-    sortOrder,
-}) => JSON.stringify({
-    listTab,
-    page,
-    debouncedSearchTerm,
-    filterStatus,
-    filterFeeStatus,
-    sortBy,
-    sortOrder,
-});
-
-const buildOverlayCacheKey = (studentId, tab) => `${studentId}:${tab}`;
 
 const StudentsData = () => {
     const [searchParams] = useSearchParams();
@@ -981,231 +870,74 @@ const StudentsData = () => {
     }
 
     return (
-        <div className="students-data-page">
-            <AddStudentUnifiedModal
-                isOpen={showAddModal}
-                onClose={() => setShowAddModal(false)}
-                onSuccess={handleAddStudentSuccess}
-                courses={courses}
-            />
-
-            <EnrollStudentModal
-                isOpen={showEnrollModal}
-                onClose={() => {
-                    setShowEnrollModal(false);
-                    setEnrollPreselectedStudent(null);
-                }}
-                onEnrollSuccess={handleEnrollExistingSuccess}
-                courses={courses}
-                preselectedStudent={enrollPreselectedStudent}
-                defaultsFromEnrollment={
-                    enrollPreselectedStudent
-                        ? (detailEnrollments.find((e) => e.course?._id) || detailEnrollments[0] || null)
-                        : null
-                }
-            />
-
-            <EditEnrollmentModal
-                isOpen={showEditModal}
-                mode={editMode}
-                enrollment={editingEnrollment}
-                onClose={() => {
-                    setShowEditModal(false);
-                    setEditingEnrollment(null);
-                }}
-                onSaved={handleEditSaved}
-            />
-
-            <StudentDetailOverlay
-                student={detailStudent}
-                detailTab={detailTab}
-                onDetailTabChange={setDetailTab}
-                enrollments={detailEnrollments}
-                loading={detailLoading}
-                refreshing={detailRefreshing}
-                trashBusy={trashBusy}
-                quarantineCount={detailQuarantineCount}
-                studentQuarantined={Boolean(detailStudent?.deletedAt) || listTab === 'trashStudents'}
-                onClose={closeStudentDetail}
-                onAddCourse={handleAddCourseToStudent}
-                onEditEnrollment={handleEditEnrollment}
-                onEditAccount={handleEditAccount}
-                onQuarantineEnrollment={handleQuarantineEnrollment}
-                onQuarantineStudent={() => handleQuarantineStudent(detailStudent)}
-                onRestoreStudent={() => handleRestoreStudent(detailStudent)}
-                onPermanentDeleteStudent={() => handlePermanentDeleteStudent(detailStudent)}
-                onRestoreEnrollment={handleRestoreEnrollment}
-                onPermanentDelete={handlePermanentDelete}
-                onUpdateStatus={updateEnrollmentStatus}
-                blockEscape={showEnrollModal || showEditModal}
-            />
-
-            <div className="page-header">
-                <div className="header-left">
-                    <h1><i className="fas fa-user-graduate"></i> Students</h1>
-                    <p>
-                        Accounts, enrollments, fee status, and course assignments in one place
-                        {listTab === 'active'
-                            ? ` · ${stats.uniqueStudents || stats.totalStudentAccounts || 0} students`
-                            : listTab === 'trashStudents'
-                                ? ` · ${QUARANTINE_STUDENTS_LABEL}`
-                                : ` · ${QUARANTINE_COURSES_LABEL}`}
-                    </p>
-                    <small>
-                        <i className="fas fa-database" aria-hidden="true" />
-                        Data stored in MongoDB | {listTab === 'active'
-                            ? `${stats.totalRows} enrolled courses`
-                            : listTab === 'trashStudents'
-                                ? `${trashStudentsCount} quarantined students`
-                                : `${trashCount} students with quarantined courses`}
-                    </small>
-                </div>
-                {listTab === 'active' ? (
-                    <div className="header-right">
-                        <button type="button" className="btn-primary btn-add" onClick={handleAddStudent}>
-                            <i className="fas fa-user-plus"></i> Add new student
-                        </button>
-                    </div>
-                ) : null}
-            </div>
-
-            {errorMessage && (
-                <div className="alert alert-error">
-                    <i className="fas fa-exclamation-circle"></i>
-                    {errorMessage}
-                    <button onClick={() => setErrorMessage('')} className="alert-close">×</button>
-                </div>
-            )}
-
-            {successMessage && (
-                <div className="alert alert-success">
-                    <i className="fas fa-check-circle"></i>
-                    {successMessage}
-                    <button onClick={() => setSuccessMessage('')} className="alert-close">×</button>
-                </div>
-            )}
-
-            {listTab === 'active' && <StudentsStatsGrid stats={stats} />}
-
-            <div className="students-list-tabs">
-                <button
-                    type="button"
-                    className={`students-list-tab ${listTab === 'active' ? 'active' : ''}`}
-                    onClick={() => setListTab('active')}
-                >
-                    <i className="fas fa-list" /> {ACTIVE_RECORDS_LABEL}
-                </button>
-                <button
-                    type="button"
-                    className={`students-list-tab students-list-tab--trash ${listTab === 'trash' ? 'active' : ''}`}
-                    onClick={() => {
-                        setFilterStatus('all');
-                        setFilterFeeStatus('all');
-                        setListTab('trash');
-                    }}
-                >
-                    <i className="fas fa-book" /> {QUARANTINE_COURSES_LABEL} ({trashCount})
-                </button>
-                <button
-                    type="button"
-                    className={`students-list-tab students-list-tab--trash ${listTab === 'trashStudents' ? 'active' : ''}`}
-                    onClick={() => {
-                        setFilterStatus('all');
-                        setFilterFeeStatus('all');
-                        setListTab('trashStudents');
-                    }}
-                >
-                    <i className="fas fa-user-slash" /> {QUARANTINE_STUDENTS_LABEL} ({trashStudentsCount})
-                </button>
-            </div>
-
-            <StudentsControlsBar
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                filterStatus={filterStatus}
-                setFilterStatus={setFilterStatus}
-                filterFeeStatus={filterFeeStatus}
-                setFilterFeeStatus={setFilterFeeStatus}
-                sortBy={sortBy}
-                setSortBy={setSortBy}
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                handleManualRefresh={handleManualRefresh}
-                downloadStudentsDataCsv={downloadStudentsDataCsv}
-            />
-
-            {loading && studentCards.length > 0 ? (
-                <div className="students-cards-loading" aria-live="polite">
-                    <i className="fas fa-spinner fa-spin" aria-hidden /> Refreshing…
-                </div>
-                    ) : null}
-
-            {studentCards.length > 0 ? (
-                <div className="students-cards-grid">
-                    {studentCards.map((card) => (
-                        <StudentCard
-                            key={card.key}
-                            card={card}
-                            onOpen={openStudentDetail}
-                        />
-                    ))}
-                                                </div>
-            ) : loading ? (
-                <div className="students-cards-grid students-cards-grid--skeleton" aria-hidden>
-                    {Array.from({ length: PAGE_SIZE }, (_, i) => (
-                        <div key={i} className="student-card-skeleton" />
-                    ))}
-                                            </div>
-            ) : (
-                <div className="students-cards-empty">
-                    <i className="fas fa-user-graduate" aria-hidden />
-                    <p><strong>No students found.</strong></p>
-                                        <p className="no-data-hint">
-                        {listTab === 'trash'
-                            ? 'No students with quarantined courses.'
-                            : listTab === 'trashStudents'
-                                ? 'No quarantined students. Use Quarantine student from a student card to archive a whole account.'
-                                : 'Use Add new student to create a record. Add more courses from a student card.'}
-                                        </p>
-                                        {listTab === 'active' ? (
-                                            <div className="no-data-actions">
-                            <button type="button" className="btn-primary btn-add" onClick={handleAddStudent}>
-                                <i className="fas fa-user-plus"></i> Add new student
-                                                </button>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                        )}
-
-            <StudentsPagination
-                page={page}
-                setPage={setPage}
-                loading={loading}
-                total={total}
-                totalPages={totalPages}
-            />
-
-            <div className="database-info">
-                <div className="info-card">
-                    <i className="fas fa-database"></i>
-                    <div>
-                        <h4>MongoDB Storage</h4>
-                        <p>All student records are stored permanently in MongoDB</p>
-                        <small>
-                            Enrollment rows: {stats.totalRows} | Unique students: {stats.uniqueStudents}
-                        </small>
-                    </div>
-                </div>
-                <div className="info-card">
-                    <i className="fas fa-sync-alt"></i>
-                    <div>
-                        <h4>Auto Refresh</h4>
-                        <p>Data persists after page refresh</p>
-                        <small>Changes saved to database</small>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <StudentsDataView
+            state={{
+                showAddModal,
+                setShowAddModal,
+                handleAddStudentSuccess,
+                courses,
+                showEnrollModal,
+                setShowEnrollModal,
+                setEnrollPreselectedStudent,
+                handleEnrollExistingSuccess,
+                enrollPreselectedStudent,
+                detailEnrollments,
+                showEditModal,
+                editMode,
+                editingEnrollment,
+                setShowEditModal,
+                setEditingEnrollment,
+                handleEditSaved,
+                detailStudent,
+                detailTab,
+                setDetailTab,
+                detailLoading,
+                detailRefreshing,
+                trashBusy,
+                detailQuarantineCount,
+                listTab,
+                closeStudentDetail,
+                handleAddCourseToStudent,
+                handleEditEnrollment,
+                handleEditAccount,
+                handleQuarantineEnrollment,
+                handleQuarantineStudent,
+                handleRestoreStudent,
+                handlePermanentDeleteStudent,
+                handleRestoreEnrollment,
+                handlePermanentDelete,
+                updateEnrollmentStatus,
+                stats,
+                trashStudentsCount,
+                trashCount,
+                handleAddStudent,
+                errorMessage,
+                setErrorMessage,
+                successMessage,
+                setSuccessMessage,
+                setListTab,
+                setFilterStatus,
+                setFilterFeeStatus,
+                searchTerm,
+                setSearchTerm,
+                filterStatus,
+                filterFeeStatus,
+                sortBy,
+                setSortBy,
+                sortOrder,
+                setSortOrder,
+                handleManualRefresh,
+                downloadStudentsDataCsv,
+                loading,
+                studentCards,
+                openStudentDetail,
+                page,
+                setPage,
+                total,
+                totalPages,
+                PAGE_SIZE,
+            }}
+        />
     );
 };
 

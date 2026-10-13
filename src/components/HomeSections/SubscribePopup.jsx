@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
 import './SubscribePopup.scss';
 import popupVisual from '../../assets/images/home/subscribe.png';
@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
 import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
+import { useModalFocus } from '../../hooks/useModalFocus';
 
 const STORAGE_KEY = 'gorythm_subscribe_popup_seen_v1';
 const EMAIL_MAX_LEN = 254;
@@ -53,6 +54,21 @@ const SubscribePopup = () => {
   const closeValidationModal = useCallback(() => {
     setValidationModal((prev) => ({ ...prev, open: false }));
   }, []);
+  const popupRef = useRef(null);
+  const emailInputId = useId();
+  const successTimerRef = useRef(null);
+
+  // Focus stays in the popup, Escape closes it. Paused while the validation notice is on top.
+  useModalFocus(popupRef, isVisible && !validationModal.open, {
+    onEscape: () => setIsVisible(false),
+  });
+
+  useEffect(
+    () => () => {
+      if (successTimerRef.current) window.clearTimeout(successTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -130,7 +146,8 @@ const SubscribePopup = () => {
           : 'Thank you for subscribing.'
       );
       setIsSubmitted(true);
-      window.setTimeout(() => {
+      if (successTimerRef.current) window.clearTimeout(successTimerRef.current);
+      successTimerRef.current = window.setTimeout(() => {
         setIsVisible(false);
       }, data.pendingConfirmation ? 6000 : 1200);
     } catch (error) {
@@ -149,7 +166,13 @@ const SubscribePopup = () => {
     : popupVisual;
 
   const popupMarkup = (
-    <div className="subscribe-popup-overlay" role="dialog" aria-modal="true" aria-label="Subscribe popup">
+    <div
+      ref={popupRef}
+      className="subscribe-popup-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Subscribe to course updates"
+    >
       <div className="subscribe-popup-card">
         <div className="subscribe-popup-visual" aria-hidden="true">
           <img src={popupImageSrc} alt="Newsletter subscription" className="subscribe-popup-visual-img" draggable={false} />
@@ -173,7 +196,12 @@ const SubscribePopup = () => {
             <form className="subscribe-popup-form" onSubmit={handleSubmit} noValidate>
               <h2>{popupConfig.headline}</h2>
 
+              <label htmlFor={emailInputId} className="sr-only">
+                Email address
+              </label>
               <input
+                id={emailInputId}
+                data-autofocus
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}

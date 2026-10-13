@@ -10,6 +10,7 @@ import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
 import { AUTH_REALM } from '../../../utils/authStorage';
 import ResearchSeriesView from '../../Pages/ResearchSeriesView';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
+import { sanitizeHtml } from '../../../utils/sanitizeHtml';
 import './LmsMaterialPreviewModal.scss';
 
 function listAttachments(record) {
@@ -162,7 +163,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
             ) : item.content?.trim() ? (
               <div
                 className="lms-material-preview__article"
-                dangerouslySetInnerHTML={{ __html: authorizedArticleHtml || item.content }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(authorizedArticleHtml || item.content) }}
               />
             ) : (
               <p className="lms-material-preview__empty">No article body yet.</p>

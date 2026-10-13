@@ -11,6 +11,8 @@ const paymentLineSchema = new mongoose.Schema(
         amount: { type: Number, default: 0 },
         dueDate: { type: Date, default: null },
         installmentMonths: { type: Number, default: 1, min: 1 },
+        /** Dollars from this line that were put on the enrollment's part-paid balance. 0 for normal payments. */
+        partialCredited: { type: Number, default: 0, min: 0 },
     },
     { _id: false }
 );
@@ -75,7 +77,12 @@ const paymentSchema = new mongoose.Schema({
     receiptSentAt: { type: Date, default: null },
     adminNotifiedAt: { type: Date, default: null },
     installmentCounted: { type: Boolean, default: false },
+    fulfilledAt: { type: Date, default: null },
     installmentMonths: { type: Number, default: 1, min: 1 },
+    /** Same as the line field, for payments that have no lines. */
+    partialCredited: { type: Number, default: 0, min: 0 },
+    /** What the bill said before an admin accepted a smaller amount. null when nothing was reduced. */
+    billedAmount: { type: Number, default: null, min: 0 },
     cardBrand: { type: String, default: '' },
     cardLast4: { type: String, default: '' },
     cancelledAt: { type: Date, default: null },
@@ -88,6 +95,8 @@ const paymentSchema = new mongoose.Schema({
 paymentSchema.index({ deletedAt: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, deletedAt: 1 });
 paymentSchema.index({ dueDate: 1, status: 1 });
+paymentSchema.index({ transactionId: 1 });
+paymentSchema.index({ stripePaymentIntentId: 1 });
 paymentSchema.index({ 'lines.student': 1 });
 paymentSchema.index({ 'lines.course': 1 });
 

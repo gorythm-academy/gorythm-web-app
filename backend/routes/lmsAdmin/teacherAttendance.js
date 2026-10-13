@@ -200,7 +200,7 @@ router.get('/teacher-attendance-requests', async (req, res) => {
     try {
         const filter = {};
         if (req.query.status && req.query.status !== 'all') {
-            filter.status = req.query.status;
+            filter.status = String(req.query.status);
         }
         if (req.query.month) {
             filter.monthKey = String(req.query.month).trim();

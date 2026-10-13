@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { reportIndexErrors } = require('../utils/duplicateKey');
 
 const quizAttemptSchema = new mongoose.Schema(
     {
@@ -13,4 +14,17 @@ const quizAttemptSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-module.exports = mongoose.model('QuizAttempt', quizAttemptSchema);
+// One live attempt per student and quiz. A re-attempt first moves the old one to trash.
+quizAttemptSchema.index(
+    { quiz: 1, student: 1 },
+    {
+        unique: true,
+        name: 'uniq_active_quiz_student',
+        partialFilterExpression: { deletedAt: { $type: 'null' } },
+    }
+);
+
+const QuizAttempt = mongoose.model('QuizAttempt', quizAttemptSchema);
+reportIndexErrors(QuizAttempt);
+
+module.exports = QuizAttempt;

@@ -3,10 +3,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
-    setAuthSession,
+    startCookieSession,
+    refreshCookieSession,
     getAuthUserJson,
-    setAuthUserJson,
-    replaceAuthSession,
     getAuthSession,
     clearAuthSession,
     isRememberedSession,
@@ -53,7 +52,14 @@ const Login = () => {
 
     const postLoginPath = useCallback(() => {
         const from = location.state?.from;
-        if (typeof from === 'string' && from.startsWith('/') && !from.startsWith('/admin')) {
+        // Same-site paths only: "//host" and "/\host" would point at another site.
+        if (
+            typeof from === 'string' &&
+            from.startsWith('/') &&
+            !from.startsWith('//') &&
+            !from.includes('\\') &&
+            !from.startsWith('/admin')
+        ) {
             return from;
         }
         return null;
@@ -172,7 +178,7 @@ const Login = () => {
                 setError('Admin accounts must use the admin login page at /admin/login.');
                 return;
             }
-            setAuthSession(response.data.token, response.data.user, rememberMe, AUTH_REALM.PORTAL);
+            startCookieSession(response.data.user, rememberMe, AUTH_REALM.PORTAL);
             if (response.data.user?.mustChangePassword) {
                 navigate('/login?set-password=1', { replace: true });
                 return;
@@ -216,11 +222,7 @@ const Login = () => {
 
             const user = JSON.parse(rawUser);
             const updatedUser = { ...user, ...response.data.user, mustChangePassword: false };
-            if (response.data.token) {
-                replaceAuthSession(response.data.token, updatedUser, AUTH_REALM.PORTAL);
-            } else {
-                setAuthUserJson(JSON.stringify(updatedUser), AUTH_REALM.PORTAL);
-            }
+            refreshCookieSession(updatedUser, AUTH_REALM.PORTAL);
             navigate(postLoginPath() || portalHomeByRole(updatedUser.role), { replace: true });
         } catch (err) {
             setError(getLoginFormError(err, 'Failed to update password'));
