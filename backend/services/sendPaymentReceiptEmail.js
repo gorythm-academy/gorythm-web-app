@@ -107,7 +107,7 @@ async function sendAdminPaymentNotice(payment) {
         await transporter.sendMail({
             from: `"${fromName}" <${fromEmail}>`,
             to: recipients.join(', '),
-            subject: `Payment received — ${currency} ${amount}`,
+            subject: `Payment Received — ${currency} ${amount}`,
             text,
         });
         return { sent: true };
@@ -118,11 +118,13 @@ async function sendAdminPaymentNotice(payment) {
     }
 }
 
-async function sendPaymentReceiptEmail(payment) {
-    const adminNotice = sendAdminPaymentNotice(payment).catch((error) => {
-        logger.warn('Admin payment notice failed', { errorMessage: error.message });
-        return { sent: false, reason: error.message };
-    });
+async function sendPaymentReceiptEmail(payment, { force = false } = {}) {
+    const adminNotice = force
+        ? Promise.resolve({ sent: false, reason: 'skipped_force_resend' })
+        : sendAdminPaymentNotice(payment).catch((error) => {
+            logger.warn('Admin payment notice failed', { errorMessage: error.message });
+            return { sent: false, reason: error.message };
+        });
     let claimedSend = false;
     try {
         if (!payment) return { sent: false, reason: 'missing_payment' };
@@ -139,6 +141,9 @@ async function sendPaymentReceiptEmail(payment) {
         }
         const to = await resolveReceiptRecipient(payment);
         if (!to) return { sent: false, reason: 'missing_email' };
+        if (force && payment._id) {
+            await Payment.updateOne({ _id: payment._id }, { $set: { receiptSentAt: null } });
+        }
         claimedSend = await claimReceiptSend(payment._id);
         if (!claimedSend) return { sent: false, reason: 'already_sent' };
 
@@ -157,7 +162,7 @@ async function sendPaymentReceiptEmail(payment) {
         const course = payment.courseName || 'your course';
         const student = payment.studentName || 'there';
         const invoiceNo = payment.invoiceNumber || String(payment._id || '');
-        const subject = `Gorythm Academy fee confirmation for ${course}`;
+        const subject = `Gorythm Academy Fee Confirmation for ${course}`;
         const text = [
             `Assalamu alaikum ${student},`,
             '',

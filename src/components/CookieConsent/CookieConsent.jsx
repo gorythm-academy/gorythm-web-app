@@ -14,7 +14,7 @@ const CookieConsent = () => {
       <p>
         We use essential storage for login, checkout, and basic site functions. Stripe checkout may
         set cookies to take payment. YouTube and Vimeo videos load only if you accept.{' '}
-        <Link to="/cookies">Cookie policy</Link>
+        <Link to="/cookies" target="_blank" rel="noopener noreferrer">Cookie policy</Link>
       </p>
       <div className="cookie-consent__actions">
         <button type="button" className="cookie-consent__ghost" onClick={() => writeCookieConsent('essential')}>

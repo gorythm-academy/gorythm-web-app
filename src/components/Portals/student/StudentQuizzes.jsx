@@ -201,7 +201,7 @@ const StudentQuizzes = () => {
         value={courseFilter}
         onChange={setCourseFilter}
         courses={courses}
-        label="Filter by course"
+        label="Filter by Course"
         count={courseFilter ? filtered.length : null}
       />
 
@@ -275,7 +275,7 @@ const StudentQuizzes = () => {
                                 className="portal-action-btn portal-action-btn--ghost"
                                 onClick={() => openQuiz(portalDocId(r), { mode: 'result' })}
                               >
-                                <span className="portal-action-btn__label">View last result</span>
+                                <span className="portal-action-btn__label">View Last Result</span>
                               </button>
                             ) : null}
                           </div>
@@ -300,9 +300,9 @@ const StudentQuizzes = () => {
                 </p>
                 {(activeQuiz?.attempt?.attachments || []).length ? (
                   <>
-                  <p className="quiz-file-view__done">Your uploaded files</p>
+                  <p className="quiz-file-view__done">Your Uploaded Files</p>
                   <QuizFileView
-                    quiz={{ title: 'Your files', attachments: activeQuiz.attempt.attachments, quizType: 'file' }}
+                    quiz={{ title: 'Your Files', attachments: activeQuiz.attempt.attachments, quizType: 'file' }}
                     tone="student"
                     compact
                   />
@@ -319,7 +319,7 @@ const StudentQuizzes = () => {
                 style={{ marginTop: '1rem', marginRight: '0.5rem' }}
                 onClick={() => openQuiz(portalDocId(q), { mode: 'retake' })}
               >
-                <span className="portal-action-btn__label">Retake updated quiz</span>
+                <span className="portal-action-btn__label">Retake Updated Quiz</span>
               </button>
             ) : null}
             <button
@@ -342,7 +342,7 @@ const StudentQuizzes = () => {
           <QuizFileView quiz={q} tone="student" />
           <p className="portal-field-hint">Open the material, attach your file, then mark this quiz as done.</p>
           <FileUploadField
-            label={<>Your files <RequiredMark /></>}
+            label={<>Your Files <RequiredMark /></>}
             multiple
             value={submissionFiles}
             onChange={setSubmissionFiles}

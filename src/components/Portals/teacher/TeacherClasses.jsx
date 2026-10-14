@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { portalGet, readPortalCache } from '../shared/portalApi';
 import { PortalDataSection, PortalPageHeader } from '../shared/PortalUi';
-import { formatTime12h } from '../../../utils/formatTime12h';
+import ScheduleClock from '../../shared/ScheduleClock';
 import ScheduleRoomOrLink from '../shared/ScheduleRoomOrLink';
 import { portalDocId } from '../../../utils/portalDocId';
 import './TeacherClasses.scss';
@@ -43,8 +43,7 @@ const TeacherClasses = () => {
         <div>
           <h2>Weekly Class Schedule</h2>
           <p>
-            Admin sets your course timings here. Use "Take attendance" on a class to jump straight to that
-            course in Attendance, or use Assignments, Resources, and Quizzes for coursework.
+            Times are Pakistan time. If you are outside Pakistan, your local time is shown under each class.
           </p>
         </div>
       </div>
@@ -91,7 +90,7 @@ const TeacherClasses = () => {
                             </span>
                           </td>
                           <td className="teacher-classes__time">
-                            {formatTime12h(r.startTime)} – {formatTime12h(r.endTime)}
+                            <ScheduleClock slot={r} audience="staff" hideDay />
                           </td>
                           <td className="teacher-classes__course">{r.course?.title || '—'}</td>
                           <td>

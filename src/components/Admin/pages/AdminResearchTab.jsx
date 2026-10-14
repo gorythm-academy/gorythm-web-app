@@ -413,7 +413,7 @@ const AdminResearchTab = () => {
         </label>
 
         <label className="lms-field-label">
-          <span>URL slug</span>
+          <span>URL Slug</span>
           <input
             value={form.slug}
             onChange={(e) => {
@@ -436,7 +436,7 @@ const AdminResearchTab = () => {
         </label>
 
         <label className="lms-field-label">
-          <span>Published date</span>
+          <span>Published Date</span>
           <input
             type="date"
             value={form.publishedAt}
@@ -445,7 +445,7 @@ const AdminResearchTab = () => {
         </label>
 
         <label className="lms-field-label">
-          <span>Tags (comma-separated)</span>
+          <span>Tags (Comma-Separated)</span>
           <input
             value={form.tags}
             onChange={(e) => setForm({ ...form, tags: e.target.value })}
@@ -482,7 +482,7 @@ const AdminResearchTab = () => {
                 ) : (
                   <div className="research-image-upload__preview-empty">
                     <i className="fas fa-image" aria-hidden />
-                    <span>No image</span>
+                    <span>No Image</span>
                   </div>
                 )}
                 {form.imagePath ? (
@@ -551,7 +551,7 @@ const AdminResearchTab = () => {
           </p>
         ) : (
           <label className="lms-field-label" style={{ gridColumn: '1 / -1' }}>
-            <span>Article body</span>
+            <span>Article Body</span>
             <textarea
               value={form.content}
               onChange={(e) => setForm({ ...form, content: e.target.value })}
@@ -567,7 +567,7 @@ const AdminResearchTab = () => {
             checked={form.isPublished}
             onChange={(e) => setForm({ ...form, isPublished: e.target.checked })}
           />
-          <span>Published (visible on website)</span>
+          <span>Published (Visible on Website)</span>
         </label>
 
         <div className="lms-form-actions" style={{ gridColumn: '1 / -1' }}>
@@ -576,11 +576,11 @@ const AdminResearchTab = () => {
             className={`btn-primary ${editingId ? 'btn-save' : 'btn-add'}`}
             disabled={saving || uploadingImage}
           >
-            {saving ? 'Saving…' : editingId ? 'Save changes' : 'Publish article'}
+            {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Publish Article'}
           </button>
           {editingId ? (
             <button type="button" className="lms-btn-secondary" onClick={resetForm}>
-              Cancel edit
+              Cancel Edit
             </button>
           ) : null}
         </div>

@@ -45,13 +45,32 @@ function fromAddress() {
     return `"${fromName}" <${fromEmail}>`;
 }
 
+function formatTime12h(value) {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return value || '';
+    let hours = Number(match[1]);
+    const minutes = match[2];
+    const period = hours >= 12 ? 'PM' : 'AM';
+    hours %= 12;
+    if (hours === 0) hours = 12;
+    return `${hours}:${minutes} ${period}`;
+}
+
+function scheduleZoneLabel(timezone) {
+    const zone = String(timezone || 'Asia/Karachi').trim();
+    if (!zone || zone === 'Asia/Karachi') return 'Pakistan time (PKT)';
+    return zone;
+}
+
 function scheduleLine(enrollment) {
     const course = enrollment?.course?.title || '';
     if (!course) return '';
     const slot = enrollment.assignedSchedule;
     const teacher = slot?.teacher?.name || '';
     const day = slot && DAY_LABELS[slot.dayOfWeek] ? DAY_LABELS[slot.dayOfWeek] : '';
-    const time = slot?.startTime && slot?.endTime ? `${slot.startTime}–${slot.endTime}` : '';
+    const time = slot?.startTime && slot?.endTime
+        ? `${formatTime12h(slot.startTime)}–${formatTime12h(slot.endTime)} ${scheduleZoneLabel(slot.timezone)}`
+        : '';
     const when = [day, time].filter(Boolean).join(' ');
     const extra = [teacher, when].filter(Boolean).join(', ');
     return extra ? `${course} — ${extra}` : course;
@@ -65,10 +84,10 @@ function buildLoginCardText({ user, setPasswordUrl, courses, children }) {
         '',
         'Your Gorythm Academy portal login is ready.',
         '',
-        `Portal login: ${login}`,
+        `Portal Login: ${login}`,
     ];
     if (user?.role === 'student' && user?.studentId) {
-        lines.push(`Roll number: ${user.studentId}`);
+        lines.push(`Roll Number: ${user.studentId}`);
     }
     lines.push(
         '',
@@ -79,12 +98,12 @@ function buildLoginCardText({ user, setPasswordUrl, courses, children }) {
     );
     const courseLines = (courses || []).filter(Boolean);
     if (courseLines.length) {
-        const heading = user?.role === 'teacher' ? 'Assigned courses:' : 'Courses:';
+        const heading = user?.role === 'teacher' ? 'Assigned Courses:' : 'Courses:';
         lines.push('', heading, ...courseLines.map((line) => `- ${line}`));
     }
     const childLines = (children || []).filter(Boolean);
     if (user?.role === 'parent' && childLines.length) {
-        lines.push('', 'Linked students:', ...childLines.map((line) => `- ${line}`));
+        lines.push('', 'Linked Students:', ...childLines.map((line) => `- ${line}`));
     }
     lines.push('', 'Gorythm Academy');
     return lines.join('\n');
@@ -192,10 +211,10 @@ async function sendLoginCard(userId, { force = false } = {}) {
         children: details.children,
     });
     const subject = user.role === 'student'
-        ? 'Your Gorythm Academy student login'
+        ? 'Your Gorythm Academy Student Login'
         : user.role === 'parent'
-            ? 'Your Gorythm Academy parent login'
-            : 'Your Gorythm Academy teacher login';
+            ? 'Your Gorythm Academy Parent Login'
+            : 'Your Gorythm Academy Teacher Login';
 
     try {
         await transporter.sendMail({

@@ -10,6 +10,8 @@ import {
   fetchSubscribePopupSettings,
   saveSubscribePopupSettings,
 } from '../../../utils/subscribePopupAdminApi';
+import RequiredMark from '../../shared/RequiredMark';
+import { ADMIN_SEEN_SUBSCRIBERS, markPortalPageVisited } from '../../../utils/portalNewItems';
 
 const ITEMS_PER_PAGE = 15;
 const idKey = (id) => String(id);
@@ -110,6 +112,7 @@ const Subscribers = () => {
   const [broadcastSubject, setBroadcastSubject] = useState('');
   const [broadcastBody, setBroadcastBody] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(true);
   const [dateRange, setDateRange] = useState('all');
   const [sortBy, setSortBy] = useState('subscribed');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -219,6 +222,7 @@ const Subscribers = () => {
         typeof response.data?.totalCount === 'number' ? response.data.totalCount : null
       );
       setSelectedSubscribers([]);
+      markPortalPageVisited(ADMIN_SEEN_SUBSCRIBERS);
     } catch (error) {
       setSubscribers([]);
       setListTruncated(false);
@@ -713,37 +717,58 @@ const Subscribers = () => {
         <p>Emails collected from Subscribe section and Newsletter popup. Unsubscribed addresses are kept so you can see who opted out.</p>
       </div>
 
-      <section className="subscribe-popup-admin" aria-labelledby="subscriber-broadcast-heading">
+      <section
+        className={`subscribe-popup-admin subscribe-popup-admin--broadcast${broadcastOpen ? '' : ' is-collapsed'}`}
+        aria-labelledby="subscriber-broadcast-heading"
+      >
         <header className="subscribe-popup-admin__hero">
-          <div>
+          <div className="subscribe-popup-admin__hero-copy">
             <h2 id="subscriber-broadcast-heading">
-              <i className="fas fa-paper-plane" aria-hidden="true" />
-              Send course update
+              <button
+                type="button"
+                className="subscribe-popup-admin__disclosure"
+                aria-expanded={broadcastOpen}
+                aria-controls="subscriber-broadcast-panel"
+                onClick={() => setBroadcastOpen((open) => !open)}
+              >
+                <span className="subscribe-popup-admin__disclosure-label">
+                  <i className="fas fa-paper-plane" aria-hidden="true" />
+                  Send course update
+                </span>
+                <span className="subscribe-popup-admin__chevron" aria-hidden="true">
+                  <i className={`fas fa-chevron-${broadcastOpen ? 'up' : 'down'}`} />
+                </span>
+              </button>
             </h2>
             <p>
               Sends only to people who are still subscribed. Each email includes an unsubscribe link.
             </p>
           </div>
         </header>
-        <div className="subscribe-popup-admin__form-panel">
+        {broadcastOpen ? (
+        <div id="subscriber-broadcast-panel" className="subscribe-popup-admin__form-panel">
           <label className="subscribe-popup-admin__field" htmlFor="broadcast-subject">
-            <span>Subject</span>
+            <span>Subject <RequiredMark /></span>
             <input
               id="broadcast-subject"
               type="text"
               value={broadcastSubject}
               onChange={(event) => setBroadcastSubject(event.target.value)}
               placeholder="Course updates from Gorythm Academy"
+              required
+              aria-required="true"
             />
           </label>
           <label className="subscribe-popup-admin__field" htmlFor="broadcast-body">
-            <span>Message</span>
+            <span>Message <RequiredMark /></span>
             <textarea
               id="broadcast-body"
               rows={5}
               value={broadcastBody}
               onChange={(event) => setBroadcastBody(event.target.value)}
               placeholder="Write the update…"
+              required
+              aria-required="true"
             />
           </label>
           <div className="subscribe-popup-admin__save-row">
@@ -766,6 +791,7 @@ const Subscribers = () => {
             </button>
           </div>
         </div>
+        ) : null}
       </section>
 
       <SubscribePopupSettings
@@ -827,7 +853,7 @@ const Subscribers = () => {
               </div>
               <div className="filter-controls">
                 <select aria-label="Filter by status" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="status-filter">
-                  <option value="all">All statuses</option>
+                  <option value="all">All Statuses</option>
                   <option value="subscribed">Subscribed</option>
                   <option value="unsubscribed">Unsubscribed</option>
                 </select>

@@ -6,7 +6,7 @@ import {
     ACTIVE_RECORDS_LABEL,
     QUARANTINE_COURSES_LABEL,
 } from '../../../utils/adminListLabels';
-import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import ScheduleClock from '../../shared/ScheduleClock';
 import { billingStatusLabel, feeProgressLabel } from '../../../utils/billingLabels';
 
 const getAllottedTeacherName = (enrollment) =>
@@ -88,7 +88,7 @@ const COLUMN_LABELS = {
     studentId: 'Student ID',
     student: 'Student',
     parent: 'Parent',
-    personalEmail: 'Personal email',
+    personalEmail: 'Personal Email',
     phone: 'Phone',
     course: 'Course',
     teachers: 'Teacher(s)',
@@ -346,10 +346,10 @@ const StudentDetailOverlay = ({
                             <i className="fas fa-user-graduate" aria-hidden />
                             {student.name || 'Student'}
                             {student.pendingSetup ? (
-                                <span className="status-badge pending-setup">Pending setup</span>
+                                <span className="status-badge pending-setup">Pending Setup</span>
                             ) : null}
                             {studentQuarantined ? (
-                                <span className="status-badge inactive">Quarantined student</span>
+                                <span className="status-badge inactive">Quarantined Student</span>
                             ) : null}
                         </h2>
                         <p>
@@ -386,12 +386,12 @@ const StudentDetailOverlay = ({
                                         : student),
                                 })}
                             >
-                                <i className="fas fa-user-cog" aria-hidden /> Account settings
+                                <i className="fas fa-user-cog" aria-hidden /> Account Settings
                             </button>
                         ) : null}
                         {!studentQuarantined && detailTab === 'active' ? (
                             <button type="button" className="btn-primary btn-add" onClick={onAddCourse}>
-                                <i className="fas fa-plus" aria-hidden /> Add course to this student
+                                <i className="fas fa-plus" aria-hidden /> Add Course to This Student
                             </button>
                         ) : null}
                         {!studentQuarantined ? (
@@ -470,7 +470,7 @@ const StudentDetailOverlay = ({
                             className={`student-detail-overlay__course-tab${courseFilterId === 'all' ? ' is-active' : ''}`}
                             onClick={() => setCourseFilterId('all')}
                         >
-                            All courses ({enrollments.length})
+                            All Courses ({enrollments.length})
                         </button>
                         {courseTabs.map((tab) => (
                             <button
@@ -504,7 +504,7 @@ const StudentDetailOverlay = ({
                                             disabled={trashBusy}
                                             onClick={() => onEditEnrollment(selectedEnrollments[0])}
                                         >
-                                            <i className="fas fa-edit" aria-hidden /> Edit course
+                                            <i className="fas fa-edit" aria-hidden /> Edit Course
                                         </button>
                                     ) : null}
                                     <button
@@ -572,7 +572,7 @@ const StudentDetailOverlay = ({
                             <p>
                                 {detailTab === 'trash'
                                     ? `No courses in ${QUARANTINE_COURSES_LABEL} for this student.`
-                                    : 'No active course enrollments. Use Add course to this student.'}
+                                    : 'No active course enrollments. Use Add Course to This Student.'}
                             </p>
                         </div>
                     ) : (
@@ -653,7 +653,9 @@ const StudentDetailOverlay = ({
                                             const rowStudent = resolveRowStudent(enrollment, student);
                                         const course = enrollment.course || {};
                                         const teacher = getAllottedTeacherName(enrollment);
-                                        const timeslot = formatScheduleTimeLabel(enrollment.assignedSchedule);
+                                        const timeslot = enrollment.assignedSchedule?.startTime
+                                            ? enrollment.assignedSchedule
+                                            : null;
                                         const status = normalizeEnrollmentStatus(enrollment.status);
                                             const id = String(enrollment._id);
                                             const isSelected = selectedIds.includes(id);
@@ -711,7 +713,7 @@ const StudentDetailOverlay = ({
                                                         <strong>{course.title || 'No course assigned'}</strong>
                                                             {timeslot ? (
                                                             <span className="student-detail-overlay__timeslot">
-                                                                {timeslot}
+                                                                <ScheduleClock slot={timeslot} audience="staff" />
                                                             </span>
                                                         ) : null}
                                                 </td>
@@ -776,11 +778,11 @@ const StudentDetailOverlay = ({
                                                                 <button
                                                                     type="button"
                                                                     className="action-btn edit-btn"
-                                                                    title="Edit course"
+                                                                    title="Edit Course"
                                                                     disabled={trashBusy}
                                                                     onClick={() => onEditEnrollment(enrollment)}
                                                                 >
-                                                                    <i className="fas fa-edit" aria-hidden /> Edit course
+                                                                    <i className="fas fa-edit" aria-hidden /> Edit Course
                                                                 </button>
                                                                 <button
                                                                     type="button"

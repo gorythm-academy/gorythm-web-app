@@ -6,6 +6,8 @@ import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from '../../../utils/aut
 import { useCurrency } from '../../../context/CurrencyContext';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
 import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
+import PhoneNumberField from '../../shared/PhoneNumberField';
+import { WHATSAPP_PHONE_MESSAGES } from '../../../utils/phoneNumber';
 import { rememberPaymentCourseId } from '../../../utils/paymentCourseContext';
 import './PaymentGateway.scss';
 
@@ -32,11 +34,12 @@ function collectBankValidationIssues({ formData, proofFile, hasBankInfo, resolve
         const emailError = validateEmail(email);
         if (emailError) issues.push(emailError);
     }
-    const phoneDigits = String(formData.phone || '').replace(/\D/g, '');
-    if (!phoneDigits) {
-        issues.push('Please enter your phone number (WhatsApp, with country code).');
-    } else if (!/^\d{8,15}$/.test(phoneDigits)) {
-        issues.push('Phone number must be 8 to 15 digits.');
+    if (formData.phoneStatus !== 'valid') {
+        issues.push(
+            formData.phoneStatus === 'invalid'
+                ? WHATSAPP_PHONE_MESSAGES.invalid
+                : WHATSAPP_PHONE_MESSAGES.required
+        );
     }
     if (!proofFile) {
         issues.push('Please upload a screenshot or PDF of your bank transfer.');
@@ -120,6 +123,7 @@ const PaymentGateway = () => {
     const [formData, setFormData] = useState({
         studentName: '',
         phone: '',
+        phoneStatus: 'empty',
         email: '',
     });
 
@@ -363,11 +367,7 @@ const PaymentGateway = () => {
                 return;
             }
             setProofFile(prepared);
-            if (prepared.type.startsWith('image/')) {
-                setProofPreview(URL.createObjectURL(prepared));
-            } else {
-                setProofPreview('');
-            }
+            setProofPreview(URL.createObjectURL(prepared));
         } catch {
             showNotice('Could not prepare file', 'Try a different image or PDF.', 'error');
         } finally {
@@ -411,13 +411,12 @@ const PaymentGateway = () => {
             return;
         }
 
-        const normalizedPhone = String(formData.phone || '').replace(/\D/g, '');
         setBankSubmitting(true);
         try {
             const form = new FormData();
             form.append('studentName', formData.studentName.trim());
             form.append('email', formData.email.trim());
-            form.append('phone', normalizedPhone);
+            form.append('phone', formData.phone);
             form.append('courseId', String(selectedCourse._id));
             if (extraCourses.length) {
                 form.append('courseIds', JSON.stringify(extraCourses.map((course) => String(course._id))));
@@ -559,7 +558,7 @@ const PaymentGateway = () => {
                             {bankStep === BANK_STEPS.FORM && (
                                 <div className="form-grid">
                                     <div className="form-group form-group-wide extra-courses">
-                                        <label>Courses to enroll <RequiredMark /></label>
+                                        <label>Courses to Enroll <RequiredMark /></label>
                                         <p className="payment-course-hint">
                                             Tick every course to include in this checkout. Selected courses are added to the total above.
                                         </p>
@@ -626,7 +625,7 @@ const PaymentGateway = () => {
                                                         checked={invoiceMode === 'separate'}
                                                         onChange={() => setInvoiceMode('separate')}
                                                     />
-                                                    Separate invoice per course
+                                                    Separate Invoice per Course
                                                 </label>
                                             </div>
                                         ) : null}
@@ -659,22 +658,20 @@ const PaymentGateway = () => {
                                             </div>
 
                                             <div className="form-group form-group-wide">
-                                                <label>Student/Parent Phone Number (whatsapp Please) <RequiredMark /></label>
-                                                <input
-                                                    type="tel"
-                                                    placeholder="Country code + phone no"
-                                                    value={formData.phone}
-                                                    inputMode="numeric"
-                                                    pattern="[0-9]{8,15}"
-                                                    minLength={8}
-                                                    maxLength={15}
-                                                    onChange={(e) =>
-                                                        setFormData({
-                                                            ...formData,
-                                                            phone: e.target.value.replace(/\D/g, ''),
-                                                        })
-                                                    }
+                                                <label id="bank-whatsapp-label" htmlFor="bank-whatsapp">Student/Parent Phone Number (WhatsApp Please) <RequiredMark /></label>
+                                                <PhoneNumberField
+                                                    id="bank-whatsapp"
+                                                    appearance="dark"
                                                     required
+                                                    value={formData.phone}
+                                                    ariaLabel="WhatsApp number"
+                                                    onChange={({ e164, status }) =>
+                                                        setFormData((current) => ({
+                                                            ...current,
+                                                            phone: e164,
+                                                            phoneStatus: status,
+                                                        }))
+                                                    }
                                                 />
                                             </div>
                                         </>
@@ -744,7 +741,7 @@ const PaymentGateway = () => {
                                                                 <strong>{currency}</strong>
                                                             </div>
                                                             <div className="payment-detail-line">
-                                                                <span>Approx. local amount:</span>
+                                                                <span>Approx. Local Amount:</span>
                                                                 <strong>{localizedAmount}</strong>
                                                             </div>
                                                         </>
@@ -800,13 +797,13 @@ const PaymentGateway = () => {
                                             <dl className="bank-details-list">
                                                 {bankDetails.accountName ? (
                                                     <div className="bank-details-row">
-                                                        <dt>Account name</dt>
+                                                        <dt>Account Name</dt>
                                                         <dd>
                                                             {bankDetails.accountName}
                                                             <button
                                                                 type="button"
                                                                 className="bank-copy-btn"
-                                                                onClick={() => copyText(bankDetails.accountName, 'Account name')}
+                                                                onClick={() => copyText(bankDetails.accountName, 'Account Name')}
                                                             >
                                                                 <i className="fas fa-copy" />
                                                             </button>
@@ -821,14 +818,14 @@ const PaymentGateway = () => {
                                                 ) : null}
                                                 {bankDetails.accountNumber ? (
                                                     <div className="bank-details-row">
-                                                        <dt>Account number</dt>
+                                                        <dt>Account Number</dt>
                                                         <dd>
                                                             {bankDetails.accountNumber}
                                                             <button
                                                                 type="button"
                                                                 className="bank-copy-btn"
                                                                 onClick={() =>
-                                                                    copyText(bankDetails.accountNumber, 'Account number')
+                                                                    copyText(bankDetails.accountNumber, 'Account Number')
                                                                 }
                                                             >
                                                                 <i className="fas fa-copy" />
@@ -858,7 +855,7 @@ const PaymentGateway = () => {
                                                     </div>
                                                 ) : null}
                                                 <div className="bank-details-row bank-details-row--highlight">
-                                                    <dt>Amount to transfer</dt>
+                                                    <dt>Amount to Transfer</dt>
                                                     <dd>
                                                         <strong>
                                                             ${usdAmount.toFixed(2)} {baseCurrency}
@@ -866,7 +863,7 @@ const PaymentGateway = () => {
                                                     </dd>
                                                 </div>
                                                 <div className="bank-details-row">
-                                                    <dt>Reference hint</dt>
+                                                    <dt>Reference Hint</dt>
                                                     <dd>Use your email or phone in the bank transfer note</dd>
                                                 </div>
                                             </dl>
@@ -908,6 +905,12 @@ const PaymentGateway = () => {
                                                 <span>
                                                     <i className="fas fa-spinner fa-spin" /> Preparing image…
                                                 </span>
+                                            ) : proofPreview && proofFile?.type === 'application/pdf' ? (
+                                                <iframe
+                                                    src={proofPreview}
+                                                    title={proofFile.name || 'Payment proof PDF'}
+                                                    className="bank-upload-preview bank-upload-preview--pdf"
+                                                />
                                             ) : proofPreview ? (
                                                 <img
                                                     src={proofPreview}
@@ -922,7 +925,7 @@ const PaymentGateway = () => {
                                             ) : (
                                                 <>
                                                     <i className="fas fa-image" />
-                                                    <span>Drop file here or click to browse</span>
+                                                    <span>Drop File Here or Click to Browse</span>
                                                     <small>JPG, PNG, WebP, or PDF — images are compressed automatically</small>
                                                 </>
                                             )}
@@ -933,11 +936,11 @@ const PaymentGateway = () => {
 
                             <p className="payment-legal-note">
                                 By continuing you agree to our{' '}
-                                <Link to="/terms">Terms of Service</Link>
+                                <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</Link>
                                 {' and '}
-                                <Link to="/refunds">Refund Policy</Link>
+                                <Link to="/refunds" target="_blank" rel="noopener noreferrer">Refund Policy</Link>
                                 . Payments are described in the{' '}
-                                <Link to="/privacy">Privacy Policy</Link>.
+                                <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
                             </p>
                             <div className="payment-footer-row">
                                 <div className="payment-security">

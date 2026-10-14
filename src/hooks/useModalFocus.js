@@ -47,6 +47,8 @@ export function useModalFocus(containerRef, active, { onEscape } = {}) {
         return;
       }
       if (event.key !== 'Tab') return;
+      const menu = document.querySelector('[data-phone-country-menu]');
+      if (menu?.contains(document.activeElement)) return;
       const root = containerRef.current;
       if (!root) return;
       const items = focusableIn(root);

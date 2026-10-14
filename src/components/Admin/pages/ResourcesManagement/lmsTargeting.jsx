@@ -208,7 +208,7 @@ export const LmsTargetSelect = ({
               checked={allCoursesSelected}
               onChange={() => commit('courses', allCoursesSelected ? [] : allCourseIds)}
             />
-            <span>Select all</span>
+            <span>Select All</span>
           </label>
         </div>
         <div className="lms-target-select__grid">
@@ -237,7 +237,7 @@ export const LmsTargetSelect = ({
                 checked={allTeachersSelected}
                 onChange={() => commit('teachers', allTeachersSelected ? [] : allTeacherIds)}
               />
-              <span>Select all</span>
+              <span>Select All</span>
             </label>
           </div>
           <div className="lms-target-select__grid">
@@ -260,7 +260,7 @@ export const LmsTargetSelect = ({
       {slotsVisible ? (
         <div className="lms-target-select__group">
           <div className="lms-target-select__head">
-            <span>Class slots *</span>
+            <span>Class Slots *</span>
             {allScheduleIds.length ? (
               <label className="lms-checkbox-field lms-target-select__select-all">
                 <input
@@ -268,7 +268,7 @@ export const LmsTargetSelect = ({
                   checked={allSchedulesSelected}
                   onChange={() => commit('schedules', allSchedulesSelected ? [] : allScheduleIds)}
                 />
-                <span>Select all</span>
+                <span>Select All</span>
               </label>
             ) : null}
           </div>
@@ -322,7 +322,7 @@ export const LmsTargetSelect = ({
           </>
         ) : (
           <>
-            <i className="fas fa-info-circle" aria-hidden="true" /> Select courses
+            <i className="fas fa-info-circle" aria-hidden="true" /> Select Courses
             {requireTeachers ? ' and teachers' : ''} — only matching pairs are published
           </>
         )}

@@ -8,12 +8,40 @@
   --spa-radius: 14px;
   --spa-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 
+  &--broadcast {
+    --spa-accent: var(--color-accent, #2563eb);
+    --spa-accent-soft: rgba(var(--color-accent-rgb, 37, 99, 235), 0.14);
+    background: linear-gradient(
+      180deg,
+      #fff 0%,
+      color-mix(in srgb, var(--color-accent, #2563eb) 6%, #fff) 100%
+    );
+
+    &.is-collapsed {
+      padding-bottom: 1.2rem;
+
+      .subscribe-popup-admin__hero {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+    }
+  }
+
   margin-bottom: 1.75rem;
   padding: 1.5rem 1.6rem 1.65rem;
   border-radius: var(--spa-radius);
   border: 1px solid var(--spa-border);
   background: linear-gradient(180deg, #fff 0%, #faf8f6 100%);
   box-shadow: var(--spa-shadow);
+
+  &--broadcast {
+    background: linear-gradient(
+      180deg,
+      #fff 0%,
+      color-mix(in srgb, var(--color-accent, #2563eb) 6%, #fff) 100%
+    );
+  }
 
   &__loading {
     display: flex;
@@ -95,6 +123,68 @@
       line-height: 1.55;
       color: var(--spa-muted);
     }
+  }
+
+  &__hero-copy {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+
+  &__disclosure {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--spa-accent);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
+  }
+
+  &__disclosure-label {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+
+    i {
+      margin-right: 0.45rem;
+      color: var(--spa-accent);
+    }
+  }
+
+  &__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--spa-accent-soft);
+    color: var(--spa-accent);
+    transition: background 0.2s ease;
+  }
+
+  &__disclosure:hover &__chevron {
+    background: color-mix(in srgb, var(--spa-accent) 22%, #fff);
+  }
+
+  &__hero &__chevron i {
+    margin: 0;
+    font-size: 0.78rem;
+    color: inherit;
   }
 
   &__toggle {
@@ -255,6 +345,10 @@
       font-size: 0.8rem;
       font-weight: 600;
       color: #334155;
+    }
+
+    .required-asterisk {
+      color: var(--color-danger, #ef4444);
     }
 
     input,

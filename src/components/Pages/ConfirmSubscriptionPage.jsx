@@ -54,7 +54,7 @@ const ConfirmSubscriptionPage = () => {
         <p className="legal-page__contact">
           <Link to="/">Home</Link>
           {' · '}
-          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>
         </p>
       </div>
     </article>

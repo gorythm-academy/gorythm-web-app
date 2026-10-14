@@ -281,6 +281,28 @@
                 color-scheme: light;
             }
 
+            .login-email-status {
+                margin: 0;
+                padding: 0.7rem 0.85rem;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                line-height: 1.4;
+
+                &.is-sent {
+                    background: #ecfdf5;
+                    border: 1px solid #a7f3d0;
+                    color: #065f46;
+                }
+
+                &.is-pending {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    color: #64748b;
+                    font-weight: 500;
+                }
+            }
+
             .form-hint-muted {
                 display: block;
                 margin-top: 6px;

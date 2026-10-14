@@ -69,8 +69,8 @@ const ResourcesTab = ({
               })
             }
           >
-            <option value="teacher">Teacher slot (students with that teacher only)</option>
-            <option value="course">Whole course (all enrolled students)</option>
+            <option value="teacher">Teacher Slot (Students with That Teacher Only)</option>
+            <option value="course">Whole Course (All Enrolled Students)</option>
           </select>
         </label>
         {editingResourceId ? (
@@ -82,7 +82,7 @@ const ResourcesTab = ({
                 onChange={(e) => onCourseChangeResource(e.target.value)}
                 required
               >
-                <option value="">Select course</option>
+                <option value="">Select Course</option>
                 {courses.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -101,7 +101,7 @@ const ResourcesTab = ({
                     }
                     required
                   >
-                    <option value="">Select teacher</option>
+                    <option value="">Select Teacher</option>
                     {(courseTeachers[String(resourceForm.courseId)] || teachers).map((t) => (
                       <option key={t._id} value={t._id}>
                         {t.name}
@@ -110,13 +110,13 @@ const ResourcesTab = ({
                   </select>
                 </label>
                 <label className="lms-field-label">
-                  <span>Class slot <RequiredMark /></span>
+                  <span>Class Slot <RequiredMark /></span>
                   <select
                     value={resourceForm.scheduleId}
                     onChange={(e) => setResourceForm({ ...resourceForm, scheduleId: e.target.value })}
                     required
                   >
-                    <option value="">Select class slot</option>
+                    <option value="">Select Class Slot</option>
                     {filterSchedulesForTargeting(
                       schedules,
                       resourceForm.courseId ? [resourceForm.courseId] : [],
@@ -186,13 +186,13 @@ const ResourcesTab = ({
               </p>
             ) : null}
             <FileUploadField
-              label="Upload files or paste URL below"
+              label="Upload Files or Paste URL Below"
               value={resourceForm.attachments}
               onChange={(attachments) => setResourceForm({ ...resourceForm, attachments })}
               multiple
             />
             <label className="lms-field-label">
-              <span>Or external URL</span>
+              <span>Or External URL</span>
               <input
                 placeholder="Paste a link to a PDF or external resource"
                 value={resourceForm.fileUrl}
@@ -223,11 +223,11 @@ const ResourcesTab = ({
         </label>
         <div className="lms-form-actions">
           <button type="submit" disabled={savingResource}>
-            {savingResource ? 'Saving…' : editingResourceId ? 'Save changes' : 'Add resource'}
+            {savingResource ? 'Saving…' : editingResourceId ? 'Save Changes' : 'Add Resource'}
           </button>
           {editingResourceId ? (
             <button type="button" className="lms-btn-secondary" onClick={resetResourceForm}>
-              Cancel edit
+              Cancel Edit
             </button>
           ) : null}
         </div>
@@ -256,8 +256,8 @@ const ResourcesTab = ({
                   setSelectedResourceIds(new Set());
                 }}
               >
-                <option value="">Select course</option>
-                <option value="all">All courses</option>
+                <option value="">Select Course</option>
+                <option value="all">All Courses</option>
                 {courses.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -280,7 +280,7 @@ const ResourcesTab = ({
         ) : null}
 
         {!resourceListCourseFilter ? (
-          <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view resources.</p>
+          <p className="lms-empty">Select a course or choose &quot;All Courses&quot; to view resources.</p>
         ) : null}
 
         {resourceListCourseFilter ? (
@@ -368,7 +368,7 @@ const ResourcesTab = ({
                 <th>Title</th>
                 <th>Course</th>
                 <th>Teacher</th>
-                <th>Class slot</th>
+                <th>Class Slot</th>
                 <th>Type</th>
                 <th>Uploaded By</th>
                 <th />

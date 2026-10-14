@@ -10,19 +10,9 @@ import {
 } from '../../config/constants';
 import { navigateToMailto } from '../../utils/mailto';
 import SiteValidationModal from '../SiteValidationModal/SiteValidationModal';
+import PhoneNumberField from '../shared/PhoneNumberField';
+import { WHATSAPP_PHONE_MESSAGES } from '../../utils/phoneNumber';
 import './ContactPage.scss';
-
-/** WhatsApp / E.164-style: digits only, 7–15 when provided (optional field). */
-const PHONE_DIGITS_MIN = 7;
-const PHONE_DIGITS_MAX = 15;
-
-const normalizePhoneDigits = (raw) =>
-  String(raw ?? '')
-    .replace(/\D/g, '')
-    .slice(0, PHONE_DIGITS_MAX);
-
-const isPhoneValidOrEmpty = (digits) =>
-  !digits || (digits.length >= PHONE_DIGITS_MIN && digits.length <= PHONE_DIGITS_MAX);
 
 const EMAIL_MAX_LEN = 254;
 /** Practical format check (aligned with backend). */
@@ -47,10 +37,8 @@ const collectContactValidationIssues = (form) => {
   if (!String(form.message ?? '').trim()) {
     issues.push('Please enter a message so we know how to help.');
   }
-  if (!isPhoneValidOrEmpty(form.phone)) {
-    issues.push(
-      `WhatsApp number must be ${PHONE_DIGITS_MIN}–${PHONE_DIGITS_MAX} digits (country code, numbers only), or leave the field empty.`
-    );
+  if (form.phoneStatus === 'invalid') {
+    issues.push(WHATSAPP_PHONE_MESSAGES.optionalInvalid);
   }
   if (!form.consent) {
     issues.push('Please tick “I agree that my data is collected” to submit the form.');
@@ -69,6 +57,7 @@ const ContactPage = () => {
     name: '',
     email: '',
     phone: '',
+    phoneStatus: 'empty',
     message: '',
     consent: false,
   });
@@ -89,9 +78,8 @@ const ContactPage = () => {
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handlePhoneChange = (e) => {
-    const digits = normalizePhoneDigits(e.target.value);
-    setForm((prev) => ({ ...prev, phone: digits }));
+  const handlePhoneChange = ({ e164, status }) => {
+    setForm((prev) => ({ ...prev, phone: e164, phoneStatus: status }));
   };
 
   const handleSubmit = async (e) => {
@@ -117,8 +105,11 @@ const ContactPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...form,
+          name: form.name,
           email: form.email.trim().toLowerCase(),
+          phone: form.phone,
+          message: form.message,
+          consent: form.consent,
         }),
       });
 
@@ -144,6 +135,7 @@ const ContactPage = () => {
         name: '',
         email: '',
         phone: '',
+        phoneStatus: 'empty',
         message: '',
         consent: false,
       });
@@ -234,21 +226,6 @@ const ContactPage = () => {
                   />
                 </label>
                 <label className="contact-page__field">
-                  <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-brands fa-whatsapp" /></span>
-                  <input
-                    type="tel"
-                    name="phone"
-                    placeholder="WhatsApp Number"
-                    aria-label="WhatsApp number"
-                    value={form.phone}
-                    onChange={handlePhoneChange}
-                    autoComplete="tel"
-                    inputMode="numeric"
-                  />
-                </label>
-              </div>
-              <div className="contact-page__form-row">
-                <label className="contact-page__field">
                   <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-envelope" /></span>
                   <input
                     type="email"
@@ -262,6 +239,17 @@ const ContactPage = () => {
                     autoComplete="email"
                   />
                 </label>
+              </div>
+              <div className="contact-page__form-row">
+                <div className="contact-page__field">
+                  <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-brands fa-whatsapp" /></span>
+                  <PhoneNumberField
+                    appearance="bare"
+                    value={form.phone}
+                    onChange={handlePhoneChange}
+                    ariaLabel="WhatsApp number"
+                  />
+                </div>
               </div>
               <label className="contact-page__field contact-page__field--full">
                 <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
@@ -290,7 +278,7 @@ const ContactPage = () => {
                   />
                   <span>
                     I agree that my data is collected as described in the{' '}
-                    <Link to="/privacy">Privacy Policy</Link>.
+                    <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
                   </span>
                 </label>
               </div>

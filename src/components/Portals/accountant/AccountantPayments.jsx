@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import RequiredMark from '../../shared/RequiredMark';
 import { portalGet, portalPatch, portalDelete } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import { ProtectedFileImage, ProtectedFileLink } from '../../../utils/fileUrl';
+import { ProtectedFileFrame, ProtectedFileImage } from '../../../utils/fileUrl';
 import { paymentRegistrationEmail, displayPortalEmail } from '../../../utils/studentPortalEmail';
 import {
   ACCOUNTANT_PAYMENTS_UPDATED_EVENT,
@@ -15,7 +15,7 @@ const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
 
 const formatStatus = (status) => {
   if (status === 'completed') return 'paid';
-  if (status === 'awaiting_review') return 'Waiting for verification';
+  if (status === 'awaiting_review') return 'Waiting for Verification';
   return status || '—';
 };
 
@@ -92,6 +92,95 @@ const AccountantPayments = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkModal, setBulkModal] = useState(null);
   const selectAllRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const dragScrollRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startScroll: 0,
+    dragging: false,
+    pending: false,
+  });
+
+  const endTableDragScroll = useCallback((e) => {
+    const el = tableScrollRef.current;
+    const drag = dragScrollRef.current;
+    if (!drag.pending && !drag.dragging) return;
+    if (e && e.pointerId != null && drag.pointerId != null && e.pointerId !== drag.pointerId) return;
+    const pointerId = drag.pointerId;
+    const wasDragging = drag.dragging;
+    drag.pending = false;
+    drag.dragging = false;
+    drag.pointerId = null;
+    el?.classList.remove('is-dragging');
+    if (wasDragging) {
+      const blockClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.removeEventListener('click', blockClick, true);
+      };
+      window.addEventListener('click', blockClick, true);
+      window.setTimeout(() => window.removeEventListener('click', blockClick, true), 400);
+    }
+    if (wasDragging && el && pointerId != null) {
+      try {
+        el.releasePointerCapture(pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    }
+  }, []);
+
+  const onTablePointerDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    const target = e.target;
+    if (target.closest('button, a, input, select, textarea, label')) return;
+    const el = tableScrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const drag = dragScrollRef.current;
+    drag.pending = true;
+    drag.dragging = false;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.startScroll = el.scrollLeft;
+    drag.pointerId = e.pointerId;
+  }, []);
+
+  const onTablePointerMove = useCallback((e) => {
+    const drag = dragScrollRef.current;
+    const el = tableScrollRef.current;
+    if (!el || drag.pointerId == null || e.pointerId !== drag.pointerId) return;
+    const deltaX = e.clientX - drag.startX;
+    const deltaY = e.clientY - drag.startY;
+    if (drag.pending && !drag.dragging) {
+      if (Math.abs(deltaX) < 6 && Math.abs(deltaY) < 6) return;
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        drag.pending = false;
+        drag.pointerId = null;
+        return;
+      }
+      drag.dragging = true;
+      el.classList.add('is-dragging');
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture can fail if the pointer already ended */
+      }
+    }
+    if (!drag.dragging) return;
+    el.scrollLeft = drag.startScroll - deltaX;
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const onWindowPointerEnd = (e) => endTableDragScroll(e);
+    window.addEventListener('pointerup', onWindowPointerEnd);
+    window.addEventListener('pointercancel', onWindowPointerEnd);
+    return () => {
+      window.removeEventListener('pointerup', onWindowPointerEnd);
+      window.removeEventListener('pointercancel', onWindowPointerEnd);
+    };
+  }, [endTableDragScroll]);
 
   const notifyPaymentsUpdated = useCallback(() => {
     window.dispatchEvent(new CustomEvent(ACCOUNTANT_PAYMENTS_UPDATED_EVENT));
@@ -468,9 +557,9 @@ const AccountantPayments = () => {
   const openTrash = () => selectFilter('trash');
 
   const filterLabels = {
-    'bank-ss': 'Bank screenshots',
+    'bank-ss': 'Bank Screenshots',
     review: 'Review',
-    all: 'All payments',
+    all: 'All Payments',
     final: 'Final',
     trash: QUARANTINE_LABEL,
   };
@@ -510,7 +599,7 @@ const AccountantPayments = () => {
           {[
             {
               id: 'bank-ss',
-              label: bankSsCount > 0 ? `Bank screenshots (${bankSsCount})` : 'Bank screenshots',
+              label: bankSsCount > 0 ? `Bank Screenshots (${bankSsCount})` : 'Bank Screenshots',
             },
             { id: 'review', label: awaitingCount > 0 ? `Review (${awaitingCount})` : 'Review' },
             { id: 'all', label: 'All Payments' },
@@ -662,7 +751,14 @@ const AccountantPayments = () => {
                 {isTrashView ? `${QUARANTINE_LABEL} is empty.` : 'No payments match this filter.'}
               </p>
             ) : (
-              <div className="portal-data-table-wrap accountant-payments-table-wrap">
+              <div
+                ref={tableScrollRef}
+                className="portal-data-table-wrap accountant-payments-table-wrap"
+                onPointerDown={onTablePointerDown}
+                onPointerMove={onTablePointerMove}
+                onPointerUp={endTableDragScroll}
+                onPointerCancel={endTableDragScroll}
+              >
                 <table className="portal-data-table portal-data-table--orange accountant-payments-table">
                   <thead>
                     <tr>
@@ -958,9 +1054,11 @@ const AccountantPayments = () => {
               {receiptModal.studentName || 'Student'} — {receiptModal.course?.title || receiptModal.courseName}
             </p>
             {String(receiptModal.proofUrl).toLowerCase().endsWith('.pdf') ? (
-              <ProtectedFileLink path={receiptModal.proofUrl} target="_blank" rel="noopener noreferrer">
-                Open PDF Proof
-              </ProtectedFileLink>
+              <ProtectedFileFrame
+                path={receiptModal.proofUrl}
+                title="Payment proof PDF"
+                className="accountant-receipt-modal__pdf"
+              />
             ) : (
               <ProtectedFileImage path={receiptModal.proofUrl} alt="Payment proof screenshot" />
             )}
@@ -994,7 +1092,7 @@ const AccountantPayments = () => {
               </button>
             </div>
             <label className="portal-field-label">
-              <span>Rejection reason <RequiredMark /></span>
+              <span>Rejection Reason <RequiredMark /></span>
               <textarea
                 rows={4}
                 value={rejectReason}

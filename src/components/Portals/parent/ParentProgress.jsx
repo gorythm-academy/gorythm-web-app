@@ -197,7 +197,7 @@ const ParentProgress = () => {
                     <th>Due</th>
                     <th>Files</th>
                     <th>Submitted</th>
-                    <th>Submitted files</th>
+                    <th>Submitted Files</th>
                   </tr>
                 </thead>
                 <tbody>

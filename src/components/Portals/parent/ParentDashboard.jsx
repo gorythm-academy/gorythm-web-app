@@ -8,7 +8,7 @@ import {
   SummaryGrid,
 } from '../shared/PortalUi';
 import { studentIdLabel } from '../shared/StudentIdentity';
-import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import ScheduleClock from '../../shared/ScheduleClock';
 
 const ParentDashboard = () => {
   const [data, setData] = useState(() => readPortalCache('/parent/dashboard'));
@@ -83,7 +83,7 @@ const ParentDashboard = () => {
                             {course.scheduleLocked
                               ? 'After the fee is received'
                               : course.startTime
-                                ? formatScheduleTimeLabel(course)
+                                ? <ScheduleClock slot={course} audience="student" />
                                 : 'Time not assigned'}
                           </span>
                         </p>

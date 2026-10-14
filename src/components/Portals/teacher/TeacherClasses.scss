@@ -22,7 +22,8 @@
 
   .teacher-classes__time {
     font-weight: 600;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 11rem;
   }
 
   .teacher-classes__course {

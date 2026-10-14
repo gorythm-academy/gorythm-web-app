@@ -478,7 +478,7 @@ const AdminAssignmentSubmissions = () => {
               }}
               disabled={loadingData && !courses.length}
             >
-              <option value="all">All courses</option>
+              <option value="all">All Courses</option>
               {courses.map((c) => (
                 <option key={c._id} value={c._id}>
                   {c.title}

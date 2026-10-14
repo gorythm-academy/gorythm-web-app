@@ -1,7 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import ScheduleRoomOrLink from './ScheduleRoomOrLink';
-import { formatTime12h } from '../../../utils/formatTime12h';
+import ScheduleClock, { useScheduleClock } from '../../shared/ScheduleClock';
+
+function StudentSlotCells({ schedule, dayLabels }) {
+  const clock = useScheduleClock(schedule, 'student');
+  const day = clock?.primary.day || dayLabels[schedule.dayOfWeek] || schedule.dayOfWeek;
+  return (
+    <>
+      <td>
+        <span className="student-schedule__day-badge">{day}</span>
+        {clock?.dayNote ? <span className="student-schedule__day-note">{clock.dayNote}</span> : null}
+      </td>
+      <td className="student-schedule__time">
+        <ScheduleClock slot={schedule} audience="student" hideDay clock={clock} />
+      </td>
+    </>
+  );
+}
 
 export default function PortalScheduleTable({ rows, dayLabels, feesPath = '/student/fees' }) {
   return (
@@ -32,14 +48,7 @@ export default function PortalScheduleTable({ rows, dayLabels, feesPath = '/stud
                 </td>
               ) : row.hasTimeslot && row.schedule ? (
                 <>
-                  <td>
-                    <span className="student-schedule__day-badge">
-                      {dayLabels[row.schedule.dayOfWeek] || row.schedule.dayOfWeek}
-                    </span>
-                  </td>
-                  <td className="student-schedule__time">
-                    {formatTime12h(row.schedule.startTime)} – {formatTime12h(row.schedule.endTime)}
-                  </td>
+                  <StudentSlotCells schedule={row.schedule} dayLabels={dayLabels} />
                   <td className="student-schedule__teacher">{row.schedule?.teacher?.name || '—'}</td>
                   <td>
                     {row.schedule?.roomOrLink ? (

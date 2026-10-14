@@ -259,7 +259,7 @@ export function CoursesManagementView({ state }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>URL slug</label>
+                                <label>URL Slug</label>
                                 <input
                                     type="text"
                                     name="slug"
@@ -290,7 +290,7 @@ export function CoursesManagementView({ state }) {
                                 </select>
                             </div>
                             <div className="form-group form-group-full">
-                                <label>Assigned teachers (optional)</label>
+                                <label>Assigned Teachers (Optional)</label>
                                 {formData.status === 'published' ? (
                                     <input
                                         type="search"
@@ -381,7 +381,7 @@ export function CoursesManagementView({ state }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Fee due date</label>
+                                <label>Fee Due Date</label>
                                 <input
                                     type="date"
                                     name="feeDueDate"
@@ -391,7 +391,7 @@ export function CoursesManagementView({ state }) {
                                 <small className="form-hint">Applies to every student on this course until Payments saves a new default.</small>
                             </div>
                             <div className="form-group">
-                                <label>Total number of fees</label>
+                                <label>Total Number of Fees</label>
                                 <input
                                     type="number"
                                     name="totalFeeCount"
@@ -418,7 +418,7 @@ export function CoursesManagementView({ state }) {
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Display order</label>
+                                <label>Display Order</label>
                                 <input
                                     type="number"
                                     name="displayOrder"
@@ -430,7 +430,7 @@ export function CoursesManagementView({ state }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Masonry column</label>
+                                <label>Masonry Column</label>
                                 <select
                                     name="masonryColumn"
                                     value={formData.masonryColumn}
@@ -439,14 +439,14 @@ export function CoursesManagementView({ state }) {
                                     <option value="">Auto</option>
                                     <option value="1">Left</option>
                                     <option value="2">Middle</option>
-                                    <option value="3">Right (desktop)</option>
+                                    <option value="3">Right (Desktop)</option>
                                 </select>
                                 <span className="form-field-hint">Right column maps to the 2nd column on tablet/mobile layouts.</span>
                             </div>
                         </div>
                         <div className="course-image-section">
                             <div className="course-image-section__header">
-                                <label>Course image</label>
+                                <label>Course Image</label>
                                 <span className="course-image-section__hint">
                                     Upload a new image or pick one from the gallery
                                 </span>
@@ -461,7 +461,7 @@ export function CoursesManagementView({ state }) {
                                     ) : (
                                         <div className="course-image-section__preview-empty">
                                             <i className="fas fa-image" aria-hidden="true" />
-                                            <span>No image selected</span>
+                                            <span>No Image Selected</span>
                                         </div>
                                     )}
                                     {formData.homepageImage && (

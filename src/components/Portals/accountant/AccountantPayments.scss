@@ -391,6 +391,23 @@
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
+    cursor: grab;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+
+    &.is-dragging {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    label {
+      cursor: pointer;
+    }
   }
 
   .accountant-payments-checkbox-cell {
@@ -813,6 +830,15 @@
       border-radius: 12px;
       margin-top: 12px;
       border: 1px solid #e2e8f0;
+    }
+
+    iframe.accountant-receipt-modal__pdf {
+      width: 100%;
+      height: 60vh;
+      min-height: 320px;
+      margin-top: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
     }
 
     a {

@@ -27,7 +27,7 @@ function ReportTableTools({ search, onSearch, searchPlaceholder, status, onStatu
       />
       {statusOptions.length > 0 ? (
         <select className="portal-report-status-select" value={status} onChange={(e) => onStatus(e.target.value)}>
-          <option value="all">All statuses</option>
+          <option value="all">All Statuses</option>
           {statusOptions.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -149,7 +149,7 @@ const AccountantReports = () => {
     drawPdfTable(doc, {
       title: `Gorythm — Teacher payroll`,
       subtitle: `Payroll run for ${teacherName} — ${formatMonth(r.monthKey)}.`,
-      headers: ['Teacher', 'Payroll month', 'Monthly salary', 'Deduction', 'Final salary', 'Status'],
+      headers: ['Teacher', 'Payroll Month', 'Monthly Salary', 'Deduction', 'Final Salary', 'Status'],
       rows: [[
         teacherName,
         formatMonth(r.monthKey),
@@ -187,8 +187,8 @@ const AccountantReports = () => {
     drawPdfTable(doc, {
       title: 'Gorythm — Teacher payroll report',
       subtitle:
-        'Monthly payroll runs per teacher. Monthly salary is before deductions. Final salary is the amount to pay.',
-      headers: ['Teacher', 'Payroll month', 'Monthly salary', 'Deduction', 'Final salary', 'Status'],
+        'Monthly payroll runs per teacher. Monthly Salary is before deductions. Final Salary is the amount to pay.',
+      headers: ['Teacher', 'Payroll Month', 'Monthly Salary', 'Deduction', 'Final Salary', 'Status'],
       rows: filteredRuns.map((r) => [
         r.teacher?.name || '—',
         formatMonth(r.monthKey),
@@ -228,7 +228,7 @@ const AccountantReports = () => {
         </div>
         <div className="portal-report-block__actions">
           <button type="button" onClick={exportPaymentsPdf}>
-            Download payments PDF
+            Download Payments PDF
           </button>
         </div>
         <div className="portal-panel">
@@ -297,14 +297,14 @@ const AccountantReports = () => {
           <h2>Teacher Payroll Report</h2>
           <p>
             Monthly payroll runs for instructors. <strong>Teacher</strong> is the staff member.{' '}
-            <strong>Month</strong> is the payroll period. <strong>Monthly salary</strong> is the base amount before
-            deductions. <strong>Deduction</strong> covers absences or adjustments. <strong>Final salary</strong> is
+            <strong>Month</strong> is the payroll period. <strong>Monthly Salary</strong> is the base amount before
+            deductions. <strong>Deduction</strong> covers absences or adjustments. <strong>Final Salary</strong> is
             the amount to pay. <strong>Status</strong> shows draft, pending review, or paid.
           </p>
         </div>
         <div className="portal-report-block__actions">
           <button type="button" onClick={exportPayrollPdf}>
-            Download payroll PDF
+            Download Payroll PDF
           </button>
         </div>
         <div className="portal-panel">

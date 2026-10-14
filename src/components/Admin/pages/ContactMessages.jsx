@@ -6,6 +6,9 @@ import { API_BASE_URL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
 import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import AdminTablePagination from '../shared/AdminTablePagination';
+import RequiredMark from '../../shared/RequiredMark';
+import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
+import { requestAdminBadgeRefresh } from '../../../utils/portalNewItems';
 import '../Admin.scss';
 
 const idKey = (id) => String(id);
@@ -47,7 +50,12 @@ const ContactMessages = () => {
   const [deleting, setDeleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [replyTarget, setReplyTarget] = useState(null);
+  const [replyBody, setReplyBody] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyError, setReplyError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const replyFieldRef = useRef(null);
   const ITEMS_PER_PAGE = 15;
 
   const tableScrollRef = useRef(null);
@@ -138,6 +146,7 @@ const ContactMessages = () => {
     setListTruncated(Boolean(data?.truncated));
     setListTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : null);
     setStatusCounts(data?.statusCounts || null);
+    requestAdminBadgeRefresh();
   };
 
   const reportLoadError = (error) => {
@@ -247,6 +256,7 @@ const ContactMessages = () => {
         { status: nextStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      requestAdminBadgeRefresh();
     } catch (error) {
       setMessages((prev) =>
         prev.map((message) =>
@@ -277,7 +287,6 @@ const ContactMessages = () => {
         (message.name || '').toLowerCase().includes(q) ||
         (message.email || '').toLowerCase().includes(q) ||
         (message.phone || '').toLowerCase().includes(q) ||
-        (message.subject || '').toLowerCase().includes(q) ||
         (message.message || '').toLowerCase().includes(q)
       );
 
@@ -316,7 +325,6 @@ const ContactMessages = () => {
     data.sort((a, b) => {
       const getValue = (item, key) => {
         if (key === 'contact') return `${item.name || ''} ${item.email || ''}`.toLowerCase();
-        if (key === 'subject') return (item.subject || '').toLowerCase();
         if (key === 'message') return (item.message || '').toLowerCase();
         if (key === 'status') return (item.status || 'new').toLowerCase();
         if (key === 'deleted') return new Date(item.deletedAt || 0).getTime();
@@ -567,6 +575,58 @@ const ContactMessages = () => {
     }
   };
 
+  const closeReply = () => {
+    if (replySending) return;
+    setReplyTarget(null);
+    setReplyBody('');
+    setReplyError('');
+  };
+
+  const openReply = (message) => {
+    if (!String(message?.email || '').trim()) return;
+    setReplyTarget(message);
+    setReplyBody('');
+    setReplyError('');
+  };
+
+  const sendReply = async () => {
+    const body = replyBody.trim();
+    if (!replyTarget || !body || replySending) return;
+    setReplySending(true);
+    setReplyError('');
+    try {
+      const token = getAuthToken();
+      await axios.post(
+        `${API_BASE_URL}/api/contact/admin/messages/${replyTarget._id}/reply`,
+        { message: body },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const recipient = replyTarget.name || replyTarget.email;
+      setReplySending(false);
+      setReplyTarget(null);
+      setReplyBody('');
+      showAlert(`Reply emailed to ${recipient}.`, 'success');
+      await syncMessagesFromServer();
+    } catch (error) {
+      if (!handleAdminAuthError(error)) {
+        setReplyError(error.response?.data?.error || 'Could not send the reply email.');
+      }
+      setReplySending(false);
+    }
+  };
+
+  useDialogKeyboard({
+    isOpen: Boolean(replyTarget),
+    onClose: closeReply,
+    blockEscape: replySending,
+  });
+
+  useEffect(() => {
+    if (!replyTarget) return undefined;
+    const frame = window.requestAnimationFrame(() => replyFieldRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [replyTarget]);
+
   const trashActionsBusy = purging || restoring;
 
   const tabMessageCount = useMemo(() => {
@@ -582,6 +642,90 @@ const ContactMessages = () => {
         <div className="admin-fetch-warning" role="status">
           Showing the newest 500 of {listTotalCount} messages in this view. Older messages are not
           listed here.
+        </div>
+      ) : null}
+      {replyTarget ? (
+        <div
+          className="contact-reply-overlay"
+          role="presentation"
+          onClick={closeReply}
+        >
+          <div
+            className="contact-reply-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-reply-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="contact-reply-dialog__header">
+              <div>
+                <h2 id="contact-reply-title">Reply by Email</h2>
+                <p>
+                  To {replyTarget.name || 'this contact'}
+                  {replyTarget.email ? ` · ${replyTarget.email}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="contact-reply-dialog__close"
+                onClick={closeReply}
+                disabled={replySending}
+                aria-label="Close reply"
+              >
+                <i className="fas fa-times" aria-hidden="true" />
+              </button>
+            </header>
+            <div className="contact-reply-dialog__body">
+              <div className="contact-reply-quote">
+                <span>Their Message</span>
+                <p>{replyTarget.message || '—'}</p>
+              </div>
+              <label className="contact-reply-field" htmlFor="contact-reply-body">
+                <span>Your Reply <RequiredMark /></span>
+                <textarea
+                  id="contact-reply-body"
+                  ref={replyFieldRef}
+                  rows={6}
+                  value={replyBody}
+                  onChange={(event) => setReplyBody(event.target.value)}
+                  placeholder="Write your reply…"
+                  maxLength={5000}
+                  disabled={replySending}
+                  required
+                  aria-required="true"
+                />
+              </label>
+              {replyError ? (
+                <p className="contact-reply-error" role="alert">{replyError}</p>
+              ) : null}
+            </div>
+            <footer className="contact-reply-dialog__footer">
+              <button
+                type="button"
+                className="contact-reply-dialog__cancel"
+                onClick={closeReply}
+                disabled={replySending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="contact-reply-dialog__send"
+                onClick={sendReply}
+                disabled={replySending || !replyBody.trim()}
+              >
+                {replySending ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin" aria-hidden="true" /> Sending…
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-paper-plane" aria-hidden="true" /> Send email
+                  </>
+                )}
+              </button>
+            </footer>
+          </div>
         </div>
       ) : null}
       <div className="settings-header">
@@ -651,7 +795,7 @@ const ContactMessages = () => {
                 <i className="fas fa-search"></i>
                 <input
                   type="text"
-                  placeholder="Search by name, email, phone, subject, or message..."
+                  placeholder="Search by name, email, phone, or message..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -661,7 +805,7 @@ const ContactMessages = () => {
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="status-filter">
                     <option value="all">All Status</option>
                     <option value="new">New</option>
-                    <option value="in-progress">In-progress</option>
+                    <option value="in-progress">In-Progress</option>
                     <option value="resolved">Resolved</option>
                   </select>
                 )}
@@ -752,9 +896,6 @@ const ContactMessages = () => {
                       <th className="sortable" onClick={() => handleSort('contact')}>
                         Contact {sortBy === 'contact' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
-                      <th className="sortable" onClick={() => handleSort('subject')}>
-                        Subject {sortBy === 'subject' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
-                      </th>
                       <th className="sortable" onClick={() => handleSort('message')}>
                         Message {sortBy === 'message' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
@@ -796,9 +937,6 @@ const ContactMessages = () => {
                           </div>
                         </td>
                         <td>
-                          <div className="message-cell">{m.subject?.trim() ? m.subject : '—'}</div>
-                        </td>
-                        <td>
                           <div className="message-cell">{m.message || '-'}</div>
                         </td>
                         <td>
@@ -816,16 +954,28 @@ const ContactMessages = () => {
                         )}
                         <td>
                           {listTab === 'inbox' ? (
-                            <select
-                              className="status-select"
-                              value={m.status || 'new'}
-                              onChange={(e) => handleStatusChange(m._id, e.target.value)}
-                              disabled={updatingId === m._id}
-                            >
-                              <option value="new">new</option>
-                              <option value="in-progress">in-progress</option>
-                              <option value="resolved">resolved</option>
-                            </select>
+                            <div className="contact-row-actions">
+                              <button
+                                type="button"
+                                className="contact-reply-btn"
+                                onClick={() => openReply(m)}
+                                disabled={!String(m.email || '').trim() || updatingId === m._id}
+                                title={m.email ? `Reply to ${m.email}` : 'No email address'}
+                              >
+                                <i className="fas fa-reply" aria-hidden="true"></i> Reply
+                              </button>
+                              <select
+                                className="status-select"
+                                value={m.status || 'new'}
+                                onChange={(e) => handleStatusChange(m._id, e.target.value)}
+                                disabled={updatingId === m._id}
+                                aria-label={`Status for ${m.name || 'message'}`}
+                              >
+                                <option value="new">New</option>
+                                <option value="in-progress">In-Progress</option>
+                                <option value="resolved">Resolved</option>
+                              </select>
+                            </div>
                           ) : (
                             <div className="contact-trash-actions">
                               <button

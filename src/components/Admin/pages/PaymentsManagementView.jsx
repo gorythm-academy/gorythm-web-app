@@ -32,6 +32,7 @@ export function PaymentsManagementView({ state }) {
     handleDeleteSelectedPayments,
     handleExtendDueDate,
     handleInvoiceButtonClick,
+    handleSendInvoiceEmail,
     handleMarkReceived,
     handlePermanentDelete,
     handlePermanentDeleteSelected,
@@ -140,7 +141,7 @@ export function PaymentsManagementView({ state }) {
                         </p>
                         <div className="payments-bank-config__grid">
                             <div className="form-group">
-                                <label>Account holder name</label>
+                                <label>Account Holder Name</label>
                                 <input
                                     type="text"
                                     value={bankForm.bankAccountName}
@@ -149,21 +150,21 @@ export function PaymentsManagementView({ state }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Bank name</label>
+                                <label>Bank Name</label>
                                 <input
                                     type="text"
                                     value={bankForm.bankName}
                                     onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
-                                    placeholder="Bank name"
+                                    placeholder="Bank Name"
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Account number</label>
+                                <label>Account Number</label>
                                 <input
                                     type="text"
                                     value={bankForm.bankAccountNumber}
                                     onChange={(e) => setBankForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
-                                    placeholder="Account number"
+                                    placeholder="Account Number"
                                 />
                             </div>
                             <div className="form-group">
@@ -185,7 +186,7 @@ export function PaymentsManagementView({ state }) {
                                 />
                             </div>
                             <div className="form-group form-group-wide">
-                                <label>Extra note (optional)</label>
+                                <label>Extra Note (Optional)</label>
                                 <textarea
                                     rows={2}
                                     value={bankForm.bankExtraNote}
@@ -203,7 +204,7 @@ export function PaymentsManagementView({ state }) {
                                 disabled={bankSaving}
                             >
                                 <i className={`fas ${bankSaving ? 'fa-spinner fa-spin' : 'fa-save'}`} />{' '}
-                                {bankSaving ? 'Saving…' : 'Save bank details'}
+                                {bankSaving ? 'Saving…' : 'Save Bank Details'}
                             </button>
                         </div>
                     </div>
@@ -217,7 +218,7 @@ export function PaymentsManagementView({ state }) {
                     </p>
                     <div className="payments-bank-config__grid">
                         <div className="form-group">
-                            <label>Default due date</label>
+                            <label>Default Due Date</label>
                             <input
                                 type="date"
                                 value={dueDateDefault}
@@ -234,7 +235,7 @@ export function PaymentsManagementView({ state }) {
                             disabled={dueDateSaving}
                         >
                             <i className={`fas ${dueDateSaving ? 'fa-spinner fa-spin' : 'fa-calendar-day'}`} />{' '}
-                            {dueDateSaving ? 'Saving…' : 'Save default due date'}
+                            {dueDateSaving ? 'Saving…' : 'Save Default Due Date'}
                         </button>
                     </div>
                 </div>
@@ -651,6 +652,17 @@ export function PaymentsManagementView({ state }) {
                                                         <i className="fas fa-file-invoice"></i> Invoice
                                                     </button>
                                                 ))}
+                                                {isPaymentPaid(payment.status) ? (
+                                                    <button
+                                                        className="action-btn receipt-btn"
+                                                        type="button"
+                                                        title={payment.receiptSentAt ? 'Resend invoice email' : 'Email invoice'}
+                                                        onClick={() => handleSendInvoiceEmail(payment)}
+                                                    >
+                                                        <i className="fas fa-envelope"></i>{' '}
+                                                        {payment.receiptSentAt ? 'Resend email' : 'Email invoice'}
+                                                    </button>
+                                                ) : null}
                                                 {canOpenStudentFromPayment(payment) ? (
                                                     <Link
                                                         className="action-btn students-btn"
@@ -663,11 +675,11 @@ export function PaymentsManagementView({ state }) {
                                                 {!isPaymentPaid(payment.status) && payment.status !== 'refunded' && payment.status !== 'cancelled' ? (
                                                     <>
                                                         <button className="action-btn students-btn" type="button" onClick={() => handleMarkReceived(payment)}>
-                                                            Mark received
+                                                            Mark Received
                                                         </button>
                                                         {payment.status !== 'awaiting_review' && payment.status !== 'processing' ? (
                                                             <button className="action-btn invoice-btn" type="button" onClick={() => handleExtendDueDate(payment)}>
-                                                                Extend due date
+                                                                Extend Due Date
                                                             </button>
                                                         ) : null}
                                                         <button className="action-btn delete-btn" type="button" onClick={() => handleDeclinePayment(payment)}>
@@ -824,7 +836,7 @@ export function PaymentsManagementView({ state }) {
                     />
                     <div className="payment-receipt-modal__panel payment-due-modal">
                         <div className="payment-receipt-modal__head">
-                            <h3>Extend due date</h3>
+                            <h3>Extend Due Date</h3>
                             <button
                                 type="button"
                                 className="payment-receipt-modal__close"
@@ -836,10 +848,10 @@ export function PaymentsManagementView({ state }) {
                         <p>
                             Choose a later due date for {dueDateModal.label}. Unpaid stays Unpaid through this date.
                             Overdue starts the next day. To set the first due date, open Students → the student →
-                            Edit course → Fee due date.
+                            Edit Course → Fee Due Date.
                         </p>
                         <label className="payment-due-modal__field">
-                            Due date
+                            Due Date
                             <input
                                 type="date"
                                 value={dueDateModal.date || ''}
@@ -862,7 +874,7 @@ export function PaymentsManagementView({ state }) {
                                 disabled={dueDateModal.saving || !dueDateModal.date}
                                 onClick={submitDueDate}
                             >
-                                {dueDateModal.saving ? 'Saving…' : 'Save due date'}
+                                {dueDateModal.saving ? 'Saving…' : 'Save Due Date'}
                             </button>
                         </div>
                     </div>
@@ -877,7 +889,7 @@ export function PaymentsManagementView({ state }) {
                     />
                     <div className="payment-receipt-modal__panel payment-due-modal">
                         <div className="payment-receipt-modal__head">
-                            <h3>Mark as received</h3>
+                            <h3>Mark as Received</h3>
                             <button
                                 type="button"
                                 className="payment-receipt-modal__close"
@@ -888,11 +900,12 @@ export function PaymentsManagementView({ state }) {
                             </button>
                         </div>
                         <p>
-                            This marks {receiveModal.label} paid and enrolls the student(s). Use this for bank or cash payments.
+                            This marks {receiveModal.label} paid and enrolls the{' '}
+                            {receiveModal.studentCount > 1 ? 'students' : 'student'}. Use this for bank or cash payments.
                         </p>
                         {receiveModal.partialAllowed ? (
                             <label className="payment-due-modal__field">
-                                Amount received (bill is ${receiveModal.billed.toFixed(2)})
+                                Amount Received (Bill Is ${receiveModal.billed.toFixed(2)})
                                 <input
                                     type="number"
                                     min="0.01"
@@ -904,8 +917,8 @@ export function PaymentsManagementView({ state }) {
                                     disabled={receiveModal.saving}
                                 />
                                 <small>
-                                    If less than the bill was received, the amount is kept as part payment. The month
-                                    counts as paid once the balance is received too.
+                                    Use this when only a partial payment was received. Enter the amount paid now; the
+                                    unpaid balance stays due until the rest is received.
                                 </small>
                             </label>
                         ) : null}
@@ -924,7 +937,7 @@ export function PaymentsManagementView({ state }) {
                                 disabled={receiveModal.saving || (receiveModal.partialAllowed && !(Number(receiveModal.amount) > 0))}
                                 onClick={submitReceive}
                             >
-                                {receiveModal.saving ? 'Saving…' : 'Mark received'}
+                                {receiveModal.saving ? 'Saving…' : 'Mark Received'}
                             </button>
                         </div>
                     </div>

@@ -36,7 +36,7 @@ const SEEN_ACTIVITY_KEY = 'student_assignments_activity';
 
 const statusCell = (row) => {
   if (!row.submission) {
-    return <span className="portal-status-pill portal-status-pill--pending">Not submitted</span>;
+    return <span className="portal-status-pill portal-status-pill--pending">Not Submitted</span>;
   }
   return (
     <div className="student-assignments-table__status">
@@ -259,7 +259,7 @@ const StudentAssignments = () => {
         value={courseFilter}
         onChange={setCourseFilter}
         courses={courses}
-        label="Filter by course"
+        label="Filter by Course"
         count={courseFilter ? filtered.length : null}
       />
 
@@ -355,13 +355,13 @@ const StudentAssignments = () => {
 
       {filtered.length > 0 ? (
         <form ref={submitPanelRef} className="portal-submit-panel" onSubmit={submit} autoComplete="off">
-          <h3>{canEditSubmission ? 'Edit submission' : 'Submit homework'}</h3>
+          <h3>{canEditSubmission ? 'Edit Submission' : 'Submit Homework'}</h3>
           <label className="portal-field-label">
             <span>
               Assignment <RequiredMark />
             </span>
             <select value={selected || ''} onChange={(e) => onSelectAssignment(e.target.value)} required>
-              <option value="">Select assignment</option>
+              <option value="">Select Assignment</option>
               {filtered
                 .filter((a) => !isAssignmentPastDue(a.dueDate))
                 .map((a) => (
@@ -398,7 +398,7 @@ const StudentAssignments = () => {
           ) : null}
           {selectedRow?.submission?.attachments?.length ? (
             <p>
-              <strong>Your upload:</strong>{' '}
+              <strong>Your Upload:</strong>{' '}
               <SubmissionFiles attachments={selectedRow.submission.attachments} />
             </p>
           ) : null}
@@ -406,7 +406,7 @@ const StudentAssignments = () => {
             Provide a written answer or attach a file <RequiredMark />
           </p>
           <label className="portal-field-label">
-            <span>Your answer</span>
+            <span>Your Answer</span>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -417,7 +417,7 @@ const StudentAssignments = () => {
             />
           </label>
           <FileUploadField
-            label="Attach files (optional)"
+            label="Attach Files (Optional)"
             value={attachments}
             onChange={setAttachments}
             multiple

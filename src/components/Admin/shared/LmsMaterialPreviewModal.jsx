@@ -4,6 +4,7 @@ import {
   authorizeHtmlUploadUrls,
   downloadProtectedUpload,
   normalizeStoredUploadPath,
+  ProtectedFileFrame,
   ProtectedFileLink,
 } from '../../../utils/fileUrl';
 import { resolveMediaUrl } from '../../../utils/resolveMediaUrl';
@@ -116,7 +117,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
             <>
               <dt>Teacher</dt>
               <dd>{item.teacher?.name || 'Course instructor (default)'}</dd>
-              <dt>Due date</dt>
+              <dt>Due Date</dt>
               <dd>{item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '—'}</dd>
             </>
           ) : null}
@@ -193,6 +194,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
                     <i className="fas fa-external-link-alt" aria-hidden /> {fileLinkLabel(url, index, attachments.length)}
                   </>
                 );
+                const isPdf = !external && String(url).split('?')[0].toLowerCase().endsWith('.pdf');
                 return (
                   <li key={`${url}-${index}`}>
                     {external ? (
@@ -211,6 +213,14 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
                         {label}
                       </ProtectedFileLink>
                     )}
+                    {isPdf ? (
+                      <ProtectedFileFrame
+                        path={url}
+                        linkOptions={{ realm: fileRealm }}
+                        title={fileLinkLabel(url, index, attachments.length)}
+                        className="lms-material-preview__pdf"
+                      />
+                    ) : null}
                   </li>
                 );
               })}

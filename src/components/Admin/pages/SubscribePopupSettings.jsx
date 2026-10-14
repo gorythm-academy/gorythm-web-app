@@ -189,7 +189,7 @@ const SubscribePopupSettings = ({
 
         <div className="subscribe-popup-admin__form-panel">
           <label className="subscribe-popup-admin__field">
-            <span>Delay before popup (seconds)</span>
+            <span>Delay before Popup (Seconds)</span>
             <input
               type="number"
               min={0}
@@ -212,7 +212,7 @@ const SubscribePopupSettings = ({
             />
           </label>
           <label className="subscribe-popup-admin__field">
-            <span>Button text</span>
+            <span>Button Text</span>
             <input
               type="text"
               maxLength={40}

@@ -301,12 +301,12 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                         <div className="form-grid">
                             <div className="form-section form-card">
                                 <h3>
-                                    <i className="fas fa-user-graduate"></i> Student account
+                                    <i className="fas fa-user-graduate"></i> Student Account
                                 </h3>
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-name">
-                                        <i className="fas fa-user"></i> Full name <RequiredMark />
+                                        <i className="fas fa-user"></i> Full Name <RequiredMark />
                                     </label>
                                     <input
                                         id="add-student-name"
@@ -323,7 +323,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-email-local">
-                                        <i className="fas fa-envelope"></i> Portal email <RequiredMark />
+                                        <i className="fas fa-envelope"></i> Portal Email <RequiredMark />
                                     </label>
                                     <div className={`email-input-group ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -353,7 +353,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-password">
-                                        <i className="fas fa-lock"></i> Temporary password (optional)
+                                        <i className="fas fa-lock"></i> Temporary Password (Optional)
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -386,7 +386,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-confirm-password">
-                                        <i className="fas fa-lock"></i> Confirm temporary password
+                                        <i className="fas fa-lock"></i> Confirm Temporary Password
                                     </label>
                                     <div className={`password-field ${loading || success ? 'is-disabled' : ''}`}>
                                         <input
@@ -426,7 +426,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                                 onChange={handleChange}
                                                 disabled={loading || success}
                                             />
-                                            <span>Force password reset on first login</span>
+                                            <span>Force Password Reset on First Login</span>
                                         </label>
                                     </div>
                                 ) : null}
@@ -449,7 +449,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-personal-email">
-                                        <i className="fas fa-envelope-open-text"></i> Personal email (optional)
+                                        <i className="fas fa-envelope-open-text"></i> Personal Email (Optional)
                                     </label>
                                     <input
                                         id="add-student-personal-email"
@@ -465,7 +465,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                                 <div className="form-group">
                                     <label htmlFor="add-student-phone">
-                                        <i className="fas fa-phone"></i> Phone number (optional)
+                                        <i className="fas fa-phone"></i> Phone Number (Optional)
                                     </label>
                                     <input
                                         id="add-student-phone"
@@ -482,12 +482,12 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
 
                             <div className="form-section form-card">
                                 <h3>
-                                    <i className="fas fa-book"></i> Course &amp; status
+                                    <i className="fas fa-book"></i> Course &amp; Status
                                 </h3>
 
                                 <div className="form-group">
                                     <label>
-                                        <i className="fas fa-graduation-cap"></i> Select course <RequiredMark />
+                                        <i className="fas fa-graduation-cap"></i> Select Course <RequiredMark />
                                     </label>
                                     <select
                                         name="courseId"
@@ -499,8 +499,8 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                     >
                                         <option value="">
                                             {sortedCourses.length === 0
-                                                ? 'No courses available'
-                                                : 'Choose a course...'}
+                                                ? 'No Courses Available'
+                                                : 'Choose a Course...'}
                                         </option>
                                         {sortedCourses.map((course) => (
                                             <option key={course._id} value={course._id}>
@@ -514,7 +514,7 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                     <div className="form-group">
                                         <label>
                                             <i className="fas fa-clock"></i>{' '}
-                                            Class timeslot
+                                            Class Timeslot
                                             {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                         </label>
                                         <select
@@ -527,10 +527,10 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                         >
                                             <option value="">
                                                 {schedulesLoading
-                                                    ? 'Loading timeslots…'
+                                                    ? 'Loading Timeslots…'
                                                     : courseSchedules.length
-                                                      ? 'Select a timeslot…'
-                                                      : 'No timeslots yet — create in LMS'}
+                                                      ? 'Select a Timeslot…'
+                                                      : 'No Timeslots Yet — Create in LMS'}
                                             </option>
                                             {courseSchedules.map((slot) => (
                                                 <option key={slot._id} value={slot._id}>

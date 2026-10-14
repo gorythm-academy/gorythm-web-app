@@ -1,5 +1,5 @@
 import RequiredMark from '../shared/RequiredMark';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/constants';
@@ -17,7 +17,13 @@ const ResetPassword = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState('');
     const [done, setDone] = useState(false);
+    const [canSignIn, setCanSignIn] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!done) return;
+        document.title = 'Password updated | Gorythm Academy';
+    }, [done]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -33,10 +39,12 @@ const ResetPassword = () => {
         }
         try {
             setIsSubmitting(true);
-            await axios.post(`${API_BASE_URL}/api/auth/reset-password`, {
+            const response = await axios.post(`${API_BASE_URL}/api/auth/reset-password`, {
                 token,
                 newPassword,
             });
+            const message = response.data?.message || '';
+            setCanSignIn(!/sets this account to Active/i.test(message));
             setDone(true);
         } catch (err) {
             setError(getLoginFormError(err, 'This reset link is not valid or has expired.'));
@@ -56,22 +64,29 @@ const ResetPassword = () => {
                         <Link to="/" className="auth-login__logo-link" aria-label="Gorythm Academy home">
                             <BrandLogo className="auth-login__logo" alt="" width={180} height={48} />
                         </Link>
-                        <h1 className="auth-login__title">Choose a new password</h1>
-                        <p className="auth-login__subtitle">
-                            Sign in afterwards with the portal username from the email, not the personal inbox that received the link.
-                        </p>
+                        {done ? (
+                            <h1 className="auth-login__title">Password updated</h1>
+                        ) : (
+                            <>
+                                <h1 className="auth-login__title">Choose a new password</h1>
+                                <p className="auth-login__subtitle">
+                                    Sign in afterwards with the username from your academy email, not the inbox that received this link.
+                                </p>
+                            </>
+                        )}
                     </header>
                     {done ? (
                         <div className="auth-login__form">
                             <p className="auth-login__note" role="status">
-                                Password updated. Sign in with your portal username.
+                                {canSignIn
+                                    ? 'Sign in with the username from your academy email, not the inbox that received this link.'
+                                    : 'You can sign in once the academy sets this account to Active.'}
                             </p>
-                            <Link to="/login" className="auth-login__submit">
-                                Portal sign in
-                            </Link>
-                            <Link to="/admin/login" className="auth-login__link">
-                                Admin sign in
-                            </Link>
+                            {canSignIn ? (
+                                <Link to="/login" className="auth-login__submit">
+                                    Sign in
+                                </Link>
+                            ) : null}
                         </div>
                     ) : (
                         <form className="auth-login__form" onSubmit={handleSubmit} noValidate>

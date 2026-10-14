@@ -326,11 +326,11 @@ const TeacherQuizzes = () => {
   const renderCourseFilter = (value, onChange, count) => (
     <label className="teacher-quizzes__course-filter">
       <span className="teacher-quizzes__course-filter-label">
-        Filter by course
+        Filter by Course
         {value ? <span className="teacher-quizzes__course-filter-meta">{count} shown</span> : null}
       </span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by course">
-        <option value="all">All courses</option>
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by Course">
+        <option value="all">All Courses</option>
         {courseOptions.map((c) => (
           <option key={c._id} value={c._id}>
             {c.title}
@@ -466,7 +466,7 @@ const TeacherQuizzes = () => {
               <i className="fas fa-question-circle" />
             </div>
             <div>
-              <h2>{editingId ? 'Edit quiz' : 'Create quiz'}</h2>
+              <h2>{editingId ? 'Edit Quiz' : 'Create Quiz'}</h2>
               <p>
                 {form.quizType === 'file'
                   ? 'Share a reading link or file — no scored questions.'
@@ -527,7 +527,7 @@ const TeacherQuizzes = () => {
                 }
                 required
               >
-                <option value="">Select course</option>
+                <option value="">Select Course</option>
                 {courses.map((c) => (
                   <option key={portalDocId(c)} value={portalDocId(c)}>
                     {c.title}
@@ -537,13 +537,13 @@ const TeacherQuizzes = () => {
             </label>
             {editingId ? (
               <label className="portal-field-label">
-                <span>Class slot <RequiredMark /></span>
+                <span>Class Slot <RequiredMark /></span>
                 <select
                   value={form.scheduleId}
                   onChange={(e) => setForm({ ...form, scheduleId: e.target.value })}
                   required
                 >
-                  <option value="">Select class slot</option>
+                  <option value="">Select Class Slot</option>
                   {courseScheduleOptions.map((slot) => (
                     <option key={slot._id} value={slot._id}>
                       {formatScheduleLabel(slot)}
@@ -554,7 +554,7 @@ const TeacherQuizzes = () => {
             ) : (
               <div className="teacher-quizzes__slot-select">
                 <div className="teacher-quizzes__slot-head">
-                  <span>Class slots <RequiredMark /></span>
+                  <span>Class Slots <RequiredMark /></span>
                   {courseScheduleOptions.length ? (
                     <label className="teacher-quizzes__slot-all">
                       <input
@@ -572,7 +572,7 @@ const TeacherQuizzes = () => {
                           setForm({ ...form, scheduleIds: allSelected ? [] : allIds });
                         }}
                       />
-                      <span>Select all</span>
+                      <span>Select All</span>
                     </label>
                   ) : null}
                 </div>
@@ -610,7 +610,7 @@ const TeacherQuizzes = () => {
             )}
             {form.quizType !== 'file' ? (
               <label className="portal-field-label">
-                <span>Total marks (optional)</span>
+                <span>Total Marks (Optional)</span>
                 <input
                   type="number"
                   min="1"
@@ -621,14 +621,14 @@ const TeacherQuizzes = () => {
               </label>
             ) : null}
             <label className="portal-field-label">
-              <span>Due date (optional)</span>
+              <span>Due Date (Optional)</span>
               <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </label>
             {form.quizType === 'file' ? (
               <>
                 <label className="portal-field-label">
                   <span>
-                    Reading link {!hasLmsUploadValue(form.resourceFiles) ? <RequiredMark /> : '(optional)'}
+                    Reading Link {!hasLmsUploadValue(form.resourceFiles) ? <RequiredMark /> : '(Optional)'}
                   </span>
                   <input
                     type="url"
@@ -638,7 +638,7 @@ const TeacherQuizzes = () => {
                   />
                 </label>
                 <FileUploadField
-                  label="Study files"
+                  label="Study Files"
                   multiple
                   value={form.resourceFiles}
                   onChange={(files) => setForm({ ...form, resourceFiles: files })}
@@ -661,7 +661,7 @@ const TeacherQuizzes = () => {
                   >
                     <div className="teacher-quizzes__question-label">Question {idx + 1}</div>
                     <label className="portal-field-label">
-                      <span>Question text{idx === 0 ? <RequiredMark /> : null}</span>
+                      <span>Question Text{idx === 0 ? <RequiredMark /> : null}</span>
                       <input
                         value={q.question}
                         onChange={(e) => updateQuestion(idx, { question: e.target.value })}
@@ -710,16 +710,16 @@ const TeacherQuizzes = () => {
                   disabled={editingAttemptCount > 0}
                   onClick={() => setForm({ ...form, questions: [...form.questions, { ...EMPTY_Q }] })}
                 >
-                  + Add question
+                  + Add Question
                 </button>
               </>
             ) : null}
             <div className="teacher-quizzes__form-actions">
               <button type="submit" className="teacher-quizzes__btn teacher-quizzes__btn--primary">
-                {editingId ? 'Save quiz' : 'Publish quiz'}
+                {editingId ? 'Save Quiz' : 'Publish Quiz'}
               </button>
               <button type="button" className="teacher-quizzes__btn teacher-quizzes__btn--ghost" onClick={resetForm}>
-                {editingId ? 'Cancel edit' : 'Cancel'}
+                {editingId ? 'Cancel Edit' : 'Cancel'}
               </button>
             </div>
           </form>
@@ -733,7 +733,7 @@ const TeacherQuizzes = () => {
                   <th>Title</th>
                   <th>Type</th>
                   <th>Course</th>
-                  <th>Class slot</th>
+                  <th>Class Slot</th>
                   <th>Questions</th>
                   <th>Max Marks</th>
                   <th>Due</th>
@@ -771,13 +771,13 @@ const TeacherQuizzes = () => {
                 setQuizFilter('');
               }, filteredAttempts.length)}
               <label className="teacher-quizzes__quiz-filter">
-                <span className="teacher-quizzes__course-filter-label">Filter by quiz</span>
+                <span className="teacher-quizzes__course-filter-label">Filter by Quiz</span>
                 <select
                   value={quizFilter}
                   onChange={(e) => setQuizFilter(e.target.value)}
-                  aria-label="Filter by quiz"
+                  aria-label="Filter by Quiz"
                 >
-                <option value="">All quizzes</option>
+                <option value="">All Quizzes</option>
                 {quizzesForSubmissionFilter.map((q) => (
                   <option key={portalDocId(q)} value={portalDocId(q)}>
                     {q.assignedSchedule

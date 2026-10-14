@@ -196,9 +196,14 @@
   border-radius: 4px;
   transition: border-color 0.2s ease, background 0.2s ease;
 
-  &:focus-within {
+  &:focus-within,
+  &.is-phone-open {
     border-color: rgba(197, 164, 92, 0.5);
     background: rgba(255, 255, 255, 0.06);
+  }
+
+  &--invalid {
+    border-color: rgba(224, 98, 98, 0.8);
   }
 
   &--full {

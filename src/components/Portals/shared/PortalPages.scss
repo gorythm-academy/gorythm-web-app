@@ -1251,18 +1251,26 @@
     color: #475569;
   }
 
-  label {
+  label:not(.portal-file-upload),
+  .portal-billing-phone {
     display: grid;
     gap: 0.3rem;
     font-weight: 600;
     font-size: 0.88rem;
   }
 
-  input {
+  input:not([type='file']) {
     padding: 0.5rem 0.7rem;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
   }
+}
+
+.portal-billing-proof {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
 }
 
 .portal-billing-pay-col {
@@ -1336,16 +1344,25 @@
 
 .portal-billing-overlay-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  justify-content: flex-start;
   margin-top: 0.5rem;
   padding-top: 0.85rem;
   border-top: 1px solid #e2e8f0;
+}
+
+.portal-billing-overlay-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
 
   strong {
     font-size: 1.1rem;
     color: #0f172a;
+  }
+
+  .portal-billing-pay {
+    margin-top: 0.35rem;
   }
 }
 

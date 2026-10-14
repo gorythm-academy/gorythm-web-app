@@ -51,7 +51,7 @@ const AboutSection = () => {
   const sectionData = {
     sectionNumber: '02',
     label: 'About Gorythm Academy',
-    title: 'Knowledge Connected To Identity',
+    title: 'Knowledge Connected to Identity',
     paragraph:
       `Gorythm connects every domain of knowledge into one coherent pursuit of understanding. Grounded in a single conviction that truth is coherent, self-knowledge is the root of growth, and the signs pointing towards both are already within you. Our courses develop thoughts, character, and purpose.`,
 

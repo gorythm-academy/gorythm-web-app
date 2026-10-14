@@ -2,9 +2,10 @@ import RequiredMark from '../../shared/RequiredMark';
 import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
-import { formatLoginEmailNotice, formatLoginEmailStatus, MIN_STUDENT_PASSWORD_LENGTH } from '../../../utils/studentAdminValidation';
+import { formatLoginEmailNotice, formatLoginEmailStatus, isLoginEmailSent, MIN_STUDENT_PASSWORD_LENGTH } from '../../../utils/studentAdminValidation';
 import { ACTIVE_RECORDS_LABEL, QUARANTINE_LABEL } from '../../../utils/adminListLabels';
-import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import { formatScheduleLabel } from '../../../utils/formatScheduleLabel';
+import ScheduleClock from '../../shared/ScheduleClock';
 import { Link } from 'react-router-dom';
 import AdminTablePagination from '../shared/AdminTablePagination';
 import AdminSearchBox from '../shared/AdminSearchBox';
@@ -182,7 +183,7 @@ export function UsersManagementView({ state }) {
                                                         disabled={isSubmitting}
                                                         autoComplete="off"
                                                         spellCheck={false}
-                                                        aria-label="Portal email ID"
+                                                        aria-label="Portal Email ID"
                                                     />
                                                     <span
                                                         className="email-input-group__suffix"
@@ -213,7 +214,7 @@ export function UsersManagementView({ state }) {
                                         </div>
 
                                         <div className="form-group">
-                                            <label>Personal email (optional)</label>
+                                            <label>Personal Email (Optional)</label>
                                             <input
                                                 type="email"
                                                 name="personalEmail"
@@ -231,40 +232,15 @@ export function UsersManagementView({ state }) {
 
                                         {editingUser && ['student', 'teacher', 'parent'].includes(editingUser.role) ? (
                                             <div className="form-group">
-                                                <label>Login email</label>
-                                                <p className="form-hint">{formatLoginEmailStatus(editingUser)}</p>
-                                                <button
-                                                    type="button"
-                                                    className="btn-secondary"
-                                                    disabled={isSubmitting}
-                                                    onClick={async () => {
-                                                        setIsSubmitting(true);
-                                                        try {
-                                                            const token = getAuthToken();
-                                                            const mailRes = await axios.post(
-                                                                `${API_BASE_URL}/api/users/${editingUser._id}/login-email`,
-                                                                { force: true },
-                                                                { headers: { Authorization: `Bearer ${token}` } }
-                                                            );
-                                                            const notice = formatLoginEmailNotice(mailRes.data.loginEmail);
-                                                            const next = {
-                                                                ...editingUser,
-                                                                ...(mailRes.data.user || {}),
-                                                            };
-                                                            setEditingUser(next);
-                                                            setUsers((prev) => prev.map((user) => (
-                                                                user._id === editingUser._id ? { ...user, ...next } : user
-                                                            )));
-                                                            showAlert(notice || mailRes.data.loginEmail?.error || 'Login email was not sent.', notice ? 'success' : 'warning');
-                                                        } catch (mailErr) {
-                                                            showAlert(mailErr.response?.data?.error || 'Failed to send login email', 'error');
-                                                        } finally {
-                                                            setIsSubmitting(false);
-                                                        }
-                                                    }}
+                                                <label>Login Email Status</label>
+                                                <p
+                                                    className={`login-email-status ${
+                                                        isLoginEmailSent(editingUser) ? 'is-sent' : 'is-pending'
+                                                    }`}
+                                                    role="status"
                                                 >
-                                                    Resend login email
-                                                </button>
+                                                    {formatLoginEmailStatus(editingUser)}
+                                                </p>
                                             </div>
                                         ) : null}
 
@@ -339,7 +315,7 @@ export function UsersManagementView({ state }) {
                                                         onChange={handleFormChange}
                                                         disabled={isSubmitting}
                                                     />
-                                                    <span>Force password reset on first login</span>
+                                                    <span>Force Password Reset on First Login</span>
                                                 </label>
                                             </div>
                                         )}
@@ -418,7 +394,7 @@ export function UsersManagementView({ state }) {
                                                         onChange={handleFormChange}
                                                         disabled={isSubmitting}
                                                     />
-                                                    <span>Force password reset on first login</span>
+                                                    <span>Force Password Reset on First Login</span>
                                                 </label>
                                             </div>
                                         ) : null}
@@ -490,31 +466,36 @@ export function UsersManagementView({ state }) {
                                                     parentLinksInModal.map((link) => {
                                                         const key = String(link._id || link.studentId || link.student?._id || link.student);
                                                         return (
-                                                        <li key={key}>
-                                                            <span>
-                                                                {link.student?.name || 'Student'}{' '}
-                                                                {link.student?.studentId
-                                                                    ? `(${link.student.studentId})`
-                                                                    : ''}
-                                                            </span>
-                                                            <select
-                                                                value={link.relation || 'guardian'}
-                                                                onChange={(e) => updateDraftLinkRelation(key, e.target.value)}
-                                                                disabled={isSubmitting}
-                                                                aria-label="Relation"
-                                                            >
-                                                                {PARENT_RELATION_OPTIONS.map((opt) => (
-                                                                    <option key={opt.value} value={opt.value}>
-                                                                        {opt.label}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                        <li key={key} className="parent-child-row">
+                                                            <div className="parent-child-row__identity">
+                                                                <span className="parent-child-row__name">
+                                                                    {link.student?.name || 'Student'}
+                                                                </span>
+                                                                {link.student?.studentId ? (
+                                                                    <span className="parent-child-row__id">{link.student.studentId}</span>
+                                                                ) : null}
+                                                            </div>
+                                                            <label className="parent-child-row__relation">
+                                                                <span>Relation</span>
+                                                                <select
+                                                                    value={link.relation || 'guardian'}
+                                                                    onChange={(e) => updateDraftLinkRelation(key, e.target.value)}
+                                                                    disabled={isSubmitting}
+                                                                >
+                                                                    {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                                        <option key={opt.value} value={opt.value}>
+                                                                            {opt.label}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </label>
                                                             <button
                                                                 type="button"
-                                                                className="btn-secondary parent-remove-btn"
+                                                                className="parent-remove-btn"
                                                                 onClick={() => removeParentChildLink(key)}
                                                                 disabled={isSubmitting}
                                                             >
+                                                                <i className="fas fa-trash-alt" aria-hidden="true" />
                                                                 Remove
                                                             </button>
                                                         </li>
@@ -522,91 +503,100 @@ export function UsersManagementView({ state }) {
                                                     })
                                                 ) : (
                                                     pendingParentLinks.map((link) => (
-                                                        <li key={link.studentId}>
-                                                            <span>
-                                                                {link.student?.name || 'Student'}{' '}
-                                                                {link.student?.studentId
-                                                                    ? `(${link.student.studentId})`
-                                                                    : ''}
-                                                            </span>
-                                                            <select
-                                                                value={link.relation || 'guardian'}
-                                                                onChange={(e) => updateDraftLinkRelation(link.studentId, e.target.value)}
-                                                                disabled={isSubmitting}
-                                                                aria-label="Relation"
-                                                            >
-                                                                {PARENT_RELATION_OPTIONS.map((opt) => (
-                                                                    <option key={opt.value} value={opt.value}>
-                                                                        {opt.label}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                        <li key={link.studentId} className="parent-child-row">
+                                                            <div className="parent-child-row__identity">
+                                                                <span className="parent-child-row__name">
+                                                                    {link.student?.name || 'Student'}
+                                                                </span>
+                                                                {link.student?.studentId ? (
+                                                                    <span className="parent-child-row__id">{link.student.studentId}</span>
+                                                                ) : null}
+                                                            </div>
+                                                            <label className="parent-child-row__relation">
+                                                                <span>Relation</span>
+                                                                <select
+                                                                    value={link.relation || 'guardian'}
+                                                                    onChange={(e) => updateDraftLinkRelation(link.studentId, e.target.value)}
+                                                                    disabled={isSubmitting}
+                                                                >
+                                                                    {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                                        <option key={opt.value} value={opt.value}>
+                                                                            {opt.label}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </label>
                                                             <button
                                                                 type="button"
-                                                                className="btn-secondary parent-remove-btn"
+                                                                className="parent-remove-btn"
                                                                 onClick={() => removePendingParentLink(link.studentId)}
                                                                 disabled={isSubmitting}
                                                             >
+                                                                <i className="fas fa-trash-alt" aria-hidden="true" />
                                                                 Remove
                                                             </button>
                                                         </li>
                                                     ))
                                                 )}
                                             </ul>
-                                            <div className="form-group parent-link-add">
-                                                <label className="form-hint-muted" htmlFor="parent-student-search">
-                                                    Search students
-                                                </label>
-                                                <input
-                                                    id="parent-student-search"
-                                                    type="search"
-                                                    placeholder="Name, roll no., email…"
-                                                    value={parentStudentSearch}
-                                                    onChange={(e) => setParentStudentSearch(e.target.value)}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <select
-                                                    value={linkStudentPick}
-                                                    onChange={(e) => setLinkStudentPick(e.target.value)}
-                                                    disabled={isSubmitting || parentStudentsLoading}
-                                                >
-                                                    <option value="">
-                                                        {parentStudentsLoading ? 'Loading students…' : 'Add unlinked child…'}
-                                                    </option>
-                                                    {allStudentsForLink
-                                                        .filter((s) => {
-                                                            if (editingUser) {
-                                                                return !parentLinksInModal.some(
-                                                                    (l) =>
-                                                                        String(l.student?._id || l.student || l.studentId) ===
-                                                                        String(s._id)
+                                            <div className="parent-link-add">
+                                                <div className="form-group">
+                                                    <label htmlFor="parent-student-search">Search Students</label>
+                                                    <input
+                                                        id="parent-student-search"
+                                                        type="search"
+                                                        placeholder="Name, roll no., email…"
+                                                        value={parentStudentSearch}
+                                                        onChange={(e) => setParentStudentSearch(e.target.value)}
+                                                        disabled={isSubmitting}
+                                                    />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label htmlFor="parent-link-student">Student</label>
+                                                    <select
+                                                        id="parent-link-student"
+                                                        value={linkStudentPick}
+                                                        onChange={(e) => setLinkStudentPick(e.target.value)}
+                                                        disabled={isSubmitting || parentStudentsLoading}
+                                                    >
+                                                        <option value="">
+                                                            {parentStudentsLoading ? 'Loading Students…' : 'Add Unlinked Child…'}
+                                                        </option>
+                                                        {allStudentsForLink
+                                                            .filter((s) => {
+                                                                if (editingUser) {
+                                                                    return !parentLinksInModal.some(
+                                                                        (l) =>
+                                                                            String(l.student?._id || l.student || l.studentId) ===
+                                                                            String(s._id)
+                                                                    );
+                                                                }
+                                                                return !pendingParentLinks.some(
+                                                                    (l) => String(l.studentId) === String(s._id)
                                                                 );
-                                                            }
-                                                            return !pendingParentLinks.some(
-                                                                (l) => String(l.studentId) === String(s._id)
-                                                            );
-                                                        })
-                                                        .map((s) => (
-                                                            <option key={s._id} value={s._id}>
-                                                                {s.name} {s.studentId ? `(${s.studentId})` : ''}
+                                                            })
+                                                            .map((s) => (
+                                                                <option key={s._id} value={s._id}>
+                                                                    {s.name} {s.studentId ? `(${s.studentId})` : ''}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label htmlFor="parent-link-relation">Relation</label>
+                                                    <select
+                                                        id="parent-link-relation"
+                                                        value={linkRelation}
+                                                        onChange={(e) => setLinkRelation(e.target.value)}
+                                                        disabled={isSubmitting}
+                                                    >
+                                                        {PARENT_RELATION_OPTIONS.map((opt) => (
+                                                            <option key={opt.value} value={opt.value}>
+                                                                {opt.label}
                                                             </option>
                                                         ))}
-                                                </select>
-                                                <label className="form-hint-muted" htmlFor="parent-link-relation">
-                                                    Relation
-                                                </label>
-                                                <select
-                                                    id="parent-link-relation"
-                                                    value={linkRelation}
-                                                    onChange={(e) => setLinkRelation(e.target.value)}
-                                                    disabled={isSubmitting}
-                                                >
-                                                    {PARENT_RELATION_OPTIONS.map((opt) => (
-                                                        <option key={opt.value} value={opt.value}>
-                                                            {opt.label}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                    </select>
+                                                </div>
                                                 {!parentStudentsLoading &&
                                                 allStudentsForLink.length === 0 &&
                                                 parentStudentSearch.trim() ? (
@@ -641,6 +631,43 @@ export function UsersManagementView({ state }) {
                                 >
                                     Cancel
                                 </button>
+                                {editingUser && ['student', 'teacher', 'parent'].includes(editingUser.role) ? (
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        disabled={isSubmitting}
+                                        onClick={async () => {
+                                            setIsSubmitting(true);
+                                            try {
+                                                const token = getAuthToken();
+                                                const mailRes = await axios.post(
+                                                    `${API_BASE_URL}/api/users/${editingUser._id}/login-email`,
+                                                    { force: true },
+                                                    { headers: { Authorization: `Bearer ${token}` } }
+                                                );
+                                                const notice = formatLoginEmailNotice(mailRes.data.loginEmail);
+                                                const next = {
+                                                    ...editingUser,
+                                                    ...(mailRes.data.user || {}),
+                                                };
+                                                setEditingUser(next);
+                                                setUsers((prev) => prev.map((user) => (
+                                                    user._id === editingUser._id ? { ...user, ...next } : user
+                                                )));
+                                                showAlert(
+                                                    notice || mailRes.data.loginEmail?.error || 'Login email was not sent.',
+                                                    notice ? 'success' : 'warning'
+                                                );
+                                            } catch (mailErr) {
+                                                showAlert(mailErr.response?.data?.error || 'Failed to send login email', 'error');
+                                            } finally {
+                                                setIsSubmitting(false);
+                                            }
+                                        }}
+                                    >
+                                        <i className="fas fa-envelope" aria-hidden /> Resend login email
+                                    </button>
+                                ) : null}
                                 <button
                                     type="submit"
                                     className={`btn-primary${editingUser ? ' btn-save' : ' btn-add'}`}
@@ -685,7 +712,7 @@ export function UsersManagementView({ state }) {
                     {showAddButton && listTab === 'active' && (
                         <button type="button" className="btn-primary btn-add" onClick={openCreateModal}>
                             <i className="fas fa-user-plus"></i>{' '}
-                            {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
+                            {isLearnerTab ? variantConfig.addLabel : 'Add Staff User'}
                         </button>
                     )}
                 </div>
@@ -696,7 +723,7 @@ export function UsersManagementView({ state }) {
                 <div className="users-embedded-actions">
                     <button type="button" className="btn-primary btn-add" onClick={openCreateModal}>
                         <i className="fas fa-user-plus"></i>{' '}
-                        {isLearnerTab ? variantConfig.addLabel : 'Add staff user'}
+                        {isLearnerTab ? variantConfig.addLabel : 'Add Staff User'}
                     </button>
                 </div>
             )}
@@ -752,12 +779,12 @@ export function UsersManagementView({ state }) {
                         >
                             {variant === 'teachers' ? (
                                 <>
-                                    <option value="all">All teachers</option>
+                                    <option value="all">All Teachers</option>
                                     <option value="teacher">Teachers</option>
                                 </>
                             ) : (
                                 <>
-                                    <option value="all">All staff roles</option>
+                                    <option value="all">All Staff Roles</option>
                                     <option value="super-admin">Super Admin</option>
                                     <option value="manager">Manager</option>
                                     <option value="accountant">Accountant</option>
@@ -1094,7 +1121,7 @@ export function UsersManagementView({ state }) {
                                                                             <ul className="meta-col-course__slots">
                                                                                 {courseSlots.map((slot) => (
                                                                                     <li key={slot._id}>
-                                                                                        {formatScheduleTimeLabel(slot)}
+                                                                                        <ScheduleClock slot={slot} audience="staff" />
                                                                                     </li>
                                                                                 ))}
                                                                             </ul>
@@ -1282,7 +1309,7 @@ export function UsersManagementView({ state }) {
                                         <i className="fas fa-user-plus"></i>
                                     </span>
                                     <span className="empty-state-cta__label">
-                                        {isLearnerTab ? variantConfig.addLabel : 'Add your first staff user'}
+                                        {isLearnerTab ? variantConfig.addLabel : 'Add Your First Staff User'}
                                     </span>
                                     <span className="empty-state-cta__arrow" aria-hidden="true">
                                         <i className="fas fa-arrow-right"></i>
@@ -1404,7 +1431,7 @@ export function UsersManagementView({ state }) {
                                 <dt>Email</dt><dd className="admin-email">{viewUser.email}</dd>
                                 {viewUser.role === 'student' && (
                                     <>
-                                        <dt>Personal email</dt>
+                                        <dt>Personal Email</dt>
                                         <dd className="admin-email">{viewUser.personalEmail || '—'}</dd>
                                     </>
                                 )}
@@ -1413,10 +1440,10 @@ export function UsersManagementView({ state }) {
                                 <dt>Status</dt>
                                 <dd>{isStaffTab ? normalizeStaffStatus(viewUser.status) : viewUser.status}</dd>
                                 <dt>Joined</dt><dd>{viewUser.joinDate ? new Date(viewUser.joinDate).toLocaleString() : '—'}</dd>
-                                <dt>Last login</dt><dd>{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</dd>
+                                <dt>Last Login</dt><dd>{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</dd>
                                 {variant === 'teachers' && viewUser.role === 'teacher' && (
                                     <>
-                                        <dt>Class slots</dt>
+                                        <dt>Class Slots</dt>
                                         <dd>
                                             {viewTeacherSlotsLoading ? (
                                                 'Loading…'

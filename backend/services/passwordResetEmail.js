@@ -44,7 +44,7 @@ async function sendPasswordResetEmail(user, token) {
         await transporter.sendMail({
             from: `"${fromName}" <${fromEmail}>`,
             to,
-            subject: 'Reset your Gorythm Academy portal password',
+            subject: 'Reset Your Gorythm Academy Portal Password',
             text,
             html: `<p>Assalamu alaikum,</p>
 <p>A password reset was requested for the Gorythm Academy portal.</p>

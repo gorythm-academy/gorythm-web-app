@@ -10,6 +10,15 @@ export const ADMIN_SEEN_QUIZ_UPDATES = 'admin_quiz_updates';
 export const STUDENT_QUIZ_UPDATES = 'student_quiz_updates';
 export const STUDENT_ASSIGNMENTS_UPDATES = 'student_assignments_updates';
 export const ADMIN_SEEN_PAYMENTS = 'admin_payments';
+export const ADMIN_SEEN_SUBSCRIBERS = 'admin_subscribers';
+
+/** Ask the admin sidebar to recount new-item dots. */
+export function requestAdminBadgeRefresh() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('portal-seen-updated', { detail: { storageKey: 'badge-refresh' } })
+  );
+}
 
 export function getPortalSeenCutoff(storageKey, fallbackDays = 7) {
   const raw = localStorage.getItem(`${PREFIX}${storageKey}`);

@@ -38,6 +38,8 @@ const LegalPage = ({ slug }) => {
               key={item.to}
               to={item.to}
               className={item.to === doc.path ? 'is-active' : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               {item.label}
             </Link>
@@ -58,7 +60,7 @@ const LegalPage = ({ slug }) => {
           {' · '}
           <Link to="/contact">Contact form</Link>
           {' · '}
-          <Link to="/privacy#deletion">Data deletion</Link>
+          <Link to="/privacy#deletion" target="_blank" rel="noopener noreferrer">Data deletion</Link>
         </p>
       </div>
     </article>

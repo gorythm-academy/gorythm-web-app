@@ -74,6 +74,7 @@ export default function FileUploadField({
         <input
           ref={inputRef}
           type="file"
+          tabIndex={-1}
           accept={accept}
           multiple={multiple}
           onChange={onFile}

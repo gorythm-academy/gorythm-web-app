@@ -354,7 +354,6 @@ const Login = () => {
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    placeholder="Portal username or personal email"
                                     autoComplete="username"
                                     required
                                 />
@@ -372,7 +371,6 @@ const Login = () => {
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    placeholder="Your password"
                                     autoComplete="current-password"
                                     required
                                 />
@@ -417,9 +415,9 @@ const Login = () => {
                         <i className="fas fa-arrow-right auth-login__admin-cta-arrow" aria-hidden="true" />
                     </Link>
                     <p className="auth-login__legal">
-                        <Link to="/privacy">Privacy</Link>
+                        <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy</Link>
                         <span aria-hidden="true"> · </span>
-                        <Link to="/terms">Terms</Link>
+                        <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms</Link>
                     </p>
                 </div>
             </div>

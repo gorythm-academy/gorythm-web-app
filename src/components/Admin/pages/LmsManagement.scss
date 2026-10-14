@@ -316,7 +316,7 @@
       font-size: 1.1rem;
     }
 
-    input,
+    input:not([type='file']),
     select {
       padding: 0.5rem 0.65rem;
       border: 1px solid #cbd5e1;
@@ -788,7 +788,8 @@
   .lms-schedule-time {
     font-weight: 600;
     color: #0f172a;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 12rem;
   }
 
   .lms-schedule-course {

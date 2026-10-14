@@ -283,7 +283,7 @@ const PaymentsManagement = () => {
         const confirmed = await showConfirm({
             title: 'Replace due dates everywhere?',
             message: 'This replaces the due date on all active courses, all student enrollments that are not completed or cancelled, and the student and parent Fees pages. Course-specific and student-specific due dates will be overwritten.',
-            confirmLabel: 'Save due date',
+            confirmLabel: 'Save Due Date',
         });
         if (!confirmed) return;
         setDueDateSaving(true);
@@ -782,6 +782,35 @@ const PaymentsManagement = () => {
         }
     };
 
+    const handleSendInvoiceEmail = async (payment) => {
+        const paymentId = String(payment?._id || '');
+        if (!paymentId) return;
+        if (!isPaymentPaid(payment.status)) {
+            showAlert('Mark the payment received before emailing the invoice.', 'warning');
+            return;
+        }
+        const confirmed = await showConfirm({
+            title: 'Email invoice?',
+            message: payment.receiptSentAt
+                ? 'This invoice email was sent before. Send it again to the student personal email?'
+                : 'Send the fee confirmation email with PDF to the student personal email?',
+            confirmLabel: payment.receiptSentAt ? 'Resend email' : 'Send email',
+        });
+        if (!confirmed) return;
+        try {
+            const token = getAuthToken();
+            const response = await axios.post(
+                `${API_BASE_URL}/api/payments/${paymentId}/send-receipt`,
+                { force: true },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            await fetchPayments({ soft: true, withStats: false });
+            showAlert(response.data?.message || 'Invoice email sent.', 'success');
+        } catch (error) {
+            showAlert(error.response?.data?.error || error.message || 'Failed to send invoice email', 'error');
+        }
+    };
+
     const handleInvoiceButtonClick = (button) => {
         if (button?.multi) {
             setInvoicePicker(button);
@@ -843,12 +872,21 @@ const PaymentsManagement = () => {
 
     const handleMarkReceived = (payment) => {
         const singleBill = idsForPaymentRow(payment).length === 1 && (payment.lines?.length || 0) <= 1;
+        const studentIds = new Set();
+        const primaryId = payment.user?._id || payment.user?.id || payment.user;
+        if (primaryId) studentIds.add(String(primaryId));
+        for (const line of payment.lines || []) {
+            const lineStudent = line.student?._id || line.student?.id || line.student;
+            if (lineStudent) studentIds.add(String(lineStudent));
+        }
+        const studentCount = studentIds.size || 1;
         setReceiveModal({
             id: payment._id,
             label: payment.course?.title || payment.courseName || 'this bill',
             billed: Number(payment.amount || 0),
             amount: String(Number(payment.amount || 0)),
             partialAllowed: singleBill,
+            studentCount,
             saving: false,
         });
     };
@@ -1017,6 +1055,7 @@ const PaymentsManagement = () => {
                 handleDeleteSelectedPayments,
                 handleExtendDueDate,
                 handleInvoiceButtonClick,
+                handleSendInvoiceEmail,
                 handleMarkReceived,
                 handlePermanentDelete,
                 handlePermanentDeleteSelected,

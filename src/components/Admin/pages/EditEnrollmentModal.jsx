@@ -14,6 +14,7 @@ import {
     sortPublishedCourses,
     formatLoginEmailNotice,
     formatLoginEmailStatus,
+    isLoginEmailSent,
     validatePasswordPair,
     validatePersonalEmail,
     validateStudentId,
@@ -40,7 +41,7 @@ const toDateInputValue = (value) => {
     return `${year}-${month}-${day}`;
 };
 
-const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'course' }) => {
+const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmailUpdated, mode = 'course' }) => {
     const { showAlert, showConfirm } = useAdminDialog();
     const [loading, setLoading] = useState(false);
     const [formError, setFormError] = useState('');
@@ -228,6 +229,26 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                     );
                 }
                 const notice = formatLoginEmailNotice(accountRes.data.loginEmail);
+                const loginFields = accountRes.data.user
+                    ? {
+                        loginEmailSentAt: accountRes.data.user.loginEmailSentAt,
+                        loginEmailSentTo: accountRes.data.user.loginEmailSentTo,
+                        loginEmailLastError: accountRes.data.user.loginEmailLastError,
+                    }
+                    : (accountRes.data.loginEmail?.sent
+                        ? {
+                            loginEmailSentAt: accountRes.data.loginEmail.sentAt,
+                            loginEmailSentTo: accountRes.data.loginEmail.sentTo,
+                            loginEmailLastError: '',
+                        }
+                        : null);
+                if (loginFields) {
+                    setLoginEmailState((prev) => ({
+                        ...(prev || enrollment?.student || {}),
+                        ...loginFields,
+                    }));
+                    onLoginEmailUpdated?.(loginFields);
+                }
                 showAlert(`Student account updated successfully.${notice ? ` ${notice}` : ''}`, 'success');
                 onSaved?.(enrollment);
                 onClose();
@@ -324,7 +345,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                     <div className="edit-enrollment-modal-header__main">
                         <h2>
                             <i className="fas fa-edit"></i>{' '}
-                            {mode === 'account' ? 'Student account settings' : 'Edit course settings'}
+                            {mode === 'account' ? 'Student Account Settings' : 'Edit Course Settings'}
                         </h2>
                         <div className="header-subtitle">
                             <span className={`status-badge ${formData.status}`}>{formData.status}</span>
@@ -377,7 +398,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                 />
                             </div>
                             <div className="form-group">
-                                <label><i className="fas fa-envelope"></i> Portal email</label>
+                                <label><i className="fas fa-envelope"></i> Portal Email</label>
                                 <div className="email-input-group">
                                     <input
                                         type="text"
@@ -397,41 +418,20 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Login email</label>
-                                <p className="form-hint-muted">{formatLoginEmailStatus(loginEmailState || enrollment?.student)}</p>
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    disabled={loading}
-                                    onClick={async () => {
-                                        const id = studentAccountId(enrollment);
-                                        if (!id) return;
-                                        setLoading(true);
-                                        try {
-                                            const token = getAuthToken();
-                                            const mailRes = await axios.post(
-                                                `${API_BASE_URL}/api/users/${id}/login-email`,
-                                                { force: true },
-                                                { headers: { Authorization: `Bearer ${token}` } }
-                                            );
-                                            const notice = formatLoginEmailNotice(mailRes.data.loginEmail);
-                                            setLoginEmailState((prev) => ({
-                                                ...(prev || enrollment?.student || {}),
-                                                ...(mailRes.data.user || {}),
-                                            }));
-                                            showAlert(notice || mailRes.data.loginEmail?.error || 'Login email was not sent.', notice ? 'success' : 'warning');
-                                        } catch (mailErr) {
-                                            showAlert(mailErr.response?.data?.error || 'Failed to send login email', 'error');
-                                        } finally {
-                                            setLoading(false);
-                                        }
-                                    }}
+                                <label>Login Email Status</label>
+                                <p
+                                    className={`login-email-status ${
+                                        isLoginEmailSent(loginEmailState || enrollment?.student)
+                                            ? 'is-sent'
+                                            : 'is-pending'
+                                    }`}
+                                    role="status"
                                 >
-                                    Email student card
-                                </button>
+                                    {formatLoginEmailStatus(loginEmailState || enrollment?.student)}
+                                </p>
                             </div>
                             <div className="form-group">
-                                <label><i className="fas fa-lock"></i> Temporary password (optional)</label>
+                                <label><i className="fas fa-lock"></i> Temporary Password (Optional)</label>
                                 <div className="password-field">
                                     <input
                                         type={showPassword ? 'text' : 'password'}
@@ -452,7 +452,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Confirm new password</label>
+                                <label>Confirm New Password</label>
                                 <div className="password-field">
                                     <input
                                         type={showConfirmPassword ? 'text' : 'password'}
@@ -486,12 +486,12 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                             }
                                             disabled={loading}
                                         />
-                                        <span>Force password reset on first login</span>
+                                        <span>Force Password Reset on First Login</span>
                                     </label>
                                 </div>
                             ) : null}
                             <div className="form-group">
-                                <label><i className="fas fa-envelope"></i> Personal email (optional)</label>
+                                <label><i className="fas fa-envelope"></i> Personal Email (Optional)</label>
                                 <input
                                     type="email"
                                     value={formData.personalEmail}
@@ -501,7 +501,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                 />
                             </div>
                             <div className="form-group">
-                                <label><i className="fas fa-phone"></i> Phone number (optional)</label>
+                                <label><i className="fas fa-phone"></i> Phone Number (Optional)</label>
                                 <input
                                     type="tel"
                                     value={formData.phone}
@@ -529,14 +529,14 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                     disabled
                                 />
                                 <small className="form-hint">
-                                    To add another course, close this dialog and use <strong>Add course to this student</strong>.
+                                    To add another course, close this dialog and use <strong>Add Course to This Student</strong>.
                                     Changing course here is disabled so existing enrollments are not overwritten.
                                 </small>
                             </div>
                             {formData.courseId ? (
                                 <div className="form-group">
                                     <label>
-                                        <i className="fas fa-clock" /> Class timeslot
+                                        <i className="fas fa-clock" /> Class Timeslot
                                         {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                     </label>
                                     <select
@@ -550,10 +550,10 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                     >
                                         <option value="">
                                             {schedulesLoading
-                                                ? 'Loading timeslots…'
+                                                ? 'Loading Timeslots…'
                                                 : courseSchedules.length
-                                                  ? 'Select a timeslot…'
-                                                  : 'No timeslots yet — create in LMS'}
+                                                  ? 'Select a Timeslot…'
+                                                  : 'No Timeslots Yet — Create in LMS'}
                                         </option>
                                         {courseSchedules.map((slot) => (
                                             <option key={slot._id} value={slot._id}>
@@ -586,7 +586,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                                     />
                                 </div>
                                 <div className="form-group half">
-                                    <label>Fee due date</label>
+                                    <label>Fee Due Date</label>
                                     <input
                                         type="date"
                                         value={formData.feeDueDate}
@@ -644,6 +644,43 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                     <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
                         Cancel
                     </button>
+                    {mode === 'account' ? (
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={loading}
+                            onClick={async () => {
+                                const id = studentAccountId(enrollment);
+                                if (!id) return;
+                                setLoading(true);
+                                try {
+                                    const token = getAuthToken();
+                                    const mailRes = await axios.post(
+                                        `${API_BASE_URL}/api/users/${id}/login-email`,
+                                        { force: true },
+                                        { headers: { Authorization: `Bearer ${token}` } }
+                                    );
+                                    const notice = formatLoginEmailNotice(mailRes.data.loginEmail);
+                                    const nextFields = mailRes.data.user || {};
+                                    setLoginEmailState((prev) => ({
+                                        ...(prev || enrollment?.student || {}),
+                                        ...nextFields,
+                                    }));
+                                    onLoginEmailUpdated?.(nextFields);
+                                    showAlert(
+                                        notice || mailRes.data.loginEmail?.error || 'Login email was not sent.',
+                                        notice ? 'success' : 'warning'
+                                    );
+                                } catch (mailErr) {
+                                    showAlert(mailErr.response?.data?.error || 'Failed to send login email', 'error');
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                        >
+                            <i className="fas fa-envelope" aria-hidden /> Email student card
+                        </button>
+                    ) : null}
                     {mode === 'course' ? (
                         <button
                             type="button"
@@ -686,7 +723,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, mode = 'cou
                             </>
                         ) : (
                             <>
-                                <i className="fas fa-save"></i> {mode === 'account' ? 'Save account' : 'Save course'}
+                                <i className="fas fa-save"></i> {mode === 'account' ? 'Save Account' : 'Save Course'}
                             </>
                         )}
                     </button>

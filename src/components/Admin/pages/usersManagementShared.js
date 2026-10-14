@@ -17,7 +17,7 @@ export const COLUMN_LABELS = {
     children: 'Children',
     phone: 'Phone',
     email: 'Email',
-    personalEmail: 'Personal email',
+    personalEmail: 'Personal Email',
     joined: 'Joined',
     lastLogin: 'Last Login',
     actions: 'Actions',

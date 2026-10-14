@@ -63,7 +63,7 @@ const AssignmentsTab = ({
                 onChange={(e) => onCourseChangeAssign(e.target.value)}
                 required
               >
-                <option value="">Select course</option>
+                <option value="">Select Course</option>
                 {courses.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -78,7 +78,7 @@ const AssignmentsTab = ({
                 onChange={(e) => setAssignForm({ ...assignForm, teacherId: e.target.value, scheduleId: '' })}
                 required
               >
-                <option value="">Select teacher</option>
+                <option value="">Select Teacher</option>
                 {(courseTeachers[String(assignForm.courseId)] || teachers).map((t) => (
                   <option key={t._id} value={t._id}>
                     {t.name}
@@ -87,13 +87,13 @@ const AssignmentsTab = ({
               </select>
             </label>
             <label className="lms-field-label">
-              <span>Class slot <RequiredMark /></span>
+              <span>Class Slot <RequiredMark /></span>
               <select
                 value={assignForm.scheduleId}
                 onChange={(e) => setAssignForm({ ...assignForm, scheduleId: e.target.value })}
                 required
               >
-                <option value="">Select class slot</option>
+                <option value="">Select Class Slot</option>
                 {filterSchedulesForTargeting(
                   schedules,
                   assignForm.courseId ? [assignForm.courseId] : [],
@@ -133,7 +133,7 @@ const AssignmentsTab = ({
           />
         </label>
         <label className="lms-field-label">
-          <span>Due date <RequiredMark /></span>
+          <span>Due Date <RequiredMark /></span>
           <input
             type="date"
             value={assignForm.dueDate}
@@ -155,7 +155,7 @@ const AssignmentsTab = ({
           />
         </label>
         <FileUploadField
-          label="Attachments (PDF / files)"
+          label="Attachments (PDF / Files)"
           value={assignForm.attachments}
           onChange={(attachments) => setAssignForm({ ...assignForm, attachments })}
           multiple
@@ -167,12 +167,12 @@ const AssignmentsTab = ({
                 ? 'Saving…'
                 : 'Publishing…'
               : editingAssignId
-                ? 'Save changes'
-                : 'Publish assignment'}
+                ? 'Save Changes'
+                : 'Publish Assignment'}
           </button>
           {editingAssignId ? (
             <button type="button" className="lms-btn-secondary" onClick={resetAssignForm}>
-              Cancel edit
+              Cancel Edit
             </button>
           ) : null}
         </div>
@@ -200,8 +200,8 @@ const AssignmentsTab = ({
                 setSelectedAssignmentIds(new Set());
               }}
             >
-              <option value="">Select course</option>
-              <option value="all">All courses</option>
+              <option value="">Select Course</option>
+              <option value="all">All Courses</option>
               {courses.map((c) => (
                 <option key={c._id} value={c._id}>
                   {c.title}
@@ -224,7 +224,7 @@ const AssignmentsTab = ({
       ) : null}
 
       {!assignListCourseFilter ? (
-        <p className="lms-empty">Select a course or choose &quot;All courses&quot; to view assignments.</p>
+        <p className="lms-empty">Select a course or choose &quot;All Courses&quot; to view assignments.</p>
       ) : (
         <>
           {selectedAssignmentIds.size > 0 ? (
@@ -300,7 +300,7 @@ const AssignmentsTab = ({
                   <th>Title</th>
                   <th>Course</th>
                   <th>Teacher</th>
-                  <th>Class slot</th>
+                  <th>Class Slot</th>
                   <th>Due</th>
                   <th />
                 </tr>

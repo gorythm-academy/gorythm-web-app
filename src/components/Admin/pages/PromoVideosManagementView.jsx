@@ -212,11 +212,11 @@ export function PromoVideosManagementView({ state }) {
             ) : (
               <div className="promo-videos-placement-card__preview-empty">
                 <i className="fas fa-image" aria-hidden="true" />
-                <span>No video selected</span>
+                <span>No Video Selected</span>
               </div>
             )}
             <div className="promo-videos-placement-card__field">
-              <label htmlFor="promo-home-select">Choose video</label>
+              <label htmlFor="promo-home-select">Choose Video</label>
               <select
                 id="promo-home-select"
                 value={selection.homepageVideoId || ''}
@@ -245,11 +245,11 @@ export function PromoVideosManagementView({ state }) {
             ) : (
               <div className="promo-videos-placement-card__preview-empty">
                 <i className="fas fa-image" aria-hidden="true" />
-                <span>No video selected</span>
+                <span>No Video Selected</span>
               </div>
             )}
             <div className="promo-videos-placement-card__field">
-              <label htmlFor="promo-about-select">Choose video</label>
+              <label htmlFor="promo-about-select">Choose Video</label>
               <select
                 id="promo-about-select"
                 value={selection.aboutVideoId || ''}
@@ -395,7 +395,7 @@ export function PromoVideosManagementView({ state }) {
             <form onSubmit={handleSave}>
               <div className="promo-videos-modal__body">
                 <label className="promo-videos-modal__field">
-                  <span>Display name <RequiredMark /></span>
+                  <span>Display Name <RequiredMark /></span>
                   <input
                     type="text"
                     value={form.name}
@@ -428,7 +428,7 @@ export function PromoVideosManagementView({ state }) {
                     {thumbDragActive ? (
                       <div className="course-image-section__drop-overlay">
                         <i className="fas fa-cloud-upload-alt" aria-hidden="true" />
-                        <span>Drop image here</span>
+                        <span>Drop Image Here</span>
                       </div>
                     ) : null}
 
@@ -452,7 +452,7 @@ export function PromoVideosManagementView({ state }) {
                         ) : (
                           <div className="course-image-section__preview-empty">
                             <i className="fas fa-image" aria-hidden="true" />
-                            <span>No thumbnail</span>
+                            <span>No Thumbnail</span>
                           </div>
                         )}
                         {hasThumbSelection ? (

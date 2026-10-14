@@ -33,7 +33,7 @@ const PAYROLL_QUEUE_COLS = {
 };
 
 const statusLabel = (status) => {
-  if (status === 'pending_review') return 'Pending review';
+  if (status === 'pending_review') return 'Pending Review';
   if (status === 'stale') return 'Out of Date';
   if (status === 'rejected') return 'Rejected';
   if (status === 'paid') return 'Paid';
@@ -236,7 +236,7 @@ const AccountantPayroll = () => {
     setConfirmModal({
       title: 'Override with manual attendance?',
       message: `This replaces admin-approved attendance for ${teacherName} (${exceptionForm.monthKey}) with the manual counts you entered. Only use this when approved attendance is unavailable.`,
-      confirmLabel: 'Save manual attendance',
+      confirmLabel: 'Save Manual Attendance',
       tone: 'primary',
       onConfirm: doSaveException,
     });
@@ -420,7 +420,7 @@ const AccountantPayroll = () => {
       <div className="accountant-payroll-stats">
         <div className="accountant-payroll-stat accountant-payroll-stat--pending">
           <span className="accountant-payroll-stat__value">{stats.pending}</span>
-          <span className="accountant-payroll-stat__label">Pending review</span>
+          <span className="accountant-payroll-stat__label">Pending Review</span>
         </div>
         <div className="accountant-payroll-stat accountant-payroll-stat--stale">
           <span className="accountant-payroll-stat__value">{stats.stale}</span>
@@ -459,7 +459,7 @@ const AccountantPayroll = () => {
                 onChange={(e) => setProfileForm({ ...profileForm, teacherId: e.target.value })}
                 required
               >
-                <option value="">Select teacher</option>
+                <option value="">Select Teacher</option>
                 {teachersForNewProfile.map((row) => (
                   <option key={row.teacher._id} value={row.teacher._id}>
                     {row.teacher.name}
@@ -467,20 +467,20 @@ const AccountantPayroll = () => {
                 ))}
               </select>
             </label>
-            <label className="portal-field-label">
-              <span>Monthly salary <RequiredMark /></span>
+            <label className="portal-field-label portal-field-label--compact">
+              <span>Monthly Salary <RequiredMark /></span>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="Monthly salary"
+                placeholder="Monthly Salary"
                 value={profileForm.monthlySalary}
                 onChange={(e) => setProfileForm({ ...profileForm, monthlySalary: e.target.value })}
                 required
               />
             </label>
             <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--primary">
-              Add salary profile
+              Add Salary Profile
             </button>
           </form>
         )}
@@ -812,7 +812,7 @@ const AccountantPayroll = () => {
               />
             </div>
             <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--secondary">
-              Save manual attendance
+              Save Manual Attendance
             </button>
           </form>
         </section>
@@ -837,8 +837,8 @@ const AccountantPayroll = () => {
                   required
                 />
               </label>
-              <label className="portal-field-label">
-                <span>Monthly salary <RequiredMark /></span>
+              <label className="portal-field-label portal-field-label--compact">
+                <span>Monthly Salary <RequiredMark /></span>
                 <input
                   type="number"
                   min="0"
@@ -855,7 +855,7 @@ const AccountantPayroll = () => {
                   Cancel
                 </button>
                 <button type="submit" className="accountant-payroll-btn accountant-payroll-btn--primary">
-                  Save profile
+                  Save Profile
                 </button>
               </div>
             </form>
@@ -872,7 +872,7 @@ const AccountantPayroll = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="edit-payroll-title">
-              Edit payroll — {editPayrollModal.teacherName} ({editPayrollModal.monthKey})
+              Edit Payroll — {editPayrollModal.teacherName} ({editPayrollModal.monthKey})
             </h3>
             <p className="accountant-payroll-hint">
               Base salary for this run: ${Number(editPayrollModal.monthlySalary).toFixed(2)}. Changing absent
@@ -903,7 +903,7 @@ const AccountantPayroll = () => {
                 />
               </label>
               <label className="portal-field-label">
-                <span>Final salary ($) <RequiredMark /></span>
+                <span>Final Salary ($) <RequiredMark /></span>
                 <input
                   type="number"
                   min="0"
@@ -934,7 +934,7 @@ const AccountantPayroll = () => {
                   className="accountant-payroll-btn accountant-payroll-btn--primary"
                   disabled={busyId === editPayrollModal.runId}
                 >
-                  Save payroll
+                  Save Payroll
                 </button>
               </div>
             </form>
@@ -959,7 +959,7 @@ const AccountantPayroll = () => {
             </p>
             <form onSubmit={rejectPayroll}>
               <label className="portal-field-label">
-                <span>Rejection note <RequiredMark /></span>
+                <span>Rejection Note <RequiredMark /></span>
                 <textarea
                   rows={4}
                   value={rejectModal.note}

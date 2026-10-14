@@ -36,7 +36,7 @@ async function sendResubscribeEmail(email, token) {
         await transporter.sendMail({
             from: `"${fromName}" <${fromEmail}>`,
             to,
-            subject: 'Confirm Gorythm Academy course updates',
+            subject: 'Confirm Gorythm Academy Course Updates',
             text,
             html: `<p>Someone asked to turn Gorythm Academy course updates back on for this email.</p>
 <p><a href="${escapeHtml(link)}">Confirm course updates</a></p>

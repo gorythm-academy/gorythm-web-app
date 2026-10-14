@@ -284,7 +284,7 @@ const CourseSelect = ({ id, value, onChange, courses, required = false }) => (
   <label className="portal-field-label portal-field-label--course" htmlFor={id}>
     <span>Course {required ? <RequiredMark /> : null}</span>
     <select id={id} value={value} onChange={(e) => onChange(e.target.value)} required={required}>
-      <option value="">Select course</option>
+      <option value="">Select Course</option>
       {courses.map((c) => (
         <option key={portalDocId(c)} value={portalDocId(c)}>
           {c.title}
@@ -640,7 +640,7 @@ const TeacherMyAttendance = () => {
         </div>
 
         <div className="my-attendance-date-picker">
-          <label htmlFor="my-attendance-month">Which day?</label>
+          <label htmlFor="my-attendance-month">Which Day?</label>
           <div className="my-attendance-picker-layout">
             <div className="my-attendance-picker-layout__calendar">
           <div className="my-attendance-calendar-section my-attendance-picker-calendar">
@@ -804,7 +804,7 @@ const TeacherMyAttendance = () => {
                 </p>
 
                 <p className="my-attendance-notes">
-                  <span>Your status for this day</span>
+                  <span>Your Status for This Day</span>
                 </p>
                 <div
                   className={`my-attendance-status-grid my-attendance-status-grid--${TEACHER_MY_STATUS_OPTIONS.length}`}
@@ -825,7 +825,7 @@ const TeacherMyAttendance = () => {
                 </div>
 
                 <div className="my-attendance-notes">
-                  <label htmlFor="my-attendance-notes">Notes (optional)</label>
+                  <label htmlFor="my-attendance-notes">Notes (Optional)</label>
                   <textarea
                     id="my-attendance-notes"
                     rows={3}
@@ -841,8 +841,8 @@ const TeacherMyAttendance = () => {
                   {submitting
                     ? 'Saving…'
                     : existingForDay
-                      ? 'Update & resubmit for approval'
-                      : 'Submit daily attendance'}
+                      ? 'Update & Resubmit for Approval'
+                      : 'Submit Daily Attendance'}
                 </button>
                 {saveNotice ? (
                   <p className="portal-attendance-save-success" role="status" aria-live="polite">

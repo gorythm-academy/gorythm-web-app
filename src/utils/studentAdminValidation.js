@@ -45,18 +45,23 @@ export const formatLoginEmailNotice = (loginEmail) => {
     return '';
 };
 
+export const isLoginEmailSent = (user) => Boolean(user?.loginEmailSentAt);
+
 export const formatLoginEmailStatus = (user) => {
     if (!user) return '';
     if (user.loginEmailSentAt) {
         const when = new Date(user.loginEmailSentAt);
         const date = Number.isNaN(when.getTime()) ? '' : when.toLocaleString();
         const to = Array.isArray(user.loginEmailSentTo) && user.loginEmailSentTo.length
-            ? ` to ${user.loginEmailSentTo.join(', ')}`
+            ? user.loginEmailSentTo.join(', ')
             : '';
-        return `Login email sent${date ? ` ${date}` : ''}${to}.`;
+        if (to && date) return `Sent ${date} to ${to}`;
+        if (to) return `Sent to ${to}`;
+        if (date) return `Sent ${date}`;
+        return 'Login email sent.';
     }
     if (user.loginEmailLastError) return user.loginEmailLastError;
-    return 'Login email has not been sent.';
+    return 'Not sent yet — send the login email after portal login and personal email are set.';
 };
 
 export const validatePasswordPair = (password, confirmPassword, { required = false } = {}) => {

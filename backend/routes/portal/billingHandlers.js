@@ -22,6 +22,7 @@ const { maxPayableMonths } = require('../../utils/feeDueDate');
 const { activePaymentFilter, studentPaymentsFilter, paymentsForStudentsFilter } = require('../../utils/paymentQuery');
 const { serializePayments } = require('../../utils/serializePayment');
 const { buildPaymentInvoicePdf } = require('../../utils/paymentInvoicePdf');
+const { normalizeWhatsAppNumber } = require('../../utils/phoneE164');
 const { isPaidStatus } = require('../../services/onPaymentPaid');
 const { createCheckoutSessionWithFallback: createStripeCheckoutSession } = require('../../utils/stripeMoney');
 const { ensureInvoiceNumber } = require('../../utils/invoiceNumber');
@@ -390,9 +391,9 @@ async function submitPortalBankPayment({ actor, enrollmentIds, invoiceMode, proo
         err.status = 400;
         throw err;
     }
-    const phoneDigits = String(phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 8 || phoneDigits.length > 15) {
-        const err = new Error('Enter a valid phone number with 8 to 15 digits');
+    const phoneResult = normalizeWhatsAppNumber(phone, { required: true });
+    if (!phoneResult.ok) {
+        const err = new Error(phoneResult.error);
         err.status = 400;
         throw err;
     }
@@ -414,7 +415,7 @@ async function submitPortalBankPayment({ actor, enrollmentIds, invoiceMode, proo
         transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
         proofUrl,
         proofSubmittedAt: new Date(),
-        phone: phoneDigits,
+        phone: phoneResult.e164,
         email: actor.email,
         studentName: payerName || actor.name,
         payerUser: actor.userId,

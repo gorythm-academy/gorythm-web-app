@@ -155,7 +155,7 @@ const SubscribeSection = () => {
                 <span className="subscribe-checkbox-box" aria-hidden="true" />
                 <span className="subscribe-privacy-text">
                   I agree to the{' '}
-                  <Link to="/privacy" className="subscribe-privacy-link">
+                  <Link to="/privacy" className="subscribe-privacy-link" target="_blank" rel="noopener noreferrer">
                     Privacy Policy
                   </Link>
                 </span>

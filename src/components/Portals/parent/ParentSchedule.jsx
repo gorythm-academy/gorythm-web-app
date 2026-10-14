@@ -73,7 +73,7 @@ const ParentSchedule = () => {
     <div className="portal-page student-schedule">
       <PortalPageHeader
         title="Class Schedules"
-        subtitle="Paid courses show class times. Unpaid courses stay listed until the fee is received."
+        subtitle="Class time is shown for where you are. Outside Pakistan, Pakistan time is listed under it."
       />
 
       <div className="student-schedule__hero">

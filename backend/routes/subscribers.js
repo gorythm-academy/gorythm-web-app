@@ -200,6 +200,22 @@ router.post('/unsubscribe', publicWriteRateLimiter, async (req, res) => {
   }
 });
 
+router.get('/admin/unseen-count', ...adminOnly, async (req, res) => {
+  try {
+    const sinceRaw = String(req.query.since || '').trim();
+    const since = sinceRaw ? new Date(sinceRaw) : null;
+    const sinceOk = since && !Number.isNaN(since.getTime());
+    if (!sinceOk) {
+      return res.json({ success: true, count: 0 });
+    }
+    const count = await Subscriber.countDocuments({ createdAt: { $gt: since } });
+    return res.json({ success: true, count });
+  } catch (error) {
+    req.log?.error?.('subscriber unseen count', { err: error });
+    return res.status(500).json({ success: false, error: 'Failed to load subscriber badge', count: 0 });
+  }
+});
+
 router.get('/admin', ...adminOnly, async (req, res) => {
   try {
     const fetchAll = req.query.all === 'true' || req.query.all === '1';

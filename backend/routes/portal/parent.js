@@ -57,7 +57,7 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
                 ...activeEnrollmentFilter(),
             })
                 .populate('course', 'title deletedAt price')
-                .populate('assignedSchedule', 'dayOfWeek startTime endTime')
+                .populate('assignedSchedule', 'dayOfWeek startTime endTime timezone')
         );
         const enrolledCourseIds = [
             ...new Set(
@@ -95,6 +95,7 @@ router.get('/parent/dashboard', allowPortalRoles('parent'), async (req, res) => 
                 dayOfWeek: slot && slot.dayOfWeek != null ? slot.dayOfWeek : null,
                 startTime: slot?.startTime || '',
                 endTime: slot?.endTime || '',
+                timezone: slot?.timezone || 'Asia/Karachi',
             });
             coursesByStudent.set(sid, list);
         }
@@ -251,7 +252,7 @@ router.post('/parent/billing/bank', allowPortalRoles('parent'), (req, res) => {
                     enrollmentIds = String(enrollmentIds).split(',').map((id) => id.trim()).filter(Boolean);
                 }
             }
-            const phone = String(req.body?.phone || '').replace(/\D/g, '');
+            const phone = req.body?.phone;
             const payments = await submitPortalBankPayment({
                 actor: {
                     userId: req.portalActorId,

@@ -84,10 +84,10 @@ const FooterSimple = () => {
 
         <div className="footer-milky-bottom">
           <nav className="footer-milky-legal" aria-label="Legal">
-            <NavLink to="/privacy">Privacy Policy</NavLink>
-            <NavLink to="/terms">Terms of Service</NavLink>
-            <NavLink to="/refunds">Refund Policy</NavLink>
-            <NavLink to="/cookies">Cookie Policy</NavLink>
+            <NavLink to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</NavLink>
+            <NavLink to="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</NavLink>
+            <NavLink to="/refunds" target="_blank" rel="noopener noreferrer">Refund Policy</NavLink>
+            <NavLink to="/cookies" target="_blank" rel="noopener noreferrer">Cookie Policy</NavLink>
           </nav>
           <div className="footer-milky-copyright">
             Gorythm Academy © 2026. All rights reserved.

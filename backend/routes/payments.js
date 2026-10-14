@@ -27,6 +27,7 @@ const {
 } = require('../middleware/publicWriteRateLimit');
 
 const { escapeRegex } = require('../utils/escapeRegex');
+const { normalizeWhatsAppNumber } = require('../utils/phoneE164');
 
 const STRIPE_SESSION_ID_RE = /^cs_(?:test|live)_[A-Za-z0-9_]{10,200}$/;
 const {
@@ -231,7 +232,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
             const studentName = String(req.body?.studentName || '').trim();
             const email = String(req.body?.email || '').trim().toLowerCase();
             const courseIdRaw = String(req.body?.courseId || '').trim();
-            const bankDigits = String(req.body?.phone || '').replace(/\D/g, '');
+            const phoneResult = normalizeWhatsAppNumber(req.body?.phone, { required: true });
 
             if (!studentName || !email) {
                 return res.status(400).json({
@@ -251,10 +252,10 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                     error: 'Payment proof screenshot or PDF is required',
                 });
             }
-            if (bankDigits.length < 8 || bankDigits.length > 15) {
+            if (!phoneResult.ok) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Enter a valid phone number with 8 to 15 digits',
+                    error: phoneResult.error,
                 });
             }
 
@@ -307,7 +308,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                     transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
                     proofUrl: savedProofPath,
                     proofSubmittedAt: new Date(),
-                    phone: bankDigits,
+                    phone: phoneResult.e164,
                     email,
                     studentName,
                     currency: 'USD',
@@ -364,7 +365,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
             const payment = new Payment({
                 studentName,
                 email,
-                phone: bankDigits,
+                phone: phoneResult.e164,
                 courseName: course.title,
                 course: course._id,
                 amount: coursePrice,
@@ -1187,6 +1188,46 @@ router.post('/:id/mark-received', allowPermission('payments.write'), async (req,
         });
     } catch (error) {
         res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to mark payment received' });
+    }
+});
+
+router.post('/:id/send-receipt', allowPermission('payments.write'), async (req, res) => {
+    try {
+        const payment = await Payment.findOne({ _id: req.params.id, ...activePaymentFilter() })
+            .populate('user', 'name email personalEmail')
+            .populate('course', 'title');
+        if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+        if (!isPaidStatus(payment.status)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Only paid payments can send an invoice email',
+            });
+        }
+        const force = req.body?.force !== false;
+        const { sendPaymentReceiptEmail } = require('../services/sendPaymentReceiptEmail');
+        const result = await sendPaymentReceiptEmail(payment, { force });
+        if (!result.sent) {
+            const reason = result.reason || 'send_failed';
+            const message = reason === 'missing_email'
+                ? 'No personal email on this payment. Add one on the student account first.'
+                : reason === 'smtp_unconfigured'
+                    ? 'Email is not configured on the server.'
+                    : reason === 'already_sent'
+                        ? 'Invoice email was already sent.'
+                        : `Could not send invoice email (${reason}).`;
+            return res.status(400).json({ success: false, error: message, reason });
+        }
+        const updated = await Payment.findById(payment._id);
+        return res.json({
+            success: true,
+            message: 'Invoice email sent',
+            payment: serializePayment(updated),
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({
+            success: false,
+            error: error.message || 'Failed to send invoice email',
+        });
     }
 });
 

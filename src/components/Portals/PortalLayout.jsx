@@ -54,7 +54,7 @@ const NAV_BY_ROLE = {
   accountant: [
     { to: '/accountant', label: 'Overview', icon: 'fas fa-chart-pie', end: true },
     { to: '/accountant/payments', label: 'Fee Reviews', icon: 'fas fa-file-invoice-dollar', badgeKey: 'payments' },
-    { to: '/accountant/payroll', label: 'Teacher Payroll', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
+    { to: '/accountant/payroll', label: 'Teacher Payrolls', icon: 'fas fa-money-check-alt', badgeKey: 'payroll', badgeDot: true },
     { to: '/accountant/reports', label: 'Financial Reports', icon: 'fas fa-file-export' },
     { to: '/accountant/account', label: 'Account', icon: 'fas fa-user-cog' },
   ],

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const ContactMessage = require('../models/ContactMessage');
 const authMiddleware = require('../middleware/auth');
@@ -8,6 +9,7 @@ const { allowRoles } = require('../middleware/authorize');
 const { validate, rules } = require('../middleware/validate');
 const { publicWriteRateLimiter } = require('../middleware/publicWriteRateLimit');
 const { escapeHtml } = require('../utils/escapeHtml');
+const { normalizeWhatsAppNumber } = require('../utils/phoneE164');
 const { OFFICIAL_EMAIL, officialEmail } = require('../utils/officialEmail');
 
 const adminOnly = [authMiddleware, validateSessionUser, allowRoles('super-admin', 'manager')];
@@ -21,6 +23,13 @@ const trashedMessageFilter = () => ({
 });
 
 const CONTACT_MESSAGE_LIST_LIMIT = 500;
+const CONTACT_REPLY_MAX = 5000;
+
+function quoteForEmail(value) {
+  const text = String(value || '').trim();
+  if (text.length <= 2000) return text;
+  return `${text.slice(0, 1999)}…`;
+}
 
 // Helper: create transporter from settings
 async function createTransporter() {
@@ -77,16 +86,14 @@ router.post(
       });
     }
 
-    const phoneStr = phone != null && String(phone).trim() !== '' ? String(phone).trim() : '';
-    if (phoneStr) {
-      const digitsOnly = /^\d{7,15}$/;
-      if (!digitsOnly.test(phoneStr)) {
-        return res.status(400).json({
-          success: false,
-          error: 'WhatsApp number must be 7–15 digits (country code, numbers only).',
-        });
-      }
+    const phoneResult = normalizeWhatsAppNumber(phone, { required: false });
+    if (!phoneResult.ok) {
+      return res.status(400).json({
+        success: false,
+        error: phoneResult.error,
+      });
     }
+    const phoneStr = phoneResult.e164;
 
     // Save to MongoDB so you can see all queries in admin later
     const contactMessage = await ContactMessage.create({
@@ -106,7 +113,7 @@ router.post(
       const mailSubject =
         subject && subject.trim()
           ? `[Gorythm Contact] ${subject.trim()}`
-          : '[Gorythm Contact] New enquiry';
+          : '[Gorythm Contact] New Enquiry';
 
       const safeName = escapeHtml(name);
       const safeEmail = escapeHtml(email);
@@ -117,7 +124,7 @@ router.post(
         `New contact enquiry from Gorythm Academy website:\n\n` +
         `Name: ${name}\n` +
         `Email: ${email}\n` +
-        (phoneStr ? `Whatsapp Number: ${phoneStr}\n` : '') +
+        (phoneStr ? `WhatsApp Number: ${phoneStr}\n` : '') +
         `Consent: ${consent ? 'Yes' : 'No'}\n\n` +
         `Message:\n${message}\n\n` +
         `Message ID: ${contactMessage._id}\n` +
@@ -128,7 +135,7 @@ router.post(
         `<ul>` +
         `<li><strong>Name:</strong> ${safeName}</li>` +
         `<li><strong>Email:</strong> ${safeEmail}</li>` +
-        (phoneStr ? `<li><strong>Whatsapp Number:</strong> ${safePhone}</li>` : '') +
+        (phoneStr ? `<li><strong>WhatsApp Number:</strong> ${safePhone}</li>` : '') +
         `<li><strong>Consent:</strong> ${consent ? 'Yes' : 'No'}</li>` +
         `</ul>` +
         `<p><strong>Message:</strong></p>` +
@@ -164,6 +171,19 @@ router.post(
       success: false,
       error: 'Failed to submit contact form',
     });
+  }
+});
+
+router.get('/admin/unseen-count', ...adminOnly, async (req, res) => {
+  try {
+    const count = await ContactMessage.countDocuments({
+      ...activeMessageFilter(),
+      status: 'new',
+    });
+    return res.json({ success: true, count });
+  } catch (error) {
+    req.log?.error?.('contact unseen count', { err: error });
+    return res.status(500).json({ success: false, error: 'Failed to load contact badge', count: 0 });
   }
 });
 
@@ -247,6 +267,84 @@ router.patch('/admin/messages/:id/status', ...adminOnly, async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to update message status' });
   }
 });
+
+router.post(
+  '/admin/messages/:id/reply',
+  ...adminOnly,
+  validate([rules.requiredString('message', 'Reply')]),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id || '');
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(404).json({ success: false, error: 'Contact message not found' });
+      }
+
+      const reply = String(req.body?.message || '').trim();
+      if (reply.length > CONTACT_REPLY_MAX) {
+        return res.status(400).json({
+          success: false,
+          error: `Reply must be ${CONTACT_REPLY_MAX} characters or fewer`,
+        });
+      }
+
+      const contactMessage = await ContactMessage.findOne({
+        _id: id,
+        ...activeMessageFilter(),
+      });
+      if (!contactMessage) {
+        return res.status(404).json({ success: false, error: 'Contact message not found or deleted' });
+      }
+
+      const toEmail = String(contactMessage.email || '').trim();
+      if (!toEmail) {
+        return res.status(400).json({
+          success: false,
+          error: 'This message has no email address to reply to',
+        });
+      }
+
+      const original = quoteForEmail(contactMessage.message);
+      const safeReply = escapeHtml(reply);
+      const safeOriginal = escapeHtml(original);
+      const safeName = escapeHtml(contactMessage.name || 'there');
+
+      try {
+        const { transporter, fromEmail, fromName } = await createTransporter();
+        await transporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
+          to: toEmail,
+          replyTo: fromEmail,
+          subject: 'Reply from Gorythm Academy',
+          text:
+            `Hello ${contactMessage.name || 'there'},\n\n` +
+            `${reply}\n\n` +
+            `---\nYou wrote:\n${original}\n`,
+          html:
+            `<p>Hello ${safeName},</p>` +
+            `<p>${safeReply.replace(/\n/g, '<br/>')}</p>` +
+            `<hr/>` +
+            `<p style="color:#64748b;font-size:13px"><strong>You wrote:</strong><br/>${safeOriginal.replace(/\n/g, '<br/>')}</p>`,
+        });
+      } catch (err) {
+        req.log?.error?.('contact reply email', { err });
+        return res.status(503).json({
+          success: false,
+          error: 'Could not send the reply email. Check the mail settings and try again.',
+        });
+      }
+
+      if (contactMessage.status !== 'resolved') {
+        contactMessage.status = 'resolved';
+        await contactMessage.save();
+      }
+
+      return res.json({ success: true, message: contactMessage });
+    } catch (error) {
+      req.log?.error?.('contact reply', { err: error });
+      return res.status(500).json({ success: false, error: 'Failed to send reply' });
+    }
+  }
+);
 
 // Admin endpoint: soft-delete a contact message
 router.delete('/admin/messages/:id', ...adminOnly, async (req, res) => {

@@ -246,6 +246,7 @@ const PortalBillingCheckout = ({
   const [saveCardForAutoPay, setSaveCardForAutoPay] = useState(false);
   const [proofFile, setProofFile] = useState(null);
   const [phone, setPhone] = useState('');
+  const [phoneStatus, setPhoneStatus] = useState('empty');
   const [historyError, setHistoryError] = useState('');
   const [downloadingKey, setDownloadingKey] = useState('');
   const [invoicePicker, setInvoicePicker] = useState(null);
@@ -608,7 +609,9 @@ const PortalBillingCheckout = ({
                 hasBankInfo,
                 bankDetails,
                 phone,
+                phoneStatus,
                 setPhone,
+                setPhoneStatus,
                 setProofFile,
                 selectedTotal,
                 proofFile,

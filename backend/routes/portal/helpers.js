@@ -89,6 +89,7 @@ function normalizeStudentScheduleSlot(scheduleDoc) {
         dayOfWeek: scheduleDoc.dayOfWeek,
         startTime: scheduleDoc.startTime,
         endTime: scheduleDoc.endTime,
+        timezone: scheduleDoc.timezone || 'Asia/Karachi',
         roomOrLink: scheduleDoc.roomOrLink || '',
         teacher: scheduleDoc.teacher,
     };
@@ -109,6 +110,7 @@ function publicEnrollmentSummary(row) {
                 dayOfWeek: schedule.dayOfWeek,
                 startTime: schedule.startTime,
                 endTime: schedule.endTime,
+                timezone: schedule.timezone || 'Asia/Karachi',
             }
             : null,
         scheduleLocked: !paid,

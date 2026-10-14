@@ -73,7 +73,7 @@ const TeacherAttendanceTab = ({
     {pendingAttendanceSummary.length > 0 || pendingMonthlySummary.length > 0 ? (
       <div className="lms-attendance-pending-banner" role="region" aria-label="Pending attendance">
         <strong>
-          <i className="fas fa-bell" aria-hidden="true" /> Pending approval — click to open
+          <i className="fas fa-bell" aria-hidden="true" /> Pending Approval — Click to Open
         </strong>
         <div className="lms-attendance-pending-banner__chips">
           {pendingAttendanceSummary.map((item) => (
@@ -140,7 +140,7 @@ const TeacherAttendanceTab = ({
             value={dailyTeacherFilter}
             onChange={(e) => setDailyTeacherFilter(e.target.value)}
           >
-            <option value="">All teachers</option>
+            <option value="">All Teachers</option>
             {dailyTeachers.map((t) => (
               <option key={t._id} value={t._id}>
                 {t.name}
@@ -151,13 +151,13 @@ const TeacherAttendanceTab = ({
         </label>
         <label className="lms-attendance-field">
           <span>
-            <i className="fas fa-filter" aria-hidden="true" /> Approval status
+            <i className="fas fa-filter" aria-hidden="true" /> Approval Status
           </span>
           <select
             value={dailyStatusFilter}
             onChange={(e) => setDailyStatusFilter(e.target.value)}
           >
-            <option value="pending">Pending approval</option>
+            <option value="pending">Pending Approval</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="all">All</option>

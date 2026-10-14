@@ -96,7 +96,7 @@ test('login card names the portal login and leaves out a password', () => {
         courses: ['Quran — Fatima, Sunday 16:00–17:00'],
         children: [],
     });
-    assert.match(text, /Portal login: ali@gorythmacademy.com/);
+    assert.match(text, /Portal Login: ali@gorythmacademy.com/);
     assert.match(text, /GRT-2026-001/);
     assert.match(text, /Quran — Fatima/);
     assert.equal(text.includes('password is'), false);

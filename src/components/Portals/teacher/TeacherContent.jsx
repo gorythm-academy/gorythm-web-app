@@ -441,9 +441,9 @@ const TeacherContent = () => {
 
   const renderCourseFilter = (value, onChange, count) => (
     <label className="teacher-assignments__filter">
-      <span className="teacher-assignments__filter-label">Filter by course</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by course">
-        <option value="all">All courses</option>
+      <span className="teacher-assignments__filter-label">Filter by Course</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by Course">
+        <option value="all">All Courses</option>
         {courseOptions.map((c) => (
           <option key={c._id} value={c._id}>
             {c.title}
@@ -491,7 +491,7 @@ const TeacherContent = () => {
               </button>
               {locked ? (
                 <button type="button" className="teacher-assignments__btn teacher-assignments__btn--ghost teacher-assignments__btn--small" onClick={() => extendDueDateAssignment(a)}>
-                  Extend due
+                  Extend Due
                 </button>
               ) : (
                 <>
@@ -650,7 +650,7 @@ const TeacherContent = () => {
                     required
                     disabled={!!editingAssignId}
                   >
-                    <option value="">Select course</option>
+                    <option value="">Select Course</option>
                     {courses.map((c) => (
                       <option key={c._id} value={c._id}>
                         {c.title}
@@ -660,13 +660,13 @@ const TeacherContent = () => {
                 </label>
                 {editingAssignId ? (
                   <label className="portal-field-label">
-                    <span>Class slot <RequiredMark /></span>
+                    <span>Class Slot <RequiredMark /></span>
                     <select
                       value={assignForm.scheduleId}
                       onChange={(e) => setAssignForm({ ...assignForm, scheduleId: e.target.value })}
                       required
                     >
-                      <option value="">Select class slot</option>
+                      <option value="">Select Class Slot</option>
                       {courseScheduleOptions.map((slot) => (
                         <option key={slot._id} value={slot._id}>
                           {formatScheduleLabel(slot)}
@@ -677,7 +677,7 @@ const TeacherContent = () => {
                 ) : (
                   <div className="teacher-assignments__slot-select">
                     <div className="teacher-assignments__slot-head">
-                      <span>Class slots <RequiredMark /></span>
+                      <span>Class Slots <RequiredMark /></span>
                       {courseScheduleOptions.length ? (
                         <label className="teacher-assignments__slot-all">
                           <input
@@ -699,7 +699,7 @@ const TeacherContent = () => {
                               });
                             }}
                           />
-                          <span>Select all</span>
+                          <span>Select All</span>
                         </label>
                       ) : null}
                     </div>
@@ -747,7 +747,7 @@ const TeacherContent = () => {
               </>
             )}
             <label className="portal-field-label">
-              <span>Due date <RequiredMark /></span>
+              <span>Due Date <RequiredMark /></span>
               <input
                 type="date"
                 value={assignForm.dueDate}
@@ -771,7 +771,7 @@ const TeacherContent = () => {
                   />
                 </label>
                 <FileUploadField
-                  label="Attachments for students (PDF / file)"
+                  label="Attachments for Students (PDF / File)"
                   value={assignForm.attachments}
                   onChange={(attachments) => setAssignForm({ ...assignForm, attachments })}
                   category="assignments"
@@ -781,7 +781,7 @@ const TeacherContent = () => {
             ) : null}
             <div className="portal-table-actions">
               <button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : editingLockedAssign ? 'Extend due date' : editingAssignId ? 'Save changes' : 'Publish'}
+                {saving ? 'Saving…' : editingLockedAssign ? 'Extend Due Date' : editingAssignId ? 'Save Changes' : 'Publish'}
               </button>
               <button
                 type="button"
@@ -872,7 +872,7 @@ const TeacherContent = () => {
                     </th>
                     <th>Title</th>
                     <th>Course</th>
-                    <th>Class slot</th>
+                    <th>Class Slot</th>
                     <th>Due</th>
                     <th>Actions</th>
                   </tr>

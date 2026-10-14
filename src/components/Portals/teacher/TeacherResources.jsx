@@ -385,7 +385,7 @@ const TeacherResources = () => {
                 }
                 required
               >
-                <option value="">Select course</option>
+                <option value="">Select Course</option>
                 {courses.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -395,13 +395,13 @@ const TeacherResources = () => {
             </label>
             {editingResourceId ? (
               <label className="portal-field-label">
-                <span>Class slot <RequiredMark /></span>
+                <span>Class Slot <RequiredMark /></span>
                 <select
                   value={resourceForm.scheduleId}
                   onChange={(e) => setResourceForm({ ...resourceForm, scheduleId: e.target.value })}
                   required
                 >
-                  <option value="">Select class slot</option>
+                  <option value="">Select Class Slot</option>
                   {courseScheduleOptions.map((slot) => (
                     <option key={slot._id} value={slot._id}>
                       {formatScheduleLabel(slot)}
@@ -412,7 +412,7 @@ const TeacherResources = () => {
             ) : (
               <div className="teacher-resources__slot-select">
                 <div className="teacher-resources__slot-head">
-                  <span>Class slots <RequiredMark /></span>
+                  <span>Class Slots <RequiredMark /></span>
                   {courseScheduleOptions.length ? (
                     <label className="teacher-resources__slot-all">
                       <input
@@ -430,7 +430,7 @@ const TeacherResources = () => {
                           setResourceForm({ ...resourceForm, scheduleIds: allSelected ? [] : allIds });
                         }}
                       />
-                      <span>Select all</span>
+                      <span>Select All</span>
                     </label>
                   ) : null}
                 </div>
@@ -488,7 +488,7 @@ const TeacherResources = () => {
             </label>
             {resourceForm.type === 'file' ? (
               <FileUploadField
-                label={<>Upload file (PDF, Word, image) <RequiredMark /></>}
+                label={<>Upload File (PDF, Word, Image) <RequiredMark /></>}
                 value={resourceForm.attachments}
                 onChange={(attachments) => setResourceForm({ ...resourceForm, attachments })}
                 category="content/books"
@@ -511,7 +511,7 @@ const TeacherResources = () => {
             {resourceForm.type === 'note' ? (
               <>
                 <label className="portal-field-label">
-                  <span>Note content <RequiredMark /></span>
+                  <span>Note Content <RequiredMark /></span>
                   <textarea
                     rows={4}
                     placeholder="Write the note students will read"
@@ -521,10 +521,10 @@ const TeacherResources = () => {
                   />
                 </label>
                 <label className="portal-field-label">
-                  <span>Optional attachment URL</span>
+                  <span>Optional Attachment URL</span>
                   <input
                     type="url"
-                    placeholder="https://… (optional)"
+                    placeholder="https://… (Optional)"
                     value={resourceForm.fileUrl}
                     onChange={(e) => setResourceForm({ ...resourceForm, fileUrl: e.target.value })}
                     autoComplete="off"
@@ -534,7 +534,7 @@ const TeacherResources = () => {
             ) : null}
             {resourceForm.type !== 'note' ? (
               <label className="portal-field-label">
-                <span>Description (optional)</span>
+                <span>Description (Optional)</span>
                 <textarea
                   rows={2}
                   placeholder="Short description for students"
@@ -545,7 +545,7 @@ const TeacherResources = () => {
             ) : null}
             <div className="portal-table-actions">
               <button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : editingResourceId ? 'Save changes' : 'Add resource'}
+                {saving ? 'Saving…' : editingResourceId ? 'Save Changes' : 'Add Resource'}
               </button>
               <button
                 type="button"
@@ -572,7 +572,7 @@ const TeacherResources = () => {
                   className="teacher-resources__make-btn"
                   onClick={() => setShowForm(true)}
                 >
-                  <i className="fas fa-plus" aria-hidden="true" /> Add resource
+                  <i className="fas fa-plus" aria-hidden="true" /> Add Resource
                 </button>
               ) : null}
             </div>
@@ -592,9 +592,9 @@ const TeacherResources = () => {
               <select
                 value={courseFilter}
                 onChange={(e) => setCourseFilter(e.target.value)}
-                aria-label="Filter by course"
+                aria-label="Filter by Course"
               >
-                <option value="">All courses</option>
+                <option value="">All Courses</option>
                 {courses.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -634,7 +634,7 @@ const TeacherResources = () => {
               <i className="fas fa-folder-open" aria-hidden="true" />
               <p>
                 {resources.length === 0
-                  ? 'No resources yet. Click “Add resource” to upload your first file.'
+                  ? 'No resources yet. Click “Add Resource” to upload your first file.'
                   : 'No resources match your search or filter.'}
               </p>
             </div>
@@ -653,7 +653,7 @@ const TeacherResources = () => {
                     </th>
                     <th>Title</th>
                     <th>Course</th>
-                    <th>Class slot</th>
+                    <th>Class Slot</th>
                     <th>Type</th>
                     <th>Action</th>
                   </tr>
@@ -698,7 +698,7 @@ const TeacherResources = () => {
                               <i className="fas fa-eye" aria-hidden /> Preview
                             </button>
                             {locked ? (
-                              <span className="teacher-resources__view-only">View only</span>
+                              <span className="teacher-resources__view-only">View Only</span>
                             ) : (
                               <>
                                 <button

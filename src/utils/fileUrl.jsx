@@ -242,8 +242,60 @@ export function ProtectedFileImage({ path, linkOptions, ...rest }) {
   return <img src={src} alt="" {...rest} />;
 }
 
+function isPdfUploadPath(path) {
+  const stored = normalizeStoredUploadPath(path) || String(path || '').split('?')[0];
+  return stored.toLowerCase().endsWith('.pdf');
+}
+
+/**
+ * PDF proofs are shown from a blob URL. The upload response carries
+ * Content-Security-Policy: object-src 'none', which blocks Chrome's PDF viewer
+ * when the iframe points at the file itself.
+ */
 export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
-  const src = useAuthorizedFileUrl(path, linkOptions);
+  const proofToken = linkOptions?.proofToken || linkOptions?.uploadToken || '';
+  const realm = linkOptions?.realm;
+  const pdf = isPdfUploadPath(path);
+  const directSrc = useAuthorizedFileUrl(pdf ? '' : path, linkOptions);
+  const [blobSrc, setBlobSrc] = useState('');
+
+  useEffect(() => {
+    if (!pdf || !path) {
+      setBlobSrc('');
+      return undefined;
+    }
+
+    let cancel = false;
+    let objectUrl = '';
+
+    fileAccessUrl(path, { proofToken, uploadToken: proofToken, realm })
+      .then(async (href) => {
+        if (!href || cancel) return;
+        const requestUrl = new URL(href, window.location.origin).href;
+        const res = await fetch(requestUrl, { credentials: 'include' });
+        if (!res.ok || cancel) return;
+        const bytes = await res.arrayBuffer();
+        if (cancel) return;
+        const nextUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        if (cancel) {
+          URL.revokeObjectURL(nextUrl);
+          return;
+        }
+        objectUrl = nextUrl;
+        setBlobSrc(nextUrl);
+      })
+      .catch(() => {
+        if (!cancel) setBlobSrc('');
+      });
+
+    return () => {
+      cancel = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setBlobSrc('');
+    };
+  }, [path, pdf, proofToken, realm]);
+
+  const src = pdf ? blobSrc : directSrc;
   if (!src) return null;
   return <iframe src={src} title="File" {...rest} />;
 }

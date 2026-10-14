@@ -1,7 +1,7 @@
 import React from 'react';
 import RequiredMark from '../../../shared/RequiredMark';
 import ScheduleRoomOrLink from '../../../Portals/shared/ScheduleRoomOrLink';
-import { formatTime12h } from '../../../../utils/formatTime12h';
+import ScheduleClock from '../../../shared/ScheduleClock';
 import AdminSearchBox from '../../shared/AdminSearchBox';
 import LmsPanelLoading from './LmsPanelLoading';
 
@@ -44,7 +44,7 @@ const SchedulesTab = ({
           </span>
           <div>
             <h2>{editingScheduleId ? 'Edit Class Schedule' : 'Add Class Schedule'}</h2>
-            <p>One row = one weekly time slot with a teacher for a course.</p>
+            <p>Type the class time in Pakistan time. Students see that class in their own timezone.</p>
           </div>
         </header>
         <form className="lms-schedule-form-grid" onSubmit={saveSchedule}>
@@ -57,7 +57,7 @@ const SchedulesTab = ({
               }
               required
             >
-              <option value="">Select course…</option>
+              <option value="">Select Course…</option>
               {scheduleCourseOptions.map((c) => (
                 <option key={c._id} value={c._id}>
                   {c.title}
@@ -74,8 +74,8 @@ const SchedulesTab = ({
             >
               <option value="">
                 {scheduleForm.courseId
-                  ? 'Default to course instructor'
-                  : 'Select a course first'}
+                  ? 'Default to Course Instructor'
+                  : 'Select a Course First'}
               </option>
               {teachers.map((t) => (
                 <option key={t._id} value={t._id}>
@@ -100,7 +100,7 @@ const SchedulesTab = ({
             </select>
           </label>
           <label className="lms-schedule-field">
-            <span><i className="fas fa-clock" /> Start <RequiredMark /></span>
+            <span><i className="fas fa-clock" /> Start (Pakistan Time) <RequiredMark /></span>
             <input
               type="time"
               value={scheduleForm.startTime}
@@ -109,7 +109,7 @@ const SchedulesTab = ({
             />
           </label>
           <label className="lms-schedule-field">
-            <span><i className="fas fa-clock" /> End <RequiredMark /></span>
+            <span><i className="fas fa-clock" /> End (Pakistan Time) <RequiredMark /></span>
             <input
               type="time"
               value={scheduleForm.endTime}
@@ -142,7 +142,7 @@ const SchedulesTab = ({
           <div className="lms-schedule-form-actions lms-schedule-field--full">
             <button type="submit" className={`lms-schedule-btn-primary ${editingScheduleId ? 'btn-save' : 'btn-add'}`}>
               <i className={`fas ${editingScheduleId ? 'fa-save' : 'fa-plus'}`} />
-              {editingScheduleId ? 'Save changes' : 'Add schedule'}
+              {editingScheduleId ? 'Save Changes' : 'Add Schedule'}
             </button>
             {editingScheduleId ? (
               <button type="button" className="lms-schedule-btn-secondary" onClick={resetScheduleForm}>
@@ -179,7 +179,7 @@ const SchedulesTab = ({
                 value={scheduleListCourseFilter}
                 onChange={(e) => setScheduleListCourseFilter(e.target.value)}
               >
-                <option value="all">All courses</option>
+                <option value="all">All Courses</option>
                 {scheduleCourseOptions.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.title}
@@ -295,9 +295,11 @@ const SchedulesTab = ({
                         </span>
                       </td>
                       <td className="lms-schedule-time">
-                        {formatTime12h(s.startTime)} – {formatTime12h(s.endTime)}
+                        <ScheduleClock slot={s} audience="staff" hideDay />
                       </td>
-                      <td className="lms-schedule-timezone">{s.timezone || 'UTC'}</td>
+                      <td className="lms-schedule-timezone">
+                        {s.timezone === 'Asia/Karachi' ? 'Pakistan (PKT)' : (s.timezone || 'Pakistan (PKT)')}
+                      </td>
                       <td className="lms-schedule-course">{s.course?.title || '—'}</td>
                       <td className="lms-schedule-teacher">
                         <span className="lms-schedule-teacher__name">

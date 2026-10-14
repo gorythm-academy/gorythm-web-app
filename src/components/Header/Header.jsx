@@ -566,7 +566,7 @@ const Header = () => {
                 </div>
                 <div className="mobile-menu-portrait-cta mobile-right-anim">
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Have A Question?</p>
+                    <p className="mobile-menu-gp-title">Have a Question?</p>
                     <a
                       href={`mailto:${INFO_EMAIL}`}
                       className="mobile-menu-email"
@@ -580,14 +580,14 @@ const Header = () => {
                     </a>
                   </div>
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Where To Find Us?</p>
+                    <p className="mobile-menu-gp-title">Where to Find Us?</p>
                     <Link to="/contact" className="mobile-menu-look-here" onClick={closeMobileMenu}>
                       <span>Look here</span>
                       <span className="mobile-menu-arrow" aria-hidden="true">→</span>
                     </Link>
                   </div>
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Want To Get Register?</p>
+                    <p className="mobile-menu-gp-title">Want to Get Register?</p>
                     <Link to="/payment" className="mobile-menu-enroll" onClick={closeMobileMenu}>
                       Enroll Now
                     </Link>
@@ -684,7 +684,7 @@ const Header = () => {
                 </div>
                 <div className="mobile-menu-right mobile-right-anim">
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Have A Question?</p>
+                    <p className="mobile-menu-gp-title">Have a Question?</p>
                     <a
                       href={`mailto:${INFO_EMAIL}`}
                       className="mobile-menu-email"
@@ -698,14 +698,14 @@ const Header = () => {
                     </a>
                   </div>
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Where To Find Us?</p>
+                    <p className="mobile-menu-gp-title">Where to Find Us?</p>
                     <Link to="/contact" className="mobile-menu-look-here" onClick={closeMobileMenu}>
                       <span>Look here</span>
                       <span className="mobile-menu-arrow" aria-hidden="true">→</span>
                     </Link>
                   </div>
                   <div className="mobile-menu-right-gp">
-                    <p className="mobile-menu-gp-title">Want To Get Register?</p>
+                    <p className="mobile-menu-gp-title">Want to Get Register?</p>
                     <Link to="/payment" className="mobile-menu-enroll" onClick={closeMobileMenu}>
                       Enroll Now
                     </Link>

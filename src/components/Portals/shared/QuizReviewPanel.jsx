@@ -3,7 +3,7 @@ import './QuizReviewPanel.scss';
 
 const LABELS = ['A', 'B', 'C'];
 
-export default function QuizReviewPanel({ review, title, chosenLabel = 'Your answer', compact = false }) {
+export default function QuizReviewPanel({ review, title, chosenLabel = 'Your Answer', compact = false }) {
   if (!review?.items?.length) {
     return <p className="portal-empty">No review data.</p>;
   }
@@ -28,7 +28,7 @@ export default function QuizReviewPanel({ review, title, chosenLabel = 'Your ans
             <span className="portal-quiz-review-num">{idx + 1}</span>
             {item.question}
             {item.chosenIndex < 0 ? (
-              <span className="portal-quiz-review-tag portal-quiz-review-tag--wrong"> Not answered</span>
+              <span className="portal-quiz-review-tag portal-quiz-review-tag--wrong"> Not Answered</span>
             ) : null}
           </p>
           <ul className="portal-quiz-review-options">

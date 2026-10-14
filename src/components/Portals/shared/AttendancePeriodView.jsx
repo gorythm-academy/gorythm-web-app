@@ -341,7 +341,7 @@ const AttendancePeriodView = ({
             onChange={(e) => setCourseId(e.target.value)}
             disabled={loadingCourses}
           >
-            <option value="">{loadingCourses ? 'Loading courses…' : 'Select course'}</option>
+            <option value="">{loadingCourses ? 'Loading Courses…' : 'Select Course'}</option>
             {courses.map((c) => (
               <option key={c._id} value={c._id}>
                 {c.title}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ProtectedFileLink, uploadDisplayName } from '../../../utils/fileUrl';
+import { ProtectedFileFrame, ProtectedFileLink, uploadDisplayName } from '../../../utils/fileUrl';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import QuizReviewPanel from './QuizReviewPanel';
 import './QuizPreviewModal.scss';
@@ -30,7 +30,7 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
             <i className="fas fa-book-open" />
           </span>
           <div>
-            <p className="quiz-file-view__kicker">File / Reading quiz</p>
+            <p className="quiz-file-view__kicker">File / Reading Quiz</p>
             <h3>{quiz?.title || 'Quiz'}</h3>
             <p>
               {quiz?.course?.title ? quiz.course.title : 'Course quiz'}
@@ -48,7 +48,7 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
             <i className="fas fa-link" />
           </span>
           <span>
-            <strong>Reading link</strong>
+            <strong>Reading Link</strong>
             <small>{link}</small>
           </span>
           <em>Open</em>
@@ -70,6 +70,13 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
                   </span>
                   <em>Open</em>
                 </ProtectedFileLink>
+                {kind.label === 'PDF' ? (
+                  <ProtectedFileFrame
+                    path={url}
+                    title={uploadDisplayName(url)}
+                    className="quiz-file-view__pdf"
+                  />
+                ) : null}
               </li>
             );
           })}
@@ -88,7 +95,7 @@ export default function QuizPreviewModal({
   attempt = null,
   heading = null,
   kicker = null,
-  chosenLabel = 'Your answer',
+  chosenLabel = 'Your Answer',
 }) {
   useDialogKeyboard({ isOpen: Boolean(quiz), onClose });
   if (!quiz) return null;
@@ -115,7 +122,7 @@ export default function QuizPreviewModal({
                     ? 'Student submission'
                     : 'Answer review'
                   : isFile
-                    ? 'File / Reading quiz'
+                    ? 'File / Reading Quiz'
                     : 'MCQ quiz')}
             </p>
             <h3 id="quiz-preview-title">{heading || quiz.title || 'Quiz'}</h3>
@@ -143,7 +150,7 @@ export default function QuizPreviewModal({
             </div>
           ) : null}
           <div>
-            <dt>Due date</dt>
+            <dt>Due Date</dt>
             <dd>{quiz.dueDate ? new Date(quiz.dueDate).toLocaleDateString() : 'No due date'}</dd>
           </div>
           {review?.scoreDisplay ? (
@@ -165,9 +172,9 @@ export default function QuizPreviewModal({
               <QuizFileView quiz={quiz} tone={tone} compact />
               {attemptFiles.length ? (
                 <div className="quiz-preview__attempt-files">
-                  <h4>Submitted files</h4>
+                  <h4>Submitted Files</h4>
                   <QuizFileView
-                    quiz={{ title: 'Submitted files', attachments: attemptFiles, quizType: 'file' }}
+                    quiz={{ title: 'Submitted Files', attachments: attemptFiles, quizType: 'file' }}
                     tone={tone}
                     compact
                   />

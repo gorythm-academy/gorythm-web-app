@@ -95,6 +95,8 @@ describe('recording a payment received', () => {
 
   test('the full bill is sent without an amount', async () => {
     const { user, dialog } = await openReceiveDialog();
+    expect(within(dialog).getByText(/enrolls the student\./i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/partial payment/i)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/amount received/i)).toHaveValue(40);
     await user.click(within(dialog).getByRole('button', { name: /^mark received$/i }));
     await waitFor(() => expect(axios.post).toHaveBeenCalled());

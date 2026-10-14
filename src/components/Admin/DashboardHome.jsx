@@ -13,6 +13,7 @@ import {
 } from '../../utils/adminDashboardTheme';
 import { getMeetingHref } from '../../utils/scheduleRoomOrLink';
 import { refreshUpcomingClassStatuses } from '../../utils/scheduleTimezone';
+import ScheduleClock from '../shared/ScheduleClock';
 import './DashboardHome.scss';
 
 const ACTIVITY_PREVIEW_COUNT = 8;
@@ -599,7 +600,7 @@ const DashboardHome = () => {
                                         <td>
                                             <div className="date-cell">
                                                 <i className="far fa-clock"></i>
-                                                {cls.date}
+                                                <ScheduleClock slot={cls} audience="staff" />
                                             </div>
                                         </td>
                                         <td>

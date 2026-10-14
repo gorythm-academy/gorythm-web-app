@@ -218,7 +218,7 @@ const SubscribePopup = () => {
                 />
                 <span>
                   I agree to the{' '}
-                  <Link to="/privacy" className="subscribe-popup-privacy-link">
+                  <Link to="/privacy" className="subscribe-popup-privacy-link" target="_blank" rel="noopener noreferrer">
                     Privacy Policy
                   </Link>
                   .

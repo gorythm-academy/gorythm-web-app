@@ -297,12 +297,12 @@ const ResearchComments = ({ embedded = false }) => {
               </div>
               <div className="filter-controls">
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="status-filter">
-                  <option value="all">All statuses</option>
+                  <option value="all">All Statuses</option>
                   <option value="pending">Pending</option>
                   <option value="approved">Approved</option>
                 </select>
                 <select value={filterPost} onChange={(e) => setFilterPost(e.target.value)} className="status-filter">
-                  <option value="all">All papers</option>
+                  <option value="all">All Papers</option>
                   {postOptions.map(([slug, title]) => (
                     <option key={slug} value={slug}>{title}</option>
                   ))}

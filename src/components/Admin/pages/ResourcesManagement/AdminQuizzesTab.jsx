@@ -303,7 +303,7 @@ const AdminQuizzesTab = () => {
   return (
     <div className="lms-panel admin-quizzes">
       <LmsCollapsibleFormPanel
-        title={editingId ? 'Edit quiz' : 'Create quiz'}
+        title={editingId ? 'Edit Quiz' : 'Create Quiz'}
         subtitle={
           editingId
             ? 'Update this quiz for its course and teacher.'
@@ -345,7 +345,7 @@ const AdminQuizzesTab = () => {
                   onChange={(e) => setForm({ ...form, courseId: e.target.value, teacherId: '', scheduleId: '' })}
                   required
                 >
-                  <option value="">Select course</option>
+                  <option value="">Select Course</option>
                   {courses.map((c) => (
                     <option key={c._id} value={c._id}>{c.title}</option>
                   ))}
@@ -359,20 +359,20 @@ const AdminQuizzesTab = () => {
                   required
                   disabled={!form.courseId}
                 >
-                  <option value="">Select teacher</option>
+                  <option value="">Select Teacher</option>
                   {teachersForCourse.map((t) => (
                     <option key={t._id} value={t._id}>{t.name}</option>
                   ))}
                 </select>
               </label>
               <label className="lms-field-label">
-                <span>Class slot <RequiredMark /></span>
+                <span>Class Slot <RequiredMark /></span>
                 <select
                   value={form.scheduleId}
                   onChange={(e) => setForm({ ...form, scheduleId: e.target.value })}
                   required
                 >
-                  <option value="">Select class slot</option>
+                  <option value="">Select Class Slot</option>
                   {filterSchedulesForTargeting(
                     schedules,
                     form.courseId ? [form.courseId] : [],
@@ -403,7 +403,7 @@ const AdminQuizzesTab = () => {
           )}
           {form.quizType !== 'file' ? (
             <label className="lms-field-label">
-              <span>Total marks (optional)</span>
+              <span>Total Marks (Optional)</span>
               <input
                 type="number"
                 min="1"
@@ -413,13 +413,13 @@ const AdminQuizzesTab = () => {
             </label>
           ) : null}
           <label className="lms-field-label">
-            <span>Due date (optional)</span>
+            <span>Due Date (Optional)</span>
             <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
           </label>
           {form.quizType === 'file' ? (
             <>
               <label className="lms-field-label">
-                <span>Reading link {hasLmsUploadValue(form.resourceFiles) ? '(optional)' : <RequiredMark />}</span>
+                <span>Reading Link {hasLmsUploadValue(form.resourceFiles) ? '(Optional)' : <RequiredMark />}</span>
                 <input
                   type="url"
                   placeholder="https://..."
@@ -428,7 +428,7 @@ const AdminQuizzesTab = () => {
                 />
               </label>
               <FileUploadField
-                label="Study files"
+                label="Study Files"
                 multiple
                 value={form.resourceFiles}
                 onChange={(files) => setForm({ ...form, resourceFiles: files })}
@@ -441,7 +441,7 @@ const AdminQuizzesTab = () => {
                 <div key={idx} className="admin-quizzes__question">
                   <div className="admin-quizzes__question-label">Question {idx + 1}</div>
                   <label className="lms-field-label">
-                    <span>Question text{idx === 0 ? <RequiredMark /> : null}</span>
+                    <span>Question Text{idx === 0 ? <RequiredMark /> : null}</span>
                     <input
                       value={q.question}
                       disabled={editingAttemptCount > 0}
@@ -484,12 +484,12 @@ const AdminQuizzesTab = () => {
               disabled={editingAttemptCount > 0}
               onClick={() => setForm({ ...form, questions: [...form.questions, { ...EMPTY_Q }] })}
             >
-              + Add question
+              + Add Question
             </button>
           ) : null}
           <div className="admin-quizzes__actions">
             <button type="submit" className="admin-quizzes__publish" disabled={saving}>
-              {saving ? 'Saving…' : editingId ? 'Save quiz' : 'Publish quiz'}
+              {saving ? 'Saving…' : editingId ? 'Save Quiz' : 'Publish Quiz'}
             </button>
             <button type="button" className="admin-quizzes__cancel" onClick={resetForm}>
               Cancel
@@ -596,7 +596,7 @@ const AdminQuizzesTab = () => {
                   <th>Type</th>
                   <th>Course</th>
                   <th>Teacher</th>
-                  <th>Class slot</th>
+                  <th>Class Slot</th>
                   <th>From</th>
                   <th>Taken</th>
                   <th />

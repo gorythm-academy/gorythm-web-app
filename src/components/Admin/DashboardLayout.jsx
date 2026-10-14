@@ -28,8 +28,8 @@ const menuItems = [
     { path: '/admin/lms', icon: 'fas fa-school', label: 'LMS', badgeKey: 'lmsAttendance', badgeDot: true },
     { path: '/admin/assignments', icon: 'fas fa-folder-open', label: 'Resources & Submissions', badgeKey: 'resourcesSubmissions', badgeDot: true },
     { path: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
-    { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages' },
-    { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers' },
+    { path: '/admin/contact-messages', icon: 'fas fa-envelope-open-text', label: 'Contact Messages', badgeKey: 'contactMessagesNew', badgeDot: true, badgeAria: 'New contact messages' },
+    { path: '/admin/subscribers', icon: 'fas fa-user-plus', label: 'Subscribers', badgeKey: 'subscribersNew', badgeDot: true, badgeAria: 'New subscribers' },
     { path: '/admin/promo-videos', icon: 'fas fa-video', label: 'Video Controls' },
 ];
 
@@ -145,7 +145,7 @@ const DashboardLayoutInner = () => {
                                                     aria-label={
                                                         item.path === '/admin/lms' && lmsBreakdown
                                                             ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
-                                                            : 'Pending items'
+                                                            : item.badgeAria || 'Pending items'
                                                     }
                                                 />
                                             ) : (
@@ -163,7 +163,7 @@ const DashboardLayoutInner = () => {
                                             aria-label={
                                                 item.path === '/admin/lms' && lmsBreakdown
                                                     ? `${lmsBreakdown.attendance} attendance, ${lmsBreakdown.payroll} payroll pending`
-                                                    : 'Pending items'
+                                                    : item.badgeAria || 'Pending items'
                                             }
                                         />
                                     ) : (

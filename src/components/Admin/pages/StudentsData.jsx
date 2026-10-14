@@ -565,9 +565,65 @@ const StudentsData = () => {
                 email: rowStudent?.email || detailStudent?.email || '',
                 personalEmail: rowStudent?.personalEmail || detailStudent?.personalEmail || '',
                 phone: rowStudent?.phone || detailStudent?.phone || '',
+                loginEmailSentAt: rowStudent?.loginEmailSentAt
+                    ?? detailStudent?.loginEmailSentAt
+                    ?? null,
+                loginEmailSentTo: rowStudent?.loginEmailSentTo
+                    ?? detailStudent?.loginEmailSentTo
+                    ?? [],
+                loginEmailLastError: rowStudent?.loginEmailLastError
+                    ?? detailStudent?.loginEmailLastError
+                    ?? '',
             },
         });
         setShowEditModal(true);
+    };
+
+    const handleLoginEmailUpdated = (fields = {}) => {
+        if (!fields || typeof fields !== 'object') return;
+        const currentId = String(detailStudentRef.current?._id || editingEnrollment?.student?._id || '');
+        setDetailStudent((prev) => (prev ? { ...prev, ...fields } : prev));
+        setEditingEnrollment((prev) => (
+            prev
+                ? {
+                    ...prev,
+                    student: {
+                        ...(prev.student && typeof prev.student === 'object' ? prev.student : {}),
+                        ...fields,
+                    },
+                }
+                : prev
+        ));
+        setDetailEnrollments((prev) => prev.map((row) => {
+            const sid = String(row?.student?._id || row?.student || '');
+            if (!currentId || sid !== currentId) return row;
+            return {
+                ...row,
+                student: {
+                    ...(row.student && typeof row.student === 'object' ? row.student : {}),
+                    ...fields,
+                },
+            };
+        }));
+        if (currentId) {
+            setStudentCards((prev) => prev.map((card) => {
+                const sid = String(card?.student?._id || card?._id || '');
+                if (sid !== currentId) return card;
+                return {
+                    ...card,
+                    ...(card.student ? {} : fields),
+                    student: card.student
+                        ? { ...card.student, ...fields }
+                        : card.student,
+                };
+            }));
+            listCacheRef.current.clear();
+            if (detailStudentRef.current?._id) {
+                overlayCacheRef.current.delete(
+                    buildOverlayCacheKey(String(detailStudentRef.current._id), detailTabRef.current)
+                );
+            }
+        }
     };
 
     const handleQuarantineEnrollment = async (enrollment) => {
@@ -815,8 +871,8 @@ const StudentsData = () => {
             const columns = [
                 ['studentId', 'Student ID'],
                 ['name', 'Name'],
-                ['portalEmail', 'Portal email'],
-                ['personalEmail', 'Personal email'],
+                ['portalEmail', 'Portal Email'],
+                ['personalEmail', 'Personal Email'],
                 ['phone', 'Phone'],
                 ['course', 'Course'],
                 ['timeslot', 'Timeslot'],
@@ -885,6 +941,7 @@ const StudentsData = () => {
                 showEditModal,
                 editMode,
                 editingEnrollment,
+                handleLoginEmailUpdated,
                 setShowEditModal,
                 setEditingEnrollment,
                 handleEditSaved,

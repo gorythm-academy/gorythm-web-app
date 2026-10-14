@@ -687,7 +687,7 @@ async function notifyAutoPayStopped(enrollment, message) {
     await transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to: recipients.join(', '),
-        subject: `Auto-pay stopped — ${course}`,
+        subject: `Auto-Pay Stopped — ${course}`,
         text: `${message}\n\nAutomatic charges for ${course} are now off. You can pay from Fees, or turn auto-pay on again after the card is accepted.\n\nGorythm Academy`,
     });
 }

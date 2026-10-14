@@ -26,6 +26,7 @@ export function StudentsDataView({ state }) {
     setShowEditModal,
     setEditingEnrollment,
     handleEditSaved,
+    handleLoginEmailUpdated,
     detailStudent,
     detailTab,
     setDetailTab,
@@ -110,6 +111,7 @@ export function StudentsDataView({ state }) {
                     setEditingEnrollment(null);
                 }}
                 onSaved={handleEditSaved}
+                onLoginEmailUpdated={handleLoginEmailUpdated}
             />
 
             <StudentDetailOverlay

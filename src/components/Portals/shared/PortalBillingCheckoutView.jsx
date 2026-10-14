@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
 import { FeeBadge, PortalAlert, PortalDataSection } from './PortalUi';
 import PortalModal from './PortalModal';
+import PhoneNumberField from '../../shared/PhoneNumberField';
 import { canSelectFee, enrollmentStatusLabel, formatDueDate, formatMoney, formatPaymentDate, maxPayableMonths, resolveFeeDueDate, savedCardLabel } from '../../../utils/billingLabels';
 
 function monthChoiceLabel(item, payMonths, includeCourse = false) {
@@ -73,7 +75,9 @@ export function PortalBillingCheckoutView({ state }) {
     hasBankInfo,
     bankDetails,
     phone,
+    phoneStatus,
     setPhone,
+    setPhoneStatus,
     setProofFile,
     selectedTotal,
     proofFile,
@@ -90,6 +94,12 @@ export function PortalBillingCheckoutView({ state }) {
     payableForMonths,
     feeStatusOf,
   } = state;
+  const proofInputRef = useRef(null);
+
+  const clearProofFile = () => {
+    setProofFile(null);
+    if (proofInputRef.current) proofInputRef.current.value = '';
+  };
 
   return (
 <>
@@ -156,7 +166,7 @@ export function PortalBillingCheckoutView({ state }) {
                               <div className="portal-billing-decline-note">{row.raw.declineNote}</div>
                             ) : null}
                             {row.awaitingReview && row.feeStatus === 'overdue' ? (
-                              <div className="portal-billing-verify">Waiting for verification</div>
+                              <div className="portal-billing-verify">Waiting for Verification</div>
                             ) : null}
                             {row.autoPayEnabled ? (
                               <div className="portal-billing-sub">Auto-pay on</div>
@@ -187,13 +197,13 @@ export function PortalBillingCheckoutView({ state }) {
                                 <span className="portal-billing-pay-row__label">Pay</span>
                               </button>
                             ) : row.raw?.allFeesPaid ? (
-                              <span className="portal-billing-sub">All fees paid</span>
+                              <span className="portal-billing-sub">All Fees Paid</span>
                             ) : String(row.enrollmentStatus || '').toLowerCase() === 'paused' ? (
                               <span className="portal-billing-sub">Paused</span>
                             ) : row.awaitingReview ? (
-                              <span className="portal-billing-verify">Waiting for verification</span>
+                              <span className="portal-billing-verify">Waiting for Verification</span>
                             ) : row.noFee ? (
-                              <span className="portal-billing-sub">No fee</span>
+                              <span className="portal-billing-sub">No Fee</span>
                             ) : (
                               <span className="portal-billing-sub">—</span>
                             )}
@@ -237,7 +247,7 @@ export function PortalBillingCheckoutView({ state }) {
                     <li key={card.id} className="portal-billing-card">
                       <span>
                         {savedCardLabel(card)}
-                        {card.lastUsed ? <span className="portal-billing-sub">Last used</span> : null}
+                        {card.lastUsed ? <span className="portal-billing-sub">Last Used</span> : null}
                       </span>
                       {onDeleteCard ? (
                         <button
@@ -463,7 +473,7 @@ export function PortalBillingCheckoutView({ state }) {
 
               {selectedItems.length ? (
                 <fieldset className="portal-billing-options" disabled={busy}>
-                  <legend>How many months?</legend>
+                  <legend>How Many Months?</legend>
                   {Array.from({ length: maxSharedMonths }, (_, index) => {
                     const value = index + 1;
                     const isAll = showAllRemainingLabel && value === maxSharedMonths && value > 1;
@@ -498,7 +508,7 @@ export function PortalBillingCheckoutView({ state }) {
               ) : null}
 
               <fieldset className="portal-billing-options" disabled={busy}>
-                <legend>How would you like to pay?</legend>
+                <legend>How Would You Like to Pay?</legend>
                 <label>
                   <input
                     type="radio"
@@ -523,7 +533,7 @@ export function PortalBillingCheckoutView({ state }) {
 
               {method === 'stripe' && selectedItems.length ? (
                 <fieldset className="portal-billing-options" disabled={busy}>
-                  <legend>Automatic monthly charges</legend>
+                  <legend>Automatic Monthly Charges</legend>
                   <label>
                     <input
                       type="checkbox"
@@ -550,9 +560,9 @@ export function PortalBillingCheckoutView({ state }) {
                   </ol>
                   {hasBankInfo ? (
                     <ul>
-                      {bankDetails.accountName ? <li>Account name: {bankDetails.accountName}</li> : null}
+                      {bankDetails.accountName ? <li>Account Name: {bankDetails.accountName}</li> : null}
                       {bankDetails.bankName ? <li>Bank: {bankDetails.bankName}</li> : null}
-                      {bankDetails.accountNumber ? <li>Account number: {bankDetails.accountNumber}</li> : null}
+                      {bankDetails.accountNumber ? <li>Account Number: {bankDetails.accountNumber}</li> : null}
                       {bankDetails.iban ? <li>IBAN: {bankDetails.iban}</li> : null}
                       {bankDetails.swift ? <li>SWIFT: {bankDetails.swift}</li> : null}
                       {bankDetails.extraNote ? <li>{bankDetails.extraNote}</li> : null}
@@ -560,32 +570,70 @@ export function PortalBillingCheckoutView({ state }) {
                   ) : (
                     <p>Bank details are not listed yet. Please pay by card or contact the academy.</p>
                   )}
-                  <label>
-                    <span>Phone (8–15 digits) <RequiredMark /></span>
-                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="WhatsApp number" />
+                  <label className="portal-billing-phone" htmlFor="portal-whatsapp">
+                    <span>WhatsApp number <RequiredMark /></span>
+                    <PhoneNumberField
+                      id="portal-whatsapp"
+                      appearance="light"
+                      required
+                      value={phone}
+                      ariaLabel="WhatsApp number"
+                      disabled={busy}
+                      onChange={({ e164, status }) => {
+                        setPhone(e164);
+                        setPhoneStatus(status);
+                      }}
+                    />
                   </label>
-                  <label>
-                    Transfer proof
-                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setProofFile(e.target.files?.[0] || null)} />
-                  </label>
+                  <div className="portal-billing-proof">
+                    <div className="portal-field-label portal-file-upload portal-file-upload--fee">
+                      <span>Transfer Proof</span>
+                      <div className="portal-file-upload__control">
+                        <input
+                          ref={proofInputRef}
+                          type="file"
+                          tabIndex={-1}
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                        />
+                        <button
+                          type="button"
+                          className="portal-file-upload__pick"
+                          onClick={() => proofInputRef.current?.click()}
+                        >
+                          <i className="fas fa-cloud-upload-alt" aria-hidden="true" />
+                          {proofFile ? 'Change file' : 'Choose file'}
+                        </button>
+                      </div>
+                      <small className="portal-file-upload__hint">JPG, PNG, WebP, or PDF</small>
+                    </div>
+                    {proofFile ? (
+                      <div className="portal-file-upload__selected">
+                        <span>{proofFile.name}</span>
+                        <button type="button" className="portal-file-remove" onClick={clearProofFile}>
+                          Remove
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 
               <div className="portal-billing-overlay-footer">
-                <div>
+                <div className="portal-billing-overlay-total">
                   <strong>{formatMoney(selectedTotal)}</strong>
                   {payMonths > 1 ? (
                     <div className="portal-billing-sub">{payMonths} months</div>
                   ) : null}
+                  <button
+                    type="button"
+                    className="portal-billing-pay"
+                    disabled={busy || !selectedItems.length || maxSharedMonths < 1 || (method === 'bank' && (!proofFile || !hasBankInfo || phoneStatus !== 'valid'))}
+                    onClick={handlePay}
+                  >
+                    {busy ? 'Please wait…' : method === 'bank' ? 'Submit payment proof' : 'Pay now'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="portal-billing-pay"
-                  disabled={busy || !selectedItems.length || maxSharedMonths < 1 || (method === 'bank' && (!proofFile || !hasBankInfo || phone.replace(/\D/g, '').length < 8))}
-                  onClick={handlePay}
-                >
-                  {busy ? 'Please wait…' : method === 'bank' ? 'Submit payment proof' : 'Pay now'}
-                </button>
               </div>
             </div>
           )}

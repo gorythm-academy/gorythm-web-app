@@ -48,7 +48,7 @@ export const formatPayrollMonth = (monthKey) => {
 };
 
 export const payrollStatusLabel = (status) => {
-  if (status === 'pending_review') return 'Pending review';
+  if (status === 'pending_review') return 'Pending Review';
   if (status === 'stale') return 'Out of Date';
   if (status === 'paid') return 'Paid';
   if (status === 'rejected') return 'Rejected';

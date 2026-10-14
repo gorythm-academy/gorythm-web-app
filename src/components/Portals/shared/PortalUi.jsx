@@ -105,7 +105,7 @@ export function PortalCourseToolbar({ value, onChange, courses, label = 'Course'
       <label className="portal-course-toolbar__field">
         <span>{label}</span>
         <select value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="all">All courses</option>
+          <option value="all">All Courses</option>
           {courses.map((c) => (
             <option key={c._id} value={c._id}>
               {c.title}

@@ -875,7 +875,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
       {tab === 'assignments' ? (
         <>
           <PortalActivityBanner
-            title="Due date updates"
+            title="Due Date Updates"
             rows={visibleAssignmentDueDateNotices}
             onDismiss={dismissAssignmentDueDateBanner}
             className="resources-management__activity-banner"

@@ -45,7 +45,7 @@ const ParentStudentLink = require('../models/ParentStudentLink');
 router.use(authMiddleware);
 router.use(validateSessionUser);
 router.use(allowRoles('super-admin', 'manager'));
-const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive canLogin status createdAt deletedAt lastLogin';
+const STUDENT_POPULATE = 'name email personalEmail phone avatar studentId isActive canLogin status createdAt deletedAt lastLogin loginEmailSentAt loginEmailSentTo loginEmailLastError';
 const STUDENT_POPULATE_WITH_ENROLLED = `${STUDENT_POPULATE} enrolledCourses`;
 
 async function loadParentsByStudentIds(studentIds) {

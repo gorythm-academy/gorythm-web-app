@@ -102,7 +102,7 @@ const StudentContent = () => {
         value={courseFilter}
         onChange={setCourseFilter}
         courses={courseOptions}
-        label="Filter by course"
+        label="Filter by Course"
         count={loading ? null : filteredResources.length}
       />
 

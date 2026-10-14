@@ -1,6 +1,6 @@
 import React from 'react';
 import { enrollmentStatusLabel, formatDueDate, formatMoney } from '../../../utils/billingLabels';
-import { formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import ScheduleClock from '../../shared/ScheduleClock';
 import { FeeBadge } from './PortalUi';
 
 export function studentIdLabel(studentId) {
@@ -28,20 +28,20 @@ export function StudentIdLine({ studentId }) {
 export function StudentProfileFields({ profile }) {
   if (!profile) return null;
   const rows = [
-    ['Full name', profile.name || '—'],
+    ['Full Name', profile.name || '—'],
     ['Student ID', studentIdLabel(profile.studentId)],
-    ['Portal email', profile.email || '—'],
+    ['Portal Email', profile.email || '—'],
   ];
-  if (String(profile.personalEmail || '').trim()) rows.push(['Personal email', profile.personalEmail.trim()]);
+  if (String(profile.personalEmail || '').trim()) rows.push(['Personal Email', profile.personalEmail.trim()]);
   if (String(profile.phone || '').trim()) rows.push(['Phone', profile.phone.trim()]);
-  rows.push(['Account status', accountStatusLabel(profile.status)]);
+  rows.push(['Account Status', accountStatusLabel(profile.status)]);
 
   return (
     <dl className="portal-identity-fields">
       {rows.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd className={label === 'Portal email' || label === 'Personal email' ? 'is-email' : undefined}>{value}</dd>
+          <dd className={label === 'Portal Email' || label === 'Personal Email' ? 'is-email' : undefined}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -63,11 +63,11 @@ export function EnrollmentSummaryList({
           <tr>
             <th>Course</th>
             <th>Status</th>
-            <th>Class time</th>
+            <th>Class Time</th>
             <th>Teacher</th>
             <th>Enrolled</th>
             <th>Fee</th>
-            <th>Due date</th>
+            <th>Due Date</th>
             <th>Amount</th>
           </tr>
         </thead>
@@ -76,7 +76,7 @@ export function EnrollmentSummaryList({
             const scheduleText = row.scheduleLocked
               ? 'After the fee is received'
               : row.schedule
-                ? formatScheduleTimeLabel(row.schedule)
+                ? <ScheduleClock slot={row.schedule} audience="student" />
                 : 'Not assigned yet';
             return (
               <tr key={row.id}>

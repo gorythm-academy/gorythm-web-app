@@ -234,7 +234,7 @@ export function TeacherAttendanceView({ state }) {
           <label className="portal-field-label portal-field-label--course">
             <span>Course <RequiredMark /></span>
             <select value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
-              <option value="">Select course</option>
+              <option value="">Select Course</option>
               {courses.map((c) => (
                 <option key={portalDocId(c)} value={portalDocId(c)}>
                   {c.title}
@@ -244,7 +244,7 @@ export function TeacherAttendanceView({ state }) {
           </label>
 
           <label className="portal-field-label portal-field-label--calendar">
-            <span>Attendance date <RequiredMark /></span>
+            <span>Attendance Date <RequiredMark /></span>
             <input
               type="date"
               value={date}
@@ -308,9 +308,9 @@ export function TeacherAttendanceView({ state }) {
         {roster.length && canMarkOnDate ? (
           <>
             <div className="portal-attendance-grid-header">
-              <span>Student name</span>
+              <span>Student Name</span>
               <span>Status</span>
-              <span>Notes (optional)</span>
+              <span>Notes (Optional)</span>
             </div>
             <div className="portal-attendance-grid">
               {roster.map((s) => {
@@ -348,7 +348,7 @@ export function TeacherAttendanceView({ state }) {
                     <input
                       type="text"
                       aria-label={`Notes for ${s.name}`}
-                      placeholder="Note (optional)"
+                      placeholder="Note (Optional)"
                       value={notes[sid] || ''}
                       onChange={(e) => setNotes({ ...notes, [sid]: e.target.value })}
                     />
@@ -368,7 +368,7 @@ export function TeacherAttendanceView({ state }) {
         )}
 
         <button type="submit" disabled={!courseId || !roster.length || !canMarkOnDate}>
-          Save daily attendance for entire class
+          Save Daily Attendance for Entire Class
         </button>
         {saveNotice ? (
           <p className="portal-attendance-save-success" role="status" aria-live="polite">
@@ -393,7 +393,7 @@ export function TeacherAttendanceView({ state }) {
           <label className="portal-field-label portal-field-label--course">
             <span>Course</span>
             <select value={viewCourseId} onChange={(e) => setViewCourseId(e.target.value)}>
-              <option value="">Select course</option>
+              <option value="">Select Course</option>
               {courses.map((c) => (
                 <option key={portalDocId(c)} value={portalDocId(c)}>
                   {c.title}
@@ -455,7 +455,7 @@ export function TeacherAttendanceView({ state }) {
                 aria-label="Select all attendance records in this period"
               />
               <span>
-                Select all ({deletableRecordIds.length})
+                Select All ({deletableRecordIds.length})
               </span>
             </label>
             {selectedRecordIds.length ? (
@@ -752,7 +752,7 @@ export function TeacherAttendanceView({ state }) {
             </label>
             <div className="portal-attendance-modal__actions">
               <button type="submit" className="portal-attendance-modal__save">
-                <i className="fas fa-save" /> Save changes
+                <i className="fas fa-save" /> Save Changes
               </button>
               <button
                 type="button"

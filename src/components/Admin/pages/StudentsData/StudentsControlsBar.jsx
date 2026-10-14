@@ -43,9 +43,9 @@ const StudentsControlsBar = ({
                 className="status-filter"
                 value={filterFeeStatus}
                 onChange={(e) => setFilterFeeStatus(e.target.value)}
-                aria-label="Filter by fee status"
+                aria-label="Filter by Fee Status"
             >
-                <option value="all">All fee status</option>
+                <option value="all">All Fee Status</option>
                 {FEE_STATUS_VALUES.map(({ value, label }) => (
                     <option key={value} value={value}>{label}</option>
                 ))}
@@ -64,10 +64,10 @@ const StudentsControlsBar = ({
                 aria-label="Sort students"
                 title="Rearrange student cards"
             >
-                <option value="createdAt:desc">Newest first</option>
-                <option value="createdAt:asc">Oldest first</option>
-                <option value="studentId:asc">Roll number ↑</option>
-                <option value="studentId:desc">Roll number ↓</option>
+                <option value="createdAt:desc">Newest First</option>
+                <option value="createdAt:asc">Oldest First</option>
+                <option value="studentId:asc">Roll Number ↑</option>
+                <option value="studentId:desc">Roll Number ↓</option>
                 <option value="student:asc">Name A–Z</option>
                 <option value="student:desc">Name Z–A</option>
             </select>

@@ -53,10 +53,10 @@ const ParentLinksTab = ({
         >
           <option value="">
             {pickersLoading
-              ? 'Loading parents…'
+              ? 'Loading Parents…'
               : parents.length
-                ? 'Select parent…'
-                : 'No parents found'}
+                ? 'Select Parent…'
+                : 'No Parents Found'}
           </option>
           {parents.map((p) => (
             <option key={p._id} value={p._id}>
@@ -75,10 +75,10 @@ const ParentLinksTab = ({
         >
         <option value="">
           {pickersLoading
-            ? 'Loading students…'
+            ? 'Loading Students…'
             : students.length
-              ? 'Select unlinked student…'
-              : 'No unlinked students'}
+              ? 'Select Unlinked Student…'
+              : 'No Unlinked Students'}
         </option>
         {students.map((s) => (
           <option key={s._id} value={s._id}>
@@ -155,7 +155,7 @@ const ParentLinksTab = ({
                           }
                           disabled={editLinkSaving}
                         >
-                          <option value="">Select parent…</option>
+                          <option value="">Select Parent…</option>
                           {parents.map((p) => (
                             <option key={p._id} value={p._id}>
                               {p.name}
@@ -179,7 +179,7 @@ const ParentLinksTab = ({
                           }
                           disabled={editLinkSaving}
                         >
-                          <option value="">Select student…</option>
+                          <option value="">Select Student…</option>
                           {(editStudents || students).map((s) => (
                             <option key={s._id} value={s._id}>
                               {s.name}

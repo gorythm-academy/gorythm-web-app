@@ -99,24 +99,24 @@ function reminderCopy(kind, enrollment, studentName) {
     const name = studentName || 'Student';
     if (enrollment.autoPayEnabled && kind === 'due') {
         return {
-            subject: `Fee reminder — ${course} due ${due}`,
+            subject: `Fee Reminder — ${course} Due ${due}`,
             text: `Assalamu alaikum ${name},\n\nWe will charge your saved card for ${course} on ${due} (Pakistan time). You do not need to pay by hand unless that charge fails.\n\nGorythm Academy`,
         };
     }
     if (kind === 'due') {
         return {
-            subject: `Fee reminder — ${course} due ${due}`,
+            subject: `Fee Reminder — ${course} Due ${due}`,
             text: `Assalamu alaikum ${name},\n\nA fee for ${course} is due on ${due} (Pakistan time). Please pay from Fees by card or bank transfer.\n\nGorythm Academy`,
         };
     }
     if (enrollment.autoPayEnabled) {
         return {
-            subject: `Fee overdue — ${course}`,
+            subject: `Fee Overdue — ${course}`,
             text: `Assalamu alaikum ${name},\n\nThe automatic charge for ${course} did not complete (due ${due}, Pakistan time). Please pay from Fees or update your card.\n\nGorythm Academy`,
         };
     }
     return {
-        subject: `Fee overdue — ${course}`,
+        subject: `Fee Overdue — ${course}`,
         text: `Assalamu alaikum ${name},\n\nThe fee for ${course} is now overdue (due ${due}, Pakistan time). Please pay from Fees as soon as you can.\n\nGorythm Academy`,
     };
 }

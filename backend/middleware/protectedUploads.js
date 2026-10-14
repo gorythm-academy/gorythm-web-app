@@ -118,8 +118,18 @@ async function canAccessPaymentProof(req, relPath) {
     return false;
 }
 
+function decodeUploadPath(value) {
+    const raw = String(value || '');
+    try {
+        return decodeURIComponent(raw);
+    } catch {
+        return raw;
+    }
+}
+
 async function protectedUploadsGate(req, res, next) {
-    const rel = String(req.path || '').replace(/^\//, '');
+    // Express leaves %20 in req.path. File-link tokens store the real filename.
+    const rel = decodeUploadPath(String(req.path || '').replace(/^\//, ''));
     if (!rel) return res.status(404).end();
 
     if (isPublicPath(rel)) return next();

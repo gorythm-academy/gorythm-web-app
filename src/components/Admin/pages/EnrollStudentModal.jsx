@@ -401,7 +401,7 @@ const EnrollStudentModal = ({
                                             />
                                             {studentsLoading ? (
                                                 <div className="loading-inline">
-                                                    <i className="fas fa-spinner fa-spin"></i> Loading students...
+                                                    <i className="fas fa-spinner fa-spin"></i> Loading Students...
                                                 </div>
                                             ) : (
                                                 <select
@@ -414,8 +414,8 @@ const EnrollStudentModal = ({
                                                 >
                                                     <option value="">
                                                         {filteredStudents.length === 0
-                                                            ? 'No students match your search'
-                                                            : 'Choose a student...'}
+                                                            ? 'No Students Match Your Search'
+                                                            : 'Choose a Student...'}
                                                     </option>
                                                     {filteredStudents.map((s) => (
                                                         <option key={s._id} value={s._id}>
@@ -429,7 +429,7 @@ const EnrollStudentModal = ({
                                         {(formData.studentUserId) && selectedStudent && (
                                             <>
                                                 <div className="form-group">
-                                                    <label><i className="fas fa-key"></i> Portal login email</label>
+                                                    <label><i className="fas fa-key"></i> Portal Login Email</label>
                                                     <div className="portal-email-readonly">
                                                         <span className="admin-email">{portalEmailDisplayLabel(selectedStudent.email)}</span>
                                                     </div>
@@ -449,7 +449,7 @@ const EnrollStudentModal = ({
                                                     />
                                                 </div>
                                                 <div className="form-group">
-                                                    <label htmlFor="enroll-personal-email">Personal email</label>
+                                                    <label htmlFor="enroll-personal-email">Personal Email</label>
                                                     <input
                                                         id="enroll-personal-email"
                                                         type="email"
@@ -492,7 +492,7 @@ const EnrollStudentModal = ({
                                         disabled={loading || success || sortedCourses.length === 0}
                                     >
                                         <option value="">
-                                            {sortedCourses.length === 0 ? 'No courses available' : 'Choose a course...'}
+                                            {sortedCourses.length === 0 ? 'No Courses Available' : 'Choose a Course...'}
                                         </option>
                                         {sortedCourses.map((course) => (
                                             <option key={course._id} value={course._id}>
@@ -505,7 +505,7 @@ const EnrollStudentModal = ({
                                 {formData.courseId ? (
                                     <div className="form-group">
                                         <label>
-                                            <i className="fas fa-clock"></i> Teacher &amp; timeslot
+                                            <i className="fas fa-clock"></i> Teacher &amp; Timeslot
                                             {courseSchedules.length > 0 ? <RequiredMark /> : null}
                                         </label>
                                         <select
@@ -518,10 +518,10 @@ const EnrollStudentModal = ({
                                         >
                                             <option value="">
                                                 {schedulesLoading
-                                                    ? 'Loading timeslots…'
+                                                    ? 'Loading Timeslots…'
                                                     : courseSchedules.length
-                                                      ? 'Select teacher & timeslot…'
-                                                      : 'No timeslots yet — create in LMS'}
+                                                      ? 'Select Teacher & Timeslot…'
+                                                      : 'No Timeslots Yet — Create in LMS'}
                                             </option>
                                             {courseSchedules.map((slot) => (
                                                 <option key={slot._id} value={slot._id}>
@@ -544,7 +544,7 @@ const EnrollStudentModal = ({
                                 {!isAddCourseMode ? (
                                     <>
                                         <div className="form-group">
-                                            <label>Enrollment status</label>
+                                            <label>Enrollment Status</label>
                                             <div className="status-buttons">
                                                 {ENROLLMENT_STATUS_BUTTONS.map((status) => (
                                                     <button

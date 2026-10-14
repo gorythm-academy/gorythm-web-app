@@ -64,7 +64,7 @@ const StudentCard = ({ card, onOpen }) => {
                     </span>
                 </div>
                 {card.pendingSetup ? (
-                    <span className="student-card__setup-flag">Pending setup</span>
+                    <span className="student-card__setup-flag">Pending Setup</span>
                 ) : null}
             </div>
 

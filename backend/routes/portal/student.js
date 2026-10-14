@@ -314,7 +314,7 @@ router.post('/student/fees/bank', allowPortalRoles('student'), (req, res) => {
                 invoiceMode: req.body?.invoiceMode,
                 months: req.body?.months,
                 proofUrl: savedProofPath,
-                phone: String(req.body?.phone || '').replace(/\D/g, ''),
+                phone: req.body?.phone,
                 payerName: req.body?.payerName || req.user?.name,
             });
             savedProofPath = null;

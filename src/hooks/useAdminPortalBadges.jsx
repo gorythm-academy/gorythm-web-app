@@ -16,6 +16,7 @@ import {
   ADMIN_SEEN_TAB_RESOURCES,
   ADMIN_SEEN_TAB_SUBMISSIONS,
   ADMIN_SEEN_PAYMENTS,
+  ADMIN_SEEN_SUBSCRIBERS,
   getPortalSeenCutoff,
 } from '../utils/portalNewItems';
 
@@ -27,6 +28,8 @@ const EMPTY_BADGES = {
   resourcesSubmissions: 0,
   resourcesTabCounts: { assignments: 0, resources: 0, submissions: 0 },
   paymentsNew: 0,
+  subscribersNew: 0,
+  contactMessagesNew: 0,
 };
 
 const AdminPortalBadgesContext = createContext(null);
@@ -67,13 +70,29 @@ function fetchResourcesSubmissionsBadge() {
   });
 }
 
-function fetchPaymentsBadge() {
+function fetchAdminCount(path, params) {
   if (!hasAuthSession(AUTH_REALM.ADMIN)) return Promise.resolve(0);
-  return axios.get(`${API_BASE_URL}/api/payments/admin/unseen-count`, {
-    params: { since: getPortalSeenCutoff(ADMIN_SEEN_PAYMENTS) },
+  return axios.get(`${API_BASE_URL}${path}`, {
+    params,
     headers: buildAuthHeaders(AUTH_REALM.ADMIN),
     withCredentials: true,
   }).then((res) => Number(res.data?.count) || 0);
+}
+
+function fetchPaymentsBadge() {
+  return fetchAdminCount('/api/payments/admin/unseen-count', {
+    since: getPortalSeenCutoff(ADMIN_SEEN_PAYMENTS),
+  });
+}
+
+function fetchSubscribersBadge() {
+  return fetchAdminCount('/api/subscribers/admin/unseen-count', {
+    since: getPortalSeenCutoff(ADMIN_SEEN_SUBSCRIBERS),
+  });
+}
+
+function fetchContactMessagesBadge() {
+  return fetchAdminCount('/api/contact/admin/unseen-count');
 }
 
 function useAdminPortalBadgesState(enabled = true) {
@@ -81,6 +100,8 @@ function useAdminPortalBadgesState(enabled = true) {
     ...(lmsTabBadgesClientCache.get() || EMPTY_BADGES),
     resourcesSubmissions: 0,
     paymentsNew: 0,
+    subscribersNew: 0,
+    contactMessagesNew: 0,
   }));
   const [lmsBadgeLoadFailed, setLmsBadgeLoadFailed] = useState(false);
 
@@ -90,10 +111,14 @@ function useAdminPortalBadgesState(enabled = true) {
       fetchLmsTabBadges(options).catch(() => null),
       fetchResourcesSubmissionsBadge().catch(() => ({ total: 0, tabCounts: EMPTY_BADGES.resourcesTabCounts })),
       fetchPaymentsBadge().catch(() => 0),
-    ]).then(([lmsBadges, resourcesBadge, paymentsNew]) => {
+      fetchSubscribersBadge().catch(() => 0),
+      fetchContactMessagesBadge().catch(() => 0),
+    ]).then(([lmsBadges, resourcesBadge, paymentsNew, subscribersNew, contactMessagesNew]) => {
       const resourcesCount = resourcesBadge?.total || 0;
       const tabCounts = resourcesBadge?.tabCounts || EMPTY_BADGES.resourcesTabCounts;
       const paymentsCount = Number(paymentsNew) || 0;
+      const subscribersCount = Number(subscribersNew) || 0;
+      const contactCount = Number(contactMessagesNew) || 0;
       if (lmsBadges) {
         setLmsBadgeLoadFailed(false);
         setBadges((prev) => ({
@@ -102,6 +127,8 @@ function useAdminPortalBadgesState(enabled = true) {
           resourcesSubmissions: resourcesCount,
           resourcesTabCounts: tabCounts,
           paymentsNew: paymentsCount,
+          subscribersNew: subscribersCount,
+          contactMessagesNew: contactCount,
         }));
       } else {
         setLmsBadgeLoadFailed(true);
@@ -111,6 +138,8 @@ function useAdminPortalBadgesState(enabled = true) {
           resourcesSubmissions: resourcesCount,
           resourcesTabCounts: tabCounts,
           paymentsNew: paymentsCount,
+          subscribersNew: subscribersCount,
+          contactMessagesNew: contactCount,
         }));
       }
     });

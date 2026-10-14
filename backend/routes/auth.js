@@ -437,7 +437,7 @@ router.post(
             return res.json({
                 success: true,
                 message: loginReady
-                    ? 'Password updated. Sign in with your portal username.'
+                    ? 'Password updated. Sign in with the username from your academy email, not the inbox that received this link.'
                     : 'Password updated. You can sign in once the academy sets this account to Active.',
             });
         } catch (error) {

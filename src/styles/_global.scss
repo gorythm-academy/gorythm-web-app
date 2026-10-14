@@ -204,6 +204,43 @@ input, textarea, select {
   }
 }
 
+input[type='file'] {
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #334155;
+  cursor: pointer;
+
+  &::file-selector-button,
+  &::-webkit-file-upload-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0 0.75rem 0 0;
+    padding: 0.6rem 1.05rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--color-accent, #3b82f6), var(--color-accent-dark, #2563eb));
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(var(--color-accent-rgb, 59, 130, 246), 0.28);
+  }
+
+  &::file-selector-button:hover,
+  &::-webkit-file-upload-button:hover {
+    filter: brightness(1.06);
+  }
+}
+
 // Responsive utility classes
 .hide-on-mobile {
   @include respond-to('lg') {
