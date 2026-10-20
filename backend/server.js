@@ -8,6 +8,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { validateCriticalEnv } = require('./utils/validateEnv');
+const { allowedOriginList, rejectForeignWriteOrigin } = require('./utils/allowedOrigins');
 
 try {
     validateCriticalEnv();
@@ -43,6 +44,7 @@ const subscribePopupAdminRoutes = require('./routes/subscribePopupAdmin');
 const settingsRoutes = require('./routes/settings');
 const siteRoutes = require('./routes/site');
 const { protectedUploadsGate } = require('./middleware/protectedUploads');
+const { courseImageVariant } = require('./utils/courseImageVariant');
 const requestContext = require('./middleware/requestContext');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
@@ -118,18 +120,11 @@ const ensureDefaultAdmin = async () => {
 };
 
 // Middleware
-const allowedOrigins = new Set([
-    'http://localhost:3000',
-    'https://gorythmacademy.com',
-    'https://www.gorythmacademy.com',
-    process.env.FRONTEND_URL,
-].filter(Boolean));
-
 app.use(cors({
     origin: (origin, callback) => {
         // Allow server-to-server/curl requests that have no Origin header.
         if (!origin) return callback(null, true);
-        if (allowedOrigins.has(origin)) return callback(null, true);
+        if (allowedOriginList().includes(origin)) return callback(null, true);
         return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
@@ -218,6 +213,7 @@ app.post(
     stripeWebhookHandler
 );
 
+app.use(rejectForeignWriteOrigin);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 
@@ -231,11 +227,16 @@ ensureCourseImageDir();
 ensureThumbDir();
 ensureSubscribePopupImageDir();
 app.use('/api/uploads', protectedUploadsGate);
+app.use('/api/uploads/courses-images', courseImageVariant);
 app.use(
     '/api/uploads',
     express.static(uploadsDir, {
         setHeaders(res, filePath) {
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            const norm = filePath.replace(/\\/g, '/');
+            if (/\/(courses-images|video-thumbnails|research-images|subscribe-popup-images)\//.test(norm)) {
+                res.setHeader('Cache-Control', 'public, max-age=604800');
+            }
             if (filePath.endsWith('.avif')) res.type('image/avif');
             else if (filePath.endsWith('.webp')) res.type('image/webp');
         },

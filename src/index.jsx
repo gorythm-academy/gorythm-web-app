@@ -5,11 +5,15 @@ import '@fontsource/nunito/latin-500.css';
 import '@fontsource/nunito/latin-600.css';
 import '@fontsource/nunito/latin-700.css';
 import '@fontsource/nunito/latin-800.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
-import './fa-font-display-swap.css';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+// Icon fonts are not needed to paint the first screen. Load them after the entry starts
+// so they are not part of the render-blocking stylesheet.
+import('@fortawesome/fontawesome-free/css/all.min.css')
+  .then(() => import('./fa-font-display-swap.css'))
+  .catch(() => {});
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

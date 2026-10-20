@@ -74,7 +74,7 @@ router.get('/quizzes', async (req, res) => {
         const [quizzes, courses, trashCount] = await Promise.all([
             Quiz.find(listFilter)
                 .populate('course', 'title')
-                .populate('teacher', 'name email')
+                .populate('teacher', 'name email status deletedAt')
                 .populate('assignedSchedule', 'dayOfWeek startTime endTime')
                 .sort({ createdAt: -1 })
                 .lean(),
@@ -95,6 +95,7 @@ router.get('/quizzes', async (req, res) => {
             trashCount,
         });
     } catch (error) {
+        req.log?.error?.('lms admin quizzes', { err: error });
         res.status(500).json({ success: false, error: 'Failed to load quizzes' });
     }
 });
@@ -145,7 +146,7 @@ router.post('/quizzes', async (req, res) => {
         );
         const populated = await Quiz.find({ _id: { $in: created.map((quiz) => quiz._id) } })
             .populate('course', 'title')
-            .populate('teacher', 'name email');
+            .populate('teacher', 'name email status deletedAt');
         res.status(201).json({
             success: true,
             createdCount: populated.length,
@@ -221,7 +222,7 @@ router.patch('/quizzes/:id', async (req, res) => {
         quiz.createdByRole = 'admin';
         quiz.lockedForTeacher = true;
         await quiz.save();
-        const populated = await Quiz.findById(quiz._id).populate('course', 'title').populate('teacher', 'name email');
+        const populated = await Quiz.findById(quiz._id).populate('course', 'title').populate('teacher', 'name email status deletedAt');
         res.json({ success: true, quiz: populated });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message || 'Failed to update quiz' });

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import Player from '@vimeo/player';
 import { API_BASE_URL } from '../../config/constants';
 import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 import { providerThumbnailUrl, fetchVimeoThumbnailUrl } from '../../utils/videoEmbed';
@@ -145,20 +144,28 @@ const VideoSection = ({ placement = PLACEMENTS.home }) => {
   useEffect(() => {
     if (!isPlaying || !mediaAllowed || !isVimeo || !iframeRef.current) return undefined;
     const iframe = iframeRef.current;
-    const player = new Player(iframe);
-    vimeoPlayerRef.current = player;
+    let cancelled = false;
+    let player;
 
     const onEnded = () => setVideoEnded(true);
     const onPlay = () => setVideoEnded(false);
 
-    player.on('ended', onEnded);
-    player.on('play', onPlay);
+    import('@vimeo/player').then(({ default: Player }) => {
+      if (cancelled) return;
+      player = new Player(iframe);
+      vimeoPlayerRef.current = player;
+      player.on('ended', onEnded);
+      player.on('play', onPlay);
+    });
 
     return () => {
-      player.off('ended', onEnded);
-      player.off('play', onPlay);
+      cancelled = true;
+      const current = player || vimeoPlayerRef.current;
       vimeoPlayerRef.current = null;
-      player.destroy().catch(() => {});
+      if (!current) return;
+      current.off('ended', onEnded);
+      current.off('play', onPlay);
+      current.destroy().catch(() => {});
     };
   }, [isPlaying, mediaAllowed, isVimeo, embedSrc]);
 

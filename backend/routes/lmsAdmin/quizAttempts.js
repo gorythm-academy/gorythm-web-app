@@ -67,7 +67,7 @@ router.get('/quiz-attempts', async (req, res) => {
                 select: 'title totalMarks course teacher',
                 populate: [
                     { path: 'course', select: 'title instructorName deletedAt' },
-                    { path: 'teacher', select: 'name email' },
+                    { path: 'teacher', select: 'name email status deletedAt' },
                 ],
             })
             .sort({ createdAt: -1 })
@@ -124,7 +124,7 @@ router.get('/quiz-attempts/:id', async (req, res) => {
                 select: 'title totalMarks course teacher questions',
                 populate: [
                     { path: 'course', select: 'title instructorName deletedAt' },
-                    { path: 'teacher', select: 'name email' },
+                    { path: 'teacher', select: 'name email status deletedAt' },
                 ],
             });
         if (!attemptDoc) {

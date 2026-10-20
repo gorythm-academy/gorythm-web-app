@@ -61,52 +61,95 @@ server {
     ssl_session_cache shared:GorythmSSL:10m;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
 
     root /var/www/gorythm/build;
     index index.html;
 
-    # Single Page App shell — never long-cache HTML (new deploy = new hashed assets)
+    # Single Page App shell — never long-cache HTML (new deploy = new hashed assets).
+    # A location that sets any add_header does not inherit the server headers above, so each one repeats them.
     location = /index.html {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "no-cache" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
     }
 
-    # Hashed JS/CSS/media from `npm run build` (Vite) (PageSpeed: long cache TTL)
-    location ^~ /static/ {
-        expires 1y;
-        add_header Cache-Control "public, max-age=31536000, immutable";
+    location = /llms.txt {
+        default_type text/plain;
+        add_header Cache-Control "public, max-age=3600" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+    }
+
+    location = /.well-known/ai-catalog.json {
+        default_type application/json;
+        add_header Cache-Control "public, max-age=3600" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+    }
+
+    # Hashed JS/CSS/media from `npm run build` (Vite). Safe to cache for a year.
+    location ^~ /static/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         try_files $uri =404;
     }
 
     # Public raster/video (filenames may be unhashed — bump file or ?v= on change)
     location ^~ /images/ {
-        expires 30d;
-        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         try_files $uri =404;
     }
 
     location ^~ /preload/ {
-        expires 30d;
-        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         try_files $uri =404;
     }
 
     location ^~ /video/ {
-        expires 30d;
-        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400";
+        add_header Cache-Control "public, max-age=2592000, stale-while-revalidate=86400" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         try_files $uri =404;
     }
 
     # Short cache for manifest / favicon (swap filenames when branding changes)
     location = /manifest.json {
-        add_header Cache-Control "public, max-age=3600";
+        add_header Cache-Control "public, max-age=3600" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
         try_files $uri =404;
     }
 
@@ -153,7 +196,10 @@ server {
     ssl_prefer_server_ciphers off;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options nosniff always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
 
     client_max_body_size 25m;
 

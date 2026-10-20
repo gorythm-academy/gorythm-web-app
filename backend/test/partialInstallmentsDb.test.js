@@ -5,7 +5,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 
-const uri = process.env.TEST_MONGO_URI;
+function isolatedTestUri(suffix) {
+    const raw = process.env.TEST_MONGO_URI;
+    if (!raw) return '';
+    const url = new URL(raw);
+    const base = url.pathname.replace(/^\//, '').replace(/\/$/, '') || 'gorythm_test';
+    url.pathname = `/${base}_${suffix}`;
+    return url.toString();
+}
+
+const uri = isolatedTestUri('partial');
 const skip = uri ? false : 'TEST_MONGO_URI is not set';
 
 test('part payments through the admin flow: credit, complete, refund, recount', { skip }, async (t) => {

@@ -1,0 +1,9 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Gorythm Academy",
+    "documentationUrl": "https://gorythmacademy.com/llms.txt",
+    "logoUrl": "https://gorythmacademy.com/logo.png"
+  },
+  "entries": []
+}

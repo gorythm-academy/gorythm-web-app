@@ -76,7 +76,7 @@ router.get('/submissions', async (req, res) => {
                 select: 'title dueDate course teacher deletedAt',
                 populate: [
                     { path: 'course', select: 'title instructorName deletedAt' },
-                    { path: 'teacher', select: 'name email' },
+                    { path: 'teacher', select: 'name email status deletedAt' },
                 ],
             })
             .sort({ submittedAt: -1 })
@@ -127,7 +127,7 @@ router.get('/submissions/:id', async (req, res) => {
                 select: 'title dueDate course teacher deletedAt',
                 populate: [
                     { path: 'course', select: 'title instructorName deletedAt' },
-                    { path: 'teacher', select: 'name email' },
+                    { path: 'teacher', select: 'name email status deletedAt' },
                 ],
             })
             .lean();

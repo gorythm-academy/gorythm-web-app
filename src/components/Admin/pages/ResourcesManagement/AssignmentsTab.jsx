@@ -5,6 +5,7 @@ import LmsCollapsibleFormPanel from '../../shared/LmsCollapsibleFormPanel';
 import LmsTrashTabs from '../../shared/LmsTrashTabs';
 import AdminSearchBox from '../../shared/AdminSearchBox';
 import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE } from '../../../../utils/adminListLabels';
+import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
 import { LmsTargetSelect, minDueDateValue, minEditDueDateValue, filterSchedulesForTargeting } from './lmsTargeting';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
 
@@ -337,7 +338,10 @@ const AssignmentsTab = ({
                         ) : null}
                       </td>
                       <td>{a.course?.title}</td>
-                      <td>{a.teacher?.name || '—'}</td>
+                      <td>
+                        {a.teacher?.name || '—'}
+                        <TeacherAccountStatus teacher={a.teacher} />
+                      </td>
                       <td>
                         {a.assignedSchedule
                           ? formatScheduleTimeLabel(a.assignedSchedule)

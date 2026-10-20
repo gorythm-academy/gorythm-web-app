@@ -3221,3 +3221,35 @@
     line-height: 1.35;
   }
 }
+
+.lms-teacher-account-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+
+  &--active {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &--inactive {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &--complete {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+
+  &--quarantine {
+    background: #ffedd5;
+    color: #9a3412;
+  }
+}

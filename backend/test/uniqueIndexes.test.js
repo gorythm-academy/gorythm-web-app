@@ -7,7 +7,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 
-const uri = process.env.TEST_MONGO_URI;
+function isolatedTestUri(suffix) {
+    const raw = process.env.TEST_MONGO_URI;
+    if (!raw) return '';
+    const url = new URL(raw);
+    const base = url.pathname.replace(/^\//, '').replace(/\/$/, '') || 'gorythm_test';
+    url.pathname = `/${base}_${suffix}`;
+    return url.toString();
+}
+
+const uri = isolatedTestUri('indexes');
 const skip = uri ? false : 'TEST_MONGO_URI is not set';
 
 test('unique indexes keep one live enrollment and quiz attempt', { skip }, async (t) => {

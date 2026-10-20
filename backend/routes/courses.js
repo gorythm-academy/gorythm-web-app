@@ -21,6 +21,7 @@ const {
     instructorIdsFromCourse,
     formatInstructorNames,
 } = require('../utils/courseInstructors');
+const { assertLocalCourseImage } = require('../utils/courseImageRef');
 
 const COURSE_TRASH_UNSET_TEACHERS = {
     instructors: [],
@@ -380,7 +381,7 @@ router.post(
             instructorName: '',
             instructors: [],
             students: [],
-            homepageImage: (req.body.homepageImage && String(req.body.homepageImage).trim()) || '',
+            homepageImage: assertLocalCourseImage(req.body.homepageImage),
             displayOrder,
             masonryColumn: parseMasonryColumn(req.body.masonryColumn),
             slug: uniqueSlug,
@@ -479,7 +480,7 @@ router.put(
         } else if (req.body.instructorName !== undefined && !(course.instructors || []).length) {
             course.instructorName = req.body.instructorName || '';
         }
-        if (req.body.homepageImage !== undefined) course.homepageImage = String(req.body.homepageImage || '').trim();
+        if (req.body.homepageImage !== undefined) course.homepageImage = assertLocalCourseImage(req.body.homepageImage);
         if (req.body.displayOrder !== undefined) {
             course.displayOrder = parseDisplayOrder(req.body.displayOrder);
         }

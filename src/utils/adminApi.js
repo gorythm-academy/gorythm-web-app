@@ -20,6 +20,16 @@ export function getAdminErrorMessage(err, fallback = 'Request failed') {
   return err.message || fallback;
 }
 
+/** Unique server messages from a list of failed requests. */
+export function joinAdminErrors(errors) {
+  const messages = [];
+  for (const err of errors || []) {
+    const message = String(getAdminErrorMessage(err, '') || '').trim();
+    if (message && !messages.includes(message)) messages.push(message);
+  }
+  return messages.join(' ');
+}
+
 function handleUnauthorized(err) {
   if (!isAuthSessionRevokedError(err)) return;
   forceAdminLogout();

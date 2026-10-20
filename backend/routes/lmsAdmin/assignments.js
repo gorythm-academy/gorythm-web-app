@@ -37,7 +37,7 @@ async function loadAssignmentSchedules(courseId) {
     return ClassSchedule.find(filter)
         .select('course teacher dayOfWeek startTime endTime roomOrLink')
         .populate('course', 'title')
-        .populate('teacher', 'name email')
+        .populate('teacher', 'name email status deletedAt')
         .sort({ dayOfWeek: 1, startTime: 1 })
         .lean();
 }
@@ -86,7 +86,7 @@ router.get('/assignments', async (req, res) => {
                     'title description dueDate status course teacher assignedSchedule attachments createdByRole lockedForTeacher publishGroupId dueDateExtensions createdAt updatedAt deletedAt'
                 )
                 .populate('course', 'title instructorName')
-                .populate('teacher', 'name email')
+                .populate('teacher', 'name email status deletedAt')
                 .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
                 .sort({ dueDate: -1 })
                 .lean(),
@@ -191,7 +191,7 @@ router.post('/assignments', async (req, res) => {
 
         const populated = await Assignment.find({ _id: { $in: created.map((a) => a._id) } })
             .populate('course', 'title')
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('assignedSchedule', 'dayOfWeek startTime endTime');
 
         res.status(201).json({

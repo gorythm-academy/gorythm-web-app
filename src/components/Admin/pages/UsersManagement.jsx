@@ -5,88 +5,16 @@ import { getAuthToken, parseAuthUser } from '../../../utils/authStorage';
 import { API_BASE_URL, PROTECTED_SUPER_ADMIN_EMAIL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
 import { formatLoginEmailNotice, validatePasswordPair } from '../../../utils/studentAdminValidation';
-import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import { lmsAdminGet } from '../../../utils/lmsAdminApi';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import { USER_STATUS_OPTIONS, normalizeStaffStatus } from './usersManagementShared';
+import { downloadUsersCsv } from './usersCsvExport';
+import { useUsersRecordActions } from './useUsersRecordActions';
+import { EMAIL_REGEX, GORYTHM_EMAIL_REGEX, PARENT_LINK_STUDENT_LIMIT, PEOPLE_ROLE_OPTIONS, PERSONAL_EMAIL_REGEX, SEARCH_DEBOUNCE_MS, TABLE_LAYOUT, USERS_PAGE_SIZE, VARIANT_CONFIG } from './usersManagementConfig';
 import './UsersManagement.scss';
 
-const USERS_PAGE_SIZE = 25;
-const PARENT_LINK_STUDENT_LIMIT = 50;
-const SEARCH_DEBOUNCE_MS = 300;
-
-const STAFF_ROLE_SLUGS = ['manager', 'super-admin', 'accountant'];
-
-const VARIANT_CONFIG = {
-    staff: {
-        roles: STAFF_ROLE_SLUGS,
-        segment: 'staff',
-        pageTitle: 'Staff Accounts (Users)',
-        addLabel: 'Add Staff User',
-        icon: 'fa-users-cog',
-        defaultRole: 'manager',
-        fixedRole: null,
-        showEnroll: false,
-    },
-    teachers: {
-        roles: ['teacher'],
-        segment: 'teachers',
-        pageTitle: 'Teachers',
-        addLabel: 'Add Teacher',
-        icon: 'fa-chalkboard-teacher',
-        defaultRole: 'teacher',
-        fixedRole: 'teacher',
-        showEnroll: false,
-    },
-    parents: {
-        roles: ['parent'],
-        segment: 'parents',
-        pageTitle: 'Parents',
-        addLabel: 'Add Parent',
-        icon: 'fa-people-roof',
-        defaultRole: 'parent',
-        fixedRole: 'parent',
-        showEnroll: false,
-    },
-};
-
-const PEOPLE_ROLE_OPTIONS = [
-    { value: 'student', label: 'Student', icon: 'fa-user-graduate' },
-    { value: 'teacher', label: 'Teacher/Instructor', icon: 'fa-chalkboard-teacher' },
-    { value: 'parent', label: 'Parent/Guardian', icon: 'fa-people-roof' },
-];
-
-const COLUMN_DEFS = ['checkbox', 'user', 'role', 'status', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'];
-const DEFAULT_COLUMN_WIDTHS = [60, 220, 160, 140, 150, 250, 250, 130, 180, 1];
-const COLUMN_MIN_WIDTHS = [50, 140, 110, 100, 110, 140, 140, 100, 120, 90];
-const COLUMN_MAX_WIDTHS = [90, 360, 260, 240, 280, 420, 420, 220, 320, 320];
-
-const TABLE_LAYOUT = {
-    staff: {
-        keys: COLUMN_DEFS,
-        widths: DEFAULT_COLUMN_WIDTHS,
-        mins: COLUMN_MIN_WIDTHS,
-        maxs: COLUMN_MAX_WIDTHS,
-    },
-    teachers: {
-        keys: ['checkbox', 'user', 'status', 'assignedCourses', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 240, 160, 260, 150, 250, 250, 130, 180, 1],
-        mins: [50, 160, 120, 160, 110, 140, 140, 100, 120, 90],
-        maxs: [90, 380, 260, 420, 280, 420, 420, 220, 320, 320],
-    },
-    parents: {
-        keys: ['checkbox', 'user', 'status', 'children', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 240, 140, 260, 150, 250, 250, 130, 180, 1],
-        mins: [50, 160, 100, 160, 110, 140, 140, 100, 120, 90],
-        maxs: [90, 380, 240, 420, 280, 420, 420, 220, 320, 320],
-    },
-};
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const GORYTHM_EMAIL_REGEX = /^[^\s@]+@gorythmacademy\.com$/i;
-const PERSONAL_EMAIL_REGEX = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const UsersManagement = ({ variant = 'staff', embedded = false }) => {
@@ -986,263 +914,31 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
         }
     };
 
-    const toggleUserSelection = (userId) => {
-        const u = users.find((x) => x._id === userId);
-        if (u && isRowActionsLocked(u)) return;
-        setSelectedUsers(prev => 
-            prev.includes(userId) 
-                ? prev.filter(id => id !== userId)
-                : [...prev, userId]
-        );
-    };
-
-    const updateUserStatus = async (userId, currentStatus, targetStatus) => {
-        const user = users.find(u => u._id === userId);
-        if (user && isRowActionsLocked(user)) return;
-        const effectiveStatus = isStaffTab ? normalizeStaffStatus(currentStatus) : currentStatus;
-        const newStatus = targetStatus || (effectiveStatus === 'active' ? 'inactive' : 'active');
-        if (newStatus === effectiveStatus) return;
-        
-        const confirmed = await showConfirm({
-            title: 'Change User Status?',
-            message: `Change "${user?.name || 'this user'}" from ${effectiveStatus} to ${newStatus}?`,
-            confirmLabel: 'Change Status',
-        });
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const token = getAuthToken();
-            await axios.patch(
-                `${API_BASE_URL}/api/users/${userId}/status`, 
-                { status: newStatus },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            
-            // Update local state
-            setUsers(prev => prev.map(row => 
-                row._id === userId 
-                    ? { ...row, status: newStatus, isActive: newStatus === 'active' }
-                    : row
-            ));
-            
-            showAlert(`User status set to ${newStatus}.`, 'success');
-        } catch (error) {
-            console.error('Error updating user status:', error);
-            showAlert('Failed to update user status', 'error');
-        }
-    };
-
-    const deleteUser = async (userId) => {
-        const user = users.find(u => u._id === userId);
-        if (user && isRowActionsLocked(user)) return;
-
-        const confirmed = await showConfirm({
-            title: `Move to ${QUARANTINE_LABEL}?`,
-            message: `Move "${user?.name || 'this user'}" to ${QUARANTINE_LABEL}? They will lose portal and login access. Restore from the ${QUARANTINE_LABEL} tab.`,
-            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
-        });
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const token = getAuthToken();
-            await axios.delete(`${API_BASE_URL}/api/users/${userId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            await reloadAfterMutation();
-            setSelectedUsers(prev => prev.filter(id => id !== userId));
-            
-            showAlert(`User moved to ${QUARANTINE_LABEL}.`, 'success');
-        } catch (error) {
-            console.error('Error moving user to quarantine:', error);
-            showAlert(error.response?.data?.error || `Failed to move user to ${QUARANTINE_LABEL}`, 'error');
-        }
-    };
-
-    const restoreUser = async (userId) => {
-        if (trashBusy) return;
-        setTrashBusy(true);
-        try {
-            const token = getAuthToken();
-            await axios.patch(`${API_BASE_URL}/api/users/${userId}/restore`, null, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            await reloadAfterMutation();
-            showAlert('User restored.', 'success');
-        } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to restore user', 'error');
-        } finally {
-            setTrashBusy(false);
-        }
-    };
-
-    const restoreSelectedUsers = async () => {
-        if (trashBusy || !selectedUsers.length) return;
-        setTrashBusy(true);
-        const token = getAuthToken();
-        const ids = [...selectedUsers];
-        let restored = 0;
-        let failed = 0;
-
-        for (const id of ids) {
-            try {
-                await axios.patch(`${API_BASE_URL}/api/users/${id}/restore`, null, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                restored += 1;
-            } catch {
-                failed += 1;
-            }
-        }
-
-        await reloadAfterMutation();
-        setSelectedUsers([]);
-        setTrashBusy(false);
-
-        if (failed === 0) {
-            showAlert(`${restored} user(s) restored.`, 'success');
-        } else if (restored === 0) {
-            showAlert(`Failed to restore ${failed} user(s).`, 'error');
-        } else {
-            showAlert(`Restored ${restored} user(s). ${failed} could not be restored.`, 'warning');
-        }
-    };
-
-    const permanentDeleteSelectedUsers = async () => {
-        if (trashBusy || !selectedUsers.length || listTab !== 'trash') return;
-
-        const confirmed = await showConfirm({
-            title: 'Delete Permanently?',
-            message: `Permanently delete ${selectedUsers.length} user(s)? This cannot be undone.`,
-            confirmLabel: 'Delete forever',
-        });
-        if (!confirmed) return;
-
-        setTrashBusy(true);
-        const token = getAuthToken();
-        const ids = [...selectedUsers];
-        let deleted = 0;
-        let failed = 0;
-
-        for (const id of ids) {
-            try {
-                await axios.delete(`${API_BASE_URL}/api/users/${id}/permanent`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                deleted += 1;
-            } catch {
-                failed += 1;
-            }
-        }
-
-        await reloadAfterMutation();
-        setSelectedUsers([]);
-        setTrashBusy(false);
-
-        if (failed === 0) {
-            showAlert(`${deleted} user(s) permanently deleted.`, 'success');
-        } else if (deleted === 0) {
-            showAlert(`Failed to permanently delete ${failed} user(s).`, 'error');
-        } else {
-            showAlert(
-                `Deleted ${deleted} user(s). ${failed} could not be deleted.`,
-                'warning'
-            );
-        }
-    };
-
-    const permanentDeleteUser = async (userId) => {
-        if (listTab !== 'trash' || trashBusy) return;
-        const confirmed = await showConfirm({
-            title: 'Delete Permanently?',
-            message: 'This cannot be undone. The user account will be removed from the database.',
-            confirmLabel: 'Delete forever',
-        });
-        if (!confirmed) return;
-        setTrashBusy(true);
-        try {
-            const token = getAuthToken();
-            await axios.delete(`${API_BASE_URL}/api/users/${userId}/permanent`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            await reloadAfterMutation();
-            setSelectedUsers((prev) => prev.filter((id) => id !== userId));
-            showAlert('User permanently deleted.', 'success');
-        } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to permanently delete user', 'error');
-        } finally {
-            setTrashBusy(false);
-        }
-    };
-
-    const deleteSelectedUsers = async () => {
-        if (!selectedUsers.length) {
-            showAlert('Please select users to delete', 'warning');
-            return;
-        }
-        
-        const confirmed = await showConfirm({
-            title: `Move to ${QUARANTINE_LABEL}?`,
-            message: `Move ${selectedUsers.length} selected user(s) to ${QUARANTINE_LABEL}? They will lose portal and login access.`,
-            confirmLabel: `Move to ${QUARANTINE_LABEL}`,
-        });
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const token = getAuthToken();
-            const response = await axios.post(
-                `${API_BASE_URL}/api/users/bulk-delete`, 
-                { ids: selectedUsers },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            // Refresh list
-            await reloadAfterMutation();
-            setSelectedUsers([]);
-            
-            showAlert(response.data.message || `${selectedUsers.length} user(s) moved to ${QUARANTINE_LABEL}.`, 'success');
-        } catch (error) {
-            console.error('Error deleting selected users:', error);
-            showAlert('Failed to delete users', 'error');
-        }
-    };
-
-    const updateSelectedStatus = async (status) => {
-        if (!selectedUsers.length) {
-            showAlert('Please select users to update', 'warning');
-            return;
-        }
-
-        const confirmed = await showConfirm({
-            title: 'Update User Status?',
-            message: `Set ${selectedUsers.length} selected user(s) to ${status}?`,
-            confirmLabel: 'Update Status',
-        });
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const token = getAuthToken();
-            await axios.patch(`${API_BASE_URL}/api/users/bulk-status`, 
-                { ids: selectedUsers, status },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            
-            // Refresh list
-            await reloadAfterMutation();
-            showAlert(`${selectedUsers.length} user(s) set to ${status} successfully!`, 'success');
-        } catch (error) {
-            console.error('Error updating selected users status:', error);
-            showAlert('Failed to update status', 'error');
-        }
-    };
+    const {
+        toggleUserSelection,
+        updateUserStatus,
+        deleteUser,
+        restoreUser,
+        restoreSelectedUsers,
+        permanentDeleteSelectedUsers,
+        permanentDeleteUser,
+        deleteSelectedUsers,
+        updateSelectedStatus,
+    } = useUsersRecordActions({
+        users,
+        isRowActionsLocked,
+        isStaffTab,
+        showConfirm,
+        showAlert,
+        setUsers,
+        setSelectedUsers,
+        reloadAfterMutation,
+        trashBusy,
+        setTrashBusy,
+        selectedUsers,
+        listTab,
+        variant,
+    });
 
     const sortedUsers = useMemo(() => {
         if (sortBy !== 'assignedCourses' && sortBy !== 'children') {
@@ -1274,83 +970,17 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
     const totalPages = Math.max(1, Math.ceil(total / USERS_PAGE_SIZE));
     const statsByRole = listStats?.byRole || {};
 
-    const downloadUsersCsv = async () => {
-        try {
-            const token = getAuthToken();
-            const segment = variantConfig.segment;
-            const allRows = [];
-            let exportPage = 1;
-            let exportTotal = 0;
-
-            do {
-                const response = await axios.get(`${API_BASE_URL}/api/users`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                    params: {
-                        segment,
-                        page: exportPage,
-                        limit: 500,
-                        search: debouncedSearchTerm || undefined,
-                        sortBy,
-                        sortOrder,
-                        ...(isStaffTab && filterRole !== 'all' ? { role: filterRole } : {}),
-                        ...(listTab === 'trash' ? { trash: '1' } : {}),
-                    },
-                });
-                if (!response.data?.success) break;
-                const batch = (response.data.users || []).filter((u) => variantConfig.roles.includes(u.role));
-                allRows.push(...batch);
-                exportTotal = Number(response.data.total) || batch.length;
-                exportPage += 1;
-            } while (allRows.length < exportTotal);
-
-            const exportUsers = allRows;
-            const rows = (exportUsers || []).map((u) => ({
-                studentId: u.role === 'student' ? (u.studentId || '') : '',
-                name: u.name || '',
-                portalEmail: u.email || '',
-                personalEmail: u.personalEmail || '',
-                role: u.role || '',
-                phone: u.phone || '',
-                status: isStaffTab
-                    ? normalizeStaffStatus(u.status)
-                    : (u.status || (u.isActive !== false ? 'active' : 'inactive')),
-                joined: u.joinDate ? new Date(u.joinDate).toISOString().slice(0, 10) : '',
-            }));
-
-            const cols = [
-                ['studentId', 'Student ID'],
-                ['name', 'Name'],
-                ['portalEmail', 'Portal Email'],
-                ['personalEmail', 'Personal Email'],
-                ['role', 'Role'],
-                ['phone', 'Phone'],
-                ['status', 'Status'],
-                ['joined', 'Joined'],
-            ];
-
-            const esc = (v) => {
-                const s = String(v ?? '');
-                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-            };
-
-            const csv = [
-                cols.map((c) => esc(c[1])).join(','),
-                ...rows.map((r) => cols.map((c) => esc(r[c[0]])).join(',')),
-            ].join('\n');
-
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `gorythm-${variant}-records-${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            showAlert(error.response?.data?.error || error.message || 'Failed to export CSV', 'error');
-        }
-    };
+    const downloadUsersCsvFile = () => downloadUsersCsv({
+        variant,
+        variantConfig,
+        debouncedSearchTerm,
+        sortBy,
+        sortOrder,
+        isStaffTab,
+        filterRole,
+        listTab,
+        showAlert,
+    });
 
     const selectableFilteredUsers = sortedUsers.filter((u) => !isRowActionsLocked(u));
 
@@ -1393,7 +1023,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
                 columnWidths,
                 deleteSelectedUsers,
                 deleteUser,
-                downloadUsersCsv,
+                downloadUsersCsv: downloadUsersCsvFile,
                 editingUser,
                 embedded,
                 fetchUsers,

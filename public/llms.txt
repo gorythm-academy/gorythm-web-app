@@ -1,0 +1,16 @@
+# Gorythm Academy
+
+> Built with Signs. Discover Yourself. Online academy for IQ, EQ, and PhQ through structured courses and research.
+
+Gorythm Academy is an initiative of Al-Farhan Institute. Pages below are the public site. Account, admin, and classroom pages are for signed-in users.
+
+## Pages
+
+- [Home](https://gorythmacademy.com/): Academy homepage
+- [All courses](https://gorythmacademy.com/courses): Course list
+- [About](https://gorythmacademy.com/about): About the academy
+- [Research](https://gorythmacademy.com/research): Research articles
+- [Contact](https://gorythmacademy.com/contact): Contact and enrollment
+- [Privacy](https://gorythmacademy.com/privacy): Privacy policy
+- [Terms](https://gorythmacademy.com/terms): Terms of service
+- [Cookies](https://gorythmacademy.com/cookies): Cookie policy

@@ -41,7 +41,7 @@ router.get('/teacher-attendance-daily', async (req, res) => {
         }
         filter.submittedAt = { $ne: null };
         const days = await TeacherSelfAttendanceDay.find(filter)
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('reviewedBy', 'name email')
             .sort({ date: -1, submittedAt: -1 });
         const workingDays = days.filter((d) => {
@@ -92,7 +92,7 @@ router.get('/teacher-attendance-daily/teachers', async (req, res) => {
             },
         ]);
         const teacherIds = rows.map((r) => r._id).filter(Boolean);
-        const users = await User.find({ _id: { $in: teacherIds } }).select('name email');
+        const users = await User.find({ _id: { $in: teacherIds } }).select('name email status deletedAt');
         const userById = new Map(users.map((u) => [String(u._id), u]));
         const teachers = rows
             .map((r) => {
@@ -101,6 +101,8 @@ router.get('/teacher-attendance-daily/teachers', async (req, res) => {
                     _id: r._id,
                     name: u?.name || 'Teacher',
                     email: u?.email || '',
+                    status: u?.status || 'active',
+                    deletedAt: u?.deletedAt || null,
                     pendingCount: r.pendingCount,
                     totalCount: r.totalCount,
                 };
@@ -117,7 +119,7 @@ router.get('/teacher-attendance-daily/pending-summary', async (req, res) => {
         const days = await TeacherSelfAttendanceDay.find({
             approvalStatus: 'pending',
             submittedAt: { $ne: null },
-        }).populate('teacher', 'name email');
+        }).populate('teacher', 'name email status deletedAt');
         const map = new Map();
         days.forEach((d) => {
             const monthKey = isoDateKey(d.date).slice(0, 7);
@@ -140,7 +142,7 @@ router.get('/teacher-attendance-daily/pending-summary', async (req, res) => {
         });
 
         const monthlyRows = await TeacherAttendanceRequest.find({ status: 'pending' })
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .sort({ monthKey: 1 })
             .lean();
         const monthlyItems = monthlyRows.map((row) => ({
@@ -181,7 +183,7 @@ router.patch('/teacher-attendance-daily/:id', async (req, res) => {
             updates,
             { new: true, runValidators: true }
         )
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('reviewedBy', 'name email');
         if (!day) {
             return res.status(404).json({ success: false, error: 'Daily record not found' });
@@ -206,7 +208,7 @@ router.get('/teacher-attendance-requests', async (req, res) => {
             filter.monthKey = String(req.query.month).trim();
         }
         const requests = await TeacherAttendanceRequest.find(filter)
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('reviewedBy', 'name email')
             .sort({ submittedAt: -1, updatedAt: -1 })
             .limit(200);
@@ -362,7 +364,7 @@ router.patch('/teacher-attendance-requests/:id', async (req, res) => {
             },
             { new: true, runValidators: true }
         )
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('reviewedBy', 'name email');
 
         if (status === 'approved' && teacherId) {

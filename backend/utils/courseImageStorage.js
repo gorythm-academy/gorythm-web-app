@@ -29,12 +29,15 @@ function imageAbsolutePathFromPublic(publicPath) {
 
 function deleteImageFile(publicPath) {
     const abs = imageAbsolutePathFromPublic(publicPath);
-    if (!abs || !fs.existsSync(abs)) return;
-    try {
-        fs.unlinkSync(abs);
-    } catch {
-        /* ignore */
+    if (abs && fs.existsSync(abs)) {
+        try {
+            fs.unlinkSync(abs);
+        } catch {
+            /* ignore */
+        }
     }
+    if (!abs) return;
+    require('./courseImageVariant').deleteCourseImageVariants(path.basename(abs));
 }
 
 function listImageFilenames() {

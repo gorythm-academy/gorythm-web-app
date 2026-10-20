@@ -29,7 +29,7 @@ async function loadResourceSchedules(courseId) {
     return ClassSchedule.find(filter)
         .select('course teacher dayOfWeek startTime endTime roomOrLink')
         .populate('course', 'title')
-        .populate('teacher', 'name email')
+        .populate('teacher', 'name email status deletedAt')
         .sort({ dayOfWeek: 1, startTime: 1 })
         .lean();
 }
@@ -96,7 +96,7 @@ router.get('/resources', async (req, res) => {
                     'title description fileUrl attachments type course teacher assignedSchedule scope uploadedBy createdByRole lockedForTeacher publishGroupId createdAt updatedAt deletedAt'
                 )
                 .populate('course', 'title instructorName')
-                .populate('teacher', 'name email')
+                .populate('teacher', 'name email status deletedAt')
                 .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
                 .populate('uploadedBy', 'name email role')
                 .sort({ createdAt: -1 })
@@ -193,7 +193,7 @@ router.post('/resources', async (req, res) => {
             );
             const populated = await Resource.find({ _id: { $in: created.map((r) => r._id) } })
                 .populate('course', 'title')
-                .populate('teacher', 'name email')
+                .populate('teacher', 'name email status deletedAt')
                 .populate('assignedSchedule', 'dayOfWeek startTime endTime')
                 .populate('uploadedBy', 'name role');
             return res.status(201).json({
@@ -248,7 +248,7 @@ router.post('/resources', async (req, res) => {
 
         const populated = await Resource.find({ _id: { $in: created.map((r) => r._id) } })
             .populate('course', 'title')
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('assignedSchedule', 'dayOfWeek startTime endTime')
             .populate('uploadedBy', 'name role');
 
@@ -310,7 +310,7 @@ router.patch('/resources/:id', async (req, res) => {
         await resource.save();
         const populated = await Resource.findById(resource._id)
             .populate('course', 'title')
-            .populate('teacher', 'name email')
+            .populate('teacher', 'name email status deletedAt')
             .populate('assignedSchedule', 'dayOfWeek startTime endTime teacher')
             .populate('uploadedBy', 'name role');
         res.json({ success: true, resource: populated });

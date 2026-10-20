@@ -5,6 +5,7 @@ import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { paymentRegistrationEmail } from '../../../utils/studentPortalEmail';
 import { useAdminDialog } from '../AdminDialogContext';
+import { getAdminErrorMessage, joinAdminErrors } from '../../../utils/adminApi';
 import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, FAILED_MOVE_TO_QUARANTINE_PHRASE } from '../../../utils/adminListLabels';
 import { markPortalPageVisited, ADMIN_SEEN_PAYMENTS } from '../../../utils/portalNewItems';
 import './PaymentsManagement.scss';
@@ -551,6 +552,7 @@ const PaymentsManagement = () => {
         const token = getAuthToken();
         const ids = [...selectedPayments];
         let moved = 0;
+        const failures = [];
 
         await Promise.all(
             ids.map(async (paymentId) => {
@@ -560,19 +562,23 @@ const PaymentsManagement = () => {
                     });
                     moved += 1;
                 } catch (error) {
-                    console.warn('Backend delete failed for payment:', paymentId, error);
+                    failures.push(error);
                 }
             })
         );
 
         setSelectedPayments([]);
         await fetchPayments();
+        const reason = joinAdminErrors(failures);
         if (moved === ids.length) {
             showAlert(`${moved} payment record(s) ${MOVED_TO_QUARANTINE_PHRASE}.`, 'success');
         } else if (moved > 0) {
-            showAlert(`${moved} of ${ids.length} payment record(s) ${MOVED_TO_QUARANTINE_PHRASE}.`, 'warning');
+            showAlert(
+                `${moved} of ${ids.length} payment record(s) ${MOVED_TO_QUARANTINE_PHRASE}.${reason ? ` ${reason}` : ''}`,
+                'warning'
+            );
         } else {
-            showAlert(`Failed to move selected payments to ${QUARANTINE_LABEL}.`, 'error');
+            showAlert(reason || `Failed to move selected payments to ${QUARANTINE_LABEL}.`, 'error');
         }
     };
 
@@ -587,7 +593,7 @@ const PaymentsManagement = () => {
             await fetchPayments();
             showAlert('Payment restored.', 'success');
         } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to restore payment.', 'error');
+            showAlert(getAdminErrorMessage(error, 'Failed to restore payment.'), 'error');
         } finally {
             setTrashBusy(false);
         }
@@ -606,20 +612,21 @@ const PaymentsManagement = () => {
                 )
             );
             const failed = results.filter((r) => r.status === 'rejected');
+            const reason = joinAdminErrors(failed.map((r) => r.reason));
             setSelectedPayments([]);
             await fetchPayments({ soft: true });
             if (failed.length === 0) {
                 showAlert('Selected payments restored.', 'success');
             } else if (failed.length < results.length) {
                 showAlert(
-                    `${results.length - failed.length} restored, ${failed.length} failed.`,
+                    `${results.length - failed.length} restored, ${failed.length} failed.${reason ? ` ${reason}` : ''}`,
                     'warning'
                 );
             } else {
-                showAlert('Failed to restore selected payments.', 'error');
+                showAlert(reason || 'Failed to restore selected payments.', 'error');
             }
         } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to restore payments.', 'error');
+            showAlert(getAdminErrorMessage(error, 'Failed to restore payments.'), 'error');
         } finally {
             setTrashBusy(false);
         }
@@ -643,7 +650,7 @@ const PaymentsManagement = () => {
             await fetchPayments();
             showAlert('Payment permanently deleted.', 'success');
         } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to delete permanently.', 'error');
+            showAlert(getAdminErrorMessage(error, 'Failed to delete permanently.'), 'error');
         } finally {
             setTrashBusy(false);
         }
@@ -669,20 +676,21 @@ const PaymentsManagement = () => {
                 )
             );
             const failed = results.filter((r) => r.status === 'rejected');
+            const reason = joinAdminErrors(failed.map((r) => r.reason));
             setSelectedPayments([]);
             await fetchPayments();
             if (failed.length === 0) {
                 showAlert('Selected payments permanently deleted.', 'success');
             } else if (failed.length < results.length) {
                 showAlert(
-                    `${results.length - failed.length} deleted, ${failed.length} failed.`,
+                    `${results.length - failed.length} deleted, ${failed.length} failed.${reason ? ` ${reason}` : ''}`,
                     'warning'
                 );
             } else {
-                showAlert('Failed to delete selected payments.', 'error');
+                showAlert(reason || 'Failed to delete selected payments.', 'error');
             }
         } catch (error) {
-            showAlert(error.response?.data?.error || 'Failed to delete permanently.', 'error');
+            showAlert(getAdminErrorMessage(error, 'Failed to delete permanently.'), 'error');
         } finally {
             setTrashBusy(false);
         }

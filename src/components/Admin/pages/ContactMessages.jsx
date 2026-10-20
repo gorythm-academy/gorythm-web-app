@@ -3,6 +3,7 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { forceAdminLogout } from '../../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../../config/constants';
+import { getAdminErrorMessage, joinAdminErrors } from '../../../utils/adminApi';
 import { useAdminDialog } from '../AdminDialogContext';
 import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
 import AdminTablePagination from '../shared/AdminTablePagination';
@@ -21,8 +22,15 @@ const handleAdminAuthError = (error) => {
   return false;
 };
 
-const summarizeBulkFailures = (results) =>
-  results.filter((result) => result.status === 'rejected').length;
+const rejectedResults = (results) => results.filter((result) => result.status === 'rejected');
+
+const bulkFailureText = (results, allFailedText, partialVerb) => {
+  const failed = rejectedResults(results);
+  if (!failed.length) return '';
+  const reason = joinAdminErrors(failed.map((result) => result.reason));
+  if (failed.length === results.length) return reason || allFailedText;
+  return `${failed.length} of ${results.length} messages could not be ${partialVerb}.${reason ? ` ${reason}` : ''}`;
+};
 
 /** True if message was soft-deleted (API may still return it in edge cases). */
 const isTrashedMessage = (m) => {
@@ -422,20 +430,13 @@ const ContactMessages = () => {
           })
         )
       );
-      const failedCount = summarizeBulkFailures(results);
+      const failureText = bulkFailureText(results, 'Failed to move selected contact messages.', 'moved');
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      if (failedCount > 0) {
-        showAlert(
-          failedCount === n
-            ? 'Failed to move selected contact messages.'
-            : `${failedCount} of ${results.length} messages could not be moved. The list was refreshed.`,
-          'error'
-        );
-      }
+      if (failureText) showAlert(failureText, 'error');
     } catch (error) {
       console.warn('Failed to delete contact message(s):', error.response?.data || error.message);
-      showAlert('Failed to move selected contact messages.', 'error');
+      showAlert(getAdminErrorMessage(error, 'Failed to move selected contact messages.'), 'error');
       await fetchMessages();
     } finally {
       setDeleting(false);
@@ -456,10 +457,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to restore message:', error.response?.data || error.message);
-      showAlert(
-        error.response?.data?.error || 'Failed to restore this message. Please try again.',
-        'error'
-      );
+      showAlert(getAdminErrorMessage(error, 'Failed to restore this message. Please try again.'), 'error');
       await fetchMessages();
     } finally {
       setRestoring(false);
@@ -489,20 +487,13 @@ const ContactMessages = () => {
           )
         )
       );
-      const failedCount = summarizeBulkFailures(results);
+      const failureText = bulkFailureText(results, 'Failed to restore selected messages.', 'restored');
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      if (failedCount > 0) {
-        showAlert(
-          failedCount === n
-            ? 'Failed to restore selected messages.'
-            : `${failedCount} of ${results.length} messages could not be restored. The list was refreshed.`,
-          'error'
-        );
-      }
+      if (failureText) showAlert(failureText, 'error');
     } catch (error) {
       console.warn('Failed to restore message(s):', error.response?.data || error.message);
-      showAlert('Failed to restore selected messages.', 'error');
+      showAlert(getAdminErrorMessage(error, 'Failed to restore selected messages.'), 'error');
       await fetchMessages();
     } finally {
       setRestoring(false);
@@ -528,7 +519,7 @@ const ContactMessages = () => {
       setCurrentPage(1);
     } catch (error) {
       console.warn('Failed to permanently delete:', error.response?.data || error.message);
-      showAlert('Failed to permanently delete this message.', 'error');
+      showAlert(getAdminErrorMessage(error, 'Failed to permanently delete this message.'), 'error');
       await fetchMessages();
     } finally {
       setPurging(false);
@@ -555,20 +546,13 @@ const ContactMessages = () => {
           })
         )
       );
-      const failedCount = summarizeBulkFailures(results);
+      const failureText = bulkFailureText(results, 'Failed to permanently delete selected messages.', 'deleted');
       setSelectedMessages([]);
       await syncMessagesFromServer();
-      if (failedCount > 0) {
-        showAlert(
-          failedCount === n
-            ? 'Failed to permanently delete selected messages.'
-            : `${failedCount} of ${results.length} messages could not be deleted. The list was refreshed.`,
-          'error'
-        );
-      }
+      if (failureText) showAlert(failureText, 'error');
     } catch (error) {
       console.warn('Failed to permanently delete:', error.response?.data || error.message);
-      showAlert('Failed to permanently delete selected messages.', 'error');
+      showAlert(getAdminErrorMessage(error, 'Failed to permanently delete selected messages.'), 'error');
       await fetchMessages();
     } finally {
       setPurging(false);

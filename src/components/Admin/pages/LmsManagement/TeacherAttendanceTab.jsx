@@ -5,6 +5,7 @@ import AdminSearchBox from '../../shared/AdminSearchBox';
 import LmsPanelLoading from './LmsPanelLoading';
 import PayrollMissingBanner from './PayrollMissingBanner';
 import { formatMonthLabel, teacherInitials, statusMeta } from './lmsHelpers';
+import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
 
 const TeacherAttendanceTab = ({
   panelId,
@@ -181,6 +182,7 @@ const TeacherAttendanceTab = ({
                   }
                 >
                   {t.name}
+                  <TeacherAccountStatus teacher={t} />
                   <span className="lms-attendance-teacher-chip__badge">{t.pendingCount}</span>
                 </button>
               ))}
@@ -253,6 +255,7 @@ const TeacherAttendanceTab = ({
                         </span>
                         <span>
                           <strong>{d.teacher?.name || '—'}</strong>
+                          <TeacherAccountStatus teacher={d.teacher} />
                           <small className="admin-email">{d.teacher?.email || ''}</small>
                         </span>
                       </div>
@@ -432,6 +435,7 @@ const TeacherAttendanceTab = ({
                             </span>
                             <span>
                               <strong>{r.teacher?.name || '—'}</strong>
+                              <TeacherAccountStatus teacher={r.teacher} />
                               <small className="admin-email">{r.teacher?.email || ''}</small>
                             </span>
                           </div>

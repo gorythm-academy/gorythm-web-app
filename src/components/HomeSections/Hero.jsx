@@ -1,6 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { gsap } from 'gsap';
 import heroBannerPng from '../../assets/images/home/hero-banner-image.png';
 import { HERO_CENTER_LOGO_AVIF, HERO_CENTER_LOGO_WEBP } from '../../config/publicAssets';
 import { PUBLIC_URL } from '../../config/env';
@@ -13,6 +11,12 @@ import './Hero.scss';
 const PUBLIC = PUBLIC_URL;
 const HERO_LCP_AVIF = `${PUBLIC}/preload/lcp-hero.avif`;
 const HERO_LCP_WEBP = `${PUBLIC}/preload/lcp-hero.webp`;
+
+let gsapPromise;
+function loadGsap() {
+  if (!gsapPromise) gsapPromise = import('gsap').then((mod) => mod.gsap);
+  return gsapPromise;
+}
 
 const HeroSection = () => {
 
@@ -48,24 +52,30 @@ const HeroSection = () => {
       typeof window !== 'undefined' &&
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return undefined;
+
     const centerEl = centerImageRef.current;
-    const tweens = reduceMotion
-      ? []
-      : particlesRef.current.filter(Boolean).map((particle, i) =>
-          gsap.to(particle, {
-            y: -20,
-            rotation: 360,
-            duration: 3 + i,
-            repeat: -1,
-            yoyo: true,
-            ease: "sine.inOut"
-          })
-        );
+    let cancelled = false;
+    let tweens = [];
+    loadGsap().then((gsap) => {
+      if (cancelled) return;
+      tweens = particlesRef.current.filter(Boolean).map((particle, i) =>
+        gsap.to(particle, {
+          y: -20,
+          rotation: 360,
+          duration: 3 + i,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut"
+        })
+      );
+    });
 
     // These tweens repeat forever: stop them when leaving the page.
     return () => {
+      cancelled = true;
       tweens.forEach((tween) => tween.kill());
-      if (centerEl) gsap.killTweensOf(centerEl);
+      if (centerEl) loadGsap().then((gsap) => gsap.killTweensOf(centerEl));
     };
   }, []);
 
@@ -88,12 +98,16 @@ const HeroSection = () => {
     const moveX = 18;
     const moveY = 12;
 
-    gsap.to(centerImageRef.current, {
-      x: -normX * moveX,
-      y: -normY * moveY,
-      duration: 0.9,
-      ease: "power3.out",
-      overwrite: true
+    const target = centerImageRef.current;
+    loadGsap().then((gsap) => {
+      if (target !== centerImageRef.current) return;
+      gsap.to(target, {
+        x: -normX * moveX,
+        y: -normY * moveY,
+        duration: 0.9,
+        ease: "power3.out",
+        overwrite: true
+      });
     });
   };
 
@@ -101,11 +115,15 @@ const HeroSection = () => {
 
     if (!centerImageRef.current) return;
 
-    gsap.to(centerImageRef.current, {
-      x: 0,
-      y: 0,
-      duration: 1.2,
-      ease: "power3.out"
+    const target = centerImageRef.current;
+    loadGsap().then((gsap) => {
+      if (!target) return;
+      gsap.to(target, {
+        x: 0,
+        y: 0,
+        duration: 1.2,
+        ease: "power3.out"
+      });
     });
   };
 
@@ -176,43 +194,23 @@ const HeroSection = () => {
             <div className="hero-title-block">
               <div className="hero-title-line-1">
 
-                <motion.span
-                  className="hero-title-word"
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                >
+                <span className="hero-title-word hero-rise-left">
                   {heroData.caption}
-                </motion.span>
+                </span>
 
-                <motion.span
-                  className="hero-title-word"
-                  initial={{ opacity: 0, x: 30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.6 }}
-                >
+                <span className="hero-title-word hero-rise-right">
                   {heroData.caption2}
-                </motion.span>
+                </span>
 
               </div>
 
-              <motion.div
-                className="hero-title-line-2"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.8 }}
-              >
+              <div className="hero-title-line-2 hero-rise-line">
                 <h2 className="hero-subtitle">
                   {heroData.caption3}
                 </h2>
 
-                <motion.div
-                  ref={centerImageRef}
-                  className="hero-center-image"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.8, delay: 0.4 }}
-                >
+                <div className="hero-center-image hero-rise-logo">
+                  <div ref={centerImageRef} className="hero-center-parallax">
                   <picture className="optimized-picture hero-center-logo-picture">
                     <source srcSet={HERO_CENTER_LOGO_AVIF} type="image/avif" />
                     <source srcSet={HERO_CENTER_LOGO_WEBP} type="image/webp" />
@@ -226,22 +224,18 @@ const HeroSection = () => {
                       decoding="async"
                     />
                   </picture>
-                </motion.div>
-              </motion.div>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
 
-          <motion.div
-            className="hero-description-container"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, delay: 1.0 }}
-          >
+          <div className="hero-description-container hero-rise-copy">
             <p className="hero-description">
               {heroData.description}
             </p>
-          </motion.div>
+          </div>
 
         </div>
       </div>

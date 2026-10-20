@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCourseImageCandidates } from '../../utils/courseImages';
+import { getCourseImageCandidates, getCourseImageSrcSet } from '../../utils/courseImages';
 
 /**
  * Runtime fallback for course artwork:
@@ -24,5 +24,6 @@ export default function SmartCourseImage({ course, ...imgProps }) {
   };
 
   const alt = imgProps.alt ?? '';
-  return <img src={src} alt={alt} onError={handleError} {...imgProps} />;
+  const srcSet = getCourseImageSrcSet(src);
+  return <img src={src} alt={alt} onError={handleError} {...imgProps} {...(srcSet ? { srcSet } : {})} />;
 }

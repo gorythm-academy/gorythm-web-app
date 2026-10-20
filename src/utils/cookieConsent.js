@@ -1,3 +1,4 @@
+// index.html's boot script writes this same key and shape before React loads.
 export const COOKIE_CONSENT_STORAGE_KEY = 'gorythm_cookie_consent_v1';
 export const COOKIE_CONSENT_EVENT = 'gorythm-cookie-consent';
 

@@ -7,7 +7,11 @@ import './CookieConsent.scss';
 const CookieConsent = () => {
   const consent = useCookieConsent();
 
-  if (consent) return null;
+  // The HTML boot banner is the one visitors see first. Keep it, so React does not
+  // swap in a second copy after JavaScript loads.
+  if (consent || (typeof document !== 'undefined' && document.getElementById('cookie-boot'))) {
+    return null;
+  }
 
   return (
     <div className="cookie-consent" role="dialog" aria-label="Cookie consent">

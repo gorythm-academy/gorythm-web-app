@@ -5,6 +5,7 @@ import LmsCollapsibleFormPanel from '../../shared/LmsCollapsibleFormPanel';
 import LmsTrashTabs from '../../shared/LmsTrashTabs';
 import AdminSearchBox from '../../shared/AdminSearchBox';
 import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE } from '../../../../utils/adminListLabels';
+import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
 import { LmsTargetSelect, filterSchedulesForTargeting } from './lmsTargeting';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
 
@@ -399,7 +400,10 @@ const ResourcesTab = ({
                     </td>
                     <td className="admin-submissions__name">{r.title}</td>
                     <td>{r.course?.title}</td>
-                    <td>{r.scope === 'course' ? 'All students' : r.teacher?.name || '—'}</td>
+                    <td>
+                      {r.scope === 'course' ? 'All students' : r.teacher?.name || '—'}
+                      {r.scope === 'course' ? null : <TeacherAccountStatus teacher={r.teacher} />}
+                    </td>
                     <td>
                       {r.scope === 'course'
                         ? '—'

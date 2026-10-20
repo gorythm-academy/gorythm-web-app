@@ -201,7 +201,7 @@ const CoursesSection = ({
                     >
                       <SmartCourseImage
                         course={course}
-                        alt={course.title}
+                        alt=""
                         loading="lazy"
                         width={400}
                         height={250}

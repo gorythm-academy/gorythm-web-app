@@ -10,6 +10,7 @@ import { PortalActivityBanner } from '../../../Portals/shared/PortalUi';
 import { collectQuizUpdateNotices } from '../../../../utils/adminEditNotices';
 import { ADMIN_SEEN_QUIZ_UPDATES, markPortalPageVisited } from '../../../../utils/portalNewItems';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch } from '../../../../utils/lmsAdminApi';
+import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
 import { hasLmsUploadValue, resolveLmsUploadList } from '../../../../utils/fileUploadApi';
 import { AUTH_REALM } from '../../../../utils/authStorage';
 import { LmsTargetSelect, filterSchedulesForTargeting } from './lmsTargeting';
@@ -619,7 +620,10 @@ const AdminQuizzesTab = () => {
                       <td className="admin-submissions__name">{quiz.title}</td>
                       <td>{quiz.quizType === 'file' ? 'File / Reading' : 'MCQ'}</td>
                       <td>{quiz.course?.title || '—'}</td>
-                      <td>{quiz.teacher?.name || '—'}</td>
+                      <td>
+                        {quiz.teacher?.name || '—'}
+                        <TeacherAccountStatus teacher={quiz.teacher} />
+                      </td>
                       <td>
                         {quiz.assignedSchedule
                           ? formatScheduleTimeLabel(quiz.assignedSchedule)

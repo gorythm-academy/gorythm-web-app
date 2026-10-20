@@ -1,18 +1,9 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useLayoutEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import FooterSimple from './components/Footer/FooterSimple';
 import CookieConsent from './components/CookieConsent/CookieConsent';
 import HeroSection from './components/HomeSections/Hero';
-import SubscribePopup from './components/HomeSections/SubscribePopup';
-import AboutSection from './components/HomeSections/About';
-import MissionSection from './components/HomeSections/Mission';
-import VideoSection from './components/HomeSections/Video';
-import CoursesSection from './components/HomeSections/Courses';
-import SubscribeSection from './components/HomeSections/Subscribe';
-import WhyGorythmSection from './components/HomeSections/WhyGorythm';
-import ResearchSection from './components/HomeSections/ResearchSection';
-import StudentTestimonialsSection from './components/HomeSections/StudentTestimonials';
 import SmoothScroll from './components/SmoothScroll/SmoothScroll';
 import Cursor from './components/Cursor/Cursor';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
@@ -33,6 +24,15 @@ installAdminAuthInterceptor();
 installPortalAuthInterceptor();
 installAuthSyncListener();
 
+const SubscribePopup = lazy(() => import('./components/HomeSections/SubscribePopup'));
+const MissionSection = lazy(() => import('./components/HomeSections/Mission'));
+const CoursesSection = lazy(() => import('./components/HomeSections/Courses'));
+const VideoSection = lazy(() => import('./components/HomeSections/Video'));
+const AboutSection = lazy(() => import('./components/HomeSections/About'));
+const StudentTestimonialsSection = lazy(() => import('./components/HomeSections/StudentTestimonials'));
+const WhyGorythmSection = lazy(() => import('./components/HomeSections/WhyGorythm'));
+const SubscribeSection = lazy(() => import('./components/HomeSections/Subscribe'));
+const ResearchSection = lazy(() => import('./components/HomeSections/ResearchSection'));
 const AllCourses = lazy(() => import('./components/Pages/AllCourses'));
 const SingleCourse = lazy(() =>
   import('./components/Pages/SingleCourse').then((m) => ({ default: m.SingleCourse }))
@@ -127,19 +127,24 @@ function RouteFallback() {
 const Home = () => {
   return (
     <div className="front_page">
-      <SubscribePopup />
+      {/* Opens after a delay, so its code can arrive in its own file. */}
+      <Suspense fallback={null}>
+        <SubscribePopup />
+      </Suspense>
       {/* Hero Section - Full width, not constrained */}
       <HeroSection />
 
-      {/* Other sections */}
-      <MissionSection />
-      <CoursesSection />
-      <VideoSection placement="home" />
-      <AboutSection />
-      <StudentTestimonialsSection />
-      <WhyGorythmSection />
-      <SubscribeSection />
-      <ResearchSection />
+      {/* Below the fold, so they load in their own files instead of the first JavaScript download. */}
+      <Suspense fallback={null}>
+        <MissionSection />
+        <CoursesSection />
+        <VideoSection placement="home" />
+        <AboutSection />
+        <StudentTestimonialsSection />
+        <WhyGorythmSection />
+        <SubscribeSection />
+        <ResearchSection />
+      </Suspense>
     </div>
   );
 };
@@ -147,6 +152,9 @@ const Home = () => {
 function AppLayout() {
   const location = useLocation();
   usePageCanonical();
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove('route-no-header');
+  }, []);
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isPortalLmsRoute = /^\/(student|teacher|parent|accountant)(\/|$)/.test(location.pathname);
   const isPublicLoginRoute = ['/login', '/forgot-password', '/reset-password'].includes(location.pathname);

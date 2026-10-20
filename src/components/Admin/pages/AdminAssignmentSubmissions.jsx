@@ -9,6 +9,7 @@ import { QUARANTINE_LABEL, MOVED_TO_QUARANTINE_PHRASE, MOVE_TO_QUARANTINE_PHRASE
 import { formatScore } from '../../../utils/formatScore';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import AdminSearchBox from '../shared/AdminSearchBox';
+import TeacherAccountStatus from '../shared/TeacherAccountStatus';
 import { useAdminSearch } from '../../../hooks/useAdminSearch';
 import AdminTablePagination from '../shared/AdminTablePagination';
 import { PortalActivityBanner } from '../../Portals/shared/PortalUi';
@@ -578,7 +579,10 @@ const AdminAssignmentSubmissions = () => {
                       <td>{s.student?.studentId || '—'}</td>
                       <td>{s.assignment?.title || '—'}</td>
                       <td>{s.assignment?.course?.title || '—'}</td>
-                      <td>{s.assignment?.teacher?.name || s.assignment?.course?.instructorName || '—'}</td>
+                      <td>
+                        {s.assignment?.teacher?.name || s.assignment?.course?.instructorName || '—'}
+                        <TeacherAccountStatus teacher={s.assignment?.teacher} />
+                      </td>
                       <td>
                         {s.submittedAt ? new Date(s.submittedAt).toLocaleString() : '—'}
                         {getSubmissionRevisionLabel(s) ? (
@@ -713,7 +717,10 @@ const AdminAssignmentSubmissions = () => {
                       <td>{a.student?.studentId || '—'}</td>
                       <td>{a.quiz?.title || '—'}</td>
                       <td>{a.quiz?.course?.title || '—'}</td>
-                      <td>{a.quiz?.teacher?.name || a.quiz?.course?.instructorName || '—'}</td>
+                      <td>
+                        {a.quiz?.teacher?.name || a.quiz?.course?.instructorName || '—'}
+                        <TeacherAccountStatus teacher={a.quiz?.teacher} />
+                      </td>
                       <td>{a.scoreDisplay || formatScore(a.score, a.quiz?.totalMarks)}</td>
                       <td>{a.createdAt ? new Date(a.createdAt).toLocaleString() : '—'}</td>
                       <td className="admin-submissions__actions">

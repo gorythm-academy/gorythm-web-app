@@ -1158,6 +1158,16 @@
                     background: #fee2e2;
                     color: #dc2626;
                 }
+
+                &.complete {
+                    background: #e0e7ff;
+                    color: #3730a3;
+                }
+
+                &.quarantine {
+                    background: #ffedd5;
+                    color: #9a3412;
+                }
             }
             
             .cell-email {
