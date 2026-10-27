@@ -4,12 +4,11 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { formatScheduleLabel } from '../../../utils/formatScheduleLabel';
-import { portalEmailDisplayLabel } from '../../../utils/studentPortalEmail';
+import { displayAccountEmail } from '../../../utils/studentPortalEmail';
 import {
     ENROLLMENT_STATUS_BUTTONS,
     FEE_STATUS_VALUES,
     sortPublishedCourses,
-    validatePersonalEmail,
     validateStudentId,
 } from '../../../utils/studentAdminValidation';
 import './EnrollStudentModal.scss';
@@ -211,24 +210,18 @@ const EnrollStudentModal = ({
             if (!token) throw new Error('Admin session expired. Please login again.');
 
             if (!isAddCourseMode) {
-                const personalTrim = (formData.personalEmail || '').trim();
-                const personalErr = validatePersonalEmail(personalTrim);
-                if (personalErr) throw new Error(personalErr);
-
                 const studentIdTrim = (formData.studentId || '').trim();
                 const studentIdErr = validateStudentId(studentIdTrim);
                 if (studentIdErr) throw new Error(studentIdErr);
 
                 const selected = getSelectedStudent();
-                const currentPersonal = String(selected?.personalEmail || '').trim();
                 const currentStudentId = String(selected?.studentId || '').trim();
                 const currentPhone = String(selected?.phone || '').trim();
                 const phoneTrim = (formData.phone || '').trim();
 
                 if (
                     selected?._id &&
-                    (personalTrim !== currentPersonal ||
-                        (!!studentIdTrim && studentIdTrim !== currentStudentId) ||
+                    ((!!studentIdTrim && studentIdTrim !== currentStudentId) ||
                         phoneTrim !== currentPhone)
                 ) {
                     await axios.put(
@@ -236,7 +229,6 @@ const EnrollStudentModal = ({
                         {
                             name: selected.name || '',
                             email: selected.email || '',
-                            personalEmail: personalTrim,
                             phone: phoneTrim,
                             ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
                         },
@@ -420,7 +412,7 @@ const EnrollStudentModal = ({
                                                     {filteredStudents.map((s) => (
                                                         <option key={s._id} value={s._id}>
                                                             {s.studentId ? `[${s.studentId}] ` : ''}
-                                                            {s.name} — {portalEmailDisplayLabel(s.email)}
+                                                            {s.name} — {displayAccountEmail(s)}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -429,9 +421,9 @@ const EnrollStudentModal = ({
                                         {(formData.studentUserId) && selectedStudent && (
                                             <>
                                                 <div className="form-group">
-                                                    <label><i className="fas fa-key"></i> Portal Login Email</label>
+                                                    <label><i className="fas fa-envelope"></i> Email</label>
                                                     <div className="portal-email-readonly">
-                                                        <span className="admin-email">{portalEmailDisplayLabel(selectedStudent.email)}</span>
+                                                        <span className="admin-email">{displayAccountEmail(selectedStudent)}</span>
                                                     </div>
                                                 </div>
                                                 <div className="form-group">
@@ -443,18 +435,6 @@ const EnrollStudentModal = ({
                                                         type="text"
                                                         name="studentId"
                                                         value={formData.studentId}
-                                                        onChange={handleChange}
-                                                        className="form-input"
-                                                        disabled={loading || success}
-                                                    />
-                                                </div>
-                                                <div className="form-group">
-                                                    <label htmlFor="enroll-personal-email">Personal Email</label>
-                                                    <input
-                                                        id="enroll-personal-email"
-                                                        type="email"
-                                                        name="personalEmail"
-                                                        value={formData.personalEmail}
                                                         onChange={handleChange}
                                                         className="form-input"
                                                         disabled={loading || success}

@@ -4,13 +4,13 @@ const Enrollment = require('../models/Enrollment');
 const ClassSchedule = require('../models/ClassSchedule');
 const {
     studentAssignmentMongoFilter,
-    startOfDay,
     resourceVisibleToStudent,
     studentSlotMatchesResource,
     studentResourceMongoFilter,
     resolveValidScheduleTargets,
 } = require('../utils/lmsContentRules');
 const { activeLmsFilter, mergeMongoFilters } = require('../utils/lmsTrashQuery');
+const { startOfAcademyDay } = require('../utils/academyCalendar');
 
 test('combines assignment visibility and active filters without clobbering $or', () => {
     const visibility = {
@@ -65,7 +65,7 @@ test('builds assignment visibility from the student assigned class slots', async
         $or: [
             { dueDate: null },
             { dueDate: { $exists: false } },
-            { dueDate: { $gte: startOfDay(enrolledAt) } },
+            { dueDate: { $gte: startOfAcademyDay(enrolledAt) } },
         ],
     });
 

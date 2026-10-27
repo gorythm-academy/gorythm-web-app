@@ -40,6 +40,7 @@ const SingleCourse = lazy(() =>
 const Login = lazy(() => import('./components/Pages/Login'));
 const AboutPage = lazy(() => import('./components/Pages/AboutPage'));
 const ContactPage = lazy(() => import('./components/Pages/ContactPage'));
+const TrialPage = lazy(() => import('./components/Pages/TrialPage'));
 const LegalPage = lazy(() => import('./components/Pages/LegalPage'));
 const UnsubscribePage = lazy(() => import('./components/Pages/UnsubscribePage'));
 const ConfirmSubscriptionPage = lazy(() => import('./components/Pages/ConfirmSubscriptionPage'));
@@ -67,7 +68,7 @@ const PaymentSuccess = lazy(() =>
 const PaymentCancel = lazy(() =>
   import('./components/Pages/PaymentCancel').then((m) => ({ default: m.PaymentCancel }))
 );
-const ContactMessages = lazy(() => import('./components/Admin/pages/ContactMessages'));
+const TrialsAndMessages = lazy(() => import('./components/Admin/pages/TrialsAndMessages'));
 const Subscribers = lazy(() => import('./components/Admin/pages/Subscribers'));
 const PromoVideosManagement = lazy(() => import('./components/Admin/pages/PromoVideosManagement'));
 const DashboardLayout = lazy(() => import('./components/Admin/DashboardLayout'));
@@ -137,7 +138,7 @@ const Home = () => {
       {/* Below the fold, so they load in their own files instead of the first JavaScript download. */}
       <Suspense fallback={null}>
         <MissionSection />
-        <CoursesSection />
+        <CoursesSection showTrialLink />
         <VideoSection placement="home" />
         <AboutSection />
         <StudentTestimonialsSection />
@@ -194,6 +195,7 @@ function AppLayout() {
               <Route path="/instructors" element={<Navigate to="/about" replace />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/trial" element={<TrialPage />} />
               <Route path="/privacy" element={<LegalPage slug="privacy" />} />
               <Route path="/terms" element={<LegalPage slug="terms" />} />
               <Route path="/refunds" element={<LegalPage slug="refunds" />} />
@@ -247,7 +249,7 @@ function AppLayout() {
                   <Route path="payments" element={<PaymentsManagement />} />
                   <Route path="lms" element={<LmsManagement />} />
                   <Route path="enrollments" element={<Navigate to="/admin/students" replace />} />
-                  <Route path="contact-messages" element={<ContactMessages />} />
+                  <Route path="contact-messages" element={<TrialsAndMessages />} />
                   <Route path="research-comments" element={<Navigate to="/admin/assignments?tab=research&section=comments" replace />} />
                   <Route path="subscribers" element={<Subscribers />} />
                   <Route path="promo-videos" element={<PromoVideosManagement />} />

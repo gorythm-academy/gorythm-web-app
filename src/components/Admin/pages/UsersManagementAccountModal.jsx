@@ -29,12 +29,6 @@ export function UsersManagementAccountModal({ state }) {
                             <dl className="user-details-readonly">
                                 <dt>Name</dt><dd>{viewUser.name}</dd>
                                 <dt>Email</dt><dd className="admin-email">{viewUser.email}</dd>
-                                {viewUser.role === 'student' && (
-                                    <>
-                                        <dt>Personal Email</dt>
-                                        <dd className="admin-email">{viewUser.personalEmail || '—'}</dd>
-                                    </>
-                                )}
                                 <dt>Role</dt><dd>{viewUser.role}</dd>
                                 <dt>Phone</dt><dd>{viewUser.phone || '—'}</dd>
                                 <dt>Status</dt>

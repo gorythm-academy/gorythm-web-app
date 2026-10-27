@@ -1,10 +1,11 @@
 import { API_BASE_URL } from '../config/constants';
 
-const FX_CACHE_KEY = 'gorythm.fx.usd.v1';
+const FX_CACHE_KEY = 'gorythm.fx.eur.v1';
 const CURRENCY_CACHE_KEY = 'gorythm.currency.v1';
 const CURRENCY_GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const FX_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const USD = 'USD';
+const BASE = 'EUR';
 
 // Timezone → currency map. Works on localhost and any environment without API calls.
 // Derived from IANA timezone names (Intl.DateTimeFormat().resolvedOptions().timeZone).
@@ -290,19 +291,19 @@ export const detectUserCurrency = async () => {
   return result;
 };
 
-export const fetchUsdRates = async () => {
+export const fetchBaseRates = async () => {
   const cached = readCache(FX_CACHE_KEY, FX_CACHE_TTL_MS);
-  if (cached?.rates) return cached;
+  if (cached?.rates && String(cached.base || '').toUpperCase() === BASE) return cached;
 
   const base = (API_BASE_URL || '').replace(/\/$/, '');
-  const res = await fetch(`${base}/api/site/usd-rates`);
+  const res = await fetch(`${base}/api/site/eur-rates`);
   const json = await res.json().catch(() => null);
   if (!res.ok || !isObject(json?.rates)) {
     throw new Error('Failed to fetch exchange rates');
   }
 
   const payload = {
-    base: json.base || USD,
+    base: String(json.base || BASE).toUpperCase(),
     rates: json.rates,
     date: json.date || '',
   };
@@ -310,10 +311,10 @@ export const fetchUsdRates = async () => {
   return payload;
 };
 
-export const convertFromUsd = (amountUsd, currency, rates) => {
-  const n = Number(amountUsd);
+export const convertFromBase = (amountBase, currency, rates) => {
+  const n = Number(amountBase);
   if (!Number.isFinite(n)) return 0;
-  if (!currency || currency === USD) return n;
+  if (!currency || currency === BASE) return n;
   const rate = rates?.[currency];
   if (!Number.isFinite(rate) || rate <= 0) return n;
   return n * rate;
@@ -377,3 +378,4 @@ export const getPriceDisplayParts = (rawPrice, formatWholeFromUsd) => {
 };
 
 export const USD_CURRENCY = USD;
+export const BASE_CURRENCY = BASE;

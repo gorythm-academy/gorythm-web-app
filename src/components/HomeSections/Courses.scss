@@ -160,6 +160,25 @@
   }
 }
 
+.courses-section-ctas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.courses-section-cta--trial {
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: #c5a45c;
+  color: #1a1408;
+
+  &:hover {
+    background: #d4b36a;
+    color: #1a1408;
+  }
+}
+
 .courses-section-cta-arrow {
   display: inline-block;
   transition: transform 0.3s ease;

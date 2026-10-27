@@ -7,22 +7,40 @@ import './ResearchSection.scss';
 
 const CARDS_PER_SLIDE = 3;
 const AUTO_ADVANCE_MS = 5000;
+// Matches the phone breakpoint in ResearchSection.scss ($bp-sm - 1).
+const PORTRAIT_PHONE_QUERY = '(max-width: 767px) and (orientation: portrait)';
+const PORTRAIT_DOT_COUNT = 3;
+
+function portraitDotIndexes(active, count) {
+  const total = Math.max(0, count);
+  if (total <= 1) return [];
+  const safeActive = Math.max(0, Math.min(active, total - 1));
+  if (total <= PORTRAIT_DOT_COUNT) {
+    return Array.from({ length: total }, (_, index) => index);
+  }
+  const start = Math.min(Math.max(safeActive - 1, 0), total - PORTRAIT_DOT_COUNT);
+  return Array.from({ length: PORTRAIT_DOT_COUNT }, (_, index) => start + index);
+}
 
 const ResearchSection = () => {
   const sectionRef = useRef(null);
   const sliderRef = useRef(null);
-  const touchStartRef = useRef(null); // { x, y }
-  const touchGestureRef = useRef({ isHorizontalSwipe: false });
   const mouseDragStartXRef = useRef(0);
   const isMouseDraggingRef = useRef(false);
   const didMouseDragRef = useRef(false);
+  const didTouchSwipeRef = useRef(false);
+  const portraitTouchPausedRef = useRef(false);
   const [isInView, setIsInView] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoSlidePaused, setIsAutoSlidePaused] = useState(false);
+  const [isPortraitPhone, setIsPortraitPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(PORTRAIT_PHONE_QUERY).matches
+  );
 
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState(false);
+  const [portraitIndex, setPortraitIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,13 +87,47 @@ const ResearchSection = () => {
   }, []);
 
   useEffect(() => {
+    const media = window.matchMedia(PORTRAIT_PHONE_QUERY);
+    const sync = () => setIsPortraitPhone(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    if (isPortraitPhone) return;
     if (totalSlides <= 1) return;
     if (isAutoSlidePaused) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const t = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % totalSlides);
     }, AUTO_ADVANCE_MS);
     return () => clearInterval(t);
-  }, [totalSlides, isAutoSlidePaused]);
+  }, [isPortraitPhone, totalSlides, isAutoSlidePaused]);
+
+  // Phone portrait uses a native horizontal scroller (one card wide).
+  // Auto-advance only once there is a fourth card, same as the paged slider.
+  useEffect(() => {
+    if (!isPortraitPhone || posts.length <= CARDS_PER_SLIDE || isAutoSlidePaused) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const el = sliderRef.current;
+    if (!el) return;
+    const timer = window.setInterval(() => {
+      if (portraitTouchPausedRef.current) return;
+      const card = el.querySelector('.research-card');
+      if (!card) return;
+      const gap = parseFloat(window.getComputedStyle(el).columnGap || window.getComputedStyle(el).gap) || 0;
+      const step = card.offsetWidth + gap;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      const atEnd = el.scrollLeft >= max - 2;
+      el.scrollTo({
+        left: atEnd ? 0 : Math.min(max, el.scrollLeft + step),
+        behavior: 'smooth',
+      });
+    }, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(timer);
+  }, [isPortraitPhone, posts.length, postsLoading, isAutoSlidePaused]);
 
   const goToSlide = useCallback((index) => {
     if (!totalSlides) return;
@@ -92,46 +144,70 @@ const ResearchSection = () => {
     setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
   }, [totalSlides]);
 
-  const handleTouchStart = (e) => {
-    const touch = e.touches?.[0];
-    if (!touch) return;
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    touchGestureRef.current = { isHorizontalSwipe: false };
-  };
+  // React's touchmove listener is passive, so it cannot cancel the page scroll.
+  // On a phone the browser then fires touchcancel and the slide never changes.
+  // A non-passive listener claims horizontal swipes before that happens.
+  useEffect(() => {
+    if (isPortraitPhone) return undefined;
+    const el = sliderRef.current;
+    if (!el || totalSlides <= 1) return undefined;
 
-  const handleTouchMove = (e) => {
-    const start = touchStartRef.current;
-    const touch = e.touches?.[0];
-    if (!start || !touch) return;
+    let startX = 0;
+    let startY = 0;
+    let axis = null;
+    let dx = 0;
 
-    const dx = touch.clientX - start.x;
-    const dy = touch.clientY - start.y;
+    const onStart = (event) => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      axis = null;
+      dx = 0;
+      setIsAutoSlidePaused(true);
+    };
 
-    // Mark horizontal swipe intent early; this prevents taps from being misread
-    // and lets us treat "small movement" touches as taps.
-    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-      touchGestureRef.current.isHorizontalSwipe = true;
-    }
-  };
+    const onMove = (event) => {
+      const touch = event.touches?.[0];
+      if (!touch || axis === 'y') return;
+      dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (!axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+      if (axis === 'x') event.preventDefault();
+    };
 
-  const handleTouchEnd = (e) => {
-    const start = touchStartRef.current;
-    const touch = e.changedTouches?.[0];
-    if (!start || !touch) return;
+    const onFinish = () => {
+      if (axis === 'x' && Math.abs(dx) > 12) {
+        didTouchSwipeRef.current = true;
+        window.setTimeout(() => {
+          didTouchSwipeRef.current = false;
+        }, 500);
+      }
+      if (axis === 'x' && Math.abs(dx) >= 40) {
+        if (dx < 0) goToNext();
+        else goToPrev();
+      }
+      axis = null;
+      setIsAutoSlidePaused(false);
+    };
 
-    const dx = touch.clientX - start.x;
-    touchStartRef.current = null;
-
-    const threshold = 40;
-    if (!touchGestureRef.current.isHorizontalSwipe) return;
-    if (Math.abs(dx) < threshold) return;
-
-    if (dx < 0) goToNext();
-    else goToPrev();
-  };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onFinish);
+    el.addEventListener('touchcancel', onFinish);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onFinish);
+      el.removeEventListener('touchcancel', onFinish);
+    };
+  }, [isPortraitPhone, totalSlides, goToNext, goToPrev, postsLoading]);
 
   const handleMouseDown = (event) => {
-    if (event.button !== 0 || totalSlides <= 1) return;
+    if (isPortraitPhone || event.button !== 0 || totalSlides <= 1) return;
     event.preventDefault();
     mouseDragStartXRef.current = event.clientX;
     isMouseDraggingRef.current = true;
@@ -166,23 +242,17 @@ const ResearchSection = () => {
   }, [goToNext, goToPrev]);
 
   const handleMouseClickCapture = (event) => {
-    if (!didMouseDragRef.current) return;
-    // Prevent opening a blog card link after a drag gesture.
+    if (!didMouseDragRef.current && !didTouchSwipeRef.current) return;
+    // Prevent opening a blog card link after a drag or swipe.
     event.preventDefault();
     event.stopPropagation();
     didMouseDragRef.current = false;
-  };
-
-  const handleTouchCancel = () => {
-    touchStartRef.current = null;
-    touchGestureRef.current = { isHorizontalSwipe: false };
+    didTouchSwipeRef.current = false;
   };
 
   const handleBlur = () => {
     isMouseDraggingRef.current = false;
     didMouseDragRef.current = false;
-    touchStartRef.current = null;
-    touchGestureRef.current = { isHorizontalSwipe: false };
   };
 
   const handleDragStart = (event) => {
@@ -196,6 +266,24 @@ const ResearchSection = () => {
 
   const handleMouseLeaveSlider = () => {
     setIsAutoSlidePaused(false);
+  };
+
+  const handlePortraitScroll = () => {
+    const el = sliderRef.current;
+    const card = el?.querySelector('.research-card');
+    if (!el || !card) return;
+    const gap = parseFloat(window.getComputedStyle(el).columnGap || window.getComputedStyle(el).gap) || 0;
+    const step = card.offsetWidth + gap;
+    if (step <= 0) return;
+    const index = Math.max(0, Math.min(posts.length - 1, Math.round(el.scrollLeft / step)));
+    setPortraitIndex((prev) => (prev === index ? prev : index));
+  };
+
+  const scrollToPortraitCard = (index) => {
+    const el = sliderRef.current;
+    const card = el?.querySelectorAll('.research-card')[index];
+    if (!el || !card) return;
+    el.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
   };
 
   return (
@@ -224,6 +312,53 @@ const ResearchSection = () => {
                 : 'New articles will appear here when they are published.'}
             </p>
           </div>
+        ) : isPortraitPhone ? (
+        <>
+        <div
+          className="research-slider research-slider--portrait"
+          ref={sliderRef}
+          onMouseEnter={handleMouseEnterSlider}
+          onMouseLeave={handleMouseLeaveSlider}
+          onScroll={handlePortraitScroll}
+          onTouchStart={() => { portraitTouchPausedRef.current = true; }}
+          onTouchEnd={() => { portraitTouchPausedRef.current = false; }}
+          onTouchCancel={() => { portraitTouchPausedRef.current = false; }}
+        >
+          {posts.map((post, idx) => (
+            <Link
+              key={post.id || post.slug}
+              to={`/research/${post.slug}`}
+              className={`research-card research_anim research-card-${(idx % CARDS_PER_SLIDE) + 1}`}
+            >
+              <div className="research-card-meta">
+                <span className="research-card-eyebrow">{post.category}</span>
+                <span className="research-card-dot" aria-hidden="true">·</span>
+                <span className="research-card-date">{post.date}</span>
+              </div>
+              <h3 className="research-card-title">{post.title}</h3>
+              <p className="research-card-description">{post.excerpt}</p>
+              <span className="research-card-arrow" aria-hidden="true">
+                <span className="research-card-arrow-inner">→</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+        {posts.length > 1 && (
+          <div className="research-dots" role="tablist" aria-label="Card dots">
+            {portraitDotIndexes(portraitIndex, posts.length).map((cardIndex) => (
+              <button
+                key={cardIndex}
+                type="button"
+                role="tab"
+                aria-selected={cardIndex === portraitIndex}
+                aria-label={`Go to card ${cardIndex + 1}`}
+                className={`research-dot${cardIndex === portraitIndex ? ' active' : ''}`}
+                onClick={() => scrollToPortraitCard(cardIndex)}
+              />
+            ))}
+          </div>
+        )}
+        </>
         ) : (
         <div
           className="research-slider"
@@ -232,10 +367,6 @@ const ResearchSection = () => {
           onMouseEnter={handleMouseEnterSlider}
           onMouseLeave={handleMouseLeaveSlider}
           onClickCapture={handleMouseClickCapture}
-          onTouchCancel={handleTouchCancel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
           onBlur={handleBlur}
           onDragStart={handleDragStart}
         >

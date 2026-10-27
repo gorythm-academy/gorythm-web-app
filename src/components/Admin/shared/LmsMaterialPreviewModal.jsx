@@ -12,6 +12,7 @@ import { AUTH_REALM } from '../../../utils/authStorage';
 import ResearchSeriesView from '../../Pages/ResearchSeriesView';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import { sanitizeHtml } from '../../../utils/sanitizeHtml';
+import { formatAcademyDate } from '../../../utils/academyCalendar';
 import './LmsMaterialPreviewModal.scss';
 
 function listAttachments(record) {
@@ -118,7 +119,7 @@ export default function LmsMaterialPreviewModal({ open, kind, item, onClose, hid
               <dt>Teacher</dt>
               <dd>{item.teacher?.name || 'Course instructor (default)'}</dd>
               <dt>Due Date</dt>
-              <dd>{item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '—'}</dd>
+              <dd>{item.dueDate ? formatAcademyDate(item.dueDate) : '—'}</dd>
             </>
           ) : null}
           {kind === 'resource' ? (

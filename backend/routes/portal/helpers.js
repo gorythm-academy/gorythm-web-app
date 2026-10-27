@@ -19,7 +19,7 @@ const { activeCourseFilter, isCourseTrashed } = require('../../utils/courseQuery
 const { activeUserFilter, isUserTrashed } = require('../../utils/userQuery');
 const { activeLmsFilter } = require('../../utils/lmsTrashQuery');
 const { assertTeacherOwnsCourse, getTeacherCourseIds } = require('../../services/teacherCourseAccess');
-const { buildDueDateExtensionNotice, mapSubmissionForPortal } = require('../../utils/lmsContentRules');
+const { buildDueDateExtensionNotice, mapSubmissionForPortal, isDueDatePast } = require('../../utils/lmsContentRules');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -42,6 +42,7 @@ function mapAssignmentForPortal(assignment, { viewerRole = 'student', submission
         submission: mapSubmissionForPortal(submission),
         submissionRemovedAt: submissionRemovedAt || null,
         dueDateNotice: buildDueDateExtensionNotice(obj, { viewerRole }),
+        pastDue: isDueDatePast(obj.dueDate),
     };
 }
 

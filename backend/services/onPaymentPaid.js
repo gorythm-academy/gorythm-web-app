@@ -8,7 +8,8 @@ const {
 } = require('./enrollmentPaymentSync');
 const { findStudentByContactEmail } = require('./enrollmentDuplicateCheck');
 const { resolveAndLinkCourseOnPayment } = require('./resolveCourseFromPayment');
-const { buildUnsetPortalEmail } = require('../utils/studentPortalEmail');
+const { peopleLoginEmailError, deliverableInbox } = require('../utils/studentPortalEmail');
+const { ensureParentLinkedToStudent } = require('./registrationFamily');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const { syncStudentUserLoginFromAllEnrollments } = require('./syncStudentAccountLogin');
 const { ensureStudentId } = require('../utils/studentIdGenerator');
@@ -21,48 +22,59 @@ function isPaidStatus(status) {
     return status === 'paid' || status === 'completed';
 }
 
-/** Find or create a student user for this payment. */
+/** Find or create a student user for this payment. The email they typed is the login. */
 async function resolveStudentUserFromPayment(payment) {
     const normalizedEmail = String(payment.email).trim().toLowerCase();
+    const emailError = peopleLoginEmailError(normalizedEmail);
+    if (emailError) {
+        throw new Error(emailError);
+    }
     const existingStudent = await findStudentByContactEmail(normalizedEmail);
 
     if (existingStudent) {
-        return existingStudent;
+        const full = await User.findById(existingStudent._id);
+        if (full && !deliverableInbox(full.email)) {
+            full.email = normalizedEmail;
+            full.personalEmail = '';
+            await full.save();
+            return full;
+        }
+        return full || existingStudent;
     }
 
-    const existingStaff = await User.findOne({
+    const existingOther = await User.findOne({
         $or: [{ email: normalizedEmail }, { personalEmail: normalizedEmail }],
         role: { $ne: 'student' },
     });
 
-    if (existingStaff) {
+    if (existingOther) {
         throw new Error(
-            'This email belongs to a staff account. The payer must register again with a personal email address.'
+            'This email is already in use. Please enter the student\'s own email.'
         );
-    }
-
-    const tempPassword = crypto.randomBytes(18).toString('hex');
-    const paymentId = String(payment._id || '').slice(-10) || Date.now().toString(36);
-    let portalEmail = buildUnsetPortalEmail(paymentId);
-    let suffix = 0;
-    while (await User.findOne({ email: portalEmail }).select('_id')) {
-        suffix += 1;
-        portalEmail = buildUnsetPortalEmail(`${paymentId}.${suffix}`);
     }
 
     const user = new User({
         name: String(payment.studentName || 'Student').trim() || 'Student',
-        email: portalEmail,
-        password: tempPassword,
+        email: normalizedEmail,
+        password: crypto.randomBytes(18).toString('hex'),
         role: 'student',
         phone: payment.phone ? String(payment.phone) : '',
         status: 'inactive',
         canLogin: false,
         isActive: false,
-        personalEmail: normalizedEmail,
+        personalEmail: '',
+        mustChangePassword: true,
     });
     await user.save();
     return user;
+}
+
+/** Link a parent when this payment collected a different parent email. */
+async function linkParentFromPayment(payment, userId) {
+    if (!payment?.parentEmail || !userId) return null;
+    const student = await User.findById(userId).select('name email role');
+    if (!student || student.role !== 'student') return null;
+    return ensureParentLinkedToStudent(student, payment.parentEmail);
 }
 
 /**
@@ -119,6 +131,9 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
         throw new Error('Could not resolve student for this payment.');
     }
 
+    await linkParentFromPayment(payment, userId);
+    await ensureStudentId(userId);
+
     const existingEnrollment = await Enrollment.findOne({
         student: userId,
         course: courseId,
@@ -156,10 +171,7 @@ async function fulfillPaymentEnrollment(payment, { verifiedBy = null } = {}) {
     await addEnrollmentToRosters(userId, courseId);
     await activatePaidStudent(userId, enrollment);
     setImmediate(() => {
-        Promise.allSettled([
-            ensureStudentId(userId),
-            syncStudentRosterFromEnrollments(userId),
-        ]);
+        syncStudentRosterFromEnrollments(userId).catch(() => {});
     });
 
     return enrollment;

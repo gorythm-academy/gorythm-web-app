@@ -4,6 +4,7 @@ import { ProtectedFileFrame, ProtectedFileLink, uploadDisplayName } from '../../
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import QuizReviewPanel from './QuizReviewPanel';
 import './QuizPreviewModal.scss';
+import { formatAcademyDate } from '../../../utils/academyCalendar';
 
 export function quizMaterialFiles(quiz) {
   const files = Array.isArray(quiz?.attachments) ? quiz.attachments.filter(Boolean) : [];
@@ -34,7 +35,7 @@ export function QuizFileView({ quiz, tone = 'teacher', compact = false }) {
             <h3>{quiz?.title || 'Quiz'}</h3>
             <p>
               {quiz?.course?.title ? quiz.course.title : 'Course quiz'}
-              {quiz?.dueDate ? ` · Due ${new Date(quiz.dueDate).toLocaleDateString()}` : ''}
+              {quiz?.dueDate ? ` · Due ${formatAcademyDate(quiz.dueDate)}` : ''}
             </p>
           </div>
         </div>
@@ -151,7 +152,7 @@ export default function QuizPreviewModal({
           ) : null}
           <div>
             <dt>Due Date</dt>
-            <dd>{quiz.dueDate ? new Date(quiz.dueDate).toLocaleDateString() : 'No due date'}</dd>
+            <dd>{quiz.dueDate ? formatAcademyDate(quiz.dueDate) : 'No due date'}</dd>
           </div>
           {review?.scoreDisplay ? (
             <div>

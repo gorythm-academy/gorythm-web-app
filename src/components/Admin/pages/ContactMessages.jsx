@@ -38,7 +38,7 @@ const isTrashedMessage = (m) => {
   return d != null && d !== '';
 };
 
-const ContactMessages = () => {
+const ContactMessages = ({ embedded = false }) => {
   const { showAlert, showConfirm } = useAdminDialog();
   const [listTab, setListTab] = useState('inbox');
   const [messages, setMessages] = useState([]);
@@ -295,7 +295,8 @@ const ContactMessages = () => {
         (message.name || '').toLowerCase().includes(q) ||
         (message.email || '').toLowerCase().includes(q) ||
         (message.phone || '').toLowerCase().includes(q) ||
-        (message.message || '').toLowerCase().includes(q)
+        (message.message || '').toLowerCase().includes(q) ||
+        (message.reply || '').toLowerCase().includes(q)
       );
 
       const matchesStatus =
@@ -712,10 +713,14 @@ const ContactMessages = () => {
           </div>
         </div>
       ) : null}
-      <div className="settings-header">
-        <h1><i className="fas fa-envelope-open-text"></i> Contact Messages</h1>
-        <p>Messages sent from the public contact form.</p>
-      </div>
+      {embedded ? (
+        <p className="trial-requests-note">Messages sent from the public contact form.</p>
+      ) : (
+        <div className="settings-header">
+          <h1><i className="fas fa-envelope-open-text"></i> Contact Messages</h1>
+          <p>Messages sent from the public contact form.</p>
+        </div>
+      )}
       {listTab === 'inbox' && (
         <div className="contact-stats-grid">
           <div className="contact-stat-card">
@@ -883,6 +888,7 @@ const ContactMessages = () => {
                       <th className="sortable" onClick={() => handleSort('message')}>
                         Message {sortBy === 'message' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
+                      <th>Reply</th>
                       <th className="sortable" onClick={() => handleSort('status')}>
                         Status {sortBy === 'status' ? <i className={`fas fa-caret-${sortOrder === 'asc' ? 'up' : 'down'}`}></i> : <i className="fas fa-sort"></i>}
                       </th>
@@ -922,6 +928,9 @@ const ContactMessages = () => {
                         </td>
                         <td>
                           <div className="message-cell">{m.message || '-'}</div>
+                        </td>
+                        <td>
+                          <div className="message-cell">{m.reply || '—'}</div>
                         </td>
                         <td>
                           <span className={`status-pill ${renderStatusClass(m.status)}`}>

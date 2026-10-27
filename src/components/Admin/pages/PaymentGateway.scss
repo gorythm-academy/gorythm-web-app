@@ -132,6 +132,21 @@
   line-height: 1.45;
 }
 
+.payment-email-notice {
+  margin: 0.45rem 0 0;
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.45;
+
+  &--warning {
+    color: #fcd34d;
+  }
+
+  &--block {
+    color: #fecaca;
+  }
+}
+
 .extra-course-item {
   display: grid;
   grid-template-columns: auto 1fr auto;

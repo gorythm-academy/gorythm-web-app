@@ -8,6 +8,7 @@ import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE, MOVED_TO_QUARANTINE_PHRASE
 import QuizPreviewModal from '../../../Portals/shared/QuizPreviewModal';
 import { PortalActivityBanner } from '../../../Portals/shared/PortalUi';
 import { collectQuizUpdateNotices } from '../../../../utils/adminEditNotices';
+import { dismissActivityNotices, filterDismissedActivityNotices } from '../../../../utils/portalAssignmentNotices';
 import { ADMIN_SEEN_QUIZ_UPDATES, markPortalPageVisited } from '../../../../utils/portalNewItems';
 import { lmsAdminGet, lmsAdminPost, lmsAdminPatch } from '../../../../utils/lmsAdminApi';
 import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
@@ -15,6 +16,7 @@ import { hasLmsUploadValue, resolveLmsUploadList } from '../../../../utils/fileU
 import { AUTH_REALM } from '../../../../utils/authStorage';
 import { LmsTargetSelect, filterSchedulesForTargeting } from './lmsTargeting';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
+import { academyCalendarDay } from '../../../../utils/academyCalendar';
 import './AdminQuizzesTab.scss';
 
 const EMPTY_Q = { question: '', options: ['', '', ''], correctAnswer: 0 };
@@ -112,9 +114,11 @@ const AdminQuizzesTab = () => {
     return [...byId.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   }, [courseTeachers, schedules]);
   const teachersForCourse = courseTeachers[String(form.courseId)] || [];
+  const quizNoticeKey = (row) => `${row.id}-${row.updatedAt || row.message}`;
   const quizUpdateNotices = useMemo(() => {
     void updateTick;
-    return collectQuizUpdateNotices(quizzes, { storageKey: ADMIN_SEEN_QUIZ_UPDATES, audience: 'admin' });
+    const rows = collectQuizUpdateNotices(quizzes, { storageKey: ADMIN_SEEN_QUIZ_UPDATES, audience: 'admin' });
+    return filterDismissedActivityNotices(ADMIN_SEEN_QUIZ_UPDATES, rows, quizNoticeKey);
   }, [quizzes, updateTick]);
 
   const resetForm = () => {
@@ -150,7 +154,7 @@ const AdminQuizzesTab = () => {
       teacherId: String(quiz.teacher?._id || quiz.teacher || ''),
       scheduleId: String(quiz.assignedSchedule?._id || quiz.assignedSchedule || ''),
       totalMarks: quiz.totalMarks != null ? String(quiz.totalMarks) : '',
-      dueDate: quiz.dueDate ? new Date(quiz.dueDate).toISOString().slice(0, 10) : '',
+      dueDate: quiz.dueDate ? academyCalendarDay(quiz.dueDate) : '',
       resourceLink: quiz.resourceLink || '',
       resourceFiles: quizFiles(quiz),
       questions: quiz.questions?.length
@@ -503,6 +507,7 @@ const AdminQuizzesTab = () => {
         title="Quiz updates"
         rows={quizUpdateNotices}
         onDismiss={() => {
+          dismissActivityNotices(ADMIN_SEEN_QUIZ_UPDATES, quizUpdateNotices.map(quizNoticeKey));
           markPortalPageVisited(ADMIN_SEEN_QUIZ_UPDATES);
           setUpdateTick((n) => n + 1);
         }}

@@ -1,20 +1,20 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  convertFromUsd,
+  BASE_CURRENCY,
+  convertFromBase,
   detectUserCurrency,
-  fetchUsdRates,
+  fetchBaseRates,
   formatCurrency,
   formatCurrencyWhole,
-  USD_CURRENCY,
 } from '../utils/currency';
 
 const CurrencyContext = createContext(null);
 
 export const CurrencyProvider = ({ children }) => {
-  const [currency, setCurrency] = useState(USD_CURRENCY);
+  const [currency, setCurrency] = useState(BASE_CURRENCY);
   const [locale, setLocale] = useState('en-US');
   const [countryCode, setCountryCode] = useState('');
-  const [rates, setRates] = useState({ USD: 1 });
+  const [rates, setRates] = useState({ EUR: 1 });
   const [rateDate, setRateDate] = useState('');
   const [source, setSource] = useState('default');
   const [isLoading, setIsLoading] = useState(true);
@@ -26,7 +26,7 @@ export const CurrencyProvider = ({ children }) => {
       setIsLoading(true);
       const [detectedResult, ratesResult] = await Promise.allSettled([
         detectUserCurrency(),
-        fetchUsdRates(),
+        fetchBaseRates(),
       ]);
       if (cancelled) return;
 
@@ -34,18 +34,19 @@ export const CurrencyProvider = ({ children }) => {
       const detected = detectedResult.status === 'fulfilled' ? detectedResult.value : null;
       const ratePayload = ratesResult.status === 'fulfilled' ? ratesResult.value : null;
 
-      const detectedCurrency = detected?.currency || USD_CURRENCY;
+      const detectedCurrency = detected?.currency || BASE_CURRENCY;
       const loadedRates = ratePayload?.rates || null;
+      const rateBase = String(ratePayload?.base || BASE_CURRENCY).toUpperCase();
       const rate = loadedRates?.[detectedCurrency];
       const canConvert =
-        detectedCurrency === USD_CURRENCY ||
+        detectedCurrency === rateBase ||
         (Number.isFinite(Number(rate)) && Number(rate) > 0);
 
-      setCurrency(canConvert ? detectedCurrency : USD_CURRENCY);
+      setCurrency(canConvert ? detectedCurrency : rateBase);
       setLocale(detected?.locale || localeFallback);
       setCountryCode(detected?.countryCode || '');
       setSource(detected?.source || 'fallback');
-      setRates(loadedRates || { USD: 1 });
+      setRates(loadedRates || { [rateBase]: 1 });
       setRateDate(ratePayload?.date || '');
       setIsLoading(false);
     };
@@ -59,20 +60,20 @@ export const CurrencyProvider = ({ children }) => {
   const applyCurrencyCode = useCallback((code) => {
     const next = String(code || '').trim().toUpperCase();
     if (!next || next.length !== 3) return;
-    if (rates[next] == null && next !== USD_CURRENCY) return;
+    if (rates[next] == null && next !== BASE_CURRENCY) return;
     setCurrency(next);
   }, [rates]);
 
   const value = useMemo(() => {
-    const convertUsd = (amountUsd) => convertFromUsd(amountUsd, currency, rates);
+    const convertBase = (amountBase) => convertFromBase(amountBase, currency, rates);
 
-    const formatFromUsd = (amountUsd) => {
-      const converted = convertUsd(amountUsd);
+    const formatFromBase = (amountBase) => {
+      const converted = convertBase(amountBase);
       return formatCurrency(converted, currency, locale);
     };
 
-    const formatFromUsdWhole = (amountUsd) => {
-      const converted = convertUsd(amountUsd);
+    const formatFromBaseWhole = (amountBase) => {
+      const converted = convertBase(amountBase);
       return formatCurrencyWhole(converted, currency, locale);
     };
 
@@ -84,11 +85,11 @@ export const CurrencyProvider = ({ children }) => {
       rateDate,
       source,
       isLoading,
-      convertUsd,
-      formatFromUsd,
-      formatFromUsdWhole,
+      convertBase,
+      formatFromBase,
+      formatFromBaseWhole,
       formatCurrency: (amount) => formatCurrency(amount, currency, locale),
-      baseCurrency: USD_CURRENCY,
+      baseCurrency: BASE_CURRENCY,
       applyCurrencyCode,
     };
   }, [applyCurrencyCode, countryCode, currency, isLoading, locale, rateDate, rates, source]);

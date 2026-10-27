@@ -21,6 +21,10 @@ const STATIC_PAGE_META = {
     title: 'Contact | Gorythm Academy',
     description: 'Get in touch with Gorythm Academy for course enquiries, enrollment support, and general questions.',
   },
+  '/trial': {
+    title: 'Book a Free Trial | Gorythm Academy',
+    description: 'Request a free trial class. Gorythm Academy saves your details and contacts you with the class link.',
+  },
   '/privacy': {
     title: 'Privacy Policy | Gorythm Academy',
     description: 'How Gorythm Academy collects, uses, and protects personal data for courses, portals, and payments.',

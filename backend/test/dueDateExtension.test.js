@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { recordDueDateExtension, startOfDay } = require('../utils/lmsContentRules');
+const { recordDueDateExtension } = require('../utils/lmsContentRules');
+const { calendarDay } = require('../utils/academyCalendar');
 
 test('recordDueDateExtension rejects due dates on or before the current due date', () => {
     const assignment = { dueDate: new Date(2027, 0, 20), dueDateExtensions: [] };
@@ -20,7 +21,7 @@ test('recordDueDateExtension stores extension history when the new date is later
     const assignment = { dueDate: new Date(2027, 0, 20), dueDateExtensions: [] };
     const next = recordDueDateExtension(assignment, '2027-01-25', 'admin-user', 'admin');
 
-    assert.equal(startOfDay(next).getTime(), startOfDay(new Date(2027, 0, 25)).getTime());
+    assert.equal(calendarDay(next), '2027-01-25');
     assert.equal(assignment.dueDateExtensions.length, 1);
     assert.equal(assignment.dueDateExtensions[0].extendedByRole, 'admin');
 });

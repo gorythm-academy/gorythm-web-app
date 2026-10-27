@@ -2,7 +2,9 @@ const path = require('path');
 const fs = require('fs');
 
 const PROOF_SUBDIR = 'payment-proofs';
-const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+    ? path.resolve(process.env.UPLOAD_ROOT)
+    : path.join(__dirname, '..', 'uploads');
 const PROOF_DIR = path.join(UPLOAD_ROOT, PROOF_SUBDIR);
 
 function ensureProofDir() {
@@ -59,6 +61,7 @@ function createProofUpload() {
                         destDir: PROOF_DIR,
                         originalName: file.originalname,
                         publicPathFor: proofPublicPath,
+                        onDuplicate: 'suffix',
                     });
                     cb(null, name);
                 } catch (err) {

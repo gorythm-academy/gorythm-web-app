@@ -13,6 +13,7 @@ import LmsMaterialPreviewModal from '../../Admin/shared/LmsMaterialPreviewModal'
 import QuizPreviewModal from '../shared/QuizPreviewModal';
 import AttendancePeriodView from '../shared/AttendancePeriodView';
 import { formatScore } from '../../../utils/formatScore';
+import { formatAcademyDate } from '../../../utils/academyCalendar';
 import { markPortalPageVisited } from '../../../utils/portalNewItems';
 import '../../Admin/pages/LmsManagement.scss';
 
@@ -213,7 +214,7 @@ const ParentProgress = () => {
                           <td>{row.title || '—'}</td>
                           <td>{row.course?.title || '—'}</td>
                           <td>
-                            {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
+                            {row.dueDate ? formatAcademyDate(row.dueDate) : '—'}
                           </td>
                           <td>
                             {row.attachments?.length ? (

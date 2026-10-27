@@ -4,6 +4,7 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { forceAdminLogout } from '../../../utils/adminAuthSession';
 import { API_BASE_URL } from '../../../config/constants';
+import { formatTotalsByCurrency } from '../../../utils/billingLabels';
 import '../Admin.scss';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -16,7 +17,7 @@ const EMPTY_STATS = {
     newTeachersInPeriod: 0,
     newParentsInPeriod: 0,
     publishedCourses: 0,
-    periodRevenue: 0,
+    periodRevenueByCurrency: [],
     activeUsers: 0,
     totalEnrollments: 0,
     completionRate: 0,
@@ -283,7 +284,7 @@ const Analytics = () => {
                     newTeachersInPeriod: summary.newTeachersInPeriod || 0,
                     newParentsInPeriod: summary.newParentsInPeriod || 0,
                     publishedCourses: summary.publishedCourses || 0,
-                    periodRevenue: summary.periodRevenue || 0,
+                    periodRevenueByCurrency: summary.periodRevenueByCurrency || [],
                     activeUsers: summary.activeUsers || 0,
                     totalEnrollments: periodEnrollments,
                     completionRate,
@@ -339,8 +340,8 @@ const Analytics = () => {
                         icon: 'fas fa-dollar-sign insight-revenue',
                         title: 'Revenue Trend',
                         text: metrics
-                            ? `Revenue trend is ${formatPercent(revenueGrowthNumeric, true)} with $${(metrics.currentPeriodRevenue || 0).toLocaleString()} in this period vs $${(metrics.previousPeriodRevenue || 0).toLocaleString()} in the previous period.`
-                            : `Period revenue is $${(summary.periodRevenue || 0).toLocaleString()} in ${periodPhrase}. Growth comparison is unavailable.`,
+                            ? `Revenue trend is ${formatPercent(revenueGrowthNumeric, true)} with ${formatTotalsByCurrency(metrics.currentRevenueByCurrency)} in this period vs ${formatTotalsByCurrency(metrics.previousRevenueByCurrency)} in the previous period.`
+                            : `Period revenue is ${formatTotalsByCurrency(summary.periodRevenueByCurrency)} in ${periodPhrase}. Growth comparison is unavailable.`,
                     },
                     {
                         icon: 'fas fa-book insight-courses',
@@ -399,7 +400,7 @@ const Analytics = () => {
         {
             title: 'Period Revenue',
             subtitle: 'This period',
-            value: `$${Number(stats?.periodRevenue || 0).toFixed(2)}`,
+            value: formatTotalsByCurrency(stats?.periodRevenueByCurrency),
             icon: 'fas fa-dollar-sign',
             color: '#f59e0b',
             change: cardTrends.revenue.value,
@@ -700,7 +701,7 @@ const Analytics = () => {
                                                 </span>
                                                 <span>
                                                     <i className="fas fa-dollar-sign"></i>
-                                                    ${course.price || 0}
+                                                    €{course.price || 0}
                                                 </span>
                                             </div>
                                         </div>

@@ -214,6 +214,7 @@ const ContactPage = () => {
               <div className="contact-page__form-row">
                 <label className="contact-page__field">
                   <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-user" /></span>
+                  <span className="contact-page__required" aria-hidden="true">*</span>
                   <input
                     type="text"
                     name="name"
@@ -227,6 +228,7 @@ const ContactPage = () => {
                 </label>
                 <label className="contact-page__field">
                   <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-envelope" /></span>
+                  <span className="contact-page__required" aria-hidden="true">*</span>
                   <input
                     type="email"
                     name="email"
@@ -253,6 +255,7 @@ const ContactPage = () => {
               </div>
               <label className="contact-page__field contact-page__field--full">
                 <span className="contact-page__field-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
+                <span className="contact-page__required" aria-hidden="true">*</span>
                 <textarea
                   name="message"
                   placeholder="How can we help you? Feel free to get in touch!"
@@ -278,7 +281,8 @@ const ContactPage = () => {
                   />
                   <span>
                     I agree that my data is collected as described in the{' '}
-                    <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
+                    <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>
+                    <span className="contact-page__required" aria-hidden="true">*</span>.
                   </span>
                 </label>
               </div>

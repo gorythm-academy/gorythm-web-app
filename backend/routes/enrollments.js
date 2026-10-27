@@ -242,6 +242,8 @@ router.get('/students', async (req, res) => {
             trashStudents,
             sortBy,
             sortOrder,
+            statusFilter,
+            feeStatusFilter,
         });
 
         const studentIds = users.map((u) => u._id);

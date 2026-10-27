@@ -20,25 +20,26 @@ function money(amount, currency) {
     return `${code} ${value}`;
 }
 
-function invoiceDisplay(payment, usdAmount) {
+function invoiceDisplay(payment, chargeAmount) {
+    const chargeCurrencyCode = String(payment?.currency || 'USD').toUpperCase();
     const presentmentCurrency = String(payment?.presentmentCurrency || '').toUpperCase();
     const presentmentTotal = Number(payment?.presentmentAmount);
-    const usdTotal = Number(payment?.amount || 0);
+    const chargeTotal = Number(payment?.amount || 0);
     if (
         presentmentCurrency
-        && presentmentCurrency !== 'USD'
+        && presentmentCurrency !== chargeCurrencyCode
         && Number.isFinite(presentmentTotal)
         && presentmentTotal > 0
-        && usdTotal > 0
+        && chargeTotal > 0
     ) {
         return {
-            amount: Math.round((Number(usdAmount || 0) * presentmentTotal / usdTotal) * 100) / 100,
+            amount: Math.round((Number(chargeAmount || 0) * presentmentTotal / chargeTotal) * 100) / 100,
             currency: presentmentCurrency,
         };
     }
     return {
-        amount: Number(usdAmount || 0),
-        currency: payment?.currency || 'USD',
+        amount: Number(chargeAmount || 0),
+        currency: chargeCurrencyCode,
     };
 }
 
@@ -376,11 +377,11 @@ function buildProfessionalInvoicePdf(payment, { lineFilter = null, historyRows =
     y -= 18;
     text('F2', 12, 330, y, 'Total');
     text('F2', 12, 470, y, money(amount, currency));
-    if (currency !== 'USD' && usdTotal) {
+    if (currency !== String(payment?.currency || 'USD').toUpperCase() && usdTotal) {
         y -= 14;
         ops.push('0.35 0.35 0.35 rg');
-        text('F1', 8, 330, y, 'USD equivalent');
-        text('F1', 8, 470, y, money(usdTotal, 'USD'));
+        text('F1', 8, 330, y, `${String(payment.currency || 'USD').toUpperCase()} equivalent`);
+        text('F1', 8, 470, y, money(usdTotal, payment.currency || 'USD'));
         ops.push('0 0 0 rg');
     }
     y -= 28;
@@ -689,11 +690,11 @@ function buildStatementInvoicePdf(payment, { historyRows = [] } = {}) {
     totalY -= 18;
     textOn(last, 'F2', 12, 330, totalY, 'Total');
     textOn(last, 'F2', 12, 470, totalY, money(amount, currency));
-    if (currency !== 'USD' && usdTotal) {
+    if (currency !== String(payment?.currency || 'USD').toUpperCase() && usdTotal) {
         totalY -= 14;
         last.push('0.35 0.35 0.35 rg');
-        textOn(last, 'F1', 8, 330, totalY, 'USD equivalent');
-        textOn(last, 'F1', 8, 470, totalY, money(usdTotal, 'USD'));
+        textOn(last, 'F1', 8, 330, totalY, `${String(payment.currency || 'USD').toUpperCase()} equivalent`);
+        textOn(last, 'F1', 8, 470, totalY, money(usdTotal, payment.currency || 'USD'));
         last.push('0 0 0 rg');
     }
     last.push('0.35 0.35 0.35 rg');

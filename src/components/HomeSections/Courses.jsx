@@ -5,7 +5,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/constants';
 import { useCurrency } from '../../context/CurrencyContext';
-import { getPriceDisplayParts } from '../../utils/currency';
+import { getPriceDisplayParts, formatCurrencyWhole, BASE_CURRENCY } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
 import { getCourseImageSrc } from '../../utils/courseImages';
 import {
@@ -41,6 +41,7 @@ const CoursesSection = ({
   ctaLabel = 'Explore Courses',
   showMeta = false,
   emptyStateMode = 'home',
+  showTrialLink = false,
 }) => {
   const sectionRef = useRef(null);
   const [isInView, setIsInView] = useState(false);
@@ -50,7 +51,7 @@ const CoursesSection = ({
   const [masonryColumnCount, setMasonryColumnCount] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia(DESKTOP_MASONRY_MQ).matches ? 3 : 2
   );
-  const { formatFromUsdWhole } = useCurrency();
+  const { currency, formatFromBaseWhole, locale } = useCurrency();
 
   const fetchCourses = React.useCallback(async () => {
     setLoading(true);
@@ -86,7 +87,13 @@ const CoursesSection = ({
 
   const apiCourses = courses
     .map((c, index) => {
-      const priceParts = getPriceDisplayParts(c.price, formatFromUsdWhole);
+      const priceParts = getPriceDisplayParts(
+        c.price,
+        (amount) => formatCurrencyWhole(amount, BASE_CURRENCY, locale)
+      );
+      const priceApprox = currency !== BASE_CURRENCY && priceParts.showMonth
+        ? formatFromBaseWhole(c.price)
+        : '';
       return {
       id: c._id,
       _id: c._id,
@@ -96,6 +103,7 @@ const CoursesSection = ({
       description: c.description || '',
       homepageImage: c.homepageImage || '',
       priceDisplay: priceParts.amount,
+      priceApprox,
       priceShowMonth: priceParts.showMonth,
       duration: c.duration || '',
       level: formatLevel(c.level),
@@ -155,10 +163,18 @@ const CoursesSection = ({
                 <p className="courses-section-description courses-section_anim">
                 At Gorythm Academy, every course is designed to build something that endures. Grounded in research, anchored in faith, structured for learners worldwide, and always oriented towards a purposeful vision.
                 </p>
-                <Link to={ctaTo} className="courses-section-cta courses-section_anim">
-                  <span className="courses-section-cta-text">{ctaLabel}</span>
-                  <span className="courses-section-cta-arrow" aria-hidden="true">→</span>
-                </Link>
+                <div className="courses-section-ctas">
+                  <Link to={ctaTo} className="courses-section-cta courses-section_anim">
+                    <span className="courses-section-cta-text">{ctaLabel}</span>
+                    <span className="courses-section-cta-arrow" aria-hidden="true">→</span>
+                  </Link>
+                  {showTrialLink ? (
+                    <Link to="/trial" className="courses-section-cta courses-section-cta--trial courses-section_anim">
+                      <span className="courses-section-cta-text">Book a Free Trial</span>
+                      <span className="courses-section-cta-arrow" aria-hidden="true">→</span>
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -215,6 +231,9 @@ const CoursesSection = ({
                           <div className="courses-section-item-meta">
                             <span className="courses-section-item-price">
                               <span className="courses-section-item-price-amount">{course.priceDisplay}</span>
+                              {course.priceApprox ? (
+                                <span className="courses-section-item-price-period">approx. {course.priceApprox}</span>
+                              ) : null}
                               {course.priceShowMonth ? (
                                 <span className="courses-section-item-price-period">Monthly</span>
                               ) : null}

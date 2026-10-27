@@ -18,6 +18,7 @@ const {
 } = require('../../services/billingCheckout');
 const { parseInvoiceMode, displayEnrollmentFeeStatus, statusLabel, overdueOnDate } = require('../../utils/billingStatus');
 const { isExtraInstallmentPayment } = require('../../services/feeDuePolicy');
+const { chargeCurrency } = require('../../utils/chargeCurrency');
 const { maxPayableMonths } = require('../../utils/feeDueDate');
 const { activePaymentFilter, studentPaymentsFilter, paymentsForStudentsFilter } = require('../../utils/paymentQuery');
 const { serializePayments } = require('../../utils/serializePayment');
@@ -420,7 +421,7 @@ async function submitPortalBankPayment({ actor, enrollmentIds, invoiceMode, proo
         studentName: payerName || actor.name,
         payerUser: actor.userId,
         payerRole: actor.role,
-        currency: 'USD',
+        currency: chargeCurrency(),
     });
     intent.status = 'consumed';
     intent.consumedAt = new Date();
@@ -490,7 +491,7 @@ function enrollmentAsInvoicePayment(enrollment) {
         studentName: student.name || '',
         email: student.personalEmail || student.email || '',
         amount: toMoney(course.price),
-        currency: 'USD',
+        currency: chargeCurrency(),
         status,
         dueDate,
         createdAt: enrollment.enrollmentDate || enrollment.createdAt,
@@ -569,7 +570,13 @@ async function sendPortalStatementPdf(res, actor) {
             amount: money(Number(row.amount || 0), row.currency || 'USD'),
         };
     });
-    const amount = paid.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const codes = [...new Set(paid.map((row) => String(row.currency || 'USD').toUpperCase()))];
+    const statementCurrency = codes.length === 1 ? codes[0] : chargeCurrency();
+    const amount = paid.reduce((sum, row) => {
+        const code = String(row.currency || 'USD').toUpperCase();
+        if (codes.length > 1 && code !== statementCurrency) return sum;
+        return sum + Number(row.amount || 0);
+    }, 0);
     const first = paid[0];
     const invoiceNumber = statementInvoiceNumber();
     const pdfBuffer = buildPaymentInvoicePdf({
@@ -577,7 +584,7 @@ async function sendPortalStatementPdf(res, actor) {
         email: actor.email || first.email,
         phone: first.phone,
         amount,
-        currency: 'USD',
+        currency: statementCurrency,
         status: 'paid',
         invoiceNumber,
         createdAt: new Date(),

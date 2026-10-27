@@ -31,6 +31,7 @@ const { publicRouter: researchPublicRoutes, adminRouter: researchAdminRoutes } =
 const researchImageRoutes = require('./routes/researchImages');
 const adminResearchCommentRoutes = require('./routes/adminResearchComments');
 const contactRoutes = require('./routes/contact');
+const trialRoutes = require('./routes/trials');
 const subscriberRoutes = require('./routes/subscribers');
 const userRoutes = require('./routes/users');
 const portalRoutes = require('./routes/portal');
@@ -133,6 +134,14 @@ app.use(cors({
 app.use(
     helmet({
         crossOriginResourcePolicy: { policy: 'cross-origin' },
+        contentSecurityPolicy: {
+            useDefaults: true,
+            directives: {
+                // Chrome's PDF viewer is a plugin. The default object-src 'none' leaves the preview blank.
+                'object-src': ["'self'", 'blob:'],
+                'frame-src': ["'self'", 'blob:', 'data:'],
+            },
+        },
     })
 );
 app.use(cookieParser());
@@ -239,6 +248,14 @@ app.use(
             }
             if (filePath.endsWith('.avif')) res.type('image/avif');
             else if (filePath.endsWith('.webp')) res.type('image/webp');
+            else if (filePath.toLowerCase().endsWith('.pdf')) {
+                // Helmet's default object-src 'none' stops Chrome from drawing a PDF in an iframe.
+                res.removeHeader('Content-Security-Policy');
+                res.removeHeader('X-Frame-Options');
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'inline');
+                res.setHeader('X-Content-Type-Options', 'nosniff');
+            }
         },
     })
 );
@@ -262,6 +279,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/research', researchPublicRoutes);
 app.use('/api/research', researchCommentRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/trials', trialRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/lms-admin', lmsAdminRoutes);

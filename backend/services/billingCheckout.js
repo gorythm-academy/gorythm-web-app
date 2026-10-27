@@ -20,6 +20,7 @@ const {
 } = require('../utils/billingStatus');
 const { defaultFeeDueDate, maxPayableMonths, parseInstallmentMonths } = require('../utils/feeDueDate');
 const { nextInvoiceNumbers } = require('../utils/invoiceNumber');
+const { stripeCurrency, chargeCurrency } = require('../utils/chargeCurrency');
 const { onPaymentPaid } = require('./onPaymentPaid');
 const { withFulfillmentLock } = require('./fulfillmentLock');
 
@@ -353,7 +354,7 @@ function stripeLineItemsFromResolved(items) {
             // Part of the fee is already paid, so Stripe gets one line for the balance instead of months x price.
             return {
                 price_data: {
-                    currency: 'usd',
+                    currency: stripeCurrency(),
                     product_data: {
                         name: `${item.studentName ? `${item.courseName} — ${item.studentName}` : item.courseName} (balance)`,
                         description: String(item.courseDescription || item.studentName || item.courseName).slice(0, 500),
@@ -366,7 +367,7 @@ function stripeLineItemsFromResolved(items) {
         const monthly = Number(item.monthlyAmount != null ? item.monthlyAmount : Number(item.amount || 0) / months);
         return {
             price_data: {
-                currency: 'usd',
+                currency: stripeCurrency(),
                 product_data: {
                     name: item.studentName ? `${item.courseName} — ${item.studentName}` : item.courseName,
                     description: String(item.courseDescription || item.studentName || item.courseName).slice(0, 500),
@@ -394,7 +395,14 @@ function assertStripeMinimum(items) {
     return cents;
 }
 
-async function createBillingIntent({ items, invoiceMode, payer = {}, stripeSessionId = '', autoPayEnable = false }) {
+async function createBillingIntent({
+    items,
+    invoiceMode,
+    payer = {},
+    stripeSessionId = '',
+    autoPayEnable = false,
+    parentEmail = '',
+}) {
     const groupId = newBillingGroupId();
     const intent = await BillingCheckoutIntent.create({
         groupId,
@@ -403,6 +411,7 @@ async function createBillingIntent({ items, invoiceMode, payer = {}, stripeSessi
         payerRole: payer.role || 'guest',
         payerEmail: String(payer.email || '').trim().toLowerCase(),
         payerName: payer.name || '',
+        parentEmail: String(parentEmail || '').trim().toLowerCase(),
         stripeSessionId,
         autoPayEnable: Boolean(autoPayEnable),
         items: items.map((item) => ({
@@ -441,7 +450,7 @@ async function savePaymentsFromIntent(intent, extraFields = {}) {
             groupId: intent.groupId,
             payerUser: intent.payerUser || extraFields.payerUser || null,
             payerRole: intent.payerRole || extraFields.payerRole || 'guest',
-            currency: extraFields.currency || 'USD',
+            currency: extraFields.currency || chargeCurrency(),
             presentmentCurrency: extraFields.presentmentCurrency || '',
             presentmentAmount: extraFields.presentmentAmount ?? null,
             status: extraFields.status || 'paid',
@@ -452,6 +461,7 @@ async function savePaymentsFromIntent(intent, extraFields = {}) {
             proofSubmittedAt: extraFields.proofSubmittedAt || undefined,
             phone: extraFields.phone,
             email: extraFields.email || intent.payerEmail,
+            parentEmail: extraFields.parentEmail || intent.parentEmail || '',
             studentName: extraFields.studentName || intent.payerName || studentNameForItems(items),
             receiptIssuedAt: extraFields.status === 'paid' || extraFields.status === 'completed' ? new Date() : null,
         },

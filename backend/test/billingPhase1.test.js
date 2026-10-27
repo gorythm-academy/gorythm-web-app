@@ -175,8 +175,8 @@ test('cancelled enrollments cannot change due date; paid enrollments can', () =>
     assert.equal(result.changed, true);
 });
 
-test('stripe presentment keeps USD amount and local display currency', () => {
-    const { presentmentFromStripeSession, withAdaptivePricing } = require('../utils/stripeMoney');
+test('stripe presentment keeps the charged currency and the local display currency', () => {
+    const { presentmentFromStripeSession } = require('../utils/stripeMoney');
     const session = {
         currency: 'usd',
         amount_total: 7500,
@@ -186,7 +186,6 @@ test('stripe presentment keeps USD amount and local display currency', () => {
     assert.equal(money.currency, 'USD');
     assert.equal(money.presentmentCurrency, 'PKR');
     assert.equal(money.presentmentAmount, 21000);
-    assert.equal(withAdaptivePricing({ mode: 'payment' }).adaptive_pricing.enabled, true);
 });
 
 test('invoice PDF uses presentment currency and academy invoice number', () => {

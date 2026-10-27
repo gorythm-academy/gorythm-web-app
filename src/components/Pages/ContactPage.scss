@@ -50,13 +50,16 @@
 
 .contact-page__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(520px, 1.45fr);
+  // minmax(0, …) lets a track shrink below the form’s intrinsic width.
+  // Plain 1fr is minmax(auto, 1fr), which grows the page to fit inputs.
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
   gap: 48px 64px;
   align-items: start;
 }
 
 // Left column – contact info
 .contact-page__info {
+  min-width: 0;
   padding-right: 24px;
 }
 
@@ -105,10 +108,17 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
   margin-bottom: 18px;
   color: rgba(255, 255, 255, 0.88);
   font-size: 0.98rem;
   line-height: 1.5;
+
+  > span:not(.contact-page__icon-wrap),
+  > a > span:not(.contact-page__icon-wrap) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 
   a {
     color: inherit;
@@ -116,6 +126,7 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    min-width: 0;
     transition: color 0.2s ease;
 
     &:hover {
@@ -167,18 +178,22 @@
   padding: 36px 32px;
   border-radius: 6px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .contact-page__form {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 .contact-page__form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
 
   // Single field in a row (e.g. WhatsApp) must span full width so placeholder is not clipped
   > .contact-page__field:only-child {
@@ -190,11 +205,19 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
   border-radius: 4px;
   transition: border-color 0.2s ease, background 0.2s ease;
+
+  &:has(.phone-field) {
+    container-type: inline-size;
+    container-name: contact-phone;
+    flex-wrap: wrap;
+  }
 
   &:focus-within,
   &.is-phone-open {
@@ -221,6 +244,50 @@
   }
 }
 
+.contact-page__required {
+  flex-shrink: 0;
+  margin-left: 2px;
+  color: #e11d48;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.contact-page__field--full .contact-page__required {
+  margin-top: 14px;
+}
+
+// Icon + country code + a full example number need about 290px.
+// Below that, keep the icon beside the country code and wrap the number
+// underneath, instead of clipping it.
+@container contact-phone (max-width: 290px) {
+  .contact-page__field-icon,
+  .contact-page__required {
+    align-self: flex-start;
+    margin-top: 6px;
+  }
+
+  .phone-field-wrap.phone-field-wrap--bare {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .phone-field.phone-field--bare {
+    flex-wrap: wrap;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .contact-page__field .phone-field input.phone-field__number {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    margin-top: 6px;
+    padding-inline: 2px 0;
+  }
+}
+
 .contact-page__field-icon {
   flex-shrink: 0;
   display: inline-flex;
@@ -228,10 +295,17 @@
   justify-content: center;
   width: 40px;
   height: 40px;
+  border: none;
+  padding: 0;
   border-radius: 8px;
   background: rgba(197, 164, 92, 0.08);
   color: #c5a45c;
+  font: inherit;
   transition: background 0.2s ease, color 0.2s ease;
+
+  &:is(button) {
+    cursor: pointer;
+  }
 
   svg,
   i {
@@ -251,7 +325,9 @@
 .contact-page__field input,
 .contact-page__field textarea {
   flex: 1;
+  width: auto;
   min-width: 0;
+  max-width: 100%;
   border: none;
   background: transparent;
   color: #fff;
@@ -261,11 +337,39 @@
   &::placeholder {
     color: rgba(255, 255, 255, 0.4);
   }
+
+  &[type='datetime-local'] {
+    color-scheme: dark;
+    min-height: 40px;
+  }
+
+  &[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.85;
+    cursor: pointer;
+  }
 }
 
 .contact-page__field textarea {
   display: block;
-  width: 100%;
+}
+
+.contact-page__field select {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+
+  option {
+    color: #111;
+  }
 }
 
 .contact-page__form-actions {
@@ -273,6 +377,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 20px 24px;
+  min-width: 0;
   margin-top: 8px;
 }
 
@@ -313,21 +418,29 @@
 
 .contact-page__consent {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+  min-width: 0;
   margin: 0;
   color: rgba(255, 255, 255, 0.72);
   font-size: 0.88rem;
   cursor: pointer;
 
   input {
+    flex-shrink: 0;
     width: 18px;
     height: 18px;
+    margin-top: 2px;
     accent-color: #c5a45c;
+  }
+
+  span {
+    min-width: 0;
   }
 
   a {
     color: #c5a45c;
+    white-space: nowrap;
   }
 }
 
@@ -345,30 +458,80 @@
 // BREAKPOINTS – ContactPage
 // =============================================================================
 
-// ≤ 900px (tablet landscape / large tablet portrait): stack info + form into single column
-// Using $bp-tablet-landscape-min (900px) — same breakpoint where the tablet landscape range starts
+// ≤ 1024px: stack info + form. Track must be minmax(0, 1fr), not 1fr,
+// or the form’s min-content width spills past the screen and gets clipped.
 @media (max-width: $bp-tablet-landscape-min) {
   .contact-page__grid {
-    grid-template-columns: 1fr; // switch from side-by-side to stacked
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .contact-page__info {
-    padding-right: 0; // no longer needs right gap when stacked
+    padding-right: 0;
   }
 }
 
-// ≤ 600px (small phone): tighter section padding, form rows stack vertically
-@media (max-width: $bp-legacy-600) {
+// Phones (≤ 767px), including portrait: one field per row, and less chrome
+// so the country code + number still fit inside the screen.
+@include mobile {
   .contact-page {
-    padding: 112px 0 72px;
+    padding: 112px 0 64px;
+  }
+
+  .contact-page__wrap {
+    width: 100%;
+    padding-inline: 16px;
+  }
+
+  .contact-page__hero {
+    margin-bottom: 32px;
+  }
+
+  .contact-page__title {
+    font-size: clamp(1.7rem, 9vw, 2.4rem);
+  }
+
+  .contact-page__grid {
+    gap: 32px;
+  }
+
+  .contact-page__form-wrap {
+    padding: 20px 16px;
+  }
+
+  .contact-page__form {
+    gap: 16px;
   }
 
   .contact-page__form-row {
-    grid-template-columns: 1fr; // first-name / last-name stack on small phones
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contact-page__field {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .contact-page__field-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  // 16px keeps iOS from zooming the page when a field is focused.
+  .contact-page__field input,
+  .contact-page__field textarea,
+  .contact-page__field select,
+  .contact-page__field .phone-field {
+    font-size: 16px;
   }
 
   .contact-page__form-actions {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .contact-page__submit {
+    justify-content: center;
+    width: 100%;
   }
 }

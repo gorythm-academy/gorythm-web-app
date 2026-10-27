@@ -9,6 +9,7 @@ import {
   SummaryGrid,
 } from '../shared/PortalUi';
 import { EnrollmentSummaryList, studentIdLabel } from '../shared/StudentIdentity';
+import { formatAcademyDate } from '../../../utils/academyCalendar';
 
 const StudentDashboard = () => {
   const authUser = parseAuthUser(AUTH_REALM.PORTAL) || {};
@@ -88,7 +89,7 @@ const StudentDashboard = () => {
                   <Link to="/student/assignments">
                     {a.title}
                     {a.course?.title ? ` (${a.course.title})` : ''} — due{' '}
-                    {new Date(a.dueDate).toLocaleDateString()}
+                    {formatAcademyDate(a.dueDate)}
                   </Link>
                 </li>
               ))}

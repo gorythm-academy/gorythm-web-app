@@ -6,9 +6,11 @@ import FileUploadField from '../shared/FileUploadField';
 import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import QuizPreviewModal from '../shared/QuizPreviewModal';
 import { collectQuizUpdateNotices } from '../../../utils/adminEditNotices';
+import { dismissActivityNotices, filterDismissedActivityNotices } from '../../../utils/portalAssignmentNotices';
 import { TEACHER_SEEN_QUIZ_UPDATES } from '../../../utils/portalNewItems';
 import { portalDocId } from '../../../utils/portalDocId';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
+import { academyCalendarDay, formatAcademyDate } from '../../../utils/academyCalendar';
 import { formatScore } from '../../../utils/formatScore';
 import { usePortalDialog } from '../shared/PortalDialogContext';
 import {
@@ -66,9 +68,11 @@ const TeacherQuizzes = () => {
 
   const notify = (message, type = 'info') => showAlert({ message, type });
 
+  const quizNoticeKey = (row) => `${row.id}-${row.updatedAt || row.message}`;
   const quizUpdateNotices = useMemo(() => {
     void updateTick;
-    return collectQuizUpdateNotices(quizzes, { storageKey: TEACHER_SEEN_QUIZ_UPDATES, audience: 'teacher' });
+    const rows = collectQuizUpdateNotices(quizzes, { storageKey: TEACHER_SEEN_QUIZ_UPDATES, audience: 'teacher' });
+    return filterDismissedActivityNotices(TEACHER_SEEN_QUIZ_UPDATES, rows, quizNoticeKey);
   }, [quizzes, updateTick]);
 
   const reload = async () => {
@@ -282,7 +286,7 @@ const TeacherQuizzes = () => {
       scheduleIds: [],
       scheduleId: String(q.assignedSchedule?._id || q.assignedSchedule || ''),
       totalMarks: q.totalMarks != null ? String(q.totalMarks) : '',
-      dueDate: q.dueDate ? new Date(q.dueDate).toISOString().slice(0, 10) : '',
+      dueDate: q.dueDate ? academyCalendarDay(q.dueDate) : '',
       resourceLink: q.resourceLink || '',
       resourceFiles: quizFiles(q),
       questions: q.questions?.length
@@ -366,7 +370,7 @@ const TeacherQuizzes = () => {
           {r.quizType === 'file' ? '—' : <span className="teacher-quizzes__pill">{r.questions?.length ?? 0}</span>}
         </td>
         <td>{r.quizType === 'file' ? '—' : r.totalMarks != null ? r.totalMarks : '—'}</td>
-        <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
+        <td>{r.dueDate ? formatAcademyDate(r.dueDate) : '—'}</td>
         <td>{r.attemptCount > 0 ? `${r.attemptCount} taken` : 'None yet'}</td>
         <td>
           <div className="teacher-quizzes__row-actions">
@@ -435,6 +439,7 @@ const TeacherQuizzes = () => {
         title="Quiz updates"
         rows={quizUpdateNotices}
         onDismiss={() => {
+          dismissActivityNotices(TEACHER_SEEN_QUIZ_UPDATES, quizUpdateNotices.map(quizNoticeKey));
           markPortalPageVisited(TEACHER_SEEN_QUIZ_UPDATES);
           setUpdateTick((n) => n + 1);
         }}

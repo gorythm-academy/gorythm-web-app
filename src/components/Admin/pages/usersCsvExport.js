@@ -46,6 +46,7 @@ export async function downloadUsersCsv({
         const rows = allRows.map((u) => ({
             studentId: u.role === 'student' ? (u.studentId || '') : '',
             name: u.name || '',
+            email: u.email || '',
             portalEmail: u.email || '',
             personalEmail: u.personalEmail || '',
             role: u.role || '',
@@ -61,8 +62,12 @@ export async function downloadUsersCsv({
         const cols = [
             ['studentId', 'Student ID'],
             ['name', 'Name'],
-            ['portalEmail', 'Portal Email'],
-            ['personalEmail', 'Personal Email'],
+            ...(isStaffTab
+                ? [
+                    ['portalEmail', 'Portal Email'],
+                    ['personalEmail', 'Personal Email'],
+                ]
+                : [['email', 'Email']]),
             ['role', 'Role'],
             ['phone', 'Phone'],
             ['status', 'Status'],

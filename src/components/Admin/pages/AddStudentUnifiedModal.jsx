@@ -6,17 +6,14 @@ import { API_BASE_URL } from '../../../config/constants';
 import { formatScheduleLabel } from '../../../utils/formatScheduleLabel';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import {
-    GORYTHM_EMAIL_DOMAIN,
-    GORYTHM_EMAIL_REGEX,
     MIN_STUDENT_PASSWORD_LENGTH,
     ENROLLMENT_STATUS_BUTTONS,
     FEE_STATUS_VALUES,
-    sanitizePortalEmailLocal,
     sortPublishedCourses,
     userStatusFromEnrollmentStatus,
     formatLoginEmailNotice,
     validatePasswordPair,
-    validatePersonalEmail,
+    validatePeopleLoginEmail,
     validateStudentId,
 } from '../../../utils/studentAdminValidation';
 import './EnrollStudentModal.scss';
@@ -148,12 +145,10 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
             if (!token) throw new Error('Admin session expired. Please log in again.');
 
             const name = formData.name.trim();
-            const email = formData.email.trim();
+            const email = formData.email.trim().toLowerCase();
             if (!name) throw new Error('Full name is required.');
-            if (!email) throw new Error('Portal email is required.');
-            if (!GORYTHM_EMAIL_REGEX.test(email)) {
-                throw new Error('Portal email must be in this format: id@gorythmacademy.com');
-            }
+            const emailErr = validatePeopleLoginEmail(email);
+            if (emailErr) throw new Error(emailErr);
 
             const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
             if (passwordErr) throw new Error(passwordErr);
@@ -163,10 +158,6 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
             if (!schedulesLoading && courseSchedules.length > 0 && !formData.assignedScheduleId) {
                 throw new Error('Please select a class timeslot for this course.');
             }
-
-            const personalTrim = (formData.personalEmail || '').trim();
-            const personalErr = validatePersonalEmail(personalTrim);
-            if (personalErr) throw new Error(personalErr);
 
             const studentIdTrim = (formData.studentId || '').trim();
             const studentIdErr = validateStudentId(studentIdTrim);
@@ -186,7 +177,6 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                         }
                         : {}),
                     role: 'student',
-                    personalEmail: personalTrim,
                     deferLoginEmail: true,
                     phone: (formData.phone || '').trim(),
                     studentId: studentIdTrim || undefined,
@@ -322,33 +312,22 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label htmlFor="add-student-email-local">
-                                        <i className="fas fa-envelope"></i> Portal Email <RequiredMark />
+                                    <label htmlFor="add-student-email">
+                                        <i className="fas fa-envelope"></i> Email <RequiredMark />
                                     </label>
-                                    <div className={`email-input-group ${loading || success ? 'is-disabled' : ''}`}>
-                                        <input
-                                            id="add-student-email-local"
-                                            type="text"
-                                            name="emailLocal"
-                                            className="email-input-group__local"
-                                            value={sanitizePortalEmailLocal(formData.email)}
-                                            onChange={(e) => {
-                                                const local = sanitizePortalEmailLocal(e.target.value);
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    email: local ? `${local}${GORYTHM_EMAIL_DOMAIN}` : '',
-                                                }));
-                                            }}
-                                            placeholder="id"
-                                            required
-                                            disabled={loading || success}
-                                            autoComplete="off"
-                                            spellCheck={false}
-                                        />
-                                        <span className="email-input-group__suffix" aria-hidden="true">
-                                            {GORYTHM_EMAIL_DOMAIN}
-                                        </span>
-                                    </div>
+                                    <input
+                                        id="add-student-email"
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        className="form-input"
+                                        placeholder="name@gmail.com"
+                                        required
+                                        disabled={loading || success}
+                                        autoComplete="off"
+                                    />
+                                    <small className="form-hint">The student will use this email to sign in.</small>
                                 </div>
 
                                 <div className="form-group">
@@ -443,22 +422,6 @@ const AddStudentUnifiedModal = ({ isOpen, onClose, onSuccess, courses }) => {
                                         onChange={handleChange}
                                         className="form-input"
                                         placeholder="GRT-2026-001"
-                                        disabled={loading || success}
-                                    />
-                                </div>
-
-                                <div className="form-group">
-                                    <label htmlFor="add-student-personal-email">
-                                        <i className="fas fa-envelope-open-text"></i> Personal Email (Optional)
-                                    </label>
-                                    <input
-                                        id="add-student-personal-email"
-                                        type="email"
-                                        name="personalEmail"
-                                        value={formData.personalEmail}
-                                        onChange={handleChange}
-                                        className="form-input"
-                                        placeholder="gmail.com, hotmail.com, etc."
                                         disabled={loading || success}
                                     />
                                 </div>

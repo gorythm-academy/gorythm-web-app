@@ -12,18 +12,39 @@ const { isDuplicateKeyError } = require('../utils/duplicateKey');
 
 function deleteProofFile(proofUrl) {
     const abs = proofAbsolutePathFromPublic(proofUrl);
-    if (!abs || !fs.existsSync(abs)) return;
+    if (!abs) return { ok: false, reason: 'invalid' };
+    if (!fs.existsSync(abs)) return { ok: true, reason: 'missing' };
     try {
         fs.unlinkSync(abs);
     } catch {
-        /* ignore */
+        return { ok: false, reason: 'failed' };
     }
+    if (fs.existsSync(abs)) return { ok: false, reason: 'failed' };
+    return { ok: true, reason: 'deleted' };
+}
+
+/** Remove the file only when no other payment, including quarantined rows, still points at it. */
+async function deleteProofFileIfLastReference(proofUrl, exceptIds = []) {
+    if (!proofUrl) return { ok: true, reason: 'none' };
+    const others = await Payment.countDocuments({
+        proofUrl,
+        ...(exceptIds.length ? { _id: { $nin: exceptIds } } : {}),
+    });
+    if (others > 0) return { ok: true, reason: 'shared' };
+    return deleteProofFile(proofUrl);
 }
 
 async function permanentlyDeletePayments(filter) {
-    const payments = await Payment.find(filter).select('proofUrl').lean();
-    for (const payment of payments) {
-        if (payment.proofUrl) deleteProofFile(payment.proofUrl);
+    const payments = await Payment.find(filter).select('_id proofUrl').lean();
+    const ids = payments.map((payment) => payment._id);
+    const urls = [...new Set(payments.map((payment) => payment.proofUrl).filter(Boolean))];
+    for (const proofUrl of urls) {
+        const removed = await deleteProofFileIfLastReference(proofUrl, ids);
+        if (!removed.ok) {
+            const err = new Error('Could not delete a payment proof file. The records were kept.');
+            err.status = 500;
+            throw err;
+        }
     }
     const result = await Payment.deleteMany(filter);
     return result.deletedCount || 0;
@@ -131,6 +152,7 @@ async function permanentlyDeleteUserRelations(userId) {
 
 module.exports = {
     deleteProofFile,
+    deleteProofFileIfLastReference,
     permanentlyDeletePayments,
     deleteCourseMediaFiles,
     permanentlyDeleteCourseRelations,

@@ -21,6 +21,7 @@ const {
     studentAssignmentMongoFilter,
     studentResourceMongoFilter,
     assignmentPastDue,
+    isDueDatePast,
     getStudentSlotIssues,
     assertStudentCanAccessAssignment,
     assertStudentCanAccessQuiz,
@@ -460,6 +461,9 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
             student: studentId,
             ...activeLmsFilter(),
         });
+        if (isDueDatePast(quiz.dueDate) && !attempt) {
+            return res.status(403).json({ success: false, error: 'The due date for this quiz has passed' });
+        }
         if (quiz.status !== 'published' && !attempt) {
             return res.status(403).json({ success: false, error: 'Quiz is not available' });
         }
@@ -470,6 +474,7 @@ router.get('/student/quizzes/:quizId', allowPortalRoles('student'), async (req, 
             const { correctAnswer, ...rest } = q;
             return rest;
         });
+        obj.pastDue = isDueDatePast(quiz.dueDate);
         let review = null;
         const canRetake = quizUpdatedAfterAttempt(quiz, attempt);
         if (attempt && !canRetake) {
@@ -491,15 +496,15 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
         const attempts = await QuizAttempt.find({ student: studentId, ...activeLmsFilter() });
         const attemptQuizIds = attempts.map((a) => a.quiz).filter(Boolean);
         const publishedQuizzes = await studentPublishedQuizMongoFilter(studentId);
-        const quizzes = await Quiz.find({
+        const visibility = {
             $or: [
                 publishedQuizzes,
                 ...(attemptQuizIds.length
                     ? [{ _id: { $in: attemptQuizIds }, course: { $in: courseIds } }]
                     : []),
             ],
-            ...activeLmsFilter(),
-        })
+        };
+        const quizzes = await Quiz.find(mergeMongoFilters(visibility, activeLmsFilter()))
             .populate('course', 'title')
             .select('-questions.correctAnswer');
         const byQuiz = Object.fromEntries(attempts.map((a) => [String(a.quiz), a]));
@@ -514,6 +519,7 @@ router.get('/student/quizzes', allowPortalRoles('student'), async (req, res) => 
                     ...row,
                     attempt,
                     canRetake: quizUpdatedAfterAttempt(q, attempt),
+                    pastDue: isDueDatePast(q.dueDate),
                 };
             }),
         });
@@ -684,6 +690,9 @@ router.post('/student/quiz-attempts', allowPortalRoles('student'), validate([qui
             return res.status(403).json({ success: false, error: 'Not enrolled in this course' });
         }
         await assertStudentCanAccessQuiz(studentId, quiz);
+        if (isDueDatePast(quiz.dueDate)) {
+            return res.status(400).json({ success: false, error: 'The due date for this quiz has passed' });
+        }
         // Two quick submits must not create two attempts for the same student and quiz.
         await withFulfillmentLock(`quiz-attempt:${studentId}:${quizId}`, async () => {
             const priorActive = await QuizAttempt.findOne({

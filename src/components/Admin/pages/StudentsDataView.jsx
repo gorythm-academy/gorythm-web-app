@@ -144,7 +144,7 @@ export function StudentsDataView({ state }) {
                     <p>
                         Accounts, enrollments, fee status, and course assignments in one place
                         {listTab === 'active'
-                            ? ` · ${stats.uniqueStudents || stats.totalStudentAccounts || 0} students`
+                            ? ` · ${total} students`
                             : listTab === 'trashStudents'
                                 ? ` · ${QUARANTINE_STUDENTS_LABEL}`
                                 : ` · ${QUARANTINE_COURSES_LABEL}`}
@@ -196,22 +196,14 @@ export function StudentsDataView({ state }) {
                 <button
                     type="button"
                     className={`students-list-tab students-list-tab--trash ${listTab === 'trash' ? 'active' : ''}`}
-                    onClick={() => {
-                        setFilterStatus('all');
-                        setFilterFeeStatus('all');
-                        setListTab('trash');
-                    }}
+                    onClick={() => setListTab('trash')}
                 >
                     <i className="fas fa-book" /> {QUARANTINE_COURSES_LABEL} ({trashCount})
                 </button>
                 <button
                     type="button"
                     className={`students-list-tab students-list-tab--trash ${listTab === 'trashStudents' ? 'active' : ''}`}
-                    onClick={() => {
-                        setFilterStatus('all');
-                        setFilterFeeStatus('all');
-                        setListTab('trashStudents');
-                    }}
+                    onClick={() => setListTab('trashStudents')}
                 >
                     <i className="fas fa-user-slash" /> {QUARANTINE_STUDENTS_LABEL} ({trashStudentsCount})
                 </button>
@@ -230,6 +222,7 @@ export function StudentsDataView({ state }) {
                 setSortOrder={setSortOrder}
                 handleManualRefresh={handleManualRefresh}
                 downloadStudentsDataCsv={downloadStudentsDataCsv}
+                showStatusFilters={listTab === 'active'}
             />
 
             {loading && studentCards.length > 0 ? (
@@ -263,7 +256,9 @@ export function StudentsDataView({ state }) {
                             ? 'No students with quarantined courses.'
                             : listTab === 'trashStudents'
                                 ? 'No quarantined students. Use Quarantine student from a student card to archive a whole account.'
-                                : 'Use Add new student to create a record. Add more courses from a student card.'}
+                                : filterStatus !== 'all' || filterFeeStatus !== 'all'
+                                    ? 'No students match this filter. Choose another status or fee status to see more records.'
+                                    : 'Use Add new student to create a record. Add more courses from a student card.'}
                                         </p>
                                         {listTab === 'active' ? (
                                             <div className="no-data-actions">

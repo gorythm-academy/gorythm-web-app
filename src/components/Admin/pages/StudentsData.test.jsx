@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import axios from 'axios';
 import StudentsData from './StudentsData';
 import { AUTH_REALM, startCookieSession } from '../../../utils/authStorage';
@@ -63,5 +64,23 @@ describe('students list', () => {
     expect(await screen.findByText('Aisha Khan')).toBeInTheDocument();
     expect(screen.getByText(/Quran Basics/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /students/i })).toBeInTheDocument());
+    const studentsCall = axios.get.mock.calls.find((call) => String(call[0]).includes('/api/enrollments/students'));
+    expect(studentsCall?.[1]?.params?.status).toBe('active');
+  });
+
+  test('asks the API for the status chosen in the dropdown', async () => {
+    render(
+      <MemoryRouter>
+        <StudentsData />
+      </MemoryRouter>
+    );
+    const statusFilter = await screen.findByRole('combobox', { name: 'Filter by status' });
+    expect(statusFilter).toHaveValue('active');
+    await userEvent.selectOptions(statusFilter, 'paused');
+    await waitFor(() => {
+      const calls = axios.get.mock.calls.filter((call) => String(call[0]).includes('/api/enrollments/students'));
+      expect(calls.at(-1)?.[1]?.params?.status).toBe('paused');
+    });
+    await waitFor(() => expect(screen.queryByText('Aisha Khan')).not.toBeInTheDocument());
   });
 });

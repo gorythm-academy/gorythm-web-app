@@ -39,6 +39,7 @@ const FooterSimple = () => {
               <NavLink to="/about">About Us</NavLink>
               <NavLink to="/research">Research</NavLink>
               <NavLink to="/contact">Contact Us</NavLink>
+              <NavLink to="/trial" className="footer-trial-link">Book a Free Trial</NavLink>
             </nav>
           </div>
         </div>
@@ -90,7 +91,7 @@ const FooterSimple = () => {
             <NavLink to="/cookies" target="_blank" rel="noopener noreferrer">Cookie Policy</NavLink>
           </nav>
           <div className="footer-milky-copyright">
-            Gorythm Academy © 2026. All rights reserved.
+            Gorythm Academy © 2026. All Rights Reserved.
           </div>
         </div>
       </div>

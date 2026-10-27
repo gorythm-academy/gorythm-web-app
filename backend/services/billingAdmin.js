@@ -8,6 +8,7 @@ const { activePaymentFilter } = require('../utils/paymentQuery');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { assertLaterDueDate, parseDueDateInput, applyEnrollmentDueDateInput, pushDueDateExtension } = require('../utils/feeDueDate');
 const { nextInvoiceNumber } = require('../utils/invoiceNumber');
+const { chargeCurrency } = require('../utils/chargeCurrency');
 const { isPaidStoredStatus, displayEnrollmentFeeStatus, statusLabel } = require('../utils/billingStatus');
 const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
 const { deliverableInbox } = require('../utils/studentPortalEmail');
@@ -70,7 +71,12 @@ async function reduceBillToReceivedAmount(payment, receivedAmount) {
     if (lines[0]) lines[0].amount = fromCents(receivedCents);
 }
 
-async function markPaymentPaidAndFulfill(payment, { verifiedBy = null, methodNote = '', receivedAmount = null } = {}) {
+async function markPaymentPaidAndFulfill(payment, {
+    verifiedBy = null,
+    methodNote = '',
+    receivedAmount = null,
+    skipReceiptEmail = false,
+} = {}) {
     if (!payment) throw httpError('Payment not found', 404);
     if (isPaidStatus(payment.status)) throw httpError('Payment is already paid');
     if (payment.status === 'refunded') throw httpError('Refunded payments cannot be marked received');
@@ -93,7 +99,9 @@ async function markPaymentPaidAndFulfill(payment, { verifiedBy = null, methodNot
         await payment.save();
         throw httpError(issues[0], 400);
     }
-    sendPaymentReceiptEmail(payment).catch(() => {});
+    if (!skipReceiptEmail) {
+        sendPaymentReceiptEmail(payment).catch(() => {});
+    }
     return payment;
 }
 
@@ -240,7 +248,7 @@ async function markEnrollmentReceived(enrollmentId, actorId, { receivedAmount = 
         phone: enrollment.student?.phone || '',
         courseName: enrollment.course?.title || '',
         amount,
-        currency: 'USD',
+        currency: chargeCurrency(),
         status: 'paid',
         paymentMethod: 'manual',
         transactionId: `manual_${Date.now()}_${Math.floor(Math.random() * 100000)}`,

@@ -95,7 +95,7 @@ export function UsersManagementFormModal({ state }) {
 
                                         <div className="form-group">
                                             <label>Email Address <RequiredMark /></label>
-                                            {!editingUser ? (
+                                            {!editingUser && isStaffTab ? (
                                                 <div
                                                     className={`email-input-group ${
                                                         isSubmitting ? 'is-disabled' : ''
@@ -129,6 +129,17 @@ export function UsersManagementFormModal({ state }) {
                                                         {GORYTHM_EMAIL_DOMAIN}
                                                     </span>
                                                 </div>
+                                            ) : !editingUser ? (
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    onChange={handleFormChange}
+                                                    placeholder="name@gmail.com"
+                                                    required
+                                                    disabled={isSubmitting}
+                                                    autoComplete="off"
+                                                />
                                             ) : (
                                                 <input
                                                     type="email"
@@ -143,13 +154,18 @@ export function UsersManagementFormModal({ state }) {
                                                 <small className="form-hint">
                                                     Email cannot be changed for existing users
                                                 </small>
-                                            ) : (
+                                            ) : isStaffTab ? (
                                                 <small className="form-hint">
                                                     Only enter the ID — <strong>@gorythmacademy.com</strong> is added automatically.
+                                                </small>
+                                            ) : (
+                                                <small className="form-hint">
+                                                    They will sign in with this email. Leave the password blank and we will email a link to choose one.
                                                 </small>
                                             )}
                                         </div>
 
+                                        {isStaffTab ? (
                                         <div className="form-group">
                                             <label>Personal Email (Optional)</label>
                                             <input
@@ -166,6 +182,7 @@ export function UsersManagementFormModal({ state }) {
                                                 Separate from portal login above; for contact only. Leave the password blank to email a one-time set-password link.
                                             </small>
                                         </div>
+                                        ) : null}
 
                                         {editingUser && ['student', 'teacher', 'parent'].includes(editingUser.role) ? (
                                             <div className="form-group">

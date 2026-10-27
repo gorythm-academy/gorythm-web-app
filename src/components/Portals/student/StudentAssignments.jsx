@@ -29,6 +29,7 @@ import {
   filterDismissedActivityNotices,
 } from '../../../utils/portalAssignmentNotices';
 import { scrollPortalToElement } from '../../../utils/portalScroll';
+import { formatAcademyDate, isAcademyDuePast } from '../../../utils/academyCalendar';
 import '../../Admin/pages/LmsManagement.scss';
 
 const SEEN_KEY = 'student_assignments';
@@ -50,13 +51,8 @@ const statusCell = (row) => {
 
 const attachmentLabel = (count) => (count === 1 ? 'Attachment' : 'Attachments');
 
-function isAssignmentPastDue(dueDate) {
-  if (!dueDate) return false;
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return due.getTime() < now.getTime();
+function isAssignmentPastDue(assignment) {
+  return isAcademyDuePast(assignment?.dueDate, assignment?.pastDue);
 }
 
 const StudentAssignments = () => {
@@ -105,7 +101,7 @@ const StudentAssignments = () => {
   );
 
   const selectedRow = filtered.find((a) => String(a._id) === String(selected));
-  const isPastDue = selectedRow ? isAssignmentPastDue(selectedRow.dueDate) : false;
+  const isPastDue = selectedRow ? isAssignmentPastDue(selectedRow) : false;
   const canEditSubmission = Boolean(selectedRow?.submission) && !isPastDue;
   const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
   const missingSlots = slotIssues?.coursesWithoutSlot || [];
@@ -292,7 +288,7 @@ const StudentAssignments = () => {
                 </thead>
                 <tbody>
                   {filtered.map((r) => {
-                    const pastDue = isAssignmentPastDue(r.dueDate);
+                    const pastDue = isAssignmentPastDue(r);
                     const canEdit = Boolean(r.submission) && !pastDue;
                     return (
                       <tr key={r._id} className={String(selected) === String(r._id) ? 'student-assignments-table__row--active' : ''}>
@@ -301,7 +297,7 @@ const StudentAssignments = () => {
                         </td>
                         <td>{r.course?.title || '—'}</td>
                         <td>
-                          {r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}
+                          {r.dueDate ? formatAcademyDate(r.dueDate) : '—'}
                           {r.dueDateNotice ? <div className="lms-due-date-notice">{r.dueDateNotice}</div> : null}
                         </td>
                         <td>{statusCell(r)}</td>
@@ -363,7 +359,7 @@ const StudentAssignments = () => {
             <select value={selected || ''} onChange={(e) => onSelectAssignment(e.target.value)} required>
               <option value="">Select Assignment</option>
               {filtered
-                .filter((a) => !isAssignmentPastDue(a.dueDate))
+                .filter((a) => !isAssignmentPastDue(a))
                 .map((a) => (
                   <option key={a._id} value={a._id}>
                     {a.title}

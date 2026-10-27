@@ -534,8 +534,18 @@ router.post(
             });
         }
         
-        // Check if user exists
-        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        if (PEOPLE_ROLES.includes(nextRole)) {
+            const { peopleLoginEmailError } = require('../utils/studentPortalEmail');
+            const emailError = peopleLoginEmailError(normalizedEmail);
+            if (emailError) {
+                return res.status(400).json({ success: false, error: emailError });
+            }
+        }
+        const emailPattern = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const existingUser = await User.findOne({
+            $or: [{ email: normalizedEmail }, { personalEmail: emailPattern }],
+        });
         if (existingUser) {
             return res.status(400).json({ 
                 success: false, 
@@ -553,7 +563,7 @@ router.post(
         }
         const userFields = {
             name,
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             password: rawPassword || crypto.randomBytes(24).toString('hex'),
             role: nextRole,
             phone: phone || '',
@@ -591,6 +601,9 @@ router.post(
                 });
             }
             userFields.personalEmail = pe;
+        }
+        if (PEOPLE_ROLES.includes(nextRole)) {
+            userFields.personalEmail = '';
         }
 
         if (nextRole === 'parent' && Array.isArray(req.body.studentIds) && req.body.studentIds.length) {
@@ -709,11 +722,20 @@ router.put(
             });
         }
 
-        // Check if email is being changed and if it already exists
+        const nextPeopleRole = PEOPLE_ROLES.includes(nextRole || user.role);
         if (email && email.toLowerCase() !== user.email) {
-            const existingUser = await User.findOne({ 
-                email: email.toLowerCase(),
-                _id: { $ne: req.params.id }
+            const normalizedEmail = email.toLowerCase();
+            if (nextPeopleRole) {
+                const { peopleLoginEmailError } = require('../utils/studentPortalEmail');
+                const emailError = peopleLoginEmailError(normalizedEmail);
+                if (emailError) {
+                    return res.status(400).json({ success: false, error: emailError });
+                }
+            }
+            const emailPattern = new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+            const existingUser = await User.findOne({
+                _id: { $ne: req.params.id },
+                $or: [{ email: normalizedEmail }, { personalEmail: emailPattern }],
             });
             if (existingUser) {
                 return res.status(400).json({ 
@@ -751,6 +773,10 @@ router.put(
                 });
             }
             user.personalEmail = pe;
+        }
+        if (nextPeopleRole) {
+            const { deliverableInbox } = require('../utils/studentPortalEmail');
+            if (deliverableInbox(user.email)) user.personalEmail = '';
         }
 
         if (studentId !== undefined && user.role === 'student') {
@@ -812,9 +838,12 @@ router.put(
         const portalBecameReal = !previousReal && nextReal;
         const portalChanged = previousReal && nextReal
             && String(previousEmail || '').toLowerCase() !== String(user.email || '').toLowerCase();
-        const inboxBecameAvailable = !deliverableInbox(previousPersonal) && !!deliverableInbox(user.personalEmail);
+        const previousInbox = deliverableInbox(previousPersonal) || deliverableInbox(previousEmail);
+        const nextInbox = deliverableInbox(user.personalEmail) || deliverableInbox(user.email);
+        const inboxBecameAvailable = !previousInbox && !!nextInbox;
         let loginEmail = null;
-        if (portalChanged || (!user.loginEmailSentAt && (portalBecameReal || inboxBecameAvailable))) {
+        const skipLoginEmail = req.body.skipLoginEmail === true;
+        if (!skipLoginEmail && (portalChanged || (!user.loginEmailSentAt && (portalBecameReal || inboxBecameAvailable)))) {
             const { sendLoginCard } = require('../services/loginCardEmail');
             loginEmail = await sendLoginCard(user._id, { force: portalChanged });
             const mailed = await User.findById(user._id).select('loginEmailSentAt loginEmailSentTo loginEmailLastError');

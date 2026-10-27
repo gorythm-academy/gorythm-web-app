@@ -80,6 +80,28 @@ router.get('/accountant/dashboard', allowPortalRoles('accountant'), async (req, 
     }
 });
 
+router.get('/accountant/payments/:id/invoice', allowPortalRoles('accountant'), async (req, res) => {
+    try {
+        const payment = await Payment.findById(req.params.id)
+            .populate('user', 'name email')
+            .populate('course', 'title');
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+        const { isPaidStatus } = require('../../services/onPaymentPaid');
+        if (!isPaidStatus(payment.status)) {
+            return res.status(400).json({
+                success: false,
+                error: 'An invoice is available after this payment is marked paid.',
+            });
+        }
+        const { sendPortalInvoicePdf } = require('./billingHandlers');
+        return await sendPortalInvoicePdf(res, payment, req.query);
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to download invoice' });
+    }
+});
+
 router.get('/accountant/payments', allowPortalRoles('accountant'), async (req, res) => {
     try {
         const trash = req.query.trash === 'true' || req.query.trash === '1';
@@ -152,7 +174,15 @@ router.patch('/accountant/payments/:id/approve', allowPortalRoles('accountant'),
             const updated = [];
             for (const row of group) {
                 if (isPaidStatus(row.status)) continue;
-                updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy, methodNote: 'bank' }));
+                updated.push(await markPaymentPaidAndFulfill(row, {
+                    verifiedBy,
+                    methodNote: 'bank',
+                    skipReceiptEmail: true,
+                }));
+            }
+            if (updated.length) {
+                const { sendPaymentReceiptEmails } = require('../../services/sendPaymentReceiptEmail');
+                sendPaymentReceiptEmails(updated).catch(() => {});
             }
             res.json({
                 success: true,
@@ -258,7 +288,7 @@ router.patch('/accountant/payments/:id/restore', allowPortalRoles('accountant'),
 
 router.delete('/accountant/payments/:id/permanent', allowPortalRoles('accountant'), async (req, res) => {
     try {
-        const { deleteProofFile } = require('../../services/trashCleanup');
+        const { deleteProofFileIfLastReference } = require('../../services/trashCleanup');
         const payment = await Payment.findOne({
             _id: req.params.id,
             ...trashedPaymentFilter(),
@@ -267,7 +297,13 @@ router.delete('/accountant/payments/:id/permanent', allowPortalRoles('accountant
             return res.status(404).json({ success: false, error: 'Payment must be in trash before permanent delete' });
         }
         if (payment.proofUrl) {
-            deleteProofFile(payment.proofUrl);
+            const removed = await deleteProofFileIfLastReference(payment.proofUrl, [payment._id]);
+            if (!removed.ok) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Could not delete the payment proof file. The payment was kept.',
+                });
+            }
         }
         await Payment.deleteOne({ _id: payment._id });
         res.json({ success: true, message: 'Payment permanently deleted', paymentId: req.params.id });

@@ -20,7 +20,7 @@ const logger = require('../utils/logger');
 
 const PEOPLE_ROLES = ['student', 'teacher', 'parent'];
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const NOT_SENT_NO_INBOX = 'Not sent — add a personal email';
+const NOT_SENT_NO_INBOX = 'Not sent yet.';
 const NOT_SENT_UNCONFIGURED = 'Not sent — email is not configured';
 const NOT_SENT_FAILED = 'Not sent — email could not be delivered';
 
@@ -76,15 +76,12 @@ function scheduleLine(enrollment) {
     return extra ? `${course} — ${extra}` : course;
 }
 
-function buildLoginCardText({ user, setPasswordUrl, courses, children }) {
-    const name = user?.name || 'there';
+function loginReadyLines({ user, setPasswordUrl, courses, children, includeChildren = true }) {
     const login = String(user?.email || '').trim();
     const lines = [
-        `Assalamu alaikum ${name},`,
+        'Your Gorythm Academy login is ready.',
         '',
-        'Your Gorythm Academy portal login is ready.',
-        '',
-        `Portal Login: ${login}`,
+        `Login: ${login}`,
     ];
     if (user?.role === 'student' && user?.studentId) {
         lines.push(`Roll Number: ${user.studentId}`);
@@ -102,11 +99,21 @@ function buildLoginCardText({ user, setPasswordUrl, courses, children }) {
         lines.push('', heading, ...courseLines.map((line) => `- ${line}`));
     }
     const childLines = (children || []).filter(Boolean);
-    if (user?.role === 'parent' && childLines.length) {
+    if (includeChildren && user?.role === 'parent' && childLines.length) {
         lines.push('', 'Linked Students:', ...childLines.map((line) => `- ${line}`));
     }
-    lines.push('', 'Gorythm Academy');
-    return lines.join('\n');
+    return lines;
+}
+
+function buildLoginCardText({ user, setPasswordUrl, courses, children }) {
+    const name = user?.name || 'there';
+    return [
+        `Assalamu alaikum ${name},`,
+        '',
+        ...loginReadyLines({ user, setPasswordUrl, courses, children }),
+        '',
+        'Gorythm Academy',
+    ].join('\n');
 }
 
 async function cardDetails(user) {
@@ -135,6 +142,8 @@ async function cardDetails(user) {
 }
 
 async function recipientAddresses(user) {
+    const ownLogin = deliverableInbox(user?.email);
+    if (ownLogin) return [ownLogin];
     const addresses = [];
     const add = (value) => {
         if (value && !addresses.includes(value)) addresses.push(value);
@@ -159,7 +168,8 @@ function loginEmailStatus(user, extra = {}) {
 async function sendLoginCard(userId, { force = false } = {}) {
     const user = await User.findById(userId).select('+passwordResetTokenHash +passwordResetExpires');
     if (!user || user.deletedAt) return { sent: false, reason: 'missing_user', error: '' };
-    if (!PEOPLE_ROLES.includes(user.role) || !isRealPortalLogin(user.email)) {
+    const loginReady = isRealPortalLogin(user.email) || Boolean(deliverableInbox(user.email));
+    if (!PEOPLE_ROLES.includes(user.role) || !loginReady) {
         return loginEmailStatus(user, { sent: false, reason: 'not_ready' });
     }
     if (!force && user.loginEmailSentAt) {
@@ -257,11 +267,64 @@ async function sendLoginCard(userId, { force = false } = {}) {
     }
 }
 
+/** Login text and a one-time token, without sending. Null when a login email was already sent. */
+async function prepareLoginAttachment(userId, { includeChildren = true } = {}) {
+    const user = await User.findById(userId).select('name email personalEmail role studentId loginEmailSentAt deletedAt');
+    if (!user || user.deletedAt || user.loginEmailSentAt) return null;
+    if (!PEOPLE_ROLES.includes(user.role)) return null;
+    if (!deliverableInbox(user.email) && !isRealPortalLogin(user.email)) return null;
+    const token = createRawToken();
+    const details = await cardDetails(user);
+    const sentTo = deliverableInbox(user.email) || inboxForUser(user);
+    const setPasswordUrl = resetUrl(token);
+    return {
+        userId: user._id,
+        sentTo: sentTo ? [sentTo] : [],
+        token,
+        readyText: loginReadyLines({
+            user,
+            setPasswordUrl,
+            courses: details.courses,
+            children: details.children,
+            includeChildren,
+        }).join('\n'),
+        text: buildLoginCardText({
+            user,
+            setPasswordUrl,
+            courses: details.courses,
+            children: details.children,
+        }),
+    };
+}
+
+async function commitLoginAttachment(attachment) {
+    if (!attachment?.userId || !attachment.token) return false;
+    const updated = await User.updateOne(
+        {
+            _id: attachment.userId,
+            $or: [{ loginEmailSentAt: null }, { loginEmailSentAt: { $exists: false } }],
+        },
+        {
+            $set: {
+                loginEmailSentAt: new Date(),
+                loginEmailSentTo: attachment.sentTo || [],
+                loginEmailLastError: '',
+                passwordResetTokenHash: hashToken(attachment.token),
+                passwordResetExpires: resetExpiresAt(Date.now(), WELCOME_TTL_MS),
+            },
+        }
+    );
+    return updated.modifiedCount > 0;
+}
+
 module.exports = {
     PEOPLE_ROLES,
     NOT_SENT_NO_INBOX,
     buildLoginCardText,
+    loginReadyLines,
     inboxForUser,
     sendLoginCard,
     loginEmailStatus,
+    prepareLoginAttachment,
+    commitLoginAttachment,
 };

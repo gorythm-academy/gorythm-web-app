@@ -61,6 +61,7 @@ const Header = () => {
     { id: 3, title: 'About Us', path: '/about', hasDropdown: false },
     { id: 4, title: 'Research', path: '/research', hasDropdown: false },
     { id: 5, title: 'Contact Us', path: '/contact', hasDropdown: false },
+    { id: 6, title: 'Free Trial', path: '/trial', hasDropdown: false, accent: true },
   ];
 
   const socialLinks = [
@@ -355,7 +356,9 @@ const Header = () => {
                         <NavLink
                           to={item.path}
                           end={item.path === '/'}
-                          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                          className={({ isActive }) =>
+                            `nav-link${item.accent ? ' nav-link--trial' : ''}${isActive ? ' active' : ''}`
+                          }
                         >
                           {item.title}
                           {item.hasDropdown && (
@@ -492,7 +495,9 @@ const Header = () => {
                           <NavLink
                             to={item.hasDropdown ? '#' : item.path}
                             end={item.path === '/'}
-                            className={({ isActive }) => `mobile-nav-link${isActive ? ' active' : ''}`}
+                            className={({ isActive }) =>
+                              `mobile-nav-link${item.accent ? ' mobile-nav-link--trial' : ''}${isActive ? ' active' : ''}`
+                            }
                             onClick={(e) => {
                               if (item.hasDropdown) {
                                 e.preventDefault();
@@ -609,7 +614,9 @@ const Header = () => {
                             <NavLink
                               to={item.hasDropdown ? '#' : item.path}
                               end={item.path === '/'}
-                              className={({ isActive }) => `mobile-nav-link${isActive ? ' active' : ''}`}
+                              className={({ isActive }) =>
+                              `mobile-nav-link${item.accent ? ' mobile-nav-link--trial' : ''}${isActive ? ' active' : ''}`
+                            }
                               onClick={(e) => {
                                 if (item.hasDropdown) {
                                   e.preventDefault();

@@ -39,8 +39,17 @@ export function formatMoney(amount, currency = 'USD') {
   if (Number.isNaN(value)) return '—';
   const code = String(currency || 'USD').toUpperCase();
   if (code === 'USD') return `$${value.toFixed(2)}`;
+  if (code === 'EUR') return `€${value.toFixed(2)}`;
   if (code === 'PKR') return `Rs ${value.toFixed(2)}`;
   return `${code} ${value.toFixed(2)}`;
+}
+
+export function formatTotalsByCurrency(buckets) {
+  const list = (Array.isArray(buckets) ? buckets : []).filter((row) => Number(row?.total) !== 0);
+  if (!list.length) return formatMoney(0, 'EUR');
+  return list
+    .map((row) => formatMoney(row.total, row.currency || 'USD'))
+    .join(' · ');
 }
 
 function formatDayMonthYear(date) {

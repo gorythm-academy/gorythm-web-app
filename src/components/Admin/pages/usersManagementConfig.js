@@ -56,16 +56,16 @@ export const TABLE_LAYOUT = {
         maxs: COLUMN_MAX_WIDTHS,
     },
     teachers: {
-        keys: ['checkbox', 'user', 'status', 'assignedCourses', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 240, 160, 260, 150, 250, 250, 130, 180, 1],
-        mins: [50, 160, 120, 160, 110, 140, 140, 100, 120, 90],
-        maxs: [90, 380, 260, 420, 280, 420, 420, 220, 320, 320],
+        keys: ['checkbox', 'user', 'status', 'assignedCourses', 'phone', 'email', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 240, 160, 260, 150, 250, 130, 180, 1],
+        mins: [50, 160, 120, 160, 110, 140, 100, 120, 90],
+        maxs: [90, 380, 260, 420, 280, 420, 220, 320, 320],
     },
     parents: {
-        keys: ['checkbox', 'user', 'status', 'children', 'phone', 'email', 'personalEmail', 'joined', 'lastLogin', 'actions'],
-        widths: [60, 240, 140, 260, 150, 250, 250, 130, 180, 1],
-        mins: [50, 160, 100, 160, 110, 140, 140, 100, 120, 90],
-        maxs: [90, 380, 240, 420, 280, 420, 420, 220, 320, 320],
+        keys: ['checkbox', 'user', 'status', 'children', 'phone', 'email', 'joined', 'lastLogin', 'actions'],
+        widths: [60, 240, 140, 260, 150, 250, 130, 180, 1],
+        mins: [50, 160, 100, 160, 110, 140, 100, 120, 90],
+        maxs: [90, 380, 240, 420, 280, 420, 220, 320, 320],
     },
 };
 

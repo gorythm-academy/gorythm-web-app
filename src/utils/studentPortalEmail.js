@@ -10,6 +10,14 @@ export function displayPortalEmail(email) {
     return isUnsetPortalEmail(email) ? '' : String(email || '').trim();
 }
 
+/** The one address a student, parent, or teacher uses to sign in. */
+export function displayAccountEmail(user) {
+    const email = String(user?.email || '').trim();
+    if (email && !isUnsetPortalEmail(email)) return email;
+    const personal = String(user?.personalEmail || '').trim();
+    return personal || 'Not assigned yet';
+}
+
 /** Table-friendly label when portal email is not assigned yet. */
 export function portalEmailDisplayLabel(email) {
     if (isUnsetPortalEmail(email)) return 'Not assigned yet';

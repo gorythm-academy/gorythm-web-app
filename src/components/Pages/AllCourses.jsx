@@ -26,7 +26,7 @@ const faqs = [
   {
     question: 'How can I enroll in a course?',
     answer:
-      'You can enroll by contacting our team through Whatsapp or filling out the registration form. Our team will guide you through course selection, scheduling, and the onboarding process.',
+      'Open the course you want and choose Enroll Now. A paid course continues to checkout, where you can pay by card or bank transfer. The academy then sets up your student portal. If a course has no fee, use Contact Us and the team will help you join.',
   },
 ];
 
@@ -40,7 +40,7 @@ const AllCourses = () => {
         <span className="courses-page-arrow" aria-hidden="true" />
       </div>
 
-      <CoursesSection ctaTo="/contact" ctaLabel="Contact Us" showMeta emptyStateMode="all-courses" />
+      <CoursesSection ctaTo="/contact" ctaLabel="Contact Us" showMeta emptyStateMode="all-courses" showTrialLink />
 
       <section className="courses-faq" aria-label="Frequently asked questions">
         <div className="courses-faq-title-wrap">

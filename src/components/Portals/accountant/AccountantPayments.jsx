@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RequiredMark from '../../shared/RequiredMark';
-import { portalGet, portalPatch, portalDelete } from '../shared/portalApi';
+import { portalGet, portalPatch, portalDelete, portalGetBlob } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
-import { ProtectedFileFrame, ProtectedFileImage } from '../../../utils/fileUrl';
+import { ProtectedFileFrame, ProtectedFileImage, downloadProtectedUpload } from '../../../utils/fileUrl';
 import { paymentRegistrationEmail, displayPortalEmail } from '../../../utils/studentPortalEmail';
 import {
   ACCOUNTANT_PAYMENTS_UPDATED_EVENT,
@@ -10,6 +10,7 @@ import {
 } from '../../../hooks/useAccountantPortalBadges';
 import './AccountantPayments.scss';
 import { QUARANTINE_LABEL } from '../../../utils/adminListLabels';
+import { formatMoney, triggerBlobDownload } from '../../../utils/billingLabels';
 
 const isPaymentPaid = (status) => status === 'paid' || status === 'completed';
 
@@ -535,6 +536,31 @@ const AccountantPayments = () => {
     }
   };
 
+  const downloadBankProof = async (row) => {
+    const ok = await downloadProtectedUpload(row?.proofUrl);
+    if (!ok) {
+      setDialogNotice({
+        type: 'error',
+        title: 'Could not download the proof',
+        message: 'The file could not be opened. Refresh the page and try again.',
+      });
+    }
+  };
+
+  const downloadPaymentInvoice = async (row) => {
+    try {
+      const blob = await portalGetBlob(`/accountant/payments/${row._id}/invoice`);
+      const safeName = String(row.invoiceNumber || row.transactionId || row._id).replace(/[^\w-]+/g, '-');
+      triggerBlobDownload(blob, `invoice-${safeName}.pdf`);
+    } catch (err) {
+      setDialogNotice({
+        type: 'error',
+        title: 'Could not download the invoice',
+        message: err.message || 'Please try again.',
+      });
+    }
+  };
+
   if (error) {
     return (
       <div className="portal-page">
@@ -834,7 +860,7 @@ const AccountantPayments = () => {
                         </div>
                       </td>
                       <td>{r.course?.title || r.courseName || '—'}</td>
-                      <td className="accountant-payments-amount">${Number(r.amount || 0).toFixed(2)}</td>
+                      <td className="accountant-payments-amount">{formatMoney(r.amount, r.currency || 'USD')}</td>
                       <td>
                         <span
                           className={`accountant-payments-pill accountant-payments-pill--${
@@ -854,12 +880,30 @@ const AccountantPayments = () => {
                       <td>
                         <div className="accountant-payments-actions">
                           {r.proofUrl ? (
+                            <>
+                              <button
+                                type="button"
+                                className="accountant-pay-btn accountant-pay-btn--view"
+                                onClick={() => setReceiptModal(r)}
+                              >
+                                <i className="fas fa-image" /> View
+                              </button>
+                              <button
+                                type="button"
+                                className="accountant-pay-btn accountant-pay-btn--download"
+                                onClick={() => downloadBankProof(r)}
+                              >
+                                <i className="fas fa-download" /> Download proof
+                              </button>
+                            </>
+                          ) : null}
+                          {isPaymentPaid(r.status) ? (
                             <button
                               type="button"
-                              className="accountant-pay-btn accountant-pay-btn--view"
-                              onClick={() => setReceiptModal(r)}
+                              className="accountant-pay-btn accountant-pay-btn--download"
+                              onClick={() => downloadPaymentInvoice(r)}
                             >
-                              <i className="fas fa-image" /> View
+                              <i className="fas fa-file-invoice" /> Invoice
                             </button>
                           ) : null}
                           {isTrashView ? (
@@ -992,7 +1036,7 @@ const AccountantPayments = () => {
         title={`Move to ${QUARANTINE_LABEL}?`}
         message={
           trashModal
-            ? `Move payment for ${trashModal.studentName || 'student'} ($${Number(trashModal.amount || 0).toFixed(2)}) to ${QUARANTINE_LABEL}? You can restore it later from the ${QUARANTINE_LABEL} tab.`
+            ? `Move payment for ${trashModal.studentName || 'student'} (${formatMoney(trashModal.amount, trashModal.currency || 'USD')}) to ${QUARANTINE_LABEL}? You can restore it later from the ${QUARANTINE_LABEL} tab.`
             : ''
         }
         confirmLabel={`Move to ${QUARANTINE_LABEL}`}
@@ -1046,9 +1090,14 @@ const AccountantPayments = () => {
           <div className="accountant-receipt-modal__panel">
             <div className="accountant-receipt-modal__head">
               <h3>Payment Screenshot</h3>
-              <button type="button" onClick={() => setReceiptModal(null)}>
-                <i className="fas fa-times" />
-              </button>
+              <div className="accountant-receipt-modal__head-actions">
+                <button type="button" onClick={() => downloadBankProof(receiptModal)}>
+                  <i className="fas fa-download" /> Download
+                </button>
+                <button type="button" onClick={() => setReceiptModal(null)} aria-label="Close">
+                  <i className="fas fa-times" />
+                </button>
+              </div>
             </div>
             <p>
               {receiptModal.studentName || 'Student'} — {receiptModal.course?.title || receiptModal.courseName}

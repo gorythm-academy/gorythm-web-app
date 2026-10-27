@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { deleteProofFile } = require('../services/trashCleanup');
+const { deleteProofFile, deleteProofFileIfLastReference } = require('../services/trashCleanup');
 const mongoose = require('mongoose');
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -17,6 +17,7 @@ const authMiddleware = require('../middleware/auth');
 const { validateSessionUser } = require('../middleware/validateSessionUser');
 const { allowPermission } = require('../middleware/authorize');
 const { readAuthTokenForRealm } = require('../utils/authCookies');
+const { chargeCurrency, stripeCurrency, currencyGroupExpression } = require('../utils/chargeCurrency');
 const { assertTokenEpoch } = require('../utils/tokenEpoch');
 const logger = require('../utils/logger');
 const { validate, rules } = require('../middleware/validate');
@@ -198,6 +199,34 @@ router.get('/course/:id', async (req, res) => {
     }
 });
 
+// --- Public: tell the payer when this email is already on file ---
+router.get('/email-notice', sessionLookupRateLimiter, async (req, res) => {
+    try {
+        const { lookupRegistrationEmail } = require('../services/registrationEmailGuard');
+        const email = String(req.query.email || '').trim();
+        if (!email || email.length > 254) {
+            return res.json({ success: true, level: 'ok', message: '' });
+        }
+        const courseId = String(req.query.courseId || '').trim();
+        const validCourseId = mongoose.Types.ObjectId.isValid(courseId) ? courseId : '';
+        let courseName = '';
+        if (validCourseId) {
+            const course = await Course.findById(validCourseId).select('title').lean();
+            courseName = course?.title || '';
+        }
+        const result = await lookupRegistrationEmail(email, {
+            courseId: validCourseId,
+            courseName,
+            role: req.query.role === 'parent' ? 'parent' : 'student',
+            studentEmail: req.query.studentEmail,
+        });
+        return res.json({ success: true, level: result.level, code: result.code || '', message: result.message || '' });
+    } catch (error) {
+        req.log?.error?.('email notice', { err: error });
+        return res.status(500).json({ success: false, error: 'Could not check this email' });
+    }
+});
+
 // --- Public: bank details (saved from Admin → Payments page) ---
 router.get('/bank-details', async (_req, res) => {
     try {
@@ -210,6 +239,32 @@ router.get('/bank-details', async (_req, res) => {
         res.status(500).json({ success: false, error: 'Failed to load bank details' });
     }
 });
+
+function normalizeRegistrationEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+async function readPublicRegistration(body) {
+    const {
+        assertPersonalRegistrationEmail,
+        assertParentRegistrationEmail,
+    } = require('../services/registrationEmailGuard');
+    const studentName = String(body?.studentName || '').trim();
+    const studentEmail = normalizeRegistrationEmail(body?.studentEmail || body?.email);
+    const parentRaw = normalizeRegistrationEmail(body?.parentEmail);
+    if (!studentName) return { ok: false, error: 'Student full name is required.' };
+    if (!studentEmail) return { ok: false, error: 'Student email is required.' };
+    const emailGuard = await assertPersonalRegistrationEmail(studentEmail);
+    if (!emailGuard.ok) return emailGuard;
+    const parentGuard = await assertParentRegistrationEmail(parentRaw, studentEmail);
+    if (!parentGuard.ok) return parentGuard;
+    return {
+        ok: true,
+        studentName,
+        studentEmail,
+        parentEmail: parentGuard.parentEmail || '',
+    };
+}
 
 // --- Public: bank transfer — single submit with proof (no DB row until proof is saved) ---
 router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
@@ -229,17 +284,19 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
 
         let savedProofPath = null;
         try {
-            const studentName = String(req.body?.studentName || '').trim();
-            const email = String(req.body?.email || '').trim().toLowerCase();
             const courseIdRaw = String(req.body?.courseId || '').trim();
             const phoneResult = normalizeWhatsAppNumber(req.body?.phone, { required: true });
-
-            if (!studentName || !email) {
+            const registration = await readPublicRegistration(req.body);
+            if (!registration.ok) {
                 return res.status(400).json({
                     success: false,
-                    error: 'studentName and email are required',
+                    code: registration.code,
+                    error: registration.error,
                 });
             }
+            const studentName = registration.studentName;
+            const email = registration.studentEmail;
+            const parentEmail = registration.parentEmail;
             if (!courseIdRaw || !mongoose.Types.ObjectId.isValid(courseIdRaw)) {
                 return res.status(400).json({
                     success: false,
@@ -256,16 +313,6 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                 return res.status(400).json({
                     success: false,
                     error: phoneResult.error,
-                });
-            }
-
-            const { assertPersonalRegistrationEmail } = require('../services/registrationEmailGuard');
-            const emailGuard = await assertPersonalRegistrationEmail(email);
-            if (!emailGuard.ok) {
-                return res.status(400).json({
-                    success: false,
-                    code: emailGuard.code,
-                    error: emailGuard.error,
                 });
             }
 
@@ -301,6 +348,7 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                     items: resolvedItems,
                     invoiceMode: parseInvoiceMode(req.body?.invoiceMode),
                     payer: { role: 'guest', email, name: studentName },
+                    parentEmail,
                 });
                 const payments = await savePaymentsFromIntent(intent, {
                     status: 'awaiting_review',
@@ -310,8 +358,9 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
                     proofSubmittedAt: new Date(),
                     phone: phoneResult.e164,
                     email,
+                    parentEmail,
                     studentName,
-                    currency: 'USD',
+                    currency: chargeCurrency(),
                 });
                 intent.status = 'consumed';
                 intent.consumedAt = new Date();
@@ -365,11 +414,12 @@ router.post('/register-bank', paymentRegisterRateLimiter, (req, res) => {
             const payment = new Payment({
                 studentName,
                 email,
+                parentEmail,
                 phone: phoneResult.e164,
                 courseName: course.title,
                 course: course._id,
                 amount: coursePrice,
-                currency: 'USD',
+                currency: chargeCurrency(),
                 status: 'awaiting_review',
                 paymentMethod: 'bank',
                 transactionId: `bank_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
@@ -504,17 +554,46 @@ router.post(
         const autoPay = checkoutWantsAutoPay(req.body?.autoPay);
         let linkedUserId;
         let actor = null;
+        let studentEmail = '';
+        let studentName = '';
+        let parentEmail = '';
+        const registration = await readPublicRegistration(req.body);
+        if (!registration.ok) {
+            return res.status(400).json({
+                success: false,
+                code: registration.code,
+                error: registration.error,
+            });
+        }
+        studentEmail = registration.studentEmail;
+        studentName = registration.studentName;
+        parentEmail = registration.parentEmail;
         const sessionUser = await userFromCheckoutSession(req);
-        if (sessionUser) {
+        if (
+            sessionUser?.role === 'student'
+            && normalizeRegistrationEmail(sessionUser.email) === studentEmail
+        ) {
             linkedUserId = sessionUser._id;
             actor = {
                 userId: sessionUser._id,
-                studentId: sessionUser.role === 'student' ? sessionUser._id : null,
-                name: sessionUser.name,
-                email: sessionUser.personalEmail || sessionUser.email,
-                role: sessionUser.role,
+                studentId: sessionUser._id,
+                name: studentName || sessionUser.name,
+                email: studentEmail,
+                role: 'student',
             };
+        } else {
+            actor = { name: studentName, email: studentEmail };
         }
+        const registrationMetadata = (extra) => ({
+            studentEmail,
+            studentName: String(studentName || '').slice(0, 200),
+            ...(parentEmail ? { parentEmail } : {}),
+            ...(String(req.body?.phone || '').trim()
+                ? { phone: String(req.body.phone).trim().slice(0, 40) }
+                : {}),
+            ...extra,
+        });
+        const checkoutCustomerEmail = parentEmail || studentEmail;
 
         const useBillingCart = rawItems.length > 1 || Boolean(rawItems[0]?.enrollmentId);
         if (!useBillingCart) {
@@ -536,6 +615,18 @@ router.post(
                 });
             }
 
+            const duplicateBlock = await getDuplicateCoursePaymentBlock(studentEmail, {
+                courseId: course._id,
+                courseName: course.title,
+            });
+            if (duplicateBlock.blocked) {
+                return res.status(400).json({
+                    success: false,
+                    code: duplicateBlock.code,
+                    error: duplicateBlock.error,
+                });
+            }
+
             const unitAmount = Math.round(priceUsd * 100);
             if (unitAmount < 50) {
                 return res.status(400).json({
@@ -551,7 +642,7 @@ router.post(
                 line_items: [
                     {
                         price_data: {
-                            currency: 'usd',
+                            currency: stripeCurrency(),
                             product_data: {
                                 name: course.title,
                                 description: (course.description || '').slice(0, 500),
@@ -562,14 +653,15 @@ router.post(
                     },
                 ],
                 mode: 'payment',
+                customer_email: checkoutCustomerEmail || undefined,
                 success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${base}/payment-cancel`,
                 ...(autoPay ? { payment_intent_data: { setup_future_usage: 'off_session' } } : {}),
-                metadata: {
+                metadata: registrationMetadata({
                     courseId: String(courseId),
                     autoPay: autoPay ? '1' : '0',
                     ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
-                },
+                }),
             };
 
             const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
@@ -592,9 +684,10 @@ router.post(
             payer: {
                 userId: linkedUserId || null,
                 role: actor?.role === 'parent' ? 'parent' : actor?.role === 'student' ? 'student' : 'guest',
-                email: actor?.email || '',
-                name: actor?.name || '',
+                email: studentEmail || actor?.email || '',
+                name: studentName || actor?.name || '',
             },
+            parentEmail,
             autoPayEnable: autoPay,
         });
 
@@ -604,15 +697,16 @@ router.post(
             phone_number_collection: { enabled: true },
             line_items: stripeLineItemsFromResolved(chargeable),
             mode: 'payment',
+            customer_email: checkoutCustomerEmail || undefined,
             success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${base}/payment-cancel`,
             ...(autoPay ? { payment_intent_data: { setup_future_usage: 'off_session' } } : {}),
-            metadata: {
+            metadata: registrationMetadata({
                 groupId: intent.groupId,
                 courseId: String(chargeable[0].courseId),
                 autoPay: autoPay ? '1' : '0',
                 ...(linkedUserId ? { userId: String(linkedUserId) } : {}),
-            },
+            }),
         };
         const session = await createCheckoutSessionWithFallback(sessionParams, paymentMethodTypes);
         intent.stripeSessionId = session.id;
@@ -866,7 +960,10 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
                     { $match: activePaymentListFilter() },
                     {
                         $group: {
-                            _id: '$status',
+                            _id: {
+                                status: '$status',
+                                currency: currencyGroupExpression(),
+                            },
                             count: { $sum: 1 },
                             revenue: { $sum: '$amount' },
                         },
@@ -879,22 +976,29 @@ router.get('/', allowPermission('payments.read'), async (req, res) => {
         if (statsAgg) {
             stats = {
                 totalRevenue: 0,
+                revenueByCurrency: [],
                 successfulPayments: 0,
                 pendingPayments: 0,
                 failedPayments: 0,
                 refundedPayments: 0,
             };
+            const revenueByCode = new Map();
             for (const row of statsAgg) {
-                const status = String(row._id || '').toLowerCase();
+                const status = String(row._id?.status || '').toLowerCase();
                 const count = row.count || 0;
                 if (status === 'paid' || status === 'completed') {
                     stats.successfulPayments += count;
-                    stats.totalRevenue += row.revenue || 0;
+                    const code = String(row._id?.currency || 'USD').toUpperCase();
+                    revenueByCode.set(code, (revenueByCode.get(code) || 0) + (row.revenue || 0));
                 } else if (status === 'pending' || status === 'awaiting_review' || status === 'processing') {
                     stats.pendingPayments += count;
                 } else if (status === 'failed') stats.failedPayments += count;
                 else if (status === 'refunded') stats.refundedPayments += count;
             }
+            stats.revenueByCurrency = [...revenueByCode.entries()]
+                .map(([currency, total]) => ({ currency, total }))
+                .filter((row) => row.total !== 0)
+                .sort((a, b) => a.currency.localeCompare(b.currency));
         }
 
         res.json({
@@ -1179,7 +1283,15 @@ router.post('/:id/mark-received', allowPermission('payments.write'), async (req,
         const updated = [];
         for (const row of group) {
             if (isPaidStatus(row.status)) continue;
-            updated.push(await markPaymentPaidAndFulfill(row, { verifiedBy: actorId, receivedAmount }));
+            updated.push(await markPaymentPaidAndFulfill(row, {
+                verifiedBy: actorId,
+                receivedAmount,
+                skipReceiptEmail: true,
+            }));
+        }
+        if (updated.length) {
+            const { sendPaymentReceiptEmails } = require('../services/sendPaymentReceiptEmail');
+            sendPaymentReceiptEmails(updated).catch(() => {});
         }
         res.json({
             success: true,
@@ -1204,8 +1316,9 @@ router.post('/:id/send-receipt', allowPermission('payments.write'), async (req, 
             });
         }
         const force = req.body?.force !== false;
-        const { sendPaymentReceiptEmail } = require('../services/sendPaymentReceiptEmail');
-        const result = await sendPaymentReceiptEmail(payment, { force });
+        const { sendPaymentReceiptEmail, loadReceiptPaymentGroup } = require('../services/sendPaymentReceiptEmail');
+        const group = await loadReceiptPaymentGroup(payment);
+        const result = await sendPaymentReceiptEmail(payment, { force, payments: group });
         if (!result.sent) {
             const reason = result.reason || 'send_failed';
             const message = reason === 'missing_email'
@@ -1220,7 +1333,9 @@ router.post('/:id/send-receipt', allowPermission('payments.write'), async (req, 
         const updated = await Payment.findById(payment._id);
         return res.json({
             success: true,
-            message: 'Invoice email sent',
+            message: group.length > 1
+                ? `Invoice email sent with ${group.length} PDF attachments`
+                : 'Invoice email sent',
             payment: serializePayment(updated),
         });
     } catch (error) {
@@ -1281,7 +1396,13 @@ router.delete('/:id/permanent', allowPermission('payments.write'), async (req, r
         }
 
         if (payment.proofUrl) {
-            deleteProofFile(payment.proofUrl);
+            const removed = await deleteProofFileIfLastReference(payment.proofUrl, [payment._id]);
+            if (!removed.ok) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Could not delete the payment proof file. The payment was kept.',
+                });
+            }
         }
 
         await Payment.deleteOne({ _id: payment._id });

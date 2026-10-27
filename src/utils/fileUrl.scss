@@ -1,0 +1,25 @@
+.protected-pdf-fallback {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+
+  p {
+    margin: 0;
+  }
+
+  button {
+    border: none;
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    background: #1d4ed8;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+}

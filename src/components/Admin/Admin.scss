@@ -1528,7 +1528,8 @@
                 color: #b45309;
             }
 
-            &.resolved {
+            &.resolved,
+            &.contacted {
                 background: #dcfce7;
                 color: #15803d;
             }
@@ -1793,6 +1794,66 @@
 
         &:hover:not(:disabled) {
             background: #fee2e2;
+        }
+
+        &:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        &--bulk {
+            padding: 0.55rem 1rem;
+            font-size: 0.9rem;
+        }
+    }
+
+    .contact-restore-btn {
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        background: #dcfce7;
+        color: #15803d;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.82rem;
+        white-space: nowrap;
+
+        i {
+            margin-right: 0.25rem;
+        }
+
+        &:hover:not(:disabled) {
+            background: #bbf7d0;
+        }
+
+        &:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        &--bulk {
+            padding: 0.55rem 1rem;
+            font-size: 0.9rem;
+        }
+    }
+
+    .contact-quarantine-btn {
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        background: #fff7ed;
+        color: #9a3412;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.82rem;
+        white-space: nowrap;
+
+        i {
+            margin-right: 0.25rem;
+        }
+
+        &:hover:not(:disabled) {
+            background: #ffedd5;
         }
 
         &:disabled {

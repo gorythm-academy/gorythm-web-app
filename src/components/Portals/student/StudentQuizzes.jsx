@@ -13,6 +13,7 @@ import {
 } from '../shared/PortalUi';
 import { QuizFileView } from '../shared/QuizPreviewModal';
 import { collectQuizUpdateNotices } from '../../../utils/adminEditNotices';
+import { dismissActivityNotices, filterDismissedActivityNotices } from '../../../utils/portalAssignmentNotices';
 import QuizReviewPanel from '../shared/QuizReviewPanel';
 import { formatScore } from '../../../utils/formatScore';
 import { portalDocId } from '../../../utils/portalDocId';
@@ -23,6 +24,7 @@ import {
   markPortalPageVisited,
   STUDENT_QUIZ_UPDATES,
 } from '../../../utils/portalNewItems';
+import { formatAcademyDate, isAcademyDuePast } from '../../../utils/academyCalendar';
 
 const SEEN_KEY = 'student_quizzes';
 
@@ -76,7 +78,8 @@ const StudentQuizzes = () => {
         setMsg(res.error || 'Failed to load quiz');
         return;
       }
-      const wantRetake = mode === 'retake' || (mode === 'auto' && res.canRetake);
+      const pastDue = isAcademyDuePast(res.quiz?.dueDate, res.quiz?.pastDue);
+      const wantRetake = !pastDue && (mode === 'retake' || (mode === 'auto' && res.canRetake));
       if (wantRetake) {
         setActiveQuiz({ quiz: res.quiz, attempt: null, canRetake: true });
         setAnswers({});
@@ -151,9 +154,11 @@ const StudentQuizzes = () => {
   const q = activeQuiz?.quiz;
   const taking = q && !activeQuiz?.attempt && !review;
   const visibleNew = courseFilter ? filterPortalItemsByCourse(newItems, courseFilter) : newItems;
+  const quizNoticeKey = (row) => `${row.id}-${row.updatedAt || row.message}`;
   const quizUpdateNotices = useMemo(() => {
     void updateTick;
-    return collectQuizUpdateNotices(filtered, { storageKey: STUDENT_QUIZ_UPDATES, audience: 'student' });
+    const rows = collectQuizUpdateNotices(filtered, { storageKey: STUDENT_QUIZ_UPDATES, audience: 'student' });
+    return filterDismissedActivityNotices(STUDENT_QUIZ_UPDATES, rows, quizNoticeKey);
   }, [filtered, updateTick]);
 
   useEffect(() => {
@@ -192,6 +197,7 @@ const StudentQuizzes = () => {
         title="Quiz updates"
         rows={quizUpdateNotices}
         onDismiss={() => {
+          dismissActivityNotices(STUDENT_QUIZ_UPDATES, quizUpdateNotices.map(quizNoticeKey));
           markPortalPageVisited(STUDENT_QUIZ_UPDATES);
           setUpdateTick((n) => n + 1);
         }}
@@ -236,7 +242,7 @@ const StudentQuizzes = () => {
                           <strong>{r.title}</strong>
                         </td>
                         <td>{r.course?.title || '—'}</td>
-                        <td>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
+                        <td>{r.dueDate ? formatAcademyDate(r.dueDate) : '—'}</td>
                         <td>
                           {r.quizType === 'file'
                             ? r.attempt
@@ -247,18 +253,21 @@ const StudentQuizzes = () => {
                               : 'Not attempted'}
                         </td>
                         <td>
+                          {isAcademyDuePast(r.dueDate, r.pastDue) && !r.attempt ? (
+                            <span className="portal-select-hint">Closed</span>
+                          ) : (
                           <div className="portal-quiz-actions">
                             <button
                               type="button"
                               className="portal-action-btn portal-action-btn--purple"
                               onClick={() =>
                                 openQuiz(portalDocId(r), {
-                                  mode: r.canRetake ? 'retake' : 'auto',
+                                  mode: r.canRetake && !isAcademyDuePast(r.dueDate, r.pastDue) ? 'retake' : 'auto',
                                 })
                               }
                             >
                               <span className="portal-action-btn__label">
-                                {r.canRetake
+                                {r.canRetake && !isAcademyDuePast(r.dueDate, r.pastDue)
                                   ? 'Retake quiz'
                                   : r.quizType === 'file'
                                     ? r.attempt
@@ -269,7 +278,7 @@ const StudentQuizzes = () => {
                                       : 'Take quiz'}
                               </span>
                             </button>
-                            {r.canRetake && r.attempt ? (
+                            {r.canRetake && r.attempt && !isAcademyDuePast(r.dueDate, r.pastDue) ? (
                               <button
                                 type="button"
                                 className="portal-action-btn portal-action-btn--ghost"
@@ -279,6 +288,7 @@ const StudentQuizzes = () => {
                               </button>
                             ) : null}
                           </div>
+                          )}
                         </td>
                       </tr>
                     ))}

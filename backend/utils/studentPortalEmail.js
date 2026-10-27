@@ -34,6 +34,25 @@ function paymentRegistrationEmail(payment) {
     return String(payment?.email || '').trim();
 }
 
+/** Students, parents, and teachers sign in with a real inbox. School addresses are not inboxes. */
+function peopleLoginEmailError(email) {
+    const value = String(email || '').trim().toLowerCase();
+    if (!value) return 'Email is required.';
+    if (value.endsWith(GORYTHM_DOMAIN)) {
+        return 'Please enter an email you can open, such as Gmail or Hotmail.';
+    }
+    if (!deliverableInbox(value)) return 'Enter a valid email address.';
+    return '';
+}
+
+/** Parent inbox for a registration, or blank when it is missing or the same as the student. */
+function distinctParentEmail(studentEmail, parentEmail) {
+    const student = String(studentEmail || '').trim().toLowerCase();
+    const parent = deliverableInbox(parentEmail);
+    if (!parent || parent === student) return '';
+    return parent;
+}
+
 module.exports = {
     GORYTHM_DOMAIN,
     buildUnsetPortalEmail,
@@ -42,4 +61,6 @@ module.exports = {
     isRealPortalLogin,
     displayPortalEmail,
     paymentRegistrationEmail,
+    peopleLoginEmailError,
+    distinctParentEmail,
 };

@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { portalGet, payrollGet } from '../shared/portalApi';
 import { PortalDataSection, PortalAlert, PortalPageHeader } from '../shared/PortalUi';
 import { drawPdfTable } from '../../../utils/pdfTable';
+import { formatMoney } from '../../../utils/billingLabels';
 
 const PAGE_SIZE = 15;
 
@@ -57,6 +58,7 @@ const AccountantReports = () => {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [exportError, setExportError] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('all');
   const [paymentPage, setPaymentPage] = useState(1);
@@ -123,17 +125,27 @@ const AccountantReports = () => {
     setPayrollPage(1);
   }, [payrollSearch, payrollStatus]);
 
+  const saveReport = (build) => {
+    try {
+      setExportError('');
+      build();
+    } catch {
+      setExportError('The PDF could not be created. Please try again.');
+    }
+  };
+
   const exportPaymentRowPdf = (p) => {
     const studentName = p.studentName || p.user?.name || 'Student';
+    saveReport(() => {
     const doc = new jsPDF();
     drawPdfTable(doc, {
       title: `Gorythm — Student payment`,
       subtitle: `Individual payment record for ${studentName}.`,
-      headers: ['Student', 'Course', 'Amount (USD)', 'Status', 'Payment method', 'Record date'],
+      headers: ['Student', 'Course', 'Amount', 'Status', 'Payment method', 'Record date'],
       rows: [[
         studentName,
         p.courseName || p.course?.title || '—',
-        `$${Number(p.amount || 0).toFixed(2)}`,
+        formatMoney(p.amount, p.currency || 'USD'),
         p.status || '—',
         p.paymentMethod || '—',
         p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—',
@@ -141,10 +153,12 @@ const AccountantReports = () => {
     });
     const safeName = studentName.replace(/[^\w-]+/g, '-').slice(0, 40);
     doc.save(`payment-${safeName}.pdf`);
+    });
   };
 
   const exportPayrollRowPdf = (r) => {
     const teacherName = r.teacher?.name || r.teacherName || 'Teacher';
+    saveReport(() => {
     const doc = new jsPDF();
     drawPdfTable(doc, {
       title: `Gorythm — Teacher payroll`,
@@ -161,28 +175,32 @@ const AccountantReports = () => {
     });
     const safeName = teacherName.replace(/[^\w-]+/g, '-').slice(0, 40);
     doc.save(`payroll-${safeName}-${r.monthKey || 'month'}.pdf`);
+    });
   };
 
   const exportPaymentsPdf = () => {
+    saveReport(() => {
     const doc = new jsPDF({ orientation: 'landscape' });
     drawPdfTable(doc, {
       title: 'Gorythm — Student payments report',
       subtitle:
-        'Each row is one student course payment. Amount is in USD. Status may be paid, pending, failed, or refunded.',
-      headers: ['Student', 'Course', 'Amount (USD)', 'Status', 'Payment method', 'Record date'],
+        'Each row is one student course payment. Amount uses the currency of that payment. Status may be paid, pending, failed, or refunded.',
+      headers: ['Student', 'Course', 'Amount', 'Status', 'Payment method', 'Record date'],
       rows: filteredPayments.map((p) => [
         p.studentName || p.user?.name || '—',
         p.courseName || p.course?.title || '—',
-        `$${Number(p.amount || 0).toFixed(2)}`,
+        formatMoney(p.amount, p.currency || 'USD'),
         p.status || '—',
         p.paymentMethod || '—',
         p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—',
       ]),
     });
     doc.save('payments-report.pdf');
+    });
   };
 
   const exportPayrollPdf = () => {
+    saveReport(() => {
     const doc = new jsPDF({ orientation: 'landscape' });
     drawPdfTable(doc, {
       title: 'Gorythm — Teacher payroll report',
@@ -199,6 +217,7 @@ const AccountantReports = () => {
       ]),
     });
     doc.save('payroll-report.pdf');
+    });
   };
 
   return (
@@ -215,13 +234,15 @@ const AccountantReports = () => {
         </div>
       </div>
 
+      {exportError ? <PortalAlert type="error">{exportError}</PortalAlert> : null}
+
       <PortalDataSection loading={loading} error={loadError} loadingLabel="Loading reports…">
       <section className="portal-report-block">
         <div className="portal-report-block__intro">
           <h2>Student Payments Report</h2>
           <p>
             Lists every recorded student course payment. <strong>Student</strong> is the payer name.{' '}
-            <strong>Course</strong> is the enrolled program. <strong>Amount</strong> is the payment value in USD.{' '}
+            <strong>Course</strong> is the enrolled program. <strong>Amount</strong> is the payment value in the currency of that payment.{' '}
             <strong>Status</strong> shows paid, pending, failed, or refunded. <strong>Method</strong> is how the
             payment was made. <strong>Date</strong> is when the record was created.
           </p>
@@ -259,7 +280,7 @@ const AccountantReports = () => {
                     <tr>
                       <th>Student</th>
                       <th>Course</th>
-                      <th>Amount (USD)</th>
+                      <th>Amount</th>
                       <th>Status</th>
                       <th>Payment Method</th>
                       <th>Record Date</th>
@@ -273,7 +294,7 @@ const AccountantReports = () => {
                           <strong>{p.studentName || p.user?.name || '—'}</strong>
                         </td>
                         <td>{p.courseName || p.course?.title || '—'}</td>
-                        <td>${Number(p.amount || 0).toFixed(2)}</td>
+                        <td>{formatMoney(p.amount, p.currency || 'USD')}</td>
                         <td>{p.status || '—'}</td>
                         <td>{p.paymentMethod || '—'}</td>
                         <td>{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>

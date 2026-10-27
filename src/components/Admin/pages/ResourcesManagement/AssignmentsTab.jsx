@@ -8,6 +8,7 @@ import { QUARANTINE_LABEL, MOVE_TO_QUARANTINE_PHRASE } from '../../../../utils/a
 import TeacherAccountStatus from '../../shared/TeacherAccountStatus';
 import { LmsTargetSelect, minDueDateValue, minEditDueDateValue, filterSchedulesForTargeting } from './lmsTargeting';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../../utils/formatScheduleLabel';
+import { formatAcademyDate } from '../../../../utils/academyCalendar';
 
 const AssignmentsTab = ({
   assignFormAnchorRef,
@@ -348,7 +349,7 @@ const AssignmentsTab = ({
                           : '—'}
                       </td>
                       <td>
-                        {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
+                        {a.dueDate ? formatAcademyDate(a.dueDate) : '—'}
                         {a.dueDateNotice ? (
                           <div className="lms-due-date-notice">{a.dueDateNotice}</div>
                         ) : null}

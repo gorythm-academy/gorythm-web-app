@@ -7,7 +7,7 @@ import PortalModal from '../shared/PortalModal';
 import SubmissionFiles from '../shared/SubmissionFiles';
 import { PortalDataSection, PortalAlert, PortalPageHeader, PortalActivityBanner } from '../shared/PortalUi';
 import { portalDocId } from '../../../utils/portalDocId';
-import { toLocalDateStr } from '../../../utils/academyWeek';
+import { academyCalendarDay, formatAcademyDate } from '../../../utils/academyCalendar';
 import { formatScheduleLabel, formatScheduleTimeLabel } from '../../../utils/formatScheduleLabel';
 import { collectAdminAssignmentEditNotices } from '../../../utils/adminEditNotices';
 import {
@@ -34,7 +34,7 @@ const SEEN_SUBMISSIONS_KEY = 'teacher_submissions';
 const SEEN_SUBMISSION_REMOVALS_KEY = 'teacher_submission_removals';
 const SEEN_ACTIVITY_KEY = 'teacher_assignments_activity';
 
-const minDueDateValue = () => toLocalDateStr(new Date());
+const minDueDateValue = () => academyCalendarDay(new Date());
 
 const isAdminLockedAssignment = (a) => !!(a?.lockedForTeacher || a?.createdByRole === 'admin');
 
@@ -203,8 +203,8 @@ const TeacherContent = () => {
           ? String(a.assignedSchedule)
           : '',
       scheduleIds: [],
-      dueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
-      originalDueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
+      dueDate: a.dueDate ? academyCalendarDay(a.dueDate) : '',
+      originalDueDate: a.dueDate ? academyCalendarDay(a.dueDate) : '',
       description: a.description || '',
       attachments: a.attachments?.length ? [...a.attachments] : [],
     });
@@ -481,7 +481,7 @@ const TeacherContent = () => {
           <td>{a.course?.title}</td>
           <td>{a.assignedSchedule ? formatScheduleTimeLabel(a.assignedSchedule) : '—'}</td>
           <td>
-            {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}
+            {a.dueDate ? formatAcademyDate(a.dueDate) : '—'}
             {a.dueDateNotice ? <div className="lms-due-date-notice">{a.dueDateNotice}</div> : null}
           </td>
           <td>
@@ -964,7 +964,7 @@ const TeacherContent = () => {
       {viewAssignment ? (
         <PortalModal title={viewAssignment.title} onClose={() => setViewAssignment(null)} tone="teacher" kicker="Assignment">
           <p><strong>Course:</strong> {viewAssignment.course?.title}</p>
-          <p><strong>Due:</strong> {new Date(viewAssignment.dueDate).toLocaleDateString()}</p>
+          <p><strong>Due:</strong> {viewAssignment.dueDate ? formatAcademyDate(viewAssignment.dueDate) : '—'}</p>
           <p><strong>Description:</strong> {viewAssignment.description || '—'}</p>
           {viewAssignment.attachments?.length ? (
             <>

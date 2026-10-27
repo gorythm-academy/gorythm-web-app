@@ -4,15 +4,16 @@ const Course = require('../models/Course');
 const User = require('../models/User');
 const { onPaymentPaid } = require('./onPaymentPaid');
 const { getDuplicateCoursePaymentBlock } = require('./enrollmentDuplicateCheck');
-const { assertPersonalRegistrationEmail } = require('./registrationEmailGuard');
+const { assertPersonalRegistrationEmail, assertParentRegistrationEmail } = require('./registrationEmailGuard');
 const { activePaymentFilter } = require('../utils/paymentQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const logger = require('../utils/logger');
 const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
 const { fulfillBillingIntent } = require('./billingCheckout');
 const { withFulfillmentLock } = require('./fulfillmentLock');
-const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
+const { sendPaymentReceiptEmail, sendPaymentReceiptEmails } = require('./sendPaymentReceiptEmail');
 const { presentmentFromStripeSession } = require('../utils/stripeMoney');
+const { chargeCurrency } = require('../utils/chargeCurrency');
 const { nextInvoiceNumber, ensureInvoiceNumber } = require('../utils/invoiceNumber');
 
 function resolveEmail(session) {
@@ -25,12 +26,20 @@ function resolveEmail(session) {
         .toLowerCase();
 }
 
+function registrationFromSession(session) {
+    const metaStudent = String(session?.metadata?.studentEmail || '').trim().toLowerCase();
+    const metaParent = String(session?.metadata?.parentEmail || '').trim().toLowerCase();
+    const studentEmail = metaStudent || resolveEmail(session);
+    const parentEmail = metaParent && metaParent !== studentEmail ? metaParent : '';
+    return { studentEmail, parentEmail };
+}
+
 function resolveStudentName(session) {
+    const meta = session.metadata?.studentName;
+    if (meta && String(meta).trim()) return String(meta).trim();
     const details = session.customer_details || {};
     const name = details.name || details.individual_name || '';
     if (name.trim()) return name.trim();
-    const meta = session.metadata?.studentName;
-    if (meta && String(meta).trim()) return String(meta).trim();
     const email = resolveEmail(session);
     if (email) return email.split('@')[0];
     return 'Student';
@@ -52,7 +61,12 @@ function inferFulfillmentIssue(reason) {
     if (text.includes('no longer available') || text.includes('not available for enrollment')) {
         return 'course_unavailable';
     }
-    if (text.includes('staff account') || text.includes('personal email')) {
+    if (
+        text.includes('staff account')
+        || text.includes('personal email')
+        || text.includes('already in use')
+        || text.includes('gmail or hotmail')
+    ) {
         return 'email_blocked';
     }
     return 'enrollment_failed';
@@ -79,6 +93,7 @@ async function upsertStripePayment({
     session,
     course,
     email,
+    parentEmail = '',
     studentName,
     phone,
     linkedUserId,
@@ -96,9 +111,10 @@ async function upsertStripePayment({
     const payload = {
         studentName,
         email,
+        parentEmail: parentEmail || '',
         phone,
         amount: amountUsd,
-        currency: 'USD',
+        currency: presentment.currency || chargeCurrency(),
         presentmentCurrency: presentment.presentmentCurrency || '',
         presentmentAmount: presentment.presentmentAmount,
         status: 'paid',
@@ -175,10 +191,11 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
             paymentMethod: session.payment_method_types?.[0] || 'stripe',
             transactionId: session.id,
             stripePaymentIntentId: piId,
-            currency: 'USD',
+            currency: presentment.currency,
             presentmentCurrency: presentment.presentmentCurrency,
             presentmentAmount: presentment.presentmentAmount,
-            email: resolveEmail(session) || intent.payerEmail,
+            email: registrationFromSession(session).studentEmail || intent.payerEmail,
+            parentEmail: registrationFromSession(session).parentEmail || intent.parentEmail || '',
             studentName: resolveStudentName(session) || intent.payerName,
             phone: resolvePhone(session),
             payerUser: intent.payerUser,
@@ -201,8 +218,8 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
                     dirty = true;
                 }
                 if (dirty) await payment.save();
-                return sendPaymentReceiptEmail(payment);
             }));
+            await sendPaymentReceiptEmails(result.payments);
         }
         await applyAutoPayAfterCheckout({ session, intent, payments: result.payments });
         return result;
@@ -262,7 +279,9 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
         }
     }
 
-    const email = resolveEmail(session);
+    const registration = registrationFromSession(session);
+    const email = registration.studentEmail;
+    const parentEmail = registration.parentEmail;
     const studentName = resolveStudentName(session);
     const phone = resolvePhone(session);
 
@@ -288,6 +307,7 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
             session,
             course: null,
             email,
+            parentEmail,
             studentName,
             phone,
             linkedUserId,
@@ -304,6 +324,7 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
             session,
             course,
             email: '',
+            parentEmail,
             studentName,
             phone,
             linkedUserId,
@@ -321,12 +342,30 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
             session,
             course,
             email,
+            parentEmail,
             studentName,
             phone,
             linkedUserId,
             amountUsd,
             piId,
             failureReason: emailGuard.error,
+        });
+        return { payment, enrolled: false, fulfillmentIssue: 'email_blocked' };
+    }
+    const parentGuard = await assertParentRegistrationEmail(parentEmail, email);
+    if (!parentGuard.ok) {
+        logger.warn('Stripe fulfillment blocked parent email', { sessionId: session.id, code: parentGuard.code });
+        const payment = await upsertStripePayment({
+            session,
+            course,
+            email,
+            parentEmail,
+            studentName,
+            phone,
+            linkedUserId,
+            amountUsd,
+            piId,
+            failureReason: parentGuard.error,
         });
         return { payment, enrolled: false, fulfillmentIssue: 'email_blocked' };
     }
@@ -341,6 +380,7 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
             session,
             course,
             email,
+            parentEmail,
             studentName,
             phone,
             linkedUserId,
@@ -358,6 +398,7 @@ async function fulfillStripeCheckoutSessionUnlocked(session) {
         session,
         course,
         email,
+        parentEmail,
         studentName,
         phone,
         linkedUserId,

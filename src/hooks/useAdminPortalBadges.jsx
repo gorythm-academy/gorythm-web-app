@@ -92,7 +92,10 @@ function fetchSubscribersBadge() {
 }
 
 function fetchContactMessagesBadge() {
-  return fetchAdminCount('/api/contact/admin/unseen-count');
+  return Promise.all([
+    fetchAdminCount('/api/contact/admin/unseen-count').catch(() => 0),
+    fetchAdminCount('/api/trials/admin/unseen-count').catch(() => 0),
+  ]).then(([messages, trials]) => (Number(messages) || 0) + (Number(trials) || 0));
 }
 
 function useAdminPortalBadgesState(enabled = true) {

@@ -5,6 +5,10 @@ import PortalModal from './PortalModal';
 import PhoneNumberField from '../../shared/PhoneNumberField';
 import { canSelectFee, enrollmentStatusLabel, formatDueDate, formatMoney, formatPaymentDate, maxPayableMonths, resolveFeeDueDate, savedCardLabel } from '../../../utils/billingLabels';
 
+function formatCharge(amount) {
+  return formatMoney(amount, 'EUR');
+}
+
 function monthChoiceLabel(item, payMonths, includeCourse = false) {
   const remainingNow = maxPayableMonths(item.raw || item);
   const leftAfter = Math.max(0, remainingNow - payMonths);
@@ -177,10 +181,10 @@ export function PortalBillingCheckoutView({ state }) {
                           </td>
                           <td>{formatDueDate(row.dueDate)}</td>
                           <td>
-                            {formatMoney(row.amount)}
+                            {formatCharge(row.amount)}
                             {row.partialPaidAmount > 0 ? (
                               <div className="portal-billing-sub">
-                                {formatMoney(row.partialPaidAmount)} received · {formatMoney(row.amount - row.partialPaidAmount)} left
+                                {formatCharge(row.partialPaidAmount)} received · {formatCharge(row.amount - row.partialPaidAmount)} left
                               </div>
                             ) : null}
                           </td>
@@ -419,15 +423,15 @@ export function PortalBillingCheckoutView({ state }) {
                                 ) : null}
                               </td>
                               <td>
-                                {formatMoney(payableForMonths(item, checked ? payMonths : 1))}
+                                {formatCharge(payableForMonths(item, checked ? payMonths : 1))}
                                 {checked && payMonths > 1 && !Number(item.partialPaidAmount) ? (
                                   <div className="portal-billing-sub">
-                                    {formatMoney(item.amount)} × {payMonths}
+                                    {formatCharge(item.amount)} × {payMonths}
                                   </div>
                                 ) : null}
                                 {Number(item.partialPaidAmount) > 0 ? (
                                   <div className="portal-billing-sub">
-                                    {formatMoney(item.partialPaidAmount)} already received
+                                    {formatCharge(item.partialPaidAmount)} already received
                                   </div>
                                 ) : null}
                               </td>
@@ -543,10 +547,10 @@ export function PortalBillingCheckoutView({ state }) {
                     Charge this card automatically each month
                   </label>
                   <p className="portal-billing-sub">
-                    Leave this unticked to pay only this checkout.
-                    {' '}If you tick it, we save the card and later charge{' '}
-                    {selectedItems.map((item) => `${formatMoney(item.amount)} for ${item.courseName}`).join('; ')}
-                    {' '}each month until the remaining fees are paid. You can turn this off or remove the card later.
+                    Untick this to pay only this checkout.
+                    {' '}While it is ticked, we save the card and later charge{' '}
+                    {selectedItems.map((item) => `${formatCharge(item.amount)} for ${item.courseName}`).join('; ')}
+                    {' '}each month until the remaining fees are paid. Later months are charged in euros. You can turn this off or remove the card later.
                   </p>
                 </fieldset>
               ) : null}
@@ -621,7 +625,7 @@ export function PortalBillingCheckoutView({ state }) {
 
               <div className="portal-billing-overlay-footer">
                 <div className="portal-billing-overlay-total">
-                  <strong>{formatMoney(selectedTotal)}</strong>
+                  <strong>{formatCharge(selectedTotal)}</strong>
                   {payMonths > 1 ? (
                     <div className="portal-billing-sub">{payMonths} months</div>
                   ) : null}

@@ -1,12 +1,12 @@
 import { getPortalSeenCutoff } from './portalNewItems';
+import { formatAcademyDate } from './academyCalendar';
 
 function cutoffMs(storageKey) {
   return new Date(getPortalSeenCutoff(storageKey)).getTime();
 }
 
 function formatDate(value) {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString();
+  return formatAcademyDate(value);
 }
 
 /** Assignment changed since the user last opened the page (new, due-date extension, or edit). */

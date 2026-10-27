@@ -1,6 +1,6 @@
 import React from 'react';
 import { getEnrollmentStatusIcon } from '../../../../utils/studentAdminValidation';
-import { portalEmailDisplayLabel } from '../../../../utils/studentPortalEmail';
+import { displayAccountEmail } from '../../../../utils/studentPortalEmail';
 
 const StudentCard = ({ card, onOpen }) => {
     const statusKey = String(card.statusLabel || 'active').toLowerCase();
@@ -27,9 +27,9 @@ const StudentCard = ({ card, onOpen }) => {
                         )}
                     </div>
                     <span className="student-card__email">
-                        <span className="student-card__email-label">Portal</span>
+                        <span className="student-card__email-label">Email</span>
                         <span className="student-card__email-value">
-                            {portalEmailDisplayLabel(card.student.email)}
+                            {displayAccountEmail(card.student)}
                         </span>
                     </span>
                 </div>

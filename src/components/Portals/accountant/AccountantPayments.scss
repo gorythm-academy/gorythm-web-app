@@ -593,7 +593,8 @@
       transform: translateY(-1px);
     }
 
-    &--view {
+    &--view,
+    &--download {
       background: #6366f1;
     }
 
@@ -817,6 +818,29 @@
     h3 {
       margin: 0;
       color: #0f172a;
+    }
+
+    .accountant-receipt-modal__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .accountant-receipt-modal__head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      button {
+        border: none;
+        border-radius: 8px;
+        padding: 0.4rem 0.7rem;
+        background: #6366f1;
+        color: #fff;
+        font-weight: 650;
+        cursor: pointer;
+      }
     }
 
     p {

@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../../../config/constants';
 import { buildAuthHeaders, hasAuthSession, AUTH_REALM } from '../../../utils/authStorage';
 import { useCurrency } from '../../../context/CurrencyContext';
+import { formatCurrency as formatChargeCurrency } from '../../../utils/currency';
 import { compressImageForUpload, IMAGE_UPLOAD_PRESETS } from '../../../utils/compressImageForUpload';
 import SiteValidationModal from '../../SiteValidationModal/SiteValidationModal';
 import PhoneNumberField from '../../shared/PhoneNumberField';
@@ -29,10 +30,15 @@ function collectBankValidationIssues({ formData, proofFile, hasBankInfo, resolve
     }
     const email = String(formData.email || '').trim();
     if (!email) {
-        issues.push('Please enter your email address.');
+        issues.push('Please enter the student email address.');
     } else {
         const emailError = validateEmail(email);
         if (emailError) issues.push(emailError);
+    }
+    const parentEmail = String(formData.parentEmail || '').trim();
+    if (parentEmail) {
+        const parentError = validateEmail(parentEmail);
+        if (parentError && parentError !== 'Email is required.') issues.push(`Parent email: ${parentError}`);
     }
     if (formData.phoneStatus !== 'valid') {
         issues.push(
@@ -93,9 +99,31 @@ function PaymentNoticeModal({ notice, onClose }) {
     );
 }
 
+const DUPLICATE_EMAIL_PATTERN = /already enrolled|already paid|completed payment|awaiting review|already in use|already exists|already in our records/i;
+
+async function loadEmailNotice(rawEmail, { role = 'student', courseId, studentEmail } = {}) {
+    const email = String(rawEmail || '').trim();
+    if (!email || !email.includes('@')) return null;
+    const params = new URLSearchParams({ email });
+    if (role === 'parent') params.set('role', 'parent');
+    if (courseId) params.set('courseId', String(courseId));
+    if (studentEmail) params.set('studentEmail', String(studentEmail || '').trim());
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/payments/email-notice?${params}`, {
+            credentials: 'include',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) return null;
+        if (data.level !== 'warning' && data.level !== 'block') return null;
+        return { level: data.level, message: data.message || '' };
+    } catch {
+        return null;
+    }
+}
+
 const PaymentGateway = () => {
     const location = useLocation();
-    const { currency, baseCurrency, formatFromUsd, rateDate, applyCurrencyCode, isLoading: currencyLoading } = useCurrency();
+    const { currency, baseCurrency, formatFromBase, rateDate, applyCurrencyCode, isLoading: currencyLoading, locale } = useCurrency();
     const [paymentMethod, setPaymentMethod] = useState('stripe');
     const [courseOptions, setCourseOptions] = useState([]);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -115,7 +143,9 @@ const PaymentGateway = () => {
     const [validationModal, setValidationModal] = useState({ open: false, title: '', issues: [] });
     const [selectedCourseIds, setSelectedCourseIds] = useState([]);
     const [invoiceMode, setInvoiceMode] = useState('combined');
-    const [autoPayConsent, setAutoPayConsent] = useState(false);
+    const [autoPayConsent, setAutoPayConsent] = useState(true);
+    const [studentEmailNotice, setStudentEmailNotice] = useState(null);
+    const [parentEmailNotice, setParentEmailNotice] = useState(null);
 
     const showNotice = (title, message, type = 'info') => {
         setNotice({ title, message, type });
@@ -125,6 +155,7 @@ const PaymentGateway = () => {
         phone: '',
         phoneStatus: 'empty',
         email: '',
+        parentEmail: '',
     });
 
     const paymentDetails = useMemo(() => {
@@ -302,6 +333,42 @@ const PaymentGateway = () => {
         [courseOptions, selectedCourseIds]
     );
     const selectedCourse = selectedCourses[0] || null;
+
+    useEffect(() => {
+        const email = formData.email.trim();
+        if (!email.includes('@')) {
+            setStudentEmailNotice(null);
+            return undefined;
+        }
+        let cancel = false;
+        const timer = setTimeout(() => {
+            loadEmailNotice(email, { courseId: selectedCourse?._id }).then((notice) => {
+                if (!cancel) setStudentEmailNotice(notice);
+            });
+        }, 400);
+        return () => {
+            cancel = true;
+            clearTimeout(timer);
+        };
+    }, [formData.email, selectedCourse?._id]);
+
+    useEffect(() => {
+        const email = formData.parentEmail.trim();
+        if (!email.includes('@')) {
+            setParentEmailNotice(null);
+            return undefined;
+        }
+        let cancel = false;
+        const timer = setTimeout(() => {
+            loadEmailNotice(email, { role: 'parent', studentEmail: formData.email }).then((notice) => {
+                if (!cancel) setParentEmailNotice(notice);
+            });
+        }, 400);
+        return () => {
+            cancel = true;
+            clearTimeout(timer);
+        };
+    }, [formData.parentEmail, formData.email]);
     const extraCourses = selectedCourses.slice(1);
     const resolvedAmount = selectedCourses.reduce(
         (sum, course) => sum + (Number(course.price) || 0),
@@ -379,7 +446,7 @@ const PaymentGateway = () => {
         const email = String(rawEmail || '').trim().toLowerCase();
         if (!email) return 'Email is required.';
         if (email.endsWith('@gorythmacademy.com')) {
-            return 'Use your personal email (Gmail, Hotmail, etc.), not your @gorythmacademy.com portal address.';
+            return 'Please enter an email you can open, such as Gmail or Hotmail.';
         }
         return '';
     };
@@ -411,11 +478,28 @@ const PaymentGateway = () => {
             return;
         }
 
+        const studentNotice = await loadEmailNotice(formData.email, { courseId: selectedCourse._id });
+        setStudentEmailNotice(studentNotice);
+        if (studentNotice?.level === 'block') {
+            showNotice('Please check this email', studentNotice.message, 'warning');
+            return;
+        }
+        const parentRaw = String(formData.parentEmail || '').trim();
+        const parentNotice = parentRaw
+            ? await loadEmailNotice(parentRaw, { role: 'parent', studentEmail: formData.email })
+            : null;
+        setParentEmailNotice(parentNotice);
+        if (parentNotice?.level === 'block') {
+            showNotice('Please check the parent email', parentNotice.message, 'warning');
+            return;
+        }
+
         setBankSubmitting(true);
         try {
             const form = new FormData();
             form.append('studentName', formData.studentName.trim());
             form.append('email', formData.email.trim());
+            form.append('parentEmail', formData.parentEmail.trim());
             form.append('phone', formData.phone);
             form.append('courseId', String(selectedCourse._id));
             if (extraCourses.length) {
@@ -441,7 +525,7 @@ const PaymentGateway = () => {
             });
         } catch (error) {
             const msg = error.message || 'Failed to submit';
-            const isDuplicate = /already enrolled|already paid|completed payment|awaiting review/i.test(msg);
+            const isDuplicate = DUPLICATE_EMAIL_PATTERN.test(msg);
             showNotice(isDuplicate ? 'Already submitted' : 'Submission failed', msg, isDuplicate ? 'warning' : 'error');
         } finally {
             setBankSubmitting(false);
@@ -453,8 +537,42 @@ const PaymentGateway = () => {
             showNotice('Course required', 'Please select a course from the list.', 'error');
             return;
         }
+        const stripeIssues = [];
+        if (!formData.studentName?.trim()) stripeIssues.push('Please enter the student full name.');
+        const studentEmailError = validateRegistrationEmail(formData.email);
+        if (studentEmailError) stripeIssues.push(studentEmailError);
+        const parentRaw = String(formData.parentEmail || '').trim();
+        if (parentRaw) {
+            const parentEmailError = validateRegistrationEmail(parentRaw);
+            if (parentEmailError && parentEmailError !== 'Email is required.') {
+                stripeIssues.push(`Parent email: ${parentEmailError}`);
+            }
+        }
+        if (stripeIssues.length) {
+            setValidationModal({
+                open: true,
+                title: 'Please check the following',
+                issues: stripeIssues,
+            });
+            return;
+        }
         if (resolvedAmount <= 0) {
             showNotice('No fee', 'This course has no charge. Contact us to enroll.', 'error');
+            return;
+        }
+        const studentNotice = await loadEmailNotice(formData.email, { courseId: selectedCourse._id });
+        setStudentEmailNotice(studentNotice);
+        if (studentNotice?.level === 'block') {
+            showNotice('Please check this email', studentNotice.message, 'warning');
+            return;
+        }
+        const parentRawCheck = String(formData.parentEmail || '').trim();
+        const parentNotice = parentRawCheck
+            ? await loadEmailNotice(parentRawCheck, { role: 'parent', studentEmail: formData.email })
+            : null;
+        setParentEmailNotice(parentNotice);
+        if (parentNotice?.level === 'block') {
+            showNotice('Please check the parent email', parentNotice.message, 'warning');
             return;
         }
         setCheckoutLoading(true);
@@ -472,6 +590,10 @@ const PaymentGateway = () => {
                 },
                 body: JSON.stringify({
                     courseId: String(selectedCourse._id),
+                    studentName: formData.studentName.trim(),
+                    studentEmail: formData.email.trim(),
+                    email: formData.email.trim(),
+                    parentEmail: formData.parentEmail.trim(),
                     ...(extraCourses.length
                         ? {
                               courseIds: extraCourses.map((course) => String(course._id)),
@@ -493,7 +615,7 @@ const PaymentGateway = () => {
             window.location.href = data.url;
         } catch (error) {
             const msg = error.message || 'Checkout failed';
-            const isDuplicate = /already enrolled|already paid|completed payment for this course/i.test(msg);
+            const isDuplicate = DUPLICATE_EMAIL_PATTERN.test(msg);
             showNotice(
                 isDuplicate ? 'Already enrolled' : 'Checkout failed',
                 msg,
@@ -513,7 +635,8 @@ const PaymentGateway = () => {
     };
 
     const usdAmount = resolvedAmount;
-    const localizedAmount = formatFromUsd(usdAmount);
+    const chargeLabel = (amount) => formatChargeCurrency(Number(amount) || 0, baseCurrency, locale);
+    const localizedAmount = formatFromBase(usdAmount);
     const shouldShowApprox = currency !== baseCurrency;
 
     const stripeReady = Boolean(selectedCourse?._id) && resolvedAmount > 0;
@@ -533,7 +656,10 @@ const PaymentGateway = () => {
                                 ? selectedCourses.map((course) => course.title).join(' · ')
                                 : 'Select a course'}
                         </span>
-                        <strong>Total Amount: {localizedAmount}</strong>
+                        <strong>Total Amount: {chargeLabel(usdAmount)}</strong>
+                        {shouldShowApprox ? (
+                            <span>Approx. {localizedAmount}</span>
+                        ) : null}
                     </div>
 
                     {bankStep === BANK_STEPS.DONE ? (
@@ -542,8 +668,9 @@ const PaymentGateway = () => {
                                 <i className="fas fa-check-circle" aria-hidden />
                                 <h3>Payment Proof Received</h3>
                                 <p>
-                                    Thank you! We will verify your transfer. Once confirmed as paid, your student record
-                                    will appear in our system and we will contact you.
+                                    Thank you. We will check your transfer. Once it is confirmed, we will email a
+                                    link to choose a password. If you entered a parent email, the parent will receive
+                                    the invoice and a link to sign in.
                                 </p>
                             </div>
                             <div className="payment-footer-actions">
@@ -590,7 +717,7 @@ const PaymentGateway = () => {
                                                                 {course.category ? <em>{course.category}</em> : null}
                                                             </span>
                                                             <span className="extra-course-item__price">
-                                                                {formatFromUsd(Number(course.price || 0))}
+                                                                {chargeLabel(Number(course.price || 0))}
                                                             </span>
                                                         </label>
                                                     );
@@ -631,32 +758,54 @@ const PaymentGateway = () => {
                                         ) : null}
                                     </div>
 
+                                    <div className="form-group">
+                                        <label>Student Full Name <RequiredMark /></label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter full name"
+                                            value={formData.studentName}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, studentName: e.target.value })
+                                            }
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Student Email <RequiredMark /></label>
+                                        <input
+                                            type="email"
+                                            placeholder="name@email.com"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            required
+                                        />
+                                        <p className="payment-course-hint">This email will be the student’s sign-in.</p>
+                                        {studentEmailNotice?.message ? (
+                                            <p className={`payment-email-notice payment-email-notice--${studentEmailNotice.level}`} role="status">
+                                                {studentEmailNotice.message}
+                                            </p>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Parent Email (optional)</label>
+                                        <input
+                                            type="email"
+                                            placeholder="parent@email.com"
+                                            value={formData.parentEmail}
+                                            onChange={(e) => setFormData({ ...formData, parentEmail: e.target.value })}
+                                        />
+                                        <p className="payment-course-hint">This email will be the parent’s sign-in.</p>
+                                        {parentEmailNotice?.message ? (
+                                            <p className={`payment-email-notice payment-email-notice--${parentEmailNotice.level}`} role="status">
+                                                {parentEmailNotice.message}
+                                            </p>
+                                        ) : null}
+                                    </div>
+
                                     {paymentMethod === 'bank' ? (
                                         <>
-                                            <div className="form-group">
-                                                <label>Student Full Name <RequiredMark /></label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Enter full name"
-                                                    value={formData.studentName}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, studentName: e.target.value })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-
-                                            <div className="form-group">
-                                                <label>Student/Parent Email <RequiredMark /></label>
-                                                <input
-                                                    type="email"
-                                                    placeholder="Enter email address"
-                                                    value={formData.email}
-                                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                    required
-                                                />
-                                            </div>
-
                                             <div className="form-group form-group-wide">
                                                 <label id="bank-whatsapp-label" htmlFor="bank-whatsapp">Student/Parent Phone Number (WhatsApp Please) <RequiredMark /></label>
                                                 <PhoneNumberField
@@ -720,16 +869,14 @@ const PaymentGateway = () => {
                                                 <div className="payment-panel-header">
                                                     <h3>Stripe Checkout</h3>
                                                     <p>
-                                                        You will be redirected to Stripe. Enter your name, email, and
-                                                        phone on the secure Stripe Checkout page — we do not collect them
-                                                        here.
+                                                        You will be taken to Stripe to pay by card. We will use the emails you entered above.
                                                     </p>
                                                 </div>
                                                 <div className="payment-details-box">
                                                     <h4>Payment Details</h4>
                                                     <div className="payment-detail-line">
                                                         <span>Amount ({baseCurrency}):</span>
-                                                        <strong>${usdAmount.toFixed(2)}</strong>
+                                                        <strong>{chargeLabel(usdAmount)}</strong>
                                                     </div>
                                                     {shouldShowApprox && (
                                                         <>
@@ -748,7 +895,7 @@ const PaymentGateway = () => {
                                                     )}
                                                     <p className="payment-detail-note">
                                                         {shouldShowApprox
-                                                            ? `* Shown in ${currency} (approx.) from live rates. You are charged in ${baseCurrency}.`
+                                                            ? 'The amount in your currency is an estimate. You are charged in euros. Your bank sets the final amount in your currency, and its rate may differ.'
                                                             : `* Charged in ${baseCurrency}.`}
                                                     </p>
                                                 </div>
@@ -761,10 +908,10 @@ const PaymentGateway = () => {
                                                     <span>
                                                         <strong>Charge this card automatically each month</strong>
                                                         <em>
-                                                            Leave this unticked to pay only this checkout.
+                                                            Untick this to pay only this checkout.
                                                             {selectedCourses.length
-                                                                ? ` If you tick it, we save the card and charge ${selectedCourses.map((course) => `${formatFromUsd(Number(course.price || 0))} for ${course.title}`).join('; ')} each later month until the course fees are paid.`
-                                                                : ' If you tick it, we save the card and charge the monthly fee until the course fees are paid.'}
+                                                                ? ` While it is ticked, we save the card and charge ${selectedCourses.map((course) => `${chargeLabel(Number(course.price || 0))} for ${course.title}`).join('; ')} each later month until the course fees are paid. Later months are charged in euros.`
+                                                                : ' While it is ticked, we save the card and charge the monthly fee in euros until the course fees are paid.'}
                                                             {' '}You can turn this off later from your account.
                                                         </em>
                                                     </span>
@@ -858,8 +1005,13 @@ const PaymentGateway = () => {
                                                     <dt>Amount to Transfer</dt>
                                                     <dd>
                                                         <strong>
-                                                            ${usdAmount.toFixed(2)} {baseCurrency}
+                                                            {chargeLabel(usdAmount)}
                                                         </strong>
+                                                        {shouldShowApprox ? (
+                                                            <p className="payment-detail-note">
+                                                                Approx. {localizedAmount}. The amount in your currency is an estimate. You are charged in euros. Your bank sets the final amount in your currency, and its rate may differ.
+                                                            </p>
+                                                        ) : null}
                                                     </dd>
                                                 </div>
                                                 <div className="bank-details-row">

@@ -14,6 +14,7 @@ const StudentsControlsBar = ({
     setSortOrder,
     handleManualRefresh,
     downloadStudentsDataCsv,
+    showStatusFilters = true,
 }) => (
     <div className="controls-bar">
         <div className="search-box">
@@ -27,29 +28,34 @@ const StudentsControlsBar = ({
         </div>
 
         <div className="filter-controls">
-            <select
-                className="status-filter"
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-            >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="inactive">Inactive</option>
-                <option value="completed">Completed</option>
-            </select>
+            {showStatusFilters ? (
+                <select
+                    className="status-filter"
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    aria-label="Filter by status"
+                >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="completed">Completed</option>
+                </select>
+            ) : null}
 
-            <select
-                className="status-filter"
-                value={filterFeeStatus}
-                onChange={(e) => setFilterFeeStatus(e.target.value)}
-                aria-label="Filter by Fee Status"
-            >
-                <option value="all">All Fee Status</option>
-                {FEE_STATUS_VALUES.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                ))}
-            </select>
+            {showStatusFilters ? (
+                <select
+                    className="status-filter"
+                    value={filterFeeStatus}
+                    onChange={(e) => setFilterFeeStatus(e.target.value)}
+                    aria-label="Filter by Fee Status"
+                >
+                    <option value="all">All Fee Status</option>
+                    {FEE_STATUS_VALUES.map(({ value, label }) => (
+                        <option key={value} value={value}>{label}</option>
+                    ))}
+                </select>
+            ) : null}
 
             <select
                 className="status-filter students-sort-select"

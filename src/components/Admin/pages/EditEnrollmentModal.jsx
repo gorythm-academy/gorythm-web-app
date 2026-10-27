@@ -4,25 +4,27 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { formatScheduleLabel } from '../../../utils/formatScheduleLabel';
-import { localFromPortalEmail as portalEmailLocalPart } from '../../../utils/studentPortalEmail';
+import { displayAccountEmail } from '../../../utils/studentPortalEmail';
 import {
-    GORYTHM_EMAIL_DOMAIN,
-    GORYTHM_EMAIL_REGEX,
     MIN_STUDENT_PASSWORD_LENGTH,
     normalizeEnrollmentStatus,
-    sanitizePortalEmailLocal,
     sortPublishedCourses,
     formatLoginEmailNotice,
     formatLoginEmailStatus,
     isLoginEmailSent,
     validatePasswordPair,
-    validatePersonalEmail,
+    validatePeopleLoginEmail,
     validateStudentId,
 } from '../../../utils/studentAdminValidation';
 import './StudentsData.scss';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import { useAdminDialog } from '../AdminDialogContext';
 import { formatFeeSummaryMessage } from '../../../utils/billingLabels';
+
+function editableAccountEmail(student) {
+    const shown = displayAccountEmail(student);
+    return shown === 'Not assigned yet' ? '' : shown;
+}
 
 function studentAccountId(enrollment) {
     const student = enrollment?.student;
@@ -54,8 +56,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
     const [formData, setFormData] = useState(() => ({
         studentName: enrollment?.student?.name || '',
         studentId: enrollment?.student?.studentId || '',
-        portalEmailLocal: portalEmailLocalPart(enrollment?.student?.email),
-        personalEmail: enrollment?.student?.personalEmail || '',
+        email: editableAccountEmail(enrollment?.student),
         phone: enrollment?.student?.phone || '',
         password: '',
         confirmPassword: '',
@@ -82,8 +83,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
         setFormData({
             studentName: enrollment?.student?.name || '',
             studentId: enrollment?.student?.studentId || '',
-            portalEmailLocal: portalEmailLocalPart(enrollment?.student?.email),
-            personalEmail: enrollment?.student?.personalEmail || '',
+            email: editableAccountEmail(enrollment?.student),
             phone: enrollment?.student?.phone || '',
             password: '',
             confirmPassword: '',
@@ -169,21 +169,15 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
                     setFormError(studentIdErr);
                     return;
                 }
-                const personalTrim = (formData.personalEmail || '').trim();
-                const personalErr = validatePersonalEmail(personalTrim);
-                if (personalErr) {
-                    setFormError(personalErr);
-                    return;
-                }
                 const phoneTrim = (formData.phone || '').trim();
-                const portalLocal = sanitizePortalEmailLocal(formData.portalEmailLocal);
-                const portalEmail = portalLocal ? `${portalLocal}${GORYTHM_EMAIL_DOMAIN}`.toLowerCase() : '';
-                if (portalLocal && !GORYTHM_EMAIL_REGEX.test(portalEmail)) {
-                    setFormError('Portal email must be a valid @gorythmacademy.com address.');
+                const loginEmail = String(formData.email || '').trim().toLowerCase();
+                const emailErr = validatePeopleLoginEmail(loginEmail);
+                if (emailErr) {
+                    setFormError(emailErr);
                     return;
                 }
-                if (!portalLocal && formData.password) {
-                    setFormError('Assign a portal email before setting a password.');
+                if (!loginEmail && formData.password) {
+                    setFormError('Enter the student email before setting a password.');
                     return;
                 }
                 const passwordErr = validatePasswordPair(formData.password, formData.confirmPassword);
@@ -202,18 +196,13 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
                     setFormError('Student name is required.');
                     return;
                 }
-                const existingEmail = String(enrollment.student?.email || '').trim().toLowerCase();
-                if (!(portalEmail || existingEmail)) {
-                    setFormError('Student account was not found.');
-                    return;
-                }
                 const accountRes = await axios.put(
                     `${API_BASE_URL}/api/users/${studentId}`,
                     {
                         name: trimmedName,
-                        email: portalEmail || existingEmail,
-                        personalEmail: personalTrim,
+                        email: loginEmail,
                         phone: phoneTrim,
+                        skipLoginEmail: true,
                         ...(studentIdTrim ? { studentId: studentIdTrim } : {}),
                     },
                     { headers: { Authorization: `Bearer ${token}` } }
@@ -374,7 +363,7 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
                         <div className="form-section">
                             <h3><i className="fas fa-user"></i> Student Information</h3>
                             <p className="form-hint-muted form-section-note">
-                                Name, portal email, personal email, and phone apply to this student on{' '}
+                                Name, email, and phone apply to this student on{' '}
                                 <strong>all courses</strong> (one shared account).
                             </p>
                             <div className="form-group">
@@ -398,24 +387,16 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
                                 />
                             </div>
                             <div className="form-group">
-                                <label><i className="fas fa-envelope"></i> Portal Email</label>
-                                <div className="email-input-group">
-                                    <input
-                                        type="text"
-                                        className="email-input-group__local form-input"
-                                        value={sanitizePortalEmailLocal(formData.portalEmailLocal)}
-                                        onChange={(e) => {
-                                            const local = sanitizePortalEmailLocal(e.target.value);
-                                            setFormData({ ...formData, portalEmailLocal: local });
-                                        }}
-                                        placeholder="Assign when ready"
-                                        autoComplete="off"
-                                        spellCheck={false}
-                                    />
-                                    <span className="email-input-group__suffix" aria-hidden="true">
-                                        {GORYTHM_EMAIL_DOMAIN}
-                                    </span>
-                                </div>
+                                <label><i className="fas fa-envelope"></i> Email</label>
+                                <input
+                                    type="email"
+                                    className="form-input"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="name@gmail.com"
+                                    autoComplete="off"
+                                />
+                                <small className="form-hint">The student will use this email to sign in.</small>
                             </div>
                             <div className="form-group">
                                 <label>Login Email Status</label>
@@ -490,16 +471,6 @@ const EditEnrollmentModal = ({ isOpen, enrollment, onClose, onSaved, onLoginEmai
                                     </label>
                                 </div>
                             ) : null}
-                            <div className="form-group">
-                                <label><i className="fas fa-envelope"></i> Personal Email (Optional)</label>
-                                <input
-                                    type="email"
-                                    value={formData.personalEmail}
-                                    onChange={(e) => setFormData({ ...formData, personalEmail: e.target.value })}
-                                    className="form-input"
-                                    placeholder="Gmail, Hotmail, etc."
-                                />
-                            </div>
                             <div className="form-group">
                                 <label><i className="fas fa-phone"></i> Phone Number (Optional)</label>
                                 <input

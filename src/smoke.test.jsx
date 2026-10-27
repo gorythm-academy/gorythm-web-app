@@ -79,7 +79,7 @@ describe('public smoke checks', () => {
     );
 
     expect(await screen.findByText('Nazrah')).toBeInTheDocument();
-    expect(await screen.findByText(/\$30/)).toBeInTheDocument();
+    expect(await screen.findByText(/€30/)).toBeInTheDocument();
   });
 
   test('payment form checks input', async () => {

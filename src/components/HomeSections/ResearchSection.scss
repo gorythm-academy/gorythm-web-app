@@ -131,6 +131,42 @@
   }
 }
 
+// Phone portrait: one card per view, native horizontal touch scroll.
+// The paged slider keeps overflow:hidden and touch-action:pan-y, which lets the
+// page steal a sideways swipe. This override is a real scrollport instead.
+.research-slider.research-slider--portrait {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x pan-y;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  .research-card {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+}
+
+.research-slider--portrait + .research-dots {
+  margin-top: 0;
+  margin-bottom: 32px;
+}
+
 .research-slider-track {
   display: flex;
   transition: transform 0.5s ease-out;

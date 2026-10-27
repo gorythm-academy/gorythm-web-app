@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { portalEmailDisplayLabel } from '../../../utils/studentPortalEmail';
+import { displayAccountEmail } from '../../../utils/studentPortalEmail';
 import { normalizeEnrollmentStatus } from '../../../utils/studentAdminValidation';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
 import {
@@ -360,8 +360,7 @@ const StudentDetailOverlay = ({
                                     No roll number
                                 </span>
                             )}
-                            <span>Portal: {portalEmailDisplayLabel(student.email)}</span>
-                            {student.personalEmail ? <span>{student.personalEmail}</span> : null}
+                            <span>Email: {displayAccountEmail(student)}</span>
                             {student.phone ? <span>{student.phone}</span> : null}
                             <span>Parent: {parentsLabel}</span>
                             <span>
@@ -689,7 +688,7 @@ const StudentDetailOverlay = ({
                                                         <div className="student-details">
                                                             <strong>{rowStudent.name || 'Unknown Student'}</strong>
                                                             <span className="student-email">
-                                                                    Portal: {portalEmailDisplayLabel(rowStudent.email)}
+                                                                    Email: {displayAccountEmail(rowStudent)}
                                                             </span>
                                                             </div>
                                                         </div>

@@ -309,6 +309,18 @@
   }
 }
 
+.cip-cta--trial {
+  background: #c5a45c;
+  border-color: #c5a45c;
+  color: #1a1408;
+
+  &:hover {
+    background: #d4b36a;
+    border-color: #d4b36a;
+    color: #1a1408;
+  }
+}
+
 .cip-back-link {
   display: inline-flex;
   align-items: center;

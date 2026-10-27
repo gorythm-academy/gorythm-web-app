@@ -35,6 +35,7 @@ const { syncMonthlyRequestFromDaily } = require('../../services/teacherAttendanc
 const { normalizeMonthKey } = require('../../services/payrollCalculation');
 const { isValidAttendanceStatus } = require('../../constants/attendanceStatuses');
 const { activeLmsFilter, trashedLmsFilter } = require('../../utils/lmsTrashQuery');
+const { parseAcademyDueDate } = require('../../utils/academyCalendar');
 const { assertTeacherOwnsCourse, getTeacherCourseIds } = require('../../services/teacherCourseAccess');
 const {
     assertDueDateNotPast,
@@ -678,7 +679,7 @@ router.post('/teacher/quizzes', allowPortalRoles('teacher'), validate([teacherQu
             quizType,
             questions: normalized,
             totalMarks: quizType === 'file' ? null : (totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null),
-            dueDate: dueDate ? new Date(dueDate) : null,
+            dueDate: parseAcademyDueDate(dueDate),
             resourceLink: quizType === 'file' ? files.resourceLink : '',
             resourceFileUrl: quizType === 'file' ? files.resourceFileUrl : '',
             attachments: quizType === 'file' ? files.attachments : [],
@@ -1020,7 +1021,7 @@ router.patch('/teacher/quizzes/:id', allowPortalRoles('teacher'), async (req, re
         if (totalMarks !== undefined && quiz.quizType !== 'file') {
             quiz.totalMarks = totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null;
         }
-        if (dueDate !== undefined) quiz.dueDate = dueDate ? new Date(dueDate) : null;
+        if (dueDate !== undefined) quiz.dueDate = parseAcademyDueDate(dueDate);
         if (status !== undefined) quiz.status = status;
         await quiz.save();
         const populated = await Quiz.findById(quiz._id)

@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL, SITE_URL } from '../../config/constants';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import { useCurrency } from '../../context/CurrencyContext';
-import { getPriceDisplayParts, parsePriceAmount } from '../../utils/currency';
+import { getPriceDisplayParts, parsePriceAmount, formatCurrencyWhole, BASE_CURRENCY } from '../../utils/currency';
 import { courseUrlSegment } from '../../utils/courseLinks';
 import { getCourseImageSrc } from '../../utils/courseImages';
 import {
@@ -27,7 +27,7 @@ const getPriceAmount = (price) => {
 };
 
 export function SingleCourse() {
-  const { currency, formatFromUsdWhole } = useCurrency();
+  const { currency, formatFromBaseWhole, locale } = useCurrency();
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const isAdminPreview = searchParams.get('preview') === '1';
@@ -141,7 +141,13 @@ export function SingleCourse() {
   const course = useMemo(() => {
     if (!apiCourse) return null;
     const image = getCourseImageSrc(apiCourse);
-    const priceParts = getPriceDisplayParts(apiCourse.price, formatFromUsdWhole);
+    const priceParts = getPriceDisplayParts(
+      apiCourse.price,
+      (amount) => formatCurrencyWhole(amount, BASE_CURRENCY, locale)
+    );
+    const priceApprox = currency !== BASE_CURRENCY && priceParts.showMonth
+      ? formatFromBaseWhole(apiCourse.price)
+      : '';
     return {
       _id: apiCourse._id,
       slug: apiCourse.slug || apiCourse._id,
@@ -151,6 +157,7 @@ export function SingleCourse() {
       description: apiCourse.description,
       image,
       priceDisplay: priceParts.amount,
+      priceApprox,
       priceShowMonth: priceParts.showMonth,
       priceAmount: getPriceAmount(apiCourse.price),
       level: formatLevel(apiCourse.level),
@@ -158,7 +165,7 @@ export function SingleCourse() {
       category: apiCourse.category,
       isPublished: apiCourse.isPublished !== false,
     };
-  }, [apiCourse, formatFromUsdWhole]);
+  }, [apiCourse, formatFromBaseWhole, currency, locale]);
 
   const sortedList = useMemo(() => sortCoursesForCatalog(apiList), [apiList]);
 
@@ -320,6 +327,9 @@ export function SingleCourse() {
             <span className="cip-meta-label">Price</span>
             <span className="cip-meta-value cip-meta-value--price">
               <span className="cip-meta-price-amount">{course.priceDisplay}</span>
+              {course.priceApprox ? (
+                <span className="cip-meta-price-period">approx. {course.priceApprox}</span>
+              ) : null}
               {course.priceShowMonth ? (
                 <span className="cip-meta-price-period">Monthly</span>
               ) : null}
@@ -363,6 +373,14 @@ export function SingleCourse() {
                 Contact us to enroll
               </Link>
             )
+          )}
+          {!isAdminPreview && (
+            <Link
+              to={`/trial?course=${encodeURIComponent(courseUrlSegment(course) || '')}`}
+              className="cip-cta cip-cta--trial"
+            >
+              Book a Free Trial
+            </Link>
           )}
           <Link to="/courses" className="cip-back-link">
             <span>←</span> Back to All Courses

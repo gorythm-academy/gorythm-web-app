@@ -118,10 +118,7 @@ router.get('/teacher/badges', allowPortalRoles('teacher'), async (req, res) => {
             assignment: { $in: myAssignmentIds },
             ...activeLmsFilter(),
         };
-        const adminAssignmentBase = {
-            ...assignmentScope,
-            ...adminPublishedClause,
-        };
+        const adminAssignmentBase = mergeMongoFilters(assignmentScope, adminPublishedClause);
         const adminResourceBase = mergeMongoFilters(
             await teacherResourceMongoFilter(teacherId, courseIds),
             adminPublishedClause,

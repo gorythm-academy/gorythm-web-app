@@ -11,6 +11,7 @@ const { restoreMany, permanentDeleteMany, countTrashed } = require('../../servic
 const { collectQuizUrls, collectSubmissionUrls, cleanupUrlsAfterPermanentDelete } = require('../../utils/lmsUploadCleanup');
 const { normalizeQuizFiles, normalizeQuizQuestions } = require('../portal/helpers');
 const { resolveValidScheduleTargets } = require('../../utils/lmsContentRules');
+const { parseAcademyDueDate } = require('../../utils/academyCalendar');
 
 function requireIds(res, ids) {
     if (!Array.isArray(ids) || !ids.length) {
@@ -128,7 +129,7 @@ router.post('/quizzes', async (req, res) => {
             quizType,
             questions: normalized,
             totalMarks: quizType === 'file' ? null : totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null,
-            dueDate: dueDate ? new Date(dueDate) : null,
+            dueDate: parseAcademyDueDate(dueDate),
             resourceLink: quizType === 'file' ? files.resourceLink : '',
             resourceFileUrl: quizType === 'file' ? files.resourceFileUrl : '',
             attachments: quizType === 'file' ? files.attachments : [],
@@ -218,14 +219,14 @@ router.patch('/quizzes/:id', async (req, res) => {
         if (totalMarks !== undefined && quiz.quizType !== 'file') {
             quiz.totalMarks = totalMarks != null && totalMarks !== '' ? Number(totalMarks) : null;
         }
-        if (dueDate !== undefined) quiz.dueDate = dueDate ? new Date(dueDate) : null;
+        if (dueDate !== undefined) quiz.dueDate = parseAcademyDueDate(dueDate);
         quiz.createdByRole = 'admin';
         quiz.lockedForTeacher = true;
         await quiz.save();
         const populated = await Quiz.findById(quiz._id).populate('course', 'title').populate('teacher', 'name email status deletedAt');
         res.json({ success: true, quiz: populated });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message || 'Failed to update quiz' });
+        res.status(error.status || 500).json({ success: false, error: error.message || 'Failed to update quiz' });
     }
 });
 

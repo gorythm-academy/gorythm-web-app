@@ -1,3 +1,5 @@
+const { chargeCurrency } = require('./chargeCurrency');
+
 const ZERO_DECIMAL = new Set([
     'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA',
     'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
@@ -14,30 +16,17 @@ function stripeMinorToMajor(amount, currency) {
 function presentmentFromStripeSession(session) {
     const details = session?.presentment_details || {};
     const presentmentCurrency = String(details.presentment_currency || '').toUpperCase();
-    const sessionCurrency = String(session?.currency || 'usd').toUpperCase();
+    const sessionCurrency = String(session?.currency || chargeCurrency()).toUpperCase();
     const sourceCurrency = String(session?.currency_conversion?.source_currency || '').toUpperCase();
-
-    let presentmentAmount = null;
-    if (presentmentCurrency && details.presentment_amount != null) {
-        presentmentAmount = stripeMinorToMajor(details.presentment_amount, presentmentCurrency);
-    } else if (sessionCurrency && sessionCurrency !== 'USD' && session?.amount_total != null) {
-        presentmentAmount = stripeMinorToMajor(session.amount_total, sessionCurrency);
-    }
-
-    const localCurrency = presentmentCurrency
-        || (sessionCurrency !== 'USD' ? sessionCurrency : '');
+    const chargedIn = sourceCurrency || sessionCurrency;
+    const hasOtherPresentment = Boolean(presentmentCurrency) && presentmentCurrency !== chargedIn;
 
     return {
-        currency: sourceCurrency || 'USD',
-        presentmentCurrency: localCurrency && localCurrency !== 'USD' ? localCurrency : '',
-        presentmentAmount: localCurrency && localCurrency !== 'USD' ? presentmentAmount : null,
-    };
-}
-
-function withAdaptivePricing(params) {
-    return {
-        ...params,
-        adaptive_pricing: { enabled: true },
+        currency: chargedIn,
+        presentmentCurrency: hasOtherPresentment ? presentmentCurrency : '',
+        presentmentAmount: hasOtherPresentment && details.presentment_amount != null
+            ? stripeMinorToMajor(details.presentment_amount, presentmentCurrency)
+            : null,
     };
 }
 
@@ -52,16 +41,17 @@ async function createCheckoutSessionWithFallback(stripe, params, types) {
         throw err;
     }
     const methodTypes = Array.isArray(types) && types.length ? types : ['card'];
+    const withoutLocalCurrency = { ...params, adaptive_pricing: { enabled: false } };
     const attempts = [
-        { params: withAdaptivePricing(params), types: methodTypes },
-        { params: withAdaptivePricing(params), types: ['card'] },
+        { params: withoutLocalCurrency, types: methodTypes },
+        { params: withoutLocalCurrency, types: ['card'] },
         { params, types: methodTypes },
         { params, types: ['card'] },
     ];
     const seen = new Set();
     let lastErr;
     for (const attempt of attempts) {
-        const key = `${attempt.params === params ? 'plain' : 'adaptive'}|${attempt.types.join(',')}`;
+        const key = `${attempt.params === params ? 'plain' : 'eur-only'}|${attempt.types.join(',')}`;
         if (seen.has(key)) continue;
         seen.add(key);
         try {
@@ -81,6 +71,5 @@ module.exports = {
     ZERO_DECIMAL,
     stripeMinorToMajor,
     presentmentFromStripeSession,
-    withAdaptivePricing,
     createCheckoutSessionWithFallback,
 };

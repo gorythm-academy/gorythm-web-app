@@ -118,7 +118,7 @@ export const LEGAL_DOCUMENTS = {
         heading: 'Payments',
         paragraphs: [
           'You may pay by card through Stripe, or by bank transfer. Card enrolment is confirmed when Stripe reports a successful payment. Bank-transfer enrolment stays pending until you upload proof of payment and our team verifies the transfer.',
-          'Displayed local amounts are approximate. The chargeable amount is the amount presented at Stripe checkout or on our invoice.',
+          'Displayed amounts in your local currency are estimates. You are charged in euros. Your bank sets the final amount in your currency, and its rate may differ. The chargeable amount is the euro amount at Stripe checkout or on our invoice.',
         ],
       },
       {

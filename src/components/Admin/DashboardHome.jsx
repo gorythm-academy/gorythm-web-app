@@ -12,6 +12,7 @@ import {
     ADMIN_DASHBOARD_ACCENT_CHANGE_EVENT,
 } from '../../utils/adminDashboardTheme';
 import { getMeetingHref } from '../../utils/scheduleRoomOrLink';
+import { formatTotalsByCurrency } from '../../utils/billingLabels';
 import { refreshUpcomingClassStatuses } from '../../utils/scheduleTimezone';
 import ScheduleClock from '../shared/ScheduleClock';
 import './DashboardHome.scss';
@@ -114,7 +115,7 @@ const DashboardHome = () => {
         totalTeachers: 0,
         totalParents: 0,
         totalCourses: 0,
-        totalRevenue: 0,
+        revenueByCurrency: [],
         activeStaff: 0,
     });
     const [allActivities, setAllActivities] = useState([]);
@@ -186,7 +187,7 @@ const DashboardHome = () => {
                     totalTeachers: nextStats.totalTeachers ?? 0,
                     totalParents: nextStats.totalParents ?? 0,
                     totalCourses: nextStats.totalCourses ?? 0,
-                    totalRevenue: nextStats.totalRevenue ?? 0,
+                    revenueByCurrency: Array.isArray(nextStats.revenueByCurrency) ? nextStats.revenueByCurrency : [],
                     activeStaff: nextStats.activeStaff ?? nextStats.activeUsers ?? 0,
                 });
                 setConnection({ api: 'ok', db: 'ok' });
@@ -236,7 +237,7 @@ const DashboardHome = () => {
                 totalTeachers: 0,
                 totalParents: 0,
                 totalCourses: 0,
-                totalRevenue: 0,
+                revenueByCurrency: [],
                 activeStaff: 0,
             });
             
@@ -350,7 +351,7 @@ const DashboardHome = () => {
         },
         { 
             title: 'Total Revenue', 
-            value: loading ? '...' : `$${Number(stats.totalRevenue || 0).toFixed(2)}`, 
+            value: loading ? '...' : formatTotalsByCurrency(stats.revenueByCurrency), 
             icon: 'fas fa-dollar-sign', 
             color: '#f59e0b', 
             onClick: () => navigate('/admin/payments')

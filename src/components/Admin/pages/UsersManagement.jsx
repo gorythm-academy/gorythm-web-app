@@ -4,7 +4,7 @@ import axios from 'axios';
 import { getAuthToken, parseAuthUser } from '../../../utils/authStorage';
 import { API_BASE_URL, PROTECTED_SUPER_ADMIN_EMAIL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
-import { formatLoginEmailNotice, validatePasswordPair } from '../../../utils/studentAdminValidation';
+import { formatLoginEmailNotice, validatePasswordPair, validatePeopleLoginEmail } from '../../../utils/studentAdminValidation';
 import { lmsAdminGet } from '../../../utils/lmsAdminApi';
 import { buildListCacheKey, createListCache } from '../../../utils/adminListCache';
 import { useDialogKeyboard } from '../../../hooks/useDialogKeyboard';
@@ -658,12 +658,20 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
             return false;
         }
 
-        if (!editingUser && !GORYTHM_EMAIL_REGEX.test(email)) {
+        if (!editingUser && isStaffTab && !GORYTHM_EMAIL_REGEX.test(email)) {
             showAlert('Portal email must be in this format: id@gorythmacademy.com', 'warning');
             return false;
         }
 
-        if (personalEmail) {
+        if (!editingUser && !isStaffTab) {
+            const loginError = validatePeopleLoginEmail(email);
+            if (loginError) {
+                showAlert(loginError, 'warning');
+                return false;
+            }
+        }
+
+        if (isStaffTab && personalEmail) {
             if (personalEmail !== personalEmail.toLowerCase()) {
                 showAlert('Personal email must be in lowercase letters', 'warning');
                 return false;
@@ -800,7 +808,7 @@ const UsersManagement = ({ variant = 'staff', embedded = false }) => {
                 phone: formData.phone.trim(),
                 status: resolvedStatus,
                 isActive: resolvedStatus === 'active',
-                personalEmail: (formData.personalEmail || '').trim(),
+                ...(isStaffTab ? { personalEmail: (formData.personalEmail || '').trim() } : {}),
             };
             
             if (!editingUser) {

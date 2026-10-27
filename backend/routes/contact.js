@@ -335,8 +335,10 @@ router.post(
 
       if (contactMessage.status !== 'resolved') {
         contactMessage.status = 'resolved';
-        await contactMessage.save();
       }
+      contactMessage.reply = reply;
+      contactMessage.repliedAt = new Date();
+      await contactMessage.save();
 
       return res.json({ success: true, message: contactMessage });
     } catch (error) {

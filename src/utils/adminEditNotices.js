@@ -92,7 +92,7 @@ export function collectQuizUpdateNotices(quizzes, { storageKey, audience }) {
         : adminQuiz
           ? `Admin updated "${title}"`
           : `Teacher updated "${title}"`;
-    rows.push({ id: quiz._id || quiz.id, title, message });
+    rows.push({ id: quiz._id || quiz.id, title, message, updatedAt: quiz.updatedAt || '' });
   }
   return rows;
 }

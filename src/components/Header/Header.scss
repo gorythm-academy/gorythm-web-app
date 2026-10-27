@@ -539,6 +539,25 @@
   }
 }
 
+.nav-link.nav-link--trial {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #c5a45c;
+  color: #1a1408;
+  font-weight: 700;
+  line-height: 1.1;
+
+  &::after {
+    display: none;
+  }
+
+  &:hover,
+  &.active {
+    background: #d4b36a;
+    color: #1a1408;
+  }
+}
+
 // Touch tablet portrait: increase nav link and icon sizes for finger-friendly tapping
 // Applies to: iPad, iPad Mini, iPad Air, Surface Pro in portrait with coarse pointer
 // Range: 768px–1368px with pointer:coarse + orientation:portrait
@@ -1229,6 +1248,25 @@
   }
 }
 
+.mobile-nav-link.mobile-nav-link--trial {
+  display: inline-flex;
+  align-items: center;
+  margin: 8px 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #c5a45c;
+  color: #1a1408;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+
+  &:hover,
+  &.active {
+    background: #d4b36a;
+    color: #1a1408;
+  }
+}
+
 // → next to label (Home, Courses, etc.) – bold
 .mobile-nav-arrow {
   font-size: 22px;
@@ -1868,6 +1906,17 @@
       color: white;
     }
 
+    .nav-link.nav-link--trial {
+      background: #c5a45c;
+      color: #1a1408;
+
+      &:hover,
+      &.active {
+        background: #d4b36a;
+        color: #1a1408;
+      }
+    }
+
     .auth-buttons .btn-register {
       background: white;
       color: var(--color-primary);
@@ -2034,6 +2083,19 @@ body.no-page-scroll {
 
   .menu-grid-footer {
     margin-top: 0;
+  }
+}
+
+.mobile-nav-item .mobile-nav-link.mobile-nav-link--trial {
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #c5a45c;
+  color: #1a1408;
+
+  &:hover,
+  &.active {
+    background: #d4b36a;
+    color: #1a1408;
   }
 }
 

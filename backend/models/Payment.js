@@ -34,9 +34,11 @@ const paymentSchema = new mongoose.Schema({
     studentName: { type: String, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
+    /** Set when a parent email was entered and it is not the student login. */
+    parentEmail: { type: String, trim: true, lowercase: true, default: '' },
     courseName: { type: String, trim: true },
     amount: { type: Number, required: true },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: () => require('../utils/chargeCurrency').chargeCurrency() },
     invoiceNumber: { type: String, default: null, index: true, sparse: true, unique: true },
     presentmentCurrency: { type: String, default: '' },
     presentmentAmount: { type: Number, default: null },

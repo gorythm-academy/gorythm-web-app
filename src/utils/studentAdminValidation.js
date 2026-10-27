@@ -55,13 +55,14 @@ export const formatLoginEmailStatus = (user) => {
         const to = Array.isArray(user.loginEmailSentTo) && user.loginEmailSentTo.length
             ? user.loginEmailSentTo.join(', ')
             : '';
-        if (to && date) return `Sent ${date} to ${to}`;
-        if (to) return `Sent to ${to}`;
-        if (date) return `Sent ${date}`;
-        return 'Login email sent.';
+        if (to && date) return `Login credentials were emailed on ${date} to ${to}.`;
+        if (to) return `Login credentials were emailed to ${to}.`;
+        if (date) return `Login credentials were emailed on ${date}.`;
+        return 'Login credentials were emailed.';
     }
-    if (user.loginEmailLastError) return user.loginEmailLastError;
-    return 'Not sent yet — send the login email after portal login and personal email are set.';
+    const lastError = String(user.loginEmailLastError || '');
+    if (lastError && !/personal email|receive mail/i.test(lastError)) return lastError;
+    return 'Not sent yet.';
 };
 
 export const validatePasswordPair = (password, confirmPassword, { required = false } = {}) => {
@@ -89,6 +90,18 @@ export const validateStudentId = (studentId) => {
     if (!trimmed) return null;
     if (!STUDENT_ID_REGEX.test(trimmed)) {
         return 'Student ID must match GRT-YYYY-### (e.g. GRT-2026-001) or be left blank.';
+    }
+    return null;
+};
+
+export const validatePeopleLoginEmail = (email) => {
+    const trimmed = String(email || '').trim().toLowerCase();
+    if (!trimmed) return 'Email is required.';
+    if (trimmed.endsWith('@gorythmacademy.com')) {
+        return 'Please enter an email you can open, such as Gmail or Hotmail.';
+    }
+    if (!PERSONAL_EMAIL_REGEX.test(trimmed)) {
+        return 'Please enter a valid email address.';
     }
     return null;
 };

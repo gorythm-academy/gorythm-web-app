@@ -8,13 +8,15 @@ const { activeLmsFilter } = require('../utils/lmsTrashQuery');
 const router = express.Router();
 
 const FX_TTL_MS = 12 * 60 * 60 * 1000;
-let fxCache = null;
+const fxCaches = new Map();
 
-async function loadUsdRates() {
-    if (fxCache && Date.now() - fxCache.savedAt < FX_TTL_MS) return fxCache.payload;
+async function loadRates(baseCode) {
+    const base = String(baseCode || 'EUR').toUpperCase();
+    const cached = fxCaches.get(base);
+    if (cached && Date.now() - cached.savedAt < FX_TTL_MS) return cached.payload;
     const endpoints = [
-        'https://open.er-api.com/v6/latest/USD',
-        'https://api.exchangerate-api.com/v4/latest/USD',
+        `https://open.er-api.com/v6/latest/${base}`,
+        `https://api.exchangerate-api.com/v4/latest/${base}`,
     ];
     for (const endpoint of endpoints) {
         try {
@@ -23,25 +25,37 @@ async function loadUsdRates() {
             const json = await response.json();
             if (!json?.rates || typeof json.rates !== 'object') continue;
             const payload = {
-                base: json.base_code || json.base || 'USD',
+                base: json.base_code || json.base || base,
                 rates: json.rates,
                 date: json.time_last_update_utc || json.date || '',
             };
-            fxCache = { savedAt: Date.now(), payload };
+            fxCaches.set(base, { savedAt: Date.now(), payload });
             return payload;
         } catch {
             /* try the next provider */
         }
     }
-    if (fxCache?.payload) return fxCache.payload;
+    if (cached?.payload) return cached.payload;
     const err = new Error('Exchange rates are unavailable');
     err.status = 503;
     throw err;
 }
 
+router.get('/eur-rates', async (req, res) => {
+    try {
+        const payload = await loadRates('EUR');
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        return res.status(error.status || 500).json({
+            success: false,
+            error: 'Exchange rates are unavailable',
+        });
+    }
+});
+
 router.get('/usd-rates', async (req, res) => {
     try {
-        const payload = await loadUsdRates();
+        const payload = await loadRates('USD');
         return res.json({ success: true, ...payload });
     } catch (error) {
         return res.status(error.status || 500).json({
@@ -84,6 +98,7 @@ router.get('/sitemap.xml', async (req, res) => {
             { loc: '/courses', priority: '0.9', changefreq: 'weekly' },
             { loc: '/about', priority: '0.8', changefreq: 'monthly' },
             { loc: '/contact', priority: '0.8', changefreq: 'monthly' },
+            { loc: '/trial', priority: '0.8', changefreq: 'monthly' },
             { loc: '/research', priority: '0.9', changefreq: 'weekly' },
             { loc: '/mission/iq', priority: '0.6', changefreq: 'yearly' },
             { loc: '/mission/eq', priority: '0.6', changefreq: 'yearly' },

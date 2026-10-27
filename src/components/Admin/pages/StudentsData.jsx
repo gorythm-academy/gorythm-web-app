@@ -4,7 +4,7 @@ import axios from 'axios';
 import { getAuthToken } from '../../../utils/authStorage';
 import { API_BASE_URL } from '../../../config/constants';
 import { useAdminDialog } from '../AdminDialogContext';
-import { portalEmailDisplayLabel } from '../../../utils/studentPortalEmail';
+import { displayAccountEmail } from '../../../utils/studentPortalEmail';
 import {
     normalizeEnrollmentStatus,
 } from '../../../utils/studentAdminValidation';
@@ -33,7 +33,7 @@ const StudentsData = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
+    const [filterStatus, setFilterStatus] = useState('active');
     const [filterFeeStatus, setFilterFeeStatus] = useState('all');
     const [editingEnrollment, setEditingEnrollment] = useState(null);
     const [editMode, setEditMode] = useState('course');
@@ -85,7 +85,7 @@ const StudentsData = () => {
 
     const prevFiltersRef = useRef({
         debouncedSearchTerm: '',
-        filterStatus: 'all',
+        filterStatus: 'active',
         filterFeeStatus: 'all',
         listTab: 'active',
         sortBy: 'createdAt',
@@ -99,6 +99,7 @@ const StudentsData = () => {
     const detailTabRef = useRef(detailTab);
     detailTabRef.current = detailTab;
     const listCacheRef = useRef(new Map());
+    const listRequestRef = useRef(0);
     const overlayCacheRef = useRef(new Map());
     const isFirstListLoadRef = useRef(true);
     const detailEnrollmentsRef = useRef([]);
@@ -118,8 +119,6 @@ const StudentsData = () => {
             const response = await axios.get(`${API_BASE_URL}/api/enrollments/stats`, {
                 params: {
                     search: debouncedSearchTerm || undefined,
-                    status: filterStatus,
-                    feeStatus: filterFeeStatus !== 'all' ? filterFeeStatus : undefined,
                 },
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -137,9 +136,10 @@ const StudentsData = () => {
         } catch (error) {
             console.error('Error fetching enrollment stats:', error);
         }
-    }, [listTab, debouncedSearchTerm, filterStatus, filterFeeStatus]);
+    }, [listTab, debouncedSearchTerm]);
 
     const fetchEnrollments = useCallback(async (options = {}) => {
+        const requestId = ++listRequestRef.current;
         const effectivePage = options.page ?? pageRef.current;
         const cacheParams = {
             listTab,
@@ -186,7 +186,7 @@ const StudentsData = () => {
                     feeStatus: inAnyQuarantine || filterFeeStatus === 'all' ? undefined : filterFeeStatus,
                     sortBy,
                     sortOrder,
-                    includeCounts: options.includeCounts ? 1 : 0,
+                    includeCounts: 1,
                 },
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -195,27 +195,35 @@ const StudentsData = () => {
                 throw new Error(response.data?.message || 'Failed to fetch students');
             }
 
+            if (requestId !== listRequestRef.current) return;
+
             const cards = sortStudentCards(
                 buildStudentCardsFromApi(response.data.students || []),
                 sortBy,
                 sortOrder
-            );
+            ).filter((card) => (
+                inAnyQuarantine
+                || filterStatus === 'all'
+                || card.enrollments.some((row) => normalizeEnrollmentStatus(row.status) === filterStatus)
+            ));
             const apiTotal = Number(response.data.totalStudents) || 0;
-            const maxPage = Math.max(1, Math.ceil(apiTotal / PAGE_SIZE));
+            const returnedCount = (response.data.students || []).length;
+            const totalForUi = returnedCount > cards.length && apiTotal <= PAGE_SIZE
+                ? cards.length
+                : apiTotal;
+            const maxPage = Math.max(1, Math.ceil(totalForUi / PAGE_SIZE));
             const resolvedPage = Math.min(effectivePage, maxPage);
 
-            listCacheRef.current.set(cacheKey, { cards, total: apiTotal });
+            listCacheRef.current.set(cacheKey, { cards, total: totalForUi });
             setStudentCards(cards);
-            setTotal(apiTotal);
-            if (options.includeCounts) {
-                if (typeof response.data.trashStudentCount === 'number') {
-                    setTrashCount(response.data.trashStudentCount);
-                } else if (typeof response.data.trashCount === 'number') {
+            setTotal(totalForUi);
+            if (typeof response.data.trashStudentCount === 'number') {
+                setTrashCount(response.data.trashStudentCount);
+            } else if (typeof response.data.trashCount === 'number') {
                 setTrashCount(response.data.trashCount);
-                }
-                if (typeof response.data.trashStudentsAccountCount === 'number') {
-                    setTrashStudentsCount(response.data.trashStudentsAccountCount);
-                }
+            }
+            if (typeof response.data.trashStudentsAccountCount === 'number') {
+                setTrashStudentsCount(response.data.trashStudentsAccountCount);
             }
             if (options.page !== undefined) {
                 setPage(resolvedPage);
@@ -232,6 +240,7 @@ const StudentsData = () => {
                     || 'Failed to load students'
             );
         } finally {
+            if (requestId !== listRequestRef.current) return;
             setLoading(false);
         }
     }, [debouncedSearchTerm, filterStatus, filterFeeStatus, listTab, sortBy, sortOrder]);
@@ -406,7 +415,7 @@ const StudentsData = () => {
         if (listTab === 'active') {
             fetchStats();
         }
-    }, [listTab, debouncedSearchTerm, filterStatus, filterFeeStatus, fetchStats]);
+    }, [listTab, debouncedSearchTerm, fetchStats]);
 
     useEffect(() => {
         if (!detailStudent?._id) return;
@@ -853,8 +862,7 @@ const StudentsData = () => {
                 return {
                     studentId: student.studentId || '',
                     name: student.name || '',
-                    portalEmail: portalEmailDisplayLabel(student.email),
-                    personalEmail: student.personalEmail || '',
+                    email: displayAccountEmail(student),
                     phone: student.phone || '',
                     course: course.title || '',
                     timeslot: getEnrollmentTimeslotLabel(enrollment),
@@ -871,8 +879,7 @@ const StudentsData = () => {
             const columns = [
                 ['studentId', 'Student ID'],
                 ['name', 'Name'],
-                ['portalEmail', 'Portal Email'],
-                ['personalEmail', 'Personal Email'],
+                ['email', 'Email'],
                 ['phone', 'Phone'],
                 ['course', 'Course'],
                 ['timeslot', 'Timeslot'],

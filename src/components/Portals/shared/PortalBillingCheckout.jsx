@@ -243,7 +243,7 @@ const PortalBillingCheckout = ({
   const [invoiceMode, setInvoiceMode] = useState('combined');
   const [months, setMonths] = useState(1);
   const [method, setMethod] = useState('stripe');
-  const [saveCardForAutoPay, setSaveCardForAutoPay] = useState(false);
+  const [saveCardForAutoPay, setSaveCardForAutoPay] = useState(true);
   const [proofFile, setProofFile] = useState(null);
   const [phone, setPhone] = useState('');
   const [phoneStatus, setPhoneStatus] = useState('empty');
@@ -321,7 +321,7 @@ const PortalBillingCheckout = ({
         courseName: row.courseName,
         studentName: row.studentName,
         amount: row.amount,
-        currency: 'USD',
+        currency: 'EUR',
         displayStatus: row.feeStatus,
         status: row.feeStatus,
         createdAt: row.raw?.enrollmentDate || row.raw?.createdAt || row.dueDate,

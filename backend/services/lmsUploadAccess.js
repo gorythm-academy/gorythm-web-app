@@ -11,7 +11,7 @@ const {
     getStudentEnrollmentSlots,
     studentSlotMatchesResource,
 } = require('../utils/lmsContentRules');
-const { activeLmsFilter } = require('../utils/lmsTrashQuery');
+const { activeLmsFilter, mergeMongoFilters } = require('../utils/lmsTrashQuery');
 
 const STAFF_ROLES = new Set(['manager', 'super-admin', 'accountant']);
 
@@ -62,10 +62,9 @@ async function findAssignmentsForUpload(publicPath) {
         relSuffix && relSuffix !== normalized
             ? new RegExp(`${relSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
             : null;
-    return Assignment.find({
-        ...buildFileMatchQuery(variants, suffixRegex, ['attachments']),
-        ...activeLmsFilter(),
-    })
+    return Assignment.find(
+        mergeMongoFilters(buildFileMatchQuery(variants, suffixRegex, ['attachments']), activeLmsFilter())
+    )
         .select('course teacher attachments assignedSchedule')
         .lean();
 }
@@ -94,10 +93,9 @@ async function findSubmissionsForUpload(publicPath) {
         relSuffix && relSuffix !== normalized
             ? new RegExp(`${relSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
             : null;
-    return AssignmentSubmission.find({
-        ...buildFileMatchQuery(variants, suffixRegex, ['attachments']),
-        ...activeLmsFilter(),
-    })
+    return AssignmentSubmission.find(
+        mergeMongoFilters(buildFileMatchQuery(variants, suffixRegex, ['attachments']), activeLmsFilter())
+    )
         .select('assignment student attachments')
         .populate({ path: 'assignment', select: 'course teacher' })
         .lean();
@@ -112,10 +110,12 @@ async function findQuizzesForUpload(publicPath) {
         relSuffix && relSuffix !== normalized
             ? new RegExp(`${relSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
             : null;
-    return Quiz.find({
-        ...buildFileMatchQuery(variants, suffixRegex, ['resourceFileUrl', 'attachments']),
-        ...activeLmsFilter(),
-    })
+    return Quiz.find(
+        mergeMongoFilters(
+            buildFileMatchQuery(variants, suffixRegex, ['resourceFileUrl', 'attachments']),
+            activeLmsFilter()
+        )
+    )
         .select('course teacher resourceFileUrl')
         .lean();
 }

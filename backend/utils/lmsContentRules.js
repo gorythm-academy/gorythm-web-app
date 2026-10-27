@@ -4,6 +4,13 @@ const ClassSchedule = require('../models/ClassSchedule');
 const Course = require('../models/Course');
 const { getTeachersForCourse } = require('../services/courseTeachers');
 const { activeCourseFilter } = require('./courseQuery');
+const {
+    calendarDay,
+    startOfAcademyDay,
+    dueDateInstant,
+    isCalendarDayPast,
+    formatAcademyDate,
+} = require('./academyCalendar');
 
 function startOfDay(date = new Date()) {
     const d = new Date(date);
@@ -12,18 +19,17 @@ function startOfDay(date = new Date()) {
 }
 
 function minDueDateInputValue() {
-    return startOfDay().toISOString().slice(0, 10);
+    return calendarDay(new Date());
 }
 
 function assertDueDateNotPast(dueDate, { allowPast = false } = {}) {
-    if (allowPast) return startOfDay(dueDate);
-    const parsed = startOfDay(dueDate);
-    if (Number.isNaN(parsed.getTime())) {
+    const parsed = dueDateInstant(dueDate);
+    if (!parsed) {
         const err = new Error('Invalid due date');
         err.status = 400;
         throw err;
     }
-    if (parsed.getTime() < startOfDay().getTime()) {
+    if (!allowPast && isCalendarDayPast(parsed)) {
         const err = new Error('Due date cannot be in the past');
         err.status = 400;
         throw err;
@@ -181,7 +187,7 @@ async function getStudentEnrollmentSlots(studentId) {
 
 /** Hide work whose due date already passed before this enrollment started. */
 function dueDateOpenForEnrollmentClause(enrolledAt) {
-    const enrolledOn = startOfDay(enrolledAt || new Date());
+    const enrolledOn = startOfAcademyDay(enrolledAt || new Date());
     return {
         $or: [
             { dueDate: null },
@@ -193,7 +199,9 @@ function dueDateOpenForEnrollmentClause(enrolledAt) {
 
 function dueDateMissedBeforeEnrollment(dueDate, enrolledAt) {
     if (!dueDate) return false;
-    return startOfDay(dueDate).getTime() < startOfDay(enrolledAt || new Date()).getTime();
+    const due = calendarDay(dueDate);
+    const enrolled = calendarDay(enrolledAt || new Date());
+    return Boolean(due && enrolled && due < enrolled);
 }
 
 /** @deprecated Use getStudentEnrollmentSlots — kept for resource visibility. */
@@ -387,7 +395,8 @@ function assertTeacherCanDeleteResource(resource) {
 function recordDueDateExtension(assignment, newDueDate, extendedBy, extendedByRole = null) {
     const previousDueDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
     const nextDue = assertDueDateNotPast(newDueDate);
-    if (previousDueDate && nextDue.getTime() <= startOfDay(previousDueDate).getTime()) {
+    const previousDay = previousDueDate ? calendarDay(previousDueDate) : '';
+    if (previousDay && calendarDay(nextDue) <= previousDay) {
         const err = new Error('Extended due date must be after the current due date');
         err.status = 400;
         throw err;
@@ -404,9 +413,24 @@ function recordDueDateExtension(assignment, newDueDate, extendedBy, extendedByRo
     return nextDue;
 }
 
+function isDueDatePast(dueDate, now = new Date()) {
+    return isCalendarDayPast(dueDate, now);
+}
+
 function assignmentPastDue(assignment, now = new Date()) {
-    if (!assignment?.dueDate) return false;
-    return startOfDay(assignment.dueDate).getTime() < startOfDay(now).getTime();
+    return isDueDatePast(assignment?.dueDate, now);
+}
+
+/** A quiz with no due date stays open. A dated quiz must still be due today or later. */
+function dueDateStillOpenClause(now = new Date()) {
+    const today = startOfAcademyDay(now);
+    return {
+        $or: [
+            { dueDate: null },
+            { dueDate: { $exists: false } },
+            { dueDate: { $gte: today } },
+        ],
+    };
 }
 
 function latestDueDateExtension(assignment) {
@@ -420,10 +444,8 @@ function buildDueDateExtensionNotice(assignment, { viewerRole = 'student' } = {}
     const latest = latestDueDateExtension(assignment);
     if (!latest?.newDueDate) return null;
 
-    const newDate = startOfDay(latest.newDueDate).toLocaleDateString();
-    const prevDate = latest.previousDueDate
-        ? startOfDay(latest.previousDueDate).toLocaleDateString()
-        : null;
+    const newDate = formatAcademyDate(latest.newDueDate);
+    const prevDate = latest.previousDueDate ? formatAcademyDate(latest.previousDueDate) : null;
     const extRole = String(
         latest.extendedByRole || latest.extendedBy?.role || assignment.lastExtendedByRole || ''
     ).toLowerCase();
@@ -551,7 +573,12 @@ async function studentPublishedQuizMongoFilter(studentId) {
     const orClauses = [];
     for (const { courseId, teacherId, scheduleId, enrolledAt } of slots) {
         if (!activeIds.has(String(courseId))) continue;
-        const dueClause = dueDateOpenForEnrollmentClause(enrolledAt);
+        const dueClause = {
+            $and: [
+                dueDateOpenForEnrollmentClause(enrolledAt),
+                dueDateStillOpenClause(),
+            ],
+        };
         const legacy = {
             course: courseId,
             status: 'published',
@@ -612,8 +639,7 @@ async function assertStudentCanAccessQuiz(studentId, quiz) {
         enrolledAt = openSlot.enrolledAt;
     }
     if (!quiz?.dueDate || enrolledAt == null) return;
-    const enrolledOn = typeof enrolledAt === 'number' ? enrolledAt : startOfDay(enrolledAt).getTime();
-    if (startOfDay(quiz.dueDate).getTime() < enrolledOn) {
+    if (calendarDay(quiz.dueDate) < calendarDay(enrolledAt)) {
         const err = new Error('This quiz is not available');
         err.status = 403;
         throw err;
@@ -652,6 +678,8 @@ module.exports = {
     assertTeacherCanMutateResource,
     assertTeacherCanDeleteResource,
     recordDueDateExtension,
+    isDueDatePast,
+    dueDateStillOpenClause,
     assignmentPastDue,
     latestDueDateExtension,
     buildDueDateExtensionNotice,

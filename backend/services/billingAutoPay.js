@@ -10,6 +10,7 @@ const BillingCheckoutIntent = require('../models/BillingCheckoutIntent');
 const ParentStudentLink = require('../models/ParentStudentLink');
 const { AutoPayCharge, AutoPayLock } = require('../models/AutoPayCharge');
 const { activePaymentFilter } = require('../utils/paymentQuery');
+const { stripeCurrency, chargeCurrency } = require('../utils/chargeCurrency');
 const { isUnsetPortalEmail } = require('../utils/studentPortalEmail');
 const {
     enrollmentAllFeesPaid,
@@ -650,9 +651,9 @@ async function finishExistingAutoPayForEnrollment(enrollment) {
 }
 
 async function sendAutoPayEmails(payments) {
-    const { sendPaymentReceiptEmail } = require('./sendPaymentReceiptEmail');
+    const { sendPaymentReceiptEmails } = require('./sendPaymentReceiptEmail');
     const rows = (payments || []).filter((payment) => payment && !isUnsetPortalEmail(payment.email));
-    await Promise.all(rows.map((payment) => sendPaymentReceiptEmail(payment).catch(() => {})));
+    await sendPaymentReceiptEmails(rows).catch(() => {});
 }
 
 async function notifyAutoPayStopped(enrollment, message) {
@@ -762,7 +763,7 @@ async function settleAutoPayPaymentIntent(pi) {
             paymentMethod: 'stripe',
             transactionId: pi.id,
             stripePaymentIntentId: pi.id,
-            currency: 'USD',
+            currency: chargeCurrency(),
             email: String(pi.receipt_email || pi.metadata.email || ''),
             payerRole: 'student',
         });
@@ -980,7 +981,7 @@ async function chargeOneAutoPayEnrollment(enrollment, now = new Date()) {
     try {
         pi = await stripe.paymentIntents.create({
             amount: cents,
-            currency: 'usd',
+            currency: stripeCurrency(),
             customer: student.stripeCustomerId,
             payment_method: student.stripePaymentMethodId,
             off_session: true,

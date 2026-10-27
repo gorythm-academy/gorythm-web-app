@@ -25,7 +25,7 @@ import {
 import { PortalActivityBanner } from '../../Portals/shared/PortalUi';
 import { scheduleScrollToElement } from '../../../utils/portalScroll';
 import { useAdminPortalBadges } from '../../../hooks/useAdminPortalBadges';
-import { toLocalDateStr } from '../../../utils/academyWeek';
+import { academyCalendarDay } from '../../../utils/academyCalendar';
 import './LmsManagement.scss';
 
 const TABS = [
@@ -422,8 +422,8 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           : '',
       title: a.title || '',
       description: a.description || '',
-      dueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
-      originalDueDate: a.dueDate ? toLocalDateStr(new Date(a.dueDate)) : '',
+      dueDate: a.dueDate ? academyCalendarDay(a.dueDate) : '',
+      originalDueDate: a.dueDate ? academyCalendarDay(a.dueDate) : '',
       attachments: listAttachments(a),
     });
     requestAnimationFrame(() => {
@@ -488,7 +488,7 @@ const ResourcesManagement = ({ defaultTab = 'assignments' }) => {
           assignForm.originalDueDate &&
           assignForm.dueDate &&
           assignForm.dueDate !== assignForm.originalDueDate &&
-          new Date(assignForm.dueDate) <= new Date(assignForm.originalDueDate)
+          assignForm.dueDate <= assignForm.originalDueDate
         ) {
           showAlert('Extended due date must be after the current due date', 'error');
           return;

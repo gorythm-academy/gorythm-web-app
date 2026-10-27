@@ -1,15 +1,13 @@
 import React from 'react';
-import { toLocalDateStr } from '../../../../utils/academyWeek';
+import { academyCalendarDay } from '../../../../utils/academyCalendar';
 import { formatScheduleLabel } from '../../../../utils/formatScheduleLabel';
 
-export const minDueDateValue = () => toLocalDateStr(new Date());
+export const minDueDateValue = () => academyCalendarDay(new Date());
 
 /** Minimum date when editing — same due date allowed; only earlier dates are blocked. */
 export const minEditDueDateValue = (currentDueDate) => {
-  if (!currentDueDate) return minDueDateValue();
-  const base = new Date(currentDueDate);
-  if (Number.isNaN(base.getTime())) return minDueDateValue();
-  return toLocalDateStr(base);
+  const day = academyCalendarDay(currentDueDate);
+  return day || minDueDateValue();
 };
 
 export const computeTargetPairs = (courseIds, teacherIds, courseTeachers) => {

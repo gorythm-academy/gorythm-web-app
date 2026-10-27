@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './fileUrl.scss';
 import { API_BASE_URL } from '../config/constants';
 import {
   getAuthToken,
@@ -163,42 +164,29 @@ export function useAuthorizedFileUrl(path, options = {}) {
   return url;
 }
 
-/** Download a protected upload using session cookie / Bearer (falls back to new tab). */
+/** Download a protected upload. Returns false when the file could not be opened. */
 export async function downloadProtectedUpload(path, options = {}) {
-  const href = absFileUrl(path, options);
-  if (!href) return;
+  const href = await fileAccessUrl(path, options);
+  if (!href) return false;
 
-  const realm = options.realm || inferAuthRealm();
-  const token = authTokenFor(options);
-  if (token) {
-    try {
-      const headers = { ...buildAuthHeaders(realm) };
-      if (isCookieSessionToken(token) || isCookieSessionToken(headers.Authorization?.replace(/^Bearer\s+/i, ''))) {
-        delete headers.Authorization;
-      }
-      const res = await fetch(href, {
-        credentials: 'include',
-        headers,
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = objectUrl;
-        anchor.download = uploadDisplayName(path);
-        anchor.rel = 'noopener';
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(objectUrl);
-        return;
-      }
-    } catch {
-      /* fall through to open in new tab */
-    }
+  try {
+    const res = await fetch(href, { credentials: 'include' });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = uploadDisplayName(path);
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+    return true;
+  } catch {
+    window.open(href, '_blank', 'noopener,noreferrer');
+    return true;
   }
-
-  window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 /** Turn stored upload path or full URL into a browser-openable link */
@@ -248,9 +236,9 @@ function isPdfUploadPath(path) {
 }
 
 /**
- * PDF proofs are shown from a blob URL. The upload response carries
- * Content-Security-Policy: object-src 'none', which blocks Chrome's PDF viewer
- * when the iframe points at the file itself.
+ * PDF proofs are shown from a blob URL. A direct iframe to the file is blocked
+ * when that response says object-src 'none'. The page policy must allow blob:
+ * in frame-src and object-src, or Chrome still draws a blank page.
  */
 export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
   const proofToken = linkOptions?.proofToken || linkOptions?.uploadToken || '';
@@ -258,24 +246,41 @@ export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
   const pdf = isPdfUploadPath(path);
   const directSrc = useAuthorizedFileUrl(pdf ? '' : path, linkOptions);
   const [blobSrc, setBlobSrc] = useState('');
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!pdf || !path) {
       setBlobSrc('');
+      setFailed(false);
       return undefined;
     }
 
     let cancel = false;
     let objectUrl = '';
+    setFailed(false);
 
     fileAccessUrl(path, { proofToken, uploadToken: proofToken, realm })
       .then(async (href) => {
-        if (!href || cancel) return;
+        if (cancel) return;
+        if (!href) {
+          setFailed(true);
+          return;
+        }
         const requestUrl = new URL(href, window.location.origin).href;
         const res = await fetch(requestUrl, { credentials: 'include' });
-        if (!res.ok || cancel) return;
+        if (cancel) return;
+        if (!res.ok) {
+          setFailed(true);
+          return;
+        }
         const bytes = await res.arrayBuffer();
         if (cancel) return;
+        const head = new Uint8Array(bytes.slice(0, 5));
+        const looksLikePdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 && head[4] === 0x2d;
+        if (!looksLikePdf) {
+          setFailed(true);
+          return;
+        }
         const nextUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
         if (cancel) {
           URL.revokeObjectURL(nextUrl);
@@ -285,7 +290,7 @@ export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
         setBlobSrc(nextUrl);
       })
       .catch(() => {
-        if (!cancel) setBlobSrc('');
+        if (!cancel) setFailed(true);
       });
 
     return () => {
@@ -294,6 +299,22 @@ export function ProtectedFileFrame({ path, linkOptions, ...rest }) {
       setBlobSrc('');
     };
   }, [path, pdf, proofToken, realm]);
+
+  if (pdf && failed) {
+    return (
+      <div className="protected-pdf-fallback" role="status">
+        <p>This PDF could not be shown here.</p>
+        <button
+          type="button"
+          onClick={() => {
+            downloadProtectedUpload(path, { proofToken, uploadToken: proofToken, realm });
+          }}
+        >
+          Download PDF
+        </button>
+      </div>
+    );
+  }
 
   const src = pdf ? blobSrc : directSrc;
   if (!src) return null;

@@ -15,6 +15,12 @@ const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activePaymentFilter } = require('../utils/paymentQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const { activeUserFilter } = require('../utils/userQuery');
+const {
+    currencyGroupExpression,
+    bucketsFromAgg,
+    growthLabel,
+    seriesFromDatedRows,
+} = require('../utils/chargeCurrency');
 
 const PAID_PAYMENT_STATUSES = ['paid', 'completed'];
 const STAFF_ROLES = ['manager', 'super-admin', 'accountant'];
@@ -152,7 +158,7 @@ router.get('/overview', async (req, res) => {
             },
         ]);
 
-        const revenueData = await Payment.aggregate([
+        const revenueRows = await Payment.aggregate([
             {
                 $match: {
                     status: { $in: PAID_PAYMENT_STATUSES },
@@ -163,25 +169,28 @@ router.get('/overview', async (req, res) => {
             {
                 $group: {
                     _id: {
-                        $dateToString: {
-                            format: chartGroupFormat,
-                            date: '$createdAt',
+                        date: {
+                            $dateToString: {
+                                format: chartGroupFormat,
+                                date: '$createdAt',
+                            },
                         },
+                        currency: currencyGroupExpression(),
                     },
                     totalRevenue: { $sum: '$amount' },
                     transactionCount: { $sum: 1 },
                 },
             },
-            { $sort: { _id: 1 } },
-            {
-                $project: {
-                    date: '$_id',
-                    totalRevenue: 1,
-                    transactionCount: 1,
-                    _id: 0,
-                },
-            },
+            { $sort: { '_id.date': 1 } },
         ]);
+        const { series: revenueData, buckets: periodRevenueByCurrency } = seriesFromDatedRows(
+            revenueRows.map((row) => ({
+                date: row._id?.date,
+                currency: row._id?.currency,
+                total: row.totalRevenue,
+                transactionCount: row.transactionCount,
+            }))
+        );
 
         const coursePopularity = await Course.aggregate([
             { $match: { ...activeCourseFilter() } },
@@ -329,7 +338,10 @@ router.get('/overview', async (req, res) => {
         ]);
 
         const coursesWithEnrollments = coursesWithEnrollmentsResult[0]?.total || 0;
-        const periodRevenue = revenueData.reduce((sum, item) => sum + (item.totalRevenue || 0), 0);
+        const primaryRevenue = periodRevenueByCurrency.reduce((best, item) => (
+            item.total > best.total ? item : best
+        ), { currency: '', total: 0 });
+        const periodRevenue = primaryRevenue.total;
         const topCourses = coursePopularity.slice(0, 3).map((course) => ({
             _id: String(course._id),
             title: course.title,
@@ -383,6 +395,7 @@ router.get('/overview', async (req, res) => {
                     totalEnrollments: periodEnrollments,
                     completionDenominator,
                     periodRevenue,
+                    periodRevenueByCurrency,
                     activeUsers,
                     activeEnrollments: activeEnrollmentCount,
                     completionRate,
@@ -498,10 +511,13 @@ router.get('/revenue', async (req, res) => {
             {
                 $group: {
                     _id: {
-                        $dateToString: {
-                            format: groupFormat,
-                            date: '$createdAt',
+                        date: {
+                            $dateToString: {
+                                format: groupFormat,
+                                date: '$createdAt',
+                            },
                         },
+                        currency: currencyGroupExpression(),
                     },
                     revenue: { $sum: '$amount' },
                     transactions: { $sum: 1 },
@@ -582,7 +598,7 @@ router.get('/metrics', async (req, res) => {
                     ...activePaymentFilter(),
                 },
             },
-            { $group: { _id: null, total: { $sum: '$amount' } } },
+            { $group: { _id: currencyGroupExpression(), total: { $sum: '$amount' } } },
         ]);
 
         const previousRevenueResult = await Payment.aggregate([
@@ -593,21 +609,25 @@ router.get('/metrics', async (req, res) => {
                     ...activePaymentFilter(),
                 },
             },
-            { $group: { _id: null, total: { $sum: '$amount' } } },
+            { $group: { _id: currencyGroupExpression(), total: { $sum: '$amount' } } },
         ]);
 
-        const currentRevenue = currentRevenueResult[0]?.total || 0;
-        const previousRevenue = previousRevenueResult[0]?.total || 0;
-
-        let revenueGrowth;
-        if (previousRevenue === 0 && currentRevenue === 0) {
-            revenueGrowth = '+0%';
-        } else if (previousRevenue === 0) {
-            revenueGrowth = '+100%';
-        } else {
-            const growth = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
-            revenueGrowth = `${growth >= 0 ? '+' : ''}${growth.toFixed(0)}%`;
+        const currentBuckets = bucketsFromAgg(currentRevenueResult);
+        const previousBuckets = bucketsFromAgg(previousRevenueResult);
+        const currencies = new Set([
+            ...currentBuckets.map((row) => row.currency),
+            ...previousBuckets.map((row) => row.currency),
+        ]);
+        let chosen = { current: 0, previous: 0, mass: -1 };
+        for (const currency of currencies) {
+            const current = currentBuckets.find((row) => row.currency === currency)?.total || 0;
+            const previous = previousBuckets.find((row) => row.currency === currency)?.total || 0;
+            const mass = current + previous;
+            if (mass > chosen.mass) chosen = { current, previous, mass };
         }
+        const currentRevenue = chosen.current;
+        const previousRevenue = chosen.previous;
+        const revenueGrowth = growthLabel(currentRevenue, previousRevenue);
 
         const payload = {
             success: true,
@@ -619,6 +639,8 @@ router.get('/metrics', async (req, res) => {
                 revenueGrowth,
                 currentPeriodRevenue: currentRevenue,
                 previousPeriodRevenue: previousRevenue,
+                currentRevenueByCurrency: currentBuckets,
+                previousRevenueByCurrency: previousBuckets,
                 newStudentsInPeriod: newStudents,
             },
         };

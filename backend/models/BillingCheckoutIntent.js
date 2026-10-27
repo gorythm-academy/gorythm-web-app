@@ -23,6 +23,7 @@ const billingCheckoutIntentSchema = new mongoose.Schema(
         payerRole: { type: String, enum: ['parent', 'student', 'guest', 'admin'], default: 'guest' },
         payerEmail: { type: String, default: '' },
         payerName: { type: String, default: '' },
+        parentEmail: { type: String, default: '' },
         items: { type: [billingItemSchema], default: [] },
         stripeSessionId: { type: String, default: '' },
         autoPayEnable: { type: Boolean, default: false },

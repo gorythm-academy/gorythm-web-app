@@ -5,6 +5,7 @@ const Course = require('../models/Course');
 const Payment = require('../models/Payment');
 const Enrollment = require('../models/Enrollment');
 const ContactMessage = require('../models/ContactMessage');
+const TrialRequest = require('../models/TrialRequest');
 const Subscriber = require('../models/Subscriber');
 const ClassSchedule = require('../models/ClassSchedule');
 const authMiddleware = require('../middleware/auth');
@@ -14,6 +15,7 @@ const { activeUserFilter } = require('../utils/userQuery');
 const { activeCourseFilter } = require('../utils/courseQuery');
 const { activeEnrollmentFilter } = require('../utils/enrollmentQuery');
 const { activePaymentFilter, activePaymentListFilter } = require('../utils/paymentQuery');
+const { bucketsFromAgg, currencyGroupExpression, growthLabel } = require('../utils/chargeCurrency');
 const {
     nextScheduleOccurrenceMs,
     scheduleStatus,
@@ -57,9 +59,9 @@ async function fetchDashboardStatsPayload() {
                 status: { $in: ['paid', 'completed'] },
             },
         },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: currencyGroupExpression(), total: { $sum: '$amount' } } },
     ]);
-    const totalRevenue = revenueAgg[0]?.total || 0;
+    const revenueByCurrency = bucketsFromAgg(revenueAgg);
 
     const activeStaff = await User.countDocuments({
         isActive: { $ne: false },
@@ -72,7 +74,7 @@ async function fetchDashboardStatsPayload() {
         totalTeachers,
         totalParents,
         totalCourses,
-        totalRevenue,
+        revenueByCurrency,
         activeStaff,
         activeUsers: activeStaff,
     };
@@ -286,6 +288,7 @@ async function buildCrossTabRecentActivities() {
         portalUsers,
         courses,
         contacts,
+        trials,
         subscribers,
     ] = await Promise.all([
         Enrollment.find({ ...activeEnrollmentFilter() })
@@ -314,6 +317,11 @@ async function buildCrossTabRecentActivities() {
         ContactMessage.find({ deletedAt: null })
             .sort({ createdAt: -1 })
             .limit(ACTIVITY_PER_SOURCE)
+            .lean(),
+        TrialRequest.find({ deletedAt: null })
+            .sort({ createdAt: -1 })
+            .limit(ACTIVITY_PER_SOURCE)
+            .select('name courseTitle createdAt')
             .lean(),
         Subscriber.find({})
             .sort({ createdAt: -1 })
@@ -369,6 +377,17 @@ async function buildCrossTabRecentActivities() {
                 `submitted contact message: ${subj}`,
                 m.createdAt,
                 'fas fa-envelope'
+            )
+        );
+    }
+
+    for (const trial of trials) {
+        rows.push(
+            activityFeedRow(
+                trial.name || 'Visitor',
+                `requested a free trial for ${truncateText(trial.courseTitle || 'a course', 80)}`,
+                trial.createdAt,
+                'fas fa-calendar-check'
             )
         );
     }
@@ -461,7 +480,7 @@ router.get('/metrics', async (req, res) => {
                     },
                 },
             },
-            { $group: { _id: null, total: { $sum: '$amount' } } },
+            { $group: { _id: currencyGroupExpression(), total: { $sum: '$amount' } } },
         ]);
 
         const previousRevenue = await Payment.aggregate([
@@ -474,13 +493,23 @@ router.get('/metrics', async (req, res) => {
                     },
                 },
             },
-            { $group: { _id: null, total: { $sum: '$amount' } } },
+            { $group: { _id: currencyGroupExpression(), total: { $sum: '$amount' } } },
         ]);
-        
-        const current = currentRevenue[0]?.total || 0;
-        const previous = previousRevenue[0]?.total || 0;
-        const revenueGrowth = previous > 0 ? 
-            '+' + ((current - previous) / previous * 100).toFixed(0) + '%' : '+0%';
+
+        const currentBuckets = bucketsFromAgg(currentRevenue);
+        const previousBuckets = bucketsFromAgg(previousRevenue);
+        const currencies = new Set([
+            ...currentBuckets.map((row) => row.currency),
+            ...previousBuckets.map((row) => row.currency),
+        ]);
+        let chosen = { current: 0, previous: 0, mass: -1 };
+        for (const currency of currencies) {
+            const current = currentBuckets.find((row) => row.currency === currency)?.total || 0;
+            const previous = previousBuckets.find((row) => row.currency === currency)?.total || 0;
+            const mass = current + previous;
+            if (mass > chosen.mass) chosen = { current, previous, mass };
+        }
+        const revenueGrowth = growthLabel(chosen.current, chosen.previous);
         
         res.json({
             success: true,

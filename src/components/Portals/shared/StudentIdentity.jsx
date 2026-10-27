@@ -30,9 +30,8 @@ export function StudentProfileFields({ profile }) {
   const rows = [
     ['Full Name', profile.name || '—'],
     ['Student ID', studentIdLabel(profile.studentId)],
-    ['Portal Email', profile.email || '—'],
+    ['Email', profile.email || '—'],
   ];
-  if (String(profile.personalEmail || '').trim()) rows.push(['Personal Email', profile.personalEmail.trim()]);
   if (String(profile.phone || '').trim()) rows.push(['Phone', profile.phone.trim()]);
   rows.push(['Account Status', accountStatusLabel(profile.status)]);
 
@@ -41,7 +40,7 @@ export function StudentProfileFields({ profile }) {
       {rows.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd className={label === 'Portal Email' || label === 'Personal Email' ? 'is-email' : undefined}>{value}</dd>
+          <dd className={label === 'Email' ? 'is-email' : undefined}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -94,7 +93,7 @@ export function EnrollmentSummaryList({
                   {row.feeProgress ? <div className="portal-billing-sub">{row.feeProgress}</div> : null}
                 </td>
                 <td>{formatDueDate(row.dueDate)}</td>
-                <td>{row.amount == null || row.amount === '' ? '—' : formatMoney(row.amount)}</td>
+                <td>{row.amount == null || row.amount === '' ? '—' : formatMoney(row.amount, 'EUR')}</td>
               </tr>
             );
           })}

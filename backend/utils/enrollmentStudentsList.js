@@ -25,24 +25,29 @@ function applyStudentSearchFilter(userFilter, search) {
     return userFilter;
 }
 
+/** Enrollment fields that narrow which students belong on the admin list. */
+function statusAndFeeConstraints(statusFilter, feeStatusFilter) {
+    const extra = {};
+    const status = String(statusFilter || 'all').trim().toLowerCase();
+    const fee = String(feeStatusFilter || 'all').trim().toLowerCase();
+
+    if (status && status !== 'all') {
+        if (status === 'inactive') {
+            extra.status = { $in: ['inactive', 'pending', null] };
+        } else if (status === 'active' || status === 'completed' || status === 'paused') {
+            extra.status = status;
+        }
+    }
+    if (fee && fee !== 'all' && ALLOWED_FEE_STATUSES.includes(fee)) {
+        extra.paymentStatus = fee === 'pending' ? { $in: ['pending', null] } : fee;
+    }
+    return extra;
+}
+
 function buildEnrollmentMatchForStudentIds(studentIds, { trash, statusFilter, feeStatusFilter }) {
     const filter = trash ? trashedEnrollmentFilter() : activeEnrollmentFilter();
     filter.student = { $in: studentIds };
-
-    if (statusFilter && statusFilter !== 'all') {
-        if (statusFilter === 'inactive') {
-            filter.status = { $in: ['inactive', 'pending', null] };
-        } else if (['active', 'completed', 'paused'].includes(statusFilter)) {
-            filter.status = statusFilter;
-        }
-    }
-    if (feeStatusFilter && feeStatusFilter !== 'all' && ALLOWED_FEE_STATUSES.includes(feeStatusFilter)) {
-        if (feeStatusFilter === 'pending') {
-            filter.paymentStatus = { $in: ['pending', null] };
-        } else {
-            filter.paymentStatus = feeStatusFilter;
-        }
-    }
+    Object.assign(filter, statusAndFeeConstraints(statusFilter, feeStatusFilter));
     return filter;
 }
 
@@ -180,7 +185,17 @@ async function countTrashedStudentUsers() {
     });
 }
 
-async function queryStudentUsers({ search, skip, limit, trash, trashStudents, sortBy, sortOrder }) {
+async function queryStudentUsers({
+    search,
+    skip,
+    limit,
+    trash,
+    trashStudents,
+    sortBy,
+    sortOrder,
+    statusFilter,
+    feeStatusFilter,
+}) {
     if (trashStudents) {
         const userFilter = applyStudentSearchFilter(
             {
@@ -222,8 +237,24 @@ async function queryStudentUsers({ search, skip, limit, trash, trashStudents, so
         return { total, users };
     }
 
+    const constraints = statusAndFeeConstraints(statusFilter, feeStatusFilter);
+    let matchingStudentIds = null;
+    if (Object.keys(constraints).length) {
+        matchingStudentIds = await Enrollment.distinct('student', {
+            ...activeEnrollmentFilter(),
+            ...constraints,
+        });
+        if (!matchingStudentIds.length) {
+            return { total: 0, users: [] };
+        }
+    }
+
     const userFilter = applyStudentSearchFilter(
-        { role: 'student', ...activeUserFilter() },
+        {
+            role: 'student',
+            ...activeUserFilter(),
+            ...(matchingStudentIds ? { _id: { $in: matchingStudentIds } } : {}),
+        },
         search
     );
 
@@ -285,6 +316,7 @@ async function countEnrollmentStats(matchFilter) {
 module.exports = {
     ALLOWED_FEE_STATUSES,
     STUDENT_LIST_SELECT,
+    statusAndFeeConstraints,
     buildEnrollmentMatchForStudentIds,
     isPendingSetup,
     queryStudentUsers,

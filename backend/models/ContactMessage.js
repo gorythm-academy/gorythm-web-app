@@ -13,6 +13,8 @@ const contactMessageSchema = new mongoose.Schema(
       enum: ['new', 'in-progress', 'resolved'],
       default: 'new',
     },
+    reply: { type: String, trim: true, maxlength: 5000, default: '' },
+    repliedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
   },
   {
