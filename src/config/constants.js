@@ -51,6 +51,5 @@ export function onWhatsAppAnchorClick(e) {
   }
 }
 export const YOUTUBE_URL = 'https://www.youtube.com/@GorythmAcademy';
-export const INSTAGRAM_URL =
-  'https://www.instagram.com/gorythm08?igsh=MWFjemEyNG5jb2FsMA==';
+export const INSTAGRAM_URL = 'https://www.instagram.com/gorythm_academy/';
 export const TIKTOK_URL = 'https://www.tiktok.com/@alfarhan621';
